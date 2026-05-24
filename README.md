@@ -48,16 +48,26 @@ rustup default stable-x86_64-pc-windows-gnullvm
 ### Run the desktop app
 
 ```powershell
-cargo run -p ez-wishlist-overlay --release
+cargo app           # release build
+cargo app-dev       # debug build, faster compiles for UI iteration
 ```
 
-The window opens at 1200×800. State is persisted to `%APPDATA%\etienneb\ez-wishlist-overlay\data\state.json`.
+The window opens at 1200×800. State is persisted to `%APPDATA%\etienneb\ez-wishlist-overlay\data\state.json` on Windows, or the platform equivalent (`~/Library/Application Support/...` on macOS) elsewhere.
 
-### Test
+### Cargo aliases
 
-```powershell
-cargo test --workspace
-```
+The workspace ships a set of aliases in [`.cargo/config.toml`](./.cargo/config.toml) so common commands work the same on Windows, macOS, and Linux without any extra tooling:
+
+| Alias              | Expands to                                      |
+| ------------------ | ----------------------------------------------- |
+| `cargo app`        | `run -p ez-wishlist-overlay --release`          |
+| `cargo app-dev`    | `run -p ez-wishlist-overlay`                    |
+| `cargo scrape`     | `run -p scraper --release`                      |
+| `cargo t`          | `test --workspace`                              |
+| `cargo c`          | `check --workspace --all-targets`               |
+| `cargo l`          | `clippy --workspace --all-targets -- -D warnings` |
+| `cargo fmt`        | `fmt --all`                                     |
+| `cargo fmt-check`  | `fmt --all -- --check`                          |
 
 ---
 
@@ -67,10 +77,10 @@ The scraper is a separate binary that's run manually when the upstream repo publ
 
 ```powershell
 # Clones upstream into %TEMP%, parses + transforms, writes assets, then cleans up.
-cargo run -p scraper --release
+cargo scrape
 
 # Or, if you already have a local clone:
-cargo run -p scraper --release -- --upstream C:\path\to\exfil-zone-assistant
+cargo scrape -- --upstream C:\path\to\exfil-zone-assistant
 ```
 
 After running the scraper, rebuild the app — `data.json` and `icons/` are embedded via `rust-embed` at compile time.
