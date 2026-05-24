@@ -50,10 +50,10 @@ The app MAY:
 |---|---|---|
 | GUI framework | `eframe` + `egui` | Latest stable. Single-window desktop app. |
 | VR overlay | `ovr_overlay` or direct FFI via `openvr-sys` | Pick whichever is currently maintained; check crates.io activity before committing. |
-| GPU rendering for overlay texture | `wgpu` | Render the icon grid to a texture, hand to OpenVR. |
+| Overlay texture rendering | `tiny-skia` + `image` | CPU rasterizer. The overlay is a static-ish grid that re-renders at <2Hz, so GPU is overkill and the wgpu↔OpenVR DXGI shared-handle path is fiddly. Render to a `Vec<u8>` (RGBA) and submit via `SetOverlayRaw`. Revisit if perf becomes an issue. |
 | State serialization | `serde` + `serde_json` | JSON on disk, human-readable. |
-| Async runtime | `tokio` | Only used for the datasync tool and debounced disk writes. |
-| HTTP client | `reqwest` | Used by datasync (build-time tool), not runtime. |
+| Async runtime | `tokio` | Only used for the scraper tool and debounced disk writes. |
+| HTTP client | `reqwest` | Used by scraper (build-time tool), not runtime. |
 | TS data parsing | `boa_engine` (or shell out to `node`) | Build-time only; for reading TypeScript object literals from the upstream repo. |
 | Git ops (optional) | `gix` or shell-out to `git` | Build-time only; for shallow-cloning the upstream repo. |
 | Embedded assets | `rust-embed` | Bundle `data.json` and icons into the binary. |
@@ -94,17 +94,17 @@ ez-wishlist-overlay/
 │   │       └── assets/         # embedded via rust-embed
 │   │           ├── data.json
 │   │           └── icons/*.png
-│   └── datasync/               # build-time tool, not shipped
+│   └── scraper/                # build-time tool, not shipped
 │       ├── Cargo.toml
 │       └── src/main.rs
-├── data-sources/               # raw scraped HTML for reproducibility
+├── data-sources/               # raw upstream snapshots (commit hash + timestamps) for reproducibility
 ├── dist/                       # cargo-dist + cargo-wix configs
 ├── SPEC.md                     # this file
 ├── OPEN_QUESTIONS.md
 └── README.md
 ```
 
-The `datasync` is a separate binary intentionally — it's only run by maintainers when game data changes, and we don't want its dependencies in the shipped app.
+The `scraper` is a separate binary intentionally — it's only run by maintainers when game data changes, and we don't want its dependencies in the shipped app.
 
 ---
 
@@ -193,7 +193,7 @@ pub struct AppState {
 
 `collected` is shared across both categories — collecting 5 bolts contributes toward both a tracked upgrade and a tracked task that need them. This is correct: in the game, an item in your stash counts toward anything.
 
-Wrap in `Arc<RwLock<AppState>>`. The VR thread reads; the GUI thread writes. The `version` counter lets the VR thread decide cheaply whether to re-render the overlay texture.
+Wrap in `Arc<RwLock<AppState>>`. Both the GUI thread (toggle tracking/done, +/- buttons) and the VR thread (clicks on overlay) mutate state; both must take the write lock briefly. The `version` counter lets the VR thread decide cheaply whether to re-render the overlay texture.
 
 ### 4.3 Persisted user state
 
@@ -247,24 +247,37 @@ Recompute on demand. Cheap (max a few hundred entries). No caching.
 
 **Critical update on data acquisition:** ExfilZone Assistant is open source at `github.com/zelengeo/exfil-zone-assistant` under the **MIT license**. The hideout upgrade and task data live as TypeScript/JSON files in `src/lib/`, with icons in `public/images/`. **We do not scrape HTML.** We pull source files directly from the upstream repo. This is vastly more robust, immune to website redesigns, and explicitly permitted by their MIT license (with attribution).
 
-The data pipeline is a **standalone binary** (`crates/datasync`), run manually by maintainers when the upstream repo updates (typically once per wipe). It writes `data.json` + `icons/` into `crates/app/src/assets/`, which the app binary then embeds at compile time via `rust-embed`. The app does no network requests at runtime.
+The data pipeline is a **standalone binary** (`crates/scraper`), run manually by maintainers when the upstream repo updates (typically once per wipe). It writes `data.json` + `icons/` into `crates/app/src/assets/`, which the app binary then embeds at compile time via `rust-embed`. The app does no network requests at runtime.
 
 ### Inputs
-- Upstream repo: `github.com/zelengeo/exfil-zone-assistant` (MIT licensed, maintained by pogapwnz)
-- Specific paths to investigate on first run (structure may have moved):
-  - Hideout upgrades data: under `src/lib/` (likely a TypeScript file exporting an array of upgrades; the route `/hideout-upgrades` corresponds to a Next.js page that imports this data)
-  - Tasks data: under `src/lib/` (TypeScript file or directory)
-  - Item metadata: under `src/lib/` 
-  - Icons: under `public/images/`
-  - Note: the repo also contains an `init-mongo.js`, suggesting some data may be migrating to MongoDB seeds. Check for `.json` seed files first — those are easier to parse than TS.
-- Fallback / cross-reference (manual spot-check, not automated): `https://exfilzonetracker.com/hideout` and `/task.html` (PlumberKarl).
+
+Confirmed paths in `github.com/zelengeo/exfil-zone-assistant` (MIT licensed, maintained by pogapwnz) as of investigation:
+
+- **Hideout upgrades:** `src/data/hideout-upgrades.ts` — a single TypeScript `export const hideoutUpgrades = { ... }` object literal. Keys are `<AreaId>Lv<level>`. Each upgrade has `areaId`, `categoryId`, `level`, `upgradeName`, `upgradeDesc`, `price`, `exchange: { item_id: qty, ... }` (the structured requirements we want), `levelConditions`, `relatedQuests`, `levelUpIcon`.
+- **Tasks:** `src/data/tasks.ts` — `export const tasksData: TasksDatabase = { ... }` keyed by task id (e.g. `"ark_11"`). Each task has `id`, `name`, `gameId`, `description`, `objectives: string[]` (free-text), `corpId`, `type: TaskType[]`, `map`, `reward`, `preReward`, `requiredTasks` (prerequisites), `requiredLevel`, `tips`, `videoGuides`, `order`. **CRITICAL:** there is no structured `requirements` field for submission tasks — the items + quantities only appear in the human-readable `objectives` strings (e.g. `"Turn in 9 Intel Items Found In Raid"`).
+- **Corps (vendors):** also in `src/data/tasks.ts`, `export const corps: Record<string, Corp>`. `corpId` on each task maps here.
+- **Item catalogs:** `public/data/{ammunition,armor,attachments,backpacks,face-shields,grenades,helmets,holsters,keys,magazines,medical,misc,provisions,task-items,weapons}.json` — already JSON. Each entry has `id`, `name`, `category`, `subcategory`, `images.icon` (path under `public/`), `stats.{price,weight,rarity,...}`. Task items additionally have `stats.taskIds: string[]` linking them back to the tasks they belong to.
+- **Icons:** `public/images/items/<category>/<filename>.webp` (referenced by `images.icon`); hideout icons under `public/images/hideout/`; task/corp icons under `public/images/tasks/`.
+- **Game version / data version:** check `package.json` (`version` field) and the most recent commit timestamp. There is no game-version constant we can scrape; we use `<package_version>+<commit_short>` as our `data_version`.
+
+#### Task-requirement extraction strategy (v1)
+
+Because the upstream doesn't store structured submission requirements, the scraper must parse `objectives` strings. Strategy:
+
+1. **Direct link via `task-items`:** for every item in `task-items.json` with non-empty `stats.taskIds`, that item is required by each listed task with quantity 1 (or the number parsed from the matching objective if found).
+2. **Regex parse for quantities:** apply patterns like `^(?:Turn in|Submit|Deliver|Find|Collect|Retrieve|Provide)\s+(\d+)\s+(.+?)(?:\s+(?:Items?|in raid|Found In Raid))?$` (case-insensitive) to each objective string. If the matched item-name fuzzy-matches a known item from any catalog, record `(item_id, qty)`.
+3. **Fallback:** if no quantity, default to 1. If no item-name match, log a parse warning and skip that requirement.
+4. **Coverage report:** the scraper prints, at the end, "Parsed N submission tasks; M required items extracted; K objectives unparsed (logged to scraper.log)". This lets the maintainer review coverage before shipping.
+5. Tasks whose `type` contains only non-submission verbs (`eliminate`, `extract`, `reach`, `mark`, `place`, `photo`, `signal`) AND that yielded zero parsed requirements after step 1-3 are dropped from the dataset (nothing to track).
+
+Document any objective strings the regex misses in `OPEN_QUESTIONS.md` for follow-up.
 
 ### Process
 1. Sparse-clone or shallow-clone the upstream repo into a temp directory (`git clone --depth=1 https://github.com/zelengeo/exfil-zone-assistant.git`), or pull individual files via `https://raw.githubusercontent.com/zelengeo/exfil-zone-assistant/master/<path>` for surgical updates
 2. Locate the data files by inspecting `src/lib/` — find the hideout upgrade and task data structures
 3. Parse the data. Strategy depends on what's there:
    - If it's a JSON file (e.g. a Mongo seed): parse with `serde_json` directly
-   - If it's a TypeScript file with plain object literals: use a small JS evaluator (e.g. `boa_engine` crate) or extract the relevant object via regex + careful parsing. As a last resort, write a small `node` script that imports the TS module and dumps JSON to stdout — call it from the Rust datasync binary.
+   - If it's a TypeScript file with plain object literals: use a small JS evaluator (e.g. `boa_engine` crate) or extract the relevant object via regex + careful parsing. As a last resort, write a small `node` script that imports the TS module and dumps JSON to stdout — call it from the Rust scraper binary.
 4. Filter tasks: drop any with zero item-collection requirements (kill/plant/extract-only objectives)
 5. Map upstream item / upgrade / task IDs to our internal IDs (prefer 1:1 mapping; document any rule)
 6. Copy each unique icon from `public/images/` to `crates/app/src/assets/icons/<item_id>.png`. Re-encode through the `image` crate to normalize format and strip metadata.
@@ -397,35 +410,39 @@ On app start, in a dedicated thread:
 
 ### 7.2 Visibility (`vr/pose.rs`)
 
-The overlay should appear when the user **deliberately** looks up — not when they tilt their head to climb stairs or check a ceiling. Two mechanisms combined:
+Trigger on **angle of look-up**, not absolute world position. The overlay should appear when the user deliberately tilts their gaze upward.
 
-**Pitch threshold** (sharper than typical "look up"):
-- Poll HMD pose every frame (~90Hz via `WaitGetPoses` or `GetDeviceToAbsoluteTrackingPose`)
-- Extract pitch from the rotation matrix
-- Pitch > **80°** (near-vertical) → candidate to show
-- Pitch < **65°** → hide (hysteresis)
+**Pitch convention:** measured as the angle between the HMD forward vector and the horizontal plane. `0°` = looking straight ahead, `+90°` = looking straight up, `-90°` = looking straight down.
+
+**Hysteresis thresholds:**
+- Pitch ≥ **60°** → show the overlay
+- Pitch ≤ **45°** → hide the overlay
+- Between 45° and 60°: hold the previous state
 
 **Dwell delay** to filter out brief glances:
-- Must sustain pitch > 80° for **350ms** before the overlay fades in
-- Hide is immediate (no dwell on the way out — instant responsiveness when looking down)
+- Must sustain pitch ≥ 60° for **350ms** before the overlay fades in
+- Hide is immediate once pitch drops below 45° (no dwell on the way out — instant responsiveness when looking down)
 
-**Anchor position:** HMD-relative, positioned **1.0m above eye line** and 1.2m forward. This means the user must look notably upward (not just tilt) to see it. The high anchor combined with the high pitch threshold should eliminate false triggers from stairs, looking at the sky in-game, or checking overhead obstacles.
+**Anchor:** HMD-relative (yaw + position follow the head; the overlay stays "above" the user). Position it 1.2m forward of the HMD along the head's yaw, tilted so the surface faces the user when they're looking up at it. Distance and exact pitch of the overlay surface are tweakable constants in `vr/pose.rs`.
 
 **Fade:** 150ms alpha fade in/out via `SetOverlayAlpha`. When hidden, skip rendering work entirely.
+
+Poll HMD pose every VR frame (~90Hz) via `WaitGetPoses` / `GetDeviceToAbsoluteTrackingPose`. Extract pitch from the rotation matrix.
 
 These thresholds are placeholders — expose them as compile-time constants in `vr/pose.rs` for easy tuning during the manual VR test pass.
 
 ### 7.3 Rendering (`vr/render.rs`)
-- Maintain a wgpu texture sized 1024×1024 (tweakable)
+- Maintain a CPU pixel buffer (`Vec<u8>`, RGBA8) sized 1024×1024 (tweakable)
 - Re-render only when:
   - `AppState.version` has changed since last render, OR
   - Overlay is transitioning from hidden to visible
+- Use `tiny-skia` for compositing (rect fills, text via `fontdue` or `tiny-skia-text`, icon blits)
 - Layout: grid of cells (default 6 columns, wrap to N rows), each 160×160 with 8px padding
 - Each cell renders:
-  - The item icon (scaled to fit)
+  - The item icon (scaled to fit) — pre-decoded from the embedded WebP/PNG at startup, cached as RGBA `tiny_skia::Pixmap`
   - Text `collected / needed` overlaid bottom-right
   - If `collected >= needed`: 50% alpha + desaturate
-- After rendering, call `SetOverlayTexture` with the wgpu texture's native handle (DXGI shared texture handle on Windows)
+- After rendering, hand the buffer to OpenVR via `SetOverlayRaw(handle, ptr, w, h, depth=4)`. This avoids any GPU device interop.
 
 ### 7.4 Input (`vr/input.rs`)
 
@@ -474,7 +491,7 @@ Single-click interaction model:
 | Thread | Owns | Reads | Writes |
 |---|---|---|---|
 | Main / GUI (egui) | Event loop, window | `AppState` (read) | `AppState` (mutate), triggers save |
-| VR | OpenVR handle, wgpu device for overlay | `AppState` (read) | `AppState` (mutate via clicks) |
+| VR | OpenVR handle, CPU pixel buffer for overlay | `AppState` (read) | `AppState` (mutate via clicks) |
 | Save (tokio task) | The save debounce | `AppState` (read snapshot) | Disk only |
 
 All `AppState` access goes through `Arc<RwLock<AppState>>`. Lock granularity: per operation, never held across `.await` points. Mutations are short and synchronous.
@@ -517,7 +534,29 @@ Channels (`crossbeam::channel` or `tokio::sync::mpsc`) for cross-thread notifica
 
 ### Local dev
 - `cargo run -p app` from the workspace root
-- `cargo run -p datasync -- --output crates/app/src/assets/` to regenerate data from the upstream repo
+- `cargo run -p scraper -- --output crates/app/src/assets/` to regenerate data from the upstream repo
+
+#### `scraper` CLI surface
+
+```
+scraper [OPTIONS]
+
+OPTIONS:
+  --output <DIR>      Output directory for data.json + icons/ + SOURCE.md.
+                      Default: crates/app/src/assets/
+  --repo <URL>        Upstream git URL.
+                      Default: https://github.com/zelengeo/exfil-zone-assistant
+  --ref <REF>         Branch / tag / commit to check out.
+                      Default: master
+  --upstream <DIR>    Use a pre-cloned upstream at DIR instead of cloning fresh.
+                      Useful for iterating without re-downloading.
+  --keep-temp         Don't delete the cloned upstream directory on success.
+  --skip-icons        Skip icon copying (data.json only). Faster for iteration.
+  --no-network        Require --upstream; refuse to clone. CI-friendly.
+  -v, --verbose       Verbose logging (parse warnings, per-task decisions).
+```
+
+The tool exits non-zero on hard failures (clone fail, unreadable files, no upgrades found). Per-task parse failures are reported as warnings and counted in the final summary, not fatal.
 
 ### Release
 - `cargo-dist` configured for `x86_64-pc-windows-msvc` only (v1)
@@ -539,13 +578,13 @@ Channels (`crossbeam::channel` or `tokio::sync::mpsc`) for cross-thread notifica
 Each phase ends with a runnable, demoable artifact. Don't skip phases or merge them.
 
 ### Phase 1 — Datasync + data shape
-- Build the `datasync` binary
+- Build the `scraper` binary
 - Clone the upstream ExfilZone Assistant repo, locate and parse the hideout + tasks data
 - Filter task list to only item-collection tasks
 - Produce `data.json` + icons committed to repo
 - Bundle `LICENSES/exfil-zone-assistant-MIT.txt`
 - Validate by writing a CLI test command in the app that pretty-prints the loaded data
-- **Deliverable:** committed data files, datasync README explaining how to re-sync after upstream updates
+- **Deliverable:** committed data files, scraper README explaining how to re-sync after upstream updates
 
 ### Phase 2 — Desktop GUI, no VR
 - egui app with tabbed left pane (Hideout / Tasks), preview pane, about dialog
@@ -561,10 +600,10 @@ Each phase ends with a runnable, demoable artifact. Don't skip phases or merge t
 - **Deliverable:** can put on headset, look up, see the list update live as desktop changes
 
 ### Phase 4 — VR interaction
-- Laser-pointer click increments
-- Right-click / secondary button decrements
+- Laser-pointer click increments (primary button only)
 - Gray-out on complete
-- Haptic feedback
+- Cycle back to 0 when clicking an already-complete item (with distinct haptic)
+- Haptic feedback on every click
 - **Deliverable:** fully functional v1
 
 ### Phase 5 — Distribution
