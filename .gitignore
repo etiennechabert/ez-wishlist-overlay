@@ -1,0 +1,19 @@
+/target/
+**/*.rs.bk
+Cargo.lock.bak
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editors
+.vscode/
+.idea/
+*.swp
+
+# Runtime user data (don't commit)
+state.json
+
+# Scraper temp dir
+.scraper-cache/
