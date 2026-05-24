@@ -111,7 +111,9 @@ impl eframe::App for App {
             });
             ui.separator();
             egui::ScrollArea::vertical().show(ui, |ui| match self.tab {
-                LeftTab::Hideout => hideout_pane::ui(ui, &self.state, &self.save_tx),
+                LeftTab::Hideout => {
+                    hideout_pane::ui(ui, &self.state, &mut self.icons, &self.save_tx)
+                }
                 LeftTab::Tasks => {
                     tasks_pane::ui(ui, &self.state, &mut self.tasks_filter, &self.save_tx)
                 }
