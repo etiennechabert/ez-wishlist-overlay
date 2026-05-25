@@ -34,9 +34,10 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       # openvr_sys needs cmake (preinstalled on windows-latest) + libclang
-      # for bindgen. Install LLVM to provide libclang on PATH.
-      - name: Install LLVM (for bindgen → openvr_sys)
-        run: choco install llvm -y --no-progress
+      # for bindgen. The composite action downloads a pinned LLVM version
+      # and exports LIBCLANG_PATH to $GITHUB_ENV.
+      - name: Install LLVM
+        uses: ./.github/actions/install-llvm
 
       # cargo-wix shells out to candle.exe and light.exe from the WiX 3
       # toolset, which is not preinstalled on the runner.
@@ -45,8 +46,6 @@ jobs:
 
       - name: Build release binary
         shell: pwsh
-        env:
-          LIBCLANG_PATH: C:\Program Files\LLVM\bin
         run: cargo build --release -p ez-wishlist-overlay
 
       - name: Install cargo-wix
