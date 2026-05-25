@@ -1,6 +1,6 @@
-//! Thin safe wrapper over the [`openvr`] crate: just enough surface to attach
-//! to SteamVR, place the overlay relative to the HMD, query head pose, and
-//! push pixel buffers in. Click input lands in Phase 4.
+//! Thin safe wrapper over the [`openvr`] crate: just enough surface to
+//! attach to SteamVR, anchor the overlay in world space at show-time,
+//! query head pose, push pixel buffers, and dispatch click input.
 //!
 //! This module is `cfg(target_os = "windows")` because `openvr_sys` builds
 //! Valve's C++ SDK via cmake + bindgen and only does that on Windows in our
@@ -28,10 +28,6 @@ pub struct OverlaySession {
     /// Last alpha pushed via SetOverlayAlpha. Skips redundant calls
     /// inside the fade loop.
     last_alpha: f32,
-    /// `true` once the HMD-relative transform has been pushed. The
-    /// transform sticks across show/hide, so we only need to set it once
-    /// per session unless tuning constants change.
-    transform_applied: bool,
 }
 
 impl OverlaySession {
@@ -75,7 +71,6 @@ impl OverlaySession {
             ctx,
             last_width: width_meters,
             last_alpha: 0.0,
-            transform_applied: false,
         })
     }
 
@@ -128,14 +123,24 @@ impl OverlaySession {
         ))
     }
 
-    /// Place the overlay relative to the HMD using the constants from
-    /// [`crate::vr::anchor`]. Idempotent — only pushes the transform on the
-    /// first call.
-    pub fn ensure_anchor(&mut self) -> Result<()> {
-        if self.transform_applied {
-            return Ok(());
+    /// Capture the HMD's current world pose and pin the overlay there as
+    /// an absolute (world-space) transform. Yaw + position only — pitch and
+    /// roll are dropped so the overlay sits in front of the user at the
+    /// moment of trigger, not above their face where their gaze was
+    /// pointing. Returns `Ok(false)` if the HMD pose is invalid this frame
+    /// (caller should retry on the next tick).
+    pub fn anchor_at_current_hmd(&mut self) -> Result<bool> {
+        let system = self
+            .ctx
+            .system()
+            .map_err(|e| anyhow::anyhow!("{e:?}"))
+            .context("IVRSystem interface")?;
+        let poses = system.device_to_absolute_tracking_pose(TrackingUniverseOrigin::Standing, 0.0);
+        let hmd = &poses[tracked_device_index::HMD.0 as usize];
+        if !hmd.pose_is_valid() {
+            return Ok(false);
         }
-        let m = super::anchor::hmd_relative_transform();
+        let m = super::anchor::world_anchor_from_hmd(hmd.device_to_absolute_tracking());
         let matrix = openvr::pose::Matrix3x4(m);
         let mut overlay = self
             .ctx
@@ -143,12 +148,11 @@ impl OverlaySession {
             .map_err(|e| anyhow::anyhow!("{e:?}"))
             .context("IVROverlay interface")?;
         overlay
-            .set_transform_tracked_device_relative(self.handle, tracked_device_index::HMD, &matrix)
+            .set_transform_absolute(self.handle, TrackingUniverseOrigin::Standing, &matrix)
             .map_err(|e| anyhow::anyhow!("{e:?}"))
-            .context("SetOverlayTransformTrackedDeviceRelative")?;
-        self.transform_applied = true;
-        tracing::debug!("anchor transform applied (HMD-relative)");
-        Ok(())
+            .context("SetOverlayTransformAbsolute")?;
+        tracing::debug!("anchor transform applied (world-space, yaw-only)");
+        Ok(true)
     }
 
     pub fn set_visible(&mut self, visible: bool) -> Result<()> {

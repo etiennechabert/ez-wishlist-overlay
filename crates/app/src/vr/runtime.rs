@@ -126,9 +126,8 @@ fn run(
             Ok(mut session) => {
                 *status.write() = VrStatus::Connected;
                 tracing::info!("VR overlay initialized");
-                if let Err(e) = session.ensure_anchor() {
-                    tracing::warn!(error = %e, "could not place overlay anchor");
-                }
+                // Anchor is captured on each show transition, not at init —
+                // see render_loop / OverlaySession::anchor_at_current_hmd.
                 let lost = render_loop(&mut session, &state, &settings);
                 if let Err(e) = lost {
                     tracing::warn!(error = %e, "VR session lost");
@@ -196,21 +195,25 @@ fn render_loop(
 
         // Transitions.
         if visible_now && !was_visible {
-            session.ensure_anchor()?;
-            // Force first render before showing so the user never sees a
-            // stale or empty texture.
-            render_and_submit(session, state, &mut last_rendered_version, &mut last_hits)?;
-            session.set_alpha(0.0)?;
-            session.set_visible(true)?;
-            fade_start = Some(frame_start);
-            tracing::debug!(pitch, "overlay: fade in");
+            if session.anchor_at_current_hmd()? {
+                // Force first render before showing so the user never sees
+                // a stale or empty texture.
+                render_and_submit(session, state, &mut last_rendered_version, &mut last_hits)?;
+                session.set_alpha(0.0)?;
+                session.set_visible(true)?;
+                fade_start = Some(frame_start);
+                was_visible = true;
+                tracing::debug!(pitch, "overlay: fade in");
+            } else {
+                tracing::debug!("overlay show deferred: HMD pose invalid");
+            }
         } else if !visible_now && was_visible {
             session.set_visible(false)?;
             session.set_alpha(0.0)?;
             fade_start = None;
+            was_visible = false;
             tracing::debug!(pitch, "overlay: hide");
         }
-        was_visible = visible_now;
 
         // Drain input. We poll even while hidden so the queue doesn't
         // back up across hide/show cycles; clicks while hidden are

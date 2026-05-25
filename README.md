@@ -26,13 +26,13 @@ See [SPEC.md](./SPEC.md) for the engineering spec and [OPEN_QUESTIONS.md](./OPEN
 
 ---
 
-## Current status (Phase 3 read-only)
+## Current status
 
 - ✅ **Phase 1 — Data pipeline.** `crates/scraper` ingests the upstream [ExfilZone Assistant](https://github.com/zelengeo/exfil-zone-assistant) repo and produces `data.json` + normalized PNG icons.
 - ✅ **Phase 2 — Desktop GUI.** egui app with tabbed Hideout / Tasks panes, aggregated preview pane, atomic persistence, About dialog. Launches and runs.
-- ✅ **Phase 3 — VR overlay (read-only).** OpenVR session, HMD-relative anchor, pitch-driven show/hide with 350 ms dwell + 150 ms fade, RGBA submission via `SetOverlayRaw`. Live re-render on state change; no click input yet.
-- ⏳ **Phase 4 — VR interaction.** Click + haptics, pending.
-- ⏳ **Phase 5 — Distribution (cargo-dist + MSI).** Pending.
+- ✅ **Phase 3 — VR overlay.** OpenVR session, pitch-driven show/hide with 350 ms dwell + 150 ms fade, RGBA submission via `SetOverlayRaw`. The overlay anchors in world space at show-time (yaw + position captured from the HMD, pitch/roll dropped) so you can look back down and read it without it following your gaze. Live re-render on state change.
+- ✅ **Phase 4 — VR interaction.** Laser-pointer clicks on cells with controller haptic feedback; +1 per click, cycles back to 0 when the target count is hit. Debounced per item.
+- ⏳ **Phase 5 — Distribution.** MSI installer is shipping via the [`release.yml`](.github/workflows/release.yml) workflow on tag push; PR builds validate the MSI to keep it green. Code signing + auto-update channel still pending.
 
 ---
 
@@ -43,7 +43,7 @@ See [SPEC.md](./SPEC.md) for the engineering spec and [OPEN_QUESTIONS.md](./OPEN
 3. **Click through Windows SmartScreen.** The MSI is unsigned in v1, so first launch shows *"Windows protected your PC"*. Click **More info** → **Run anyway**. (Going away once we have a code-signing cert — for now the warning is normal, not malware.)
 4. **Installer:** standard Welcome → License → Install dir → Finish. Tick *"Launch EZ Wishlist Overlay"* on the last page to start it right away.
 5. **First run:** the app opens. If SteamVR isn't running yet, the header shows *"VR: not running"* — start SteamVR (or put on your headset to autolaunch it) and the indicator flips to *"VR: connected"* within a few seconds.
-6. **In headset:** look up past ~60° to bring up the overlay. Click items in the desktop app to mark them done; the overlay re-renders within a frame.
+6. **In headset:** look up past ~60° (tweakable in Settings) to bring up the overlay — it anchors in world space in front of you, so you can look back down to read and interact with it without it following your gaze. Point a controller at a cell and click to bump its collected count (+1 per click, wraps to 0 when the target is reached); a short haptic pulse confirms the input. Desktop-side clicks also work and re-render the overlay within a frame.
 
 The MSI installs per-machine under `%ProgramFiles%\EZ Wishlist Overlay\`. User state (tracked upgrades, collected counts, settings) lives in `%APPDATA%\etienneb\ez-wishlist-overlay\`. Uninstall via *Settings → Apps* leaves user state in place; delete the `%APPDATA%` folder by hand if you want a fresh start.
 
