@@ -10,6 +10,11 @@ publish = false
 name = "ez-wishlist-overlay"
 path = "src/main.rs"
 
+# Embed the .ico into the .exe so Explorer / Taskbar / Alt-Tab show our icon
+# instead of the default Windows binary glyph.
+[target.'cfg(target_os = "windows")'.build-dependencies]
+winresource = "0.1"
+
 [dependencies]
 anyhow.workspace = true
 thiserror.workspace = true
@@ -42,3 +47,10 @@ openvr = "0.9.0"
 
 [features]
 default = []
+
+# cargo-wix picks up these fields when invoked. We need WixUIExtension on
+# both candle.exe (compiler) and light.exe (linker) because the wxs uses
+# <UIRef Id='WixUI_InstallDir'/> for the multi-screen installer wizard.
+[package.metadata.wix]
+compiler-args = ["-ext", "WixUIExtension"]
+linker-args = ["-ext", "WixUIExtension"]

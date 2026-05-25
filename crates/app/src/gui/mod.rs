@@ -6,6 +6,7 @@ mod icon_cache;
 mod preview_pane;
 mod settings_dialog;
 mod tasks_pane;
+pub mod theme;
 
 use crate::data::GameData;
 use crate::persist::PersistPaths;
@@ -42,6 +43,7 @@ pub struct App {
     status_banner: Option<String>,
     vr: Arc<crate::vr::Runtime>,
     settings: Arc<RwLock<crate::settings::Settings>>,
+    applied_theme: Option<crate::settings::Theme>,
 }
 
 impl App {
@@ -70,6 +72,7 @@ impl App {
             status_banner: banner,
             vr,
             settings,
+            applied_theme: None,
         }
     }
 
@@ -96,6 +99,12 @@ impl eframe::App for App {
         // surface even without user input. egui otherwise sleeps until the
         // next event.
         ctx.request_repaint_after(std::time::Duration::from_secs(1));
+
+        let desired_theme = self.settings.read().theme;
+        if self.applied_theme != Some(desired_theme) {
+            theme::apply(ctx, desired_theme);
+            self.applied_theme = Some(desired_theme);
+        }
 
         // Header strip.
         egui::TopBottomPanel::top("header").show(ctx, |ui| self.header(ui));

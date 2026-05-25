@@ -96,10 +96,11 @@ fn task_row(
                     .unwrap_or_else(|| pid.clone())
             })
             .collect();
+        let weak = ui.visuals().weak_text_color();
         ui.label(
             egui::RichText::new(format!("Requires: {}", names.join(", ")))
                 .small()
-                .color(egui::Color32::GRAY),
+                .color(weak),
         );
     }
 

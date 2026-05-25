@@ -71,7 +71,8 @@ fn main() -> Result<()> {
         viewport: egui::ViewportBuilder::default()
             .with_title("EZ Wishlist Overlay")
             .with_inner_size([1200.0, 800.0])
-            .with_min_inner_size([800.0, 600.0]),
+            .with_min_inner_size([800.0, 600.0])
+            .with_icon(load_window_icon()),
         persist_window: true,
         ..Default::default()
     };
@@ -93,6 +94,33 @@ fn main() -> Result<()> {
     .map_err(|e| anyhow::anyhow!("eframe failed: {e}"))?;
 
     Ok(())
+}
+
+/// Decode the embedded `assets/icon.png` for the egui window icon. Eframe
+/// hands this to the OS for the title-bar, Alt-Tab, and dock representations.
+/// Falls back to a 1×1 transparent pixel if decoding ever fails, so a bad
+/// icon never crashes the app.
+fn load_window_icon() -> egui::IconData {
+    const BYTES: &[u8] = include_bytes!("../assets/icon.png");
+    match image::load_from_memory(BYTES) {
+        Ok(img) => {
+            let rgba = img.to_rgba8();
+            let (width, height) = rgba.dimensions();
+            egui::IconData {
+                rgba: rgba.into_raw(),
+                width,
+                height,
+            }
+        }
+        Err(e) => {
+            tracing::warn!(error = %e, "failed to decode embedded window icon");
+            egui::IconData {
+                rgba: vec![0; 4],
+                width: 1,
+                height: 1,
+            }
+        }
+    }
 }
 
 fn init_logging() {

@@ -1,6 +1,6 @@
 //! Right pane: aggregated active-items view, mirrors what the VR overlay shows.
 
-use crate::gui::{icon_cache::IconCache, SaveTick};
+use crate::gui::{icon_cache::IconCache, theme, SaveTick};
 use crate::state::AppState;
 use crossbeam_channel::Sender;
 use parking_lot::RwLock;
@@ -15,12 +15,13 @@ pub fn ui(
     save_tx: &Sender<SaveTick>,
 ) {
     let active = state.read().active_items();
+    let weak = ui.visuals().weak_text_color();
 
     ui.heading("Active items");
     ui.label(
         egui::RichText::new("Aggregated across every tracked upgrade and task.")
             .small()
-            .color(egui::Color32::GRAY),
+            .color(weak),
     );
     ui.separator();
 
@@ -31,7 +32,7 @@ pub fn ui(
             ui.label(
                 egui::RichText::new("Open the Hideout or Tasks tab and check 'Track' on a row.")
                     .small()
-                    .color(egui::Color32::GRAY),
+                    .color(weak),
             );
         });
         return;
@@ -51,9 +52,11 @@ fn row(
     save_tx: &Sender<SaveTick>,
     item: &crate::state::ActiveItem,
 ) {
+    let dark = ui.visuals().dark_mode;
+    let strong_text = ui.visuals().strong_text_color();
     let done = item.collected >= item.needed && item.needed > 0;
     let frame_fill = if done {
-        egui::Color32::from_gray(36)
+        theme::done_frame_fill(dark)
     } else {
         egui::Color32::TRANSPARENT
     };
@@ -74,13 +77,13 @@ fn row(
                         egui::Sense::hover(),
                     );
                     ui.painter()
-                        .rect_filled(rect, 4.0, egui::Color32::from_gray(60));
+                        .rect_filled(rect, 4.0, theme::placeholder_icon(dark));
                 }
                 ui.vertical(|ui| {
                     let name_color = if done {
-                        egui::Color32::from_gray(140)
+                        theme::done_text(dark)
                     } else {
-                        egui::Color32::WHITE
+                        strong_text
                     };
                     ui.label(egui::RichText::new(&item.name).color(name_color));
 
@@ -116,7 +119,7 @@ fn row(
                         ui.label(
                             egui::RichText::new(format!("↳ {}", item.sources.join(" • ")))
                                 .small()
-                                .color(egui::Color32::from_gray(160)),
+                                .color(theme::source_text(dark)),
                         );
                     }
                 });

@@ -1,6 +1,6 @@
 //! Modal dialog for user-tunable settings.
 
-use crate::settings::{bounds, Settings, VrSettings};
+use crate::settings::{bounds, Settings, Theme, VrSettings};
 use parking_lot::RwLock;
 use std::path::Path;
 use std::sync::Arc;
@@ -25,6 +25,9 @@ pub fn show(
             let before = settings.read().clone();
             let mut working = before.clone();
 
+            appearance_section(ui, &mut working.theme);
+
+            ui.add_space(12.0);
             vr_section(ui, &mut working.vr);
 
             ui.add_space(12.0);
@@ -64,6 +67,17 @@ pub struct Outcome {
     pub closed: bool,
 }
 
+fn appearance_section(ui: &mut egui::Ui, theme: &mut Theme) {
+    ui.heading("Appearance");
+    ui.add_space(4.0);
+    ui.horizontal(|ui| {
+        ui.label("Theme");
+        ui.selectable_value(theme, Theme::Dark, "Dark");
+        ui.selectable_value(theme, Theme::Light, "Light");
+        ui.selectable_value(theme, Theme::System, "System");
+    });
+}
+
 fn storage_section(ui: &mut egui::Ui, data_dir: &Path) {
     ui.heading("Storage");
     ui.add_space(4.0);
@@ -71,10 +85,11 @@ fn storage_section(ui: &mut egui::Ui, data_dir: &Path) {
         if ui.button("Open data folder").clicked() {
             let _ = crate::platform::open(data_dir);
         }
+        let weak = ui.visuals().weak_text_color();
         ui.label(
             egui::RichText::new(data_dir.display().to_string())
                 .small()
-                .color(egui::Color32::GRAY),
+                .color(weak),
         );
     });
 }
@@ -127,12 +142,13 @@ fn vr_section(ui: &mut egui::Ui, vr: &mut VrSettings) {
         });
 
     ui.add_space(4.0);
+    let weak = ui.visuals().weak_text_color();
     ui.label(
         egui::RichText::new(
             "Width applies live. Pitch and dwell currently persist only — they take \
              effect when the VR pose loop lands in the next phase.",
         )
         .small()
-        .color(egui::Color32::GRAY),
+        .color(weak),
     );
 }

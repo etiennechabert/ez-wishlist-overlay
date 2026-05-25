@@ -1,6 +1,21 @@
-# EZ Wishlist Overlay
+<p align="center">
+  <img src="crates/app/assets/icon.png" alt="EZ Wishlist Overlay" width="160">
+</p>
 
-A Windows desktop + SteamVR overlay companion for **Contractors Showdown: ExfilZone**. Tracks hideout upgrade and quest-task item requirements, aggregates them into a single wishlist, and surfaces that list in a VR overlay you can glance at by looking up.
+<h1 align="center">EZ Wishlist Overlay</h1>
+
+<p align="center">
+  A Windows desktop + SteamVR overlay companion for <strong>Contractors Showdown: ExfilZone</strong>.<br>
+  Tracks hideout upgrade and quest-task item requirements, aggregates them into a single wishlist,<br>
+  and surfaces that list in a VR overlay you can glance at by looking up.
+</p>
+
+<p align="center">
+  <a href="https://github.com/etiennechabert/ez-wishlist-overlay/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License"></a>
+  <img src="https://img.shields.io/badge/Rust-stable-DEA584.svg?logo=rust&logoColor=white" alt="Rust">
+  <img src="https://img.shields.io/badge/Platform-Windows%20%2B%20SteamVR-0078D4.svg?logo=windows&logoColor=white" alt="Platform">
+  <a href="https://github.com/etiennechabert/ez-wishlist-overlay/actions/workflows/ci.yml"><img src="https://github.com/etiennechabert/ez-wishlist-overlay/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+</p>
 
 > Out-of-process and anti-cheat-safe. The app never touches the game executable, memory, files, or network traffic — it only talks to SteamVR via the public OpenVR API.
 

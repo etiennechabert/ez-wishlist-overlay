@@ -23,6 +23,8 @@ pub struct Settings {
     pub schema_version: u32,
     #[serde(default)]
     pub vr: VrSettings,
+    #[serde(default)]
+    pub theme: Theme,
 }
 
 impl Default for Settings {
@@ -30,8 +32,18 @@ impl Default for Settings {
         Self {
             schema_version: SCHEMA_VERSION,
             vr: VrSettings::default(),
+            theme: Theme::default(),
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum Theme {
+    #[default]
+    Dark,
+    Light,
+    System,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

@@ -81,6 +81,24 @@
                     </Component>
                 </Directory>
             </Directory>
+
+            <Directory Id='DesktopFolder' Name='Desktop'>
+                <Component Id='DesktopShortcut'
+                           Guid='E6BF98A4-5F88-4ADA-ADB9-84D700AB1E8B'
+                           Win64='yes'>
+                    <Shortcut Id='ApplicationDesktopShortcut'
+                              Name='EZ Wishlist Overlay'
+                              Description='Tracker for ExfilZone hideout + tasks'
+                              Target='[#exe0]'
+                              WorkingDirectory='APPLICATIONFOLDER'/>
+                    <RegistryValue Root='HKCU'
+                                   Key='Software\etienneb\EZ Wishlist Overlay'
+                                   Name='desktop_shortcut_installed'
+                                   Type='integer'
+                                   Value='1'
+                                   KeyPath='yes'/>
+                </Component>
+            </Directory>
         </Directory>
 
         <Feature Id='Binaries'
@@ -94,9 +112,23 @@
             <ComponentRef Id='License'/>
             <ComponentRef Id='binary0'/>
             <ComponentRef Id='ApplicationShortcut'/>
+            <ComponentRef Id='DesktopShortcut'/>
         </Feature>
 
         <SetProperty Id='ARPINSTALLLOCATION' Value='[APPLICATIONFOLDER]' After='CostFinalize'/>
+
+        <!-- App icon shown in Add/Remove Programs and on the Start Menu shortcut. -->
+        <Icon Id='AppIcon.ico' SourceFile='crates\app\assets\icon.ico'/>
+        <Property Id='ARPPRODUCTICON' Value='AppIcon.ico'/>
+
+        <!-- Multi-screen installer UI so the user sees what's happening:
+             Welcome → License → Install dir → Confirm → Progress → Finish.
+             WixUI_InstallDir requires a license RTF (wix/License.rtf) and
+             the WIXUI_INSTALLDIR property to point at the directory the
+             user can change on the install-dir dialog. -->
+        <UIRef Id='WixUI_InstallDir'/>
+        <Property Id='WIXUI_INSTALLDIR' Value='APPLICATIONFOLDER'/>
+        <WixVariable Id='WixUILicenseRtf' Value='crates\app\wix\License.rtf'/>
 
     </Product>
 </Wix>
