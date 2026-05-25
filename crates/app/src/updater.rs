@@ -51,7 +51,10 @@ pub fn spawn_check() -> Receiver<UpdateInfo> {
 fn run(tx: crossbeam_channel::Sender<UpdateInfo>) {
     let current_raw = env!("CARGO_PKG_VERSION");
     let Some(current) = parse_semver(current_raw) else {
-        tracing::warn!(version = current_raw, "could not parse own version; skipping update check");
+        tracing::warn!(
+            version = current_raw,
+            "could not parse own version; skipping update check"
+        );
         return;
     };
 
@@ -75,7 +78,11 @@ fn run(tx: crossbeam_channel::Sender<UpdateInfo>) {
     };
 
     if latest > current {
-        tracing::info!(current = current_raw, latest = latest_str, "newer release available");
+        tracing::info!(
+            current = current_raw,
+            latest = latest_str,
+            "newer release available"
+        );
         let _ = tx.try_send(UpdateInfo {
             latest_version: latest_str.to_string(),
             release_url: release.html_url,
@@ -109,10 +116,7 @@ fn parse_semver(s: &str) -> Option<(u32, u32, u32)> {
     // Strip the SemVer suffix introduced by `-` (prerelease) or `+` (build
     // metadata) before splitting — otherwise `1.0.0+sha.abc` splits into
     // four dot-separated parts and we'd reject a legal version.
-    let core = s
-        .find(['-', '+'])
-        .map(|i| &s[..i])
-        .unwrap_or(s);
+    let core = s.find(['-', '+']).map(|i| &s[..i]).unwrap_or(s);
     let mut parts = core.split('.');
     let major: u32 = parts.next()?.parse().ok()?;
     let minor: u32 = parts.next()?.parse().ok()?;

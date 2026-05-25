@@ -251,16 +251,14 @@ impl App {
     }
 
     fn update_banner(&mut self, ctx: &egui::Context) {
-        let Some(info) = self.pending_update.clone() else { return };
+        let Some(info) = self.pending_update.clone() else {
+            return;
+        };
 
         // If the user already dismissed this exact version, stay quiet — but
         // a newer release that comes out later will have a different
         // `latest_version` string and will re-show the banner.
-        let dismissed = self
-            .settings
-            .read()
-            .dismissed_update_version
-            .as_deref()
+        let dismissed = self.settings.read().dismissed_update_version.as_deref()
             == Some(info.latest_version.as_str());
         if dismissed {
             return;
