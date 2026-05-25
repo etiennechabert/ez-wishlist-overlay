@@ -57,11 +57,11 @@ jobs:
       # LGHT0094 errors at link time. Add it explicitly on the candle side
       # via `-C -ext -C WixUIExtension`.
       #
-      # WixUtilExtension hosts the WixCA binary, which our LaunchApplication
-      # custom action calls into for the "Launch after install" checkbox on
-      # the Finish dialog. Needs to be referenced on both candle (-C) and
-      # light (-L) so the WixCA binary is bundled into the .wixobj and the
-      # symbol resolves at link time.
+      # WixUtilExtension (hosts the WixCA binary that the LaunchApplication
+      # custom action calls into) is ALREADY passed to candle and light by
+      # cargo-wix's default invocation. Adding our own `-ext` for it
+      # triggers CNDL0125 ("extension loaded twice"). The default handling
+      # is enough — we don't add a `-C -ext -C WixUtilExtension`.
       #
       # --nocapture surfaces real WiX output if anything else trips later.
       - name: Build MSI installer
@@ -69,8 +69,6 @@ jobs:
         run: >
           cargo wix -p ez-wishlist-overlay --no-build --nocapture
           -C -ext -C WixUIExtension
-          -C -ext -C WixUtilExtension
-          -L -ext -L WixUtilExtension
 
       - name: Stage artifacts
         shell: pwsh
