@@ -16,6 +16,7 @@
 //! [`runtime::VrStatus::Unsupported`], so the desktop app stays fully
 //! functional for UI iteration on macOS/Linux.
 
+pub mod anchor;
 pub mod pose;
 pub mod render;
 pub mod runtime;

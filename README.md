@@ -23,12 +23,12 @@ See [SPEC.md](./SPEC.md) for the engineering spec and [OPEN_QUESTIONS.md](./OPEN
 
 ---
 
-## Current status (Phase 2 + partial Phase 3)
+## Current status (Phase 3 read-only)
 
 - ✅ **Phase 1 — Data pipeline.** `crates/scraper` ingests the upstream [ExfilZone Assistant](https://github.com/zelengeo/exfil-zone-assistant) repo and produces `data.json` + normalized PNG icons.
 - ✅ **Phase 2 — Desktop GUI.** egui app with tabbed Hideout / Tasks panes, aggregated preview pane, atomic persistence, About dialog. Launches and runs.
-- 🟡 **Phase 3 — VR overlay.** CPU icon-grid renderer (`vr/render`) and pitch-hysteresis FSM (`vr/pose`) are written and unit-tested. OpenVR FFI is **not yet wired** — see [OPEN_QUESTIONS.md](./OPEN_QUESTIONS.md).
-- ⏳ **Phase 4 — VR interaction.** Pending Phase 3.
+- ✅ **Phase 3 — VR overlay (read-only).** OpenVR session, HMD-relative anchor, pitch-driven show/hide with 350 ms dwell + 150 ms fade, RGBA submission via `SetOverlayRaw`. Live re-render on state change; no click input yet.
+- ⏳ **Phase 4 — VR interaction.** Click + haptics, pending.
 - ⏳ **Phase 5 — Distribution (cargo-dist + MSI).** Pending.
 
 ---
