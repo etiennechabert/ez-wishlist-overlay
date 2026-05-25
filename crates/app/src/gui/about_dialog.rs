@@ -51,11 +51,11 @@ pub fn show(ctx: &egui::Context, open: &mut bool, data: &GameData) {
             ui.add_space(12.0);
             ui.horizontal(|ui| {
                 if ui.button("GitHub ↗").clicked() {
-                    let _ = crate::platform::open("https://github.com/etienneb/ez-wishlist-overlay");
+                    let _ = crate::platform::open("https://github.com/etiennechabert/ez-wishlist-overlay");
                 }
                 if ui.button("Report an issue ↗").clicked() {
                     let _ = crate::platform::open(
-                        "https://github.com/etienneb/ez-wishlist-overlay/issues",
+                        "https://github.com/etiennechabert/ez-wishlist-overlay/issues",
                     );
                 }
                 if ui.button("Close").clicked() {

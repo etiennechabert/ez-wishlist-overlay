@@ -14,7 +14,7 @@ const REQ_TILE_WIDTH: f32 = 140.0;
 const REQ_GRID_COLS: usize = 4;
 const MODULE_NAME_W: f32 = 160.0;
 const CELL_W: f32 = 210.0;
-const ROW_H: f32 = 30.0;
+const ROW_H: f32 = 24.0;
 
 pub fn ui(
     ui: &mut egui::Ui,
@@ -196,7 +196,7 @@ fn upgrade_cell(
 
     egui::Frame::group(ui.style())
         .fill(fill)
-        .inner_margin(egui::Margin::symmetric(6.0, 3.0))
+        .inner_margin(egui::Margin::symmetric(6.0, 1.0))
         .show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.checkbox(&mut tracked, "Track");
