@@ -1,0 +1,86 @@
+name: Release
+
+# Builds the Windows binary + MSI installer and attaches both to a GitHub
+# Release. Triggered by pushing a `v*` tag (e.g. `v0.1.0`).
+#
+# `workflow_dispatch` lets you fire a dry run from the Actions tab without
+# tagging — it builds the artifacts but skips the release upload step (gated
+# on the tag ref).
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write   # for creating the GitHub Release + uploading assets
+
+jobs:
+  build-windows:
+    name: Build Windows MSI
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: x86_64-pc-windows-msvc
+
+      - name: Cache cargo + target
+        uses: Swatinem/rust-cache@v2
+
+      # openvr_sys needs cmake (preinstalled on windows-latest) + libclang
+      # for bindgen. Install LLVM to provide libclang on PATH.
+      - name: Install LLVM (for bindgen → openvr_sys)
+        run: choco install llvm -y --no-progress
+
+      # cargo-wix shells out to candle.exe and light.exe from the WiX 3
+      # toolset, which is not preinstalled on the runner.
+      - name: Install WiX toolset
+        run: choco install wixtoolset -y --no-progress
+
+      - name: Build release binary
+        shell: pwsh
+        env:
+          LIBCLANG_PATH: C:\Program Files\LLVM\bin
+        run: cargo build --release -p ez-wishlist-overlay
+
+      - name: Install cargo-wix
+        run: cargo install cargo-wix --version 0.3.9 --locked
+
+      - name: Build MSI installer
+        shell: pwsh
+        run: cargo wix -p ez-wishlist-overlay --no-build
+
+      - name: Stage artifacts
+        shell: pwsh
+        run: |
+          $version = if ($env:GITHUB_REF -like 'refs/tags/v*') {
+            $env:GITHUB_REF -replace '^refs/tags/v',''
+          } else {
+            'dev'
+          }
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item target/release/ez-wishlist-overlay.exe `
+            "dist/ez-wishlist-overlay-$version-x86_64.exe"
+          Copy-Item target/wix/*.msi dist/
+
+      - name: Upload artifacts to workflow run
+        uses: actions/upload-artifact@v4
+        with:
+          name: ez-wishlist-overlay-windows
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Attach to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          fail_on_unmatched_files: true

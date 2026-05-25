@@ -1,0 +1,102 @@
+<?xml version='1.0' encoding='windows-1252'?>
+<!--
+  WiX manifest for cargo-wix. Produces a per-machine MSI that installs
+  ez-wishlist-overlay.exe under %ProgramFiles%\EZ Wishlist Overlay\ and
+  drops a Start Menu shortcut.
+
+  The Product/@Id is '*' so each MSI build gets a fresh ProductCode; the
+  fixed UpgradeCode below is what binds versions together for in-place
+  upgrades. Do not change it once a release ships — that will break
+  upgrade paths for existing installs.
+-->
+<Wix xmlns='http://schemas.microsoft.com/wix/2006/wi'>
+    <Product
+        Id='*'
+        Name='EZ Wishlist Overlay'
+        UpgradeCode='CB9F74C8-0C2D-41DB-9CBF-51891635BA7F'
+        Manufacturer='Etienne Chabert'
+        Language='1033'
+        Codepage='1252'
+        Version='$(var.Version)'>
+
+        <Package Id='*'
+            Keywords='Installer'
+            Description='Hideout + task wishlist tracker for Contractors Showdown: ExfilZone, with SteamVR overlay.'
+            Manufacturer='Etienne Chabert'
+            InstallerVersion='450'
+            Languages='1033'
+            Compressed='yes'
+            InstallScope='perMachine'
+            SummaryCodepage='1252'/>
+
+        <MajorUpgrade
+            Schedule='afterInstallInitialize'
+            DowngradeErrorMessage='A newer version of [ProductName] is already installed. Setup will now exit.'/>
+
+        <Media Id='1' Cabinet='media1.cab' EmbedCab='yes' DiskPrompt='CD-ROM #1'/>
+        <Property Id='DiskPrompt' Value='EZ Wishlist Overlay Installation'/>
+
+        <Directory Id='TARGETDIR' Name='SourceDir'>
+            <Directory Id='ProgramFiles64Folder' Name='PFiles'>
+                <Directory Id='APPLICATIONFOLDER' Name='EZ Wishlist Overlay'>
+
+                    <Component Id='License' Guid='*' Win64='yes'>
+                        <File Id='LicenseFile'
+                              Name='LICENSE'
+                              DiskId='1'
+                              Source='LICENSE'
+                              KeyPath='yes'/>
+                    </Component>
+
+                    <Component Id='binary0' Guid='*' Win64='yes'>
+                        <File Id='exe0'
+                              Name='ez-wishlist-overlay.exe'
+                              DiskId='1'
+                              Source='target\release\ez-wishlist-overlay.exe'
+                              KeyPath='yes'/>
+                    </Component>
+
+                </Directory>
+            </Directory>
+
+            <Directory Id='ProgramMenuFolder'>
+                <Directory Id='ApplicationProgramsFolder' Name='EZ Wishlist Overlay'>
+                    <Component Id='ApplicationShortcut'
+                               Guid='5B3E9383-1A3D-49AC-9585-C9B6E7954CF9'
+                               Win64='yes'>
+                        <Shortcut Id='ApplicationStartMenuShortcut'
+                                  Name='EZ Wishlist Overlay'
+                                  Description='Tracker for ExfilZone hideout + tasks'
+                                  Target='[#exe0]'
+                                  WorkingDirectory='APPLICATIONFOLDER'/>
+                        <RemoveFolder Id='CleanUpShortCut'
+                                      Directory='ApplicationProgramsFolder'
+                                      On='uninstall'/>
+                        <RegistryValue Root='HKCU'
+                                       Key='Software\etienneb\EZ Wishlist Overlay'
+                                       Name='installed'
+                                       Type='integer'
+                                       Value='1'
+                                       KeyPath='yes'/>
+                    </Component>
+                </Directory>
+            </Directory>
+        </Directory>
+
+        <Feature Id='Binaries'
+                 Title='Application'
+                 Description='Installs the EZ Wishlist Overlay binary.'
+                 Level='1'
+                 ConfigurableDirectory='APPLICATIONFOLDER'
+                 AllowAdvertise='no'
+                 Display='expand'
+                 Absent='disallow'>
+            <ComponentRef Id='License'/>
+            <ComponentRef Id='binary0'/>
+            <ComponentRef Id='ApplicationShortcut'/>
+        </Feature>
+
+        <SetProperty Id='ARPINSTALLLOCATION' Value='[APPLICATIONFOLDER]' After='CostFinalize'/>
+
+    </Product>
+</Wix>

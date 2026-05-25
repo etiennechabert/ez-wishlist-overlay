@@ -104,6 +104,27 @@ See `cargo run -p scraper -- --help` for full CLI options (`--repo`, `--ref`, `-
 
 ---
 
+## Releasing
+
+Releases are produced by [`.github/workflows/release.yml`](./.github/workflows/release.yml). To cut one:
+
+```bash
+git tag v0.1.0 && git push --tags
+```
+
+The workflow runs on a Windows runner:
+
+1. Installs LLVM (for `openvr_sys`'s bindgen step) and the WiX toolset.
+2. Builds `cargo build --release -p ez-wishlist-overlay`.
+3. Runs `cargo wix -p ez-wishlist-overlay --no-build` against [`crates/app/wix/main.wxs`](./crates/app/wix/main.wxs) to produce a per-machine MSI.
+4. Attaches both the standalone `ez-wishlist-overlay-<version>-x86_64.exe` (portable) and the `.msi` installer to a GitHub Release.
+
+The `UpgradeCode` GUID in `main.wxs` is fixed — never change it once a release ships, or upgrades for existing installs break. The `Product/@Id='*'` regenerates per build so each MSI has a unique `ProductCode`.
+
+`workflow_dispatch` is enabled, so you can fire a dry build from the Actions tab without tagging — artifacts are uploaded to the workflow run but skip the Release upload step.
+
+---
+
 ## Credits
 
 Hideout, task, and item data are sourced from [ExfilZone Assistant](https://www.exfil-zone-assistant.app/) by [pogapwnz](https://ko-fi.com/J3J41GATK0), used under the MIT license. The bundled MIT text is at [`LICENSES/exfil-zone-assistant-MIT.txt`](./LICENSES/exfil-zone-assistant-MIT.txt). If you find this app useful, check theirs too — it covers a lot more than hideout/quests (combat simulators, weapon databases, guides).
