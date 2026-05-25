@@ -33,6 +33,8 @@ pub struct Upgrade {
     pub id: UpgradeId,
     pub name: String,
     pub level: u32,
+    #[serde(default)]
+    pub description: String,
     pub requirements: Vec<Requirement>,
 }
 

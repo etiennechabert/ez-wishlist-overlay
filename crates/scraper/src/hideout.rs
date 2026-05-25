@@ -18,6 +18,8 @@ struct UpstreamUpgrade {
     level: u32,
     #[serde(rename = "upgradeName")]
     upgrade_name: String,
+    #[serde(rename = "upgradeDesc", default)]
+    upgrade_desc: String,
     #[serde(default)]
     exchange: BTreeMap<String, u32>,
 }
@@ -62,6 +64,7 @@ pub fn parse(hideout_ts_path: &Path) -> Result<HideoutResult> {
             id: upgrade_id,
             name: u.upgrade_name,
             level: u.level,
+            description: u.upgrade_desc.replace("\r\n", "\n").trim().to_string(),
             requirements,
         });
     }

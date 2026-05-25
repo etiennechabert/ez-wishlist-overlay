@@ -12,6 +12,9 @@ const SELECTED_ID: &str = "hideout-selected-upgrade";
 const REQ_ICON_SIZE: f32 = 48.0;
 const REQ_TILE_WIDTH: f32 = 140.0;
 const REQ_GRID_COLS: usize = 4;
+const MODULE_NAME_W: f32 = 160.0;
+const CELL_W: f32 = 210.0;
+const ROW_H: f32 = 30.0;
 
 pub fn ui(
     ui: &mut egui::Ui,
@@ -21,41 +24,80 @@ pub fn ui(
 ) {
     let data = state.read().data.clone();
 
-    egui::Grid::new("hideout-grid")
-        .num_columns(MAX_LEVELS + 1)
-        .striped(true)
-        .spacing([10.0, 6.0])
-        .min_col_width(180.0)
-        .show(ui, |ui| {
-            ui.label("");
-            for lvl in 1..=MAX_LEVELS {
-                ui.label(
-                    egui::RichText::new(format!("Level {lvl}"))
-                        .strong()
-                        .color(egui::Color32::LIGHT_GRAY),
-                );
-            }
-            ui.end_row();
+    header_row(ui);
+    ui.separator();
 
-            for module in &data.modules {
-                ui.label(egui::RichText::new(&module.name).strong());
-                for slot in 0..MAX_LEVELS {
-                    match module.upgrades.get(slot) {
-                        Some(upgrade) => upgrade_cell(ui, state, save_tx, upgrade),
-                        None => {
-                            ui.label("");
-                        }
-                    }
-                }
-                ui.end_row();
-            }
-        });
+    for (idx, module) in data.modules.iter().enumerate() {
+        module_row(ui, state, save_tx, idx, module);
+    }
 
     if let Some(sel) = selected(ui.ctx()) {
         ui.add_space(8.0);
         if let Some((module, upgrade)) = find_upgrade(&data.modules, &sel) {
             requirements_panel(ui, state, icons, &module.name, upgrade);
         }
+    }
+}
+
+fn header_row(ui: &mut egui::Ui) {
+    ui.horizontal(|ui| {
+        ui.add_space(MODULE_NAME_W);
+        for lvl in 1..=MAX_LEVELS {
+            ui.allocate_ui_with_layout(
+                egui::vec2(CELL_W, ROW_H),
+                egui::Layout::left_to_right(egui::Align::Center),
+                |ui| {
+                    ui.label(
+                        egui::RichText::new(format!("Level {lvl}"))
+                            .strong()
+                            .color(egui::Color32::LIGHT_GRAY),
+                    );
+                },
+            );
+        }
+    });
+}
+
+fn module_row(
+    ui: &mut egui::Ui,
+    state: &Arc<RwLock<AppState>>,
+    save_tx: &Sender<SaveTick>,
+    row_idx: usize,
+    module: &HideoutModule,
+) {
+    let bg_idx = ui.painter().add(egui::Shape::Noop);
+
+    let inner = ui.horizontal(|ui| {
+        ui.set_min_height(ROW_H);
+        ui.add_sized(
+            [MODULE_NAME_W, ROW_H],
+            egui::Label::new(egui::RichText::new(&module.name).strong()).truncate(),
+        );
+        for slot in 0..MAX_LEVELS {
+            ui.allocate_ui_with_layout(
+                egui::vec2(CELL_W, ROW_H),
+                egui::Layout::left_to_right(egui::Align::Center),
+                |ui| match module.upgrades.get(slot) {
+                    Some(upgrade) => upgrade_cell(ui, state, save_tx, upgrade),
+                    None => {}
+                },
+            );
+        }
+    });
+
+    let row_rect = inner.response.rect;
+    let hovered = ui.rect_contains_pointer(row_rect);
+    let stripe = row_idx % 2 == 1;
+    let bg = if hovered {
+        egui::Color32::from_white_alpha(22)
+    } else if stripe {
+        egui::Color32::from_white_alpha(3)
+    } else {
+        egui::Color32::TRANSPARENT
+    };
+    if bg != egui::Color32::TRANSPARENT {
+        ui.painter()
+            .set(bg_idx, egui::epaint::RectShape::filled(row_rect, 2.0, bg));
     }
 }
 
@@ -133,6 +175,13 @@ fn requirements_panel(
                     set_selected(ui.ctx(), None);
                 }
             });
+
+            if !upgrade.description.is_empty() {
+                ui.add_space(4.0);
+                ui.label(
+                    egui::RichText::new(&upgrade.description).color(egui::Color32::LIGHT_GRAY),
+                );
+            }
             ui.add_space(6.0);
 
             if upgrade.requirements.is_empty() {
