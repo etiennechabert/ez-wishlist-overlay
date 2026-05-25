@@ -1,6 +1,6 @@
 name: CI
 
-# Runs on every PR and every push to main. Five parallel gates:
+# Runs on every PR and every push to main. Six parallel gates:
 #  - format         : `cargo fmt --check`
 #  - clippy         : strict `cargo clippy -D warnings` on Linux
 #  - test           : `cargo test --workspace` on Linux
@@ -11,6 +11,13 @@ name: CI
 #  - windows-test   : `cargo test --workspace` on Windows; the only job that
 #                     actually executes the vr/ unit tests (pitch math,
 #                     anchor matrix). Linux test runs skip them via cfg.
+#  - windows-msi    : Full MSI build via cargo-wix. Mirrors the release
+#                     workflow exactly (shares the .github/actions/build-msi
+#                     composite), so wix/main.wxs errors and cargo-wix
+#                     flag mistakes surface at PR time rather than after a
+#                     tag is pushed. The slowest job (~10 min cold) but it
+#                     catches a class of bug that's expensive to discover
+#                     post-tag.
 
 on:
   pull_request:
@@ -110,3 +117,23 @@ jobs:
       - name: cargo test
         shell: pwsh
         run: cargo test --workspace --target x86_64-pc-windows-msvc --no-fail-fast
+
+  windows-msi:
+    name: cargo wix (windows, MSI build)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: windows-msi
+      - name: Install LLVM
+        uses: ./.github/actions/install-llvm
+      # Same composite the Release workflow uses — exercises the full
+      # cargo build --release + cargo wix pipeline so wix manifest
+      # errors and cargo-wix flag mistakes (the kind that bit the
+      # v0.0.4 release) surface here instead of after a tag push.
+      - name: Build MSI
+        uses: ./.github/actions/build-msi
