@@ -1,3 +1,10 @@
+# Static-link the MSVC C runtime into the final binary so the shipped exe /
+# MSI never needs a Visual C++ Redistributable on the user's machine. Adds
+# ~1-2 MB to the binary. Only applies when targeting MSVC; gnullvm builds
+# (used for non-Windows iteration) are unaffected.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
+
 [alias]
 # Run the desktop app
 app = "run -p ez-wishlist-overlay --release"
