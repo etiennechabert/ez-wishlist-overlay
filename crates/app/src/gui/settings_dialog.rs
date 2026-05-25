@@ -155,6 +155,14 @@ fn vr_section(ui: &mut egui::Ui, vr: &mut VrSettings) {
                     .suffix(" ms"),
             );
             ui.end_row();
+
+            ui.label("Items per row").on_hover_text(
+                "Number of icon columns on the overlay grid. Rows are derived \
+                 from the size of your wishlist, so a narrower grid produces a \
+                 taller panel.",
+            );
+            ui.add(egui::Slider::new(&mut vr.grid_cols, bounds::GRID_COLS).integer());
+            ui.end_row();
         });
 
     ui.add_space(4.0);

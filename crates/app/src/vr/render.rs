@@ -5,20 +5,29 @@
 //! main entry point takes the `ActiveItem` slice and an icon-bytes resolver,
 //! so tests don't need a real `IconCache` or GPU.
 //!
-//! Layout: a grid of `GRID_COLS` columns × N rows; each cell is `CELL_PX`
-//! square with `CELL_PADDING` between. Cells render the item icon, a small
-//! progress text, and a "done" overlay (semi-transparent gray) when the
-//! item's collected count reaches its needed count.
+//! Layout: a grid of `cols` columns × N rows; each cell is `CELL_PX` square
+//! with `CELL_PADDING` between. The number of columns is configured by the
+//! user (see `VrSettings::grid_cols`); the number of rows is derived from
+//! the wishlist size, so the panel is exactly as tall as it needs to be.
+//! Cells render the item icon, a small progress text, and a "done" overlay
+//! (semi-transparent gray) when the item's collected count reaches its
+//! needed count.
 
 use crate::state::ActiveItem;
 use tiny_skia::{Color, FillRule, IntSize, Paint, PathBuilder, Pixmap, Rect, Stroke, Transform};
 
-pub const CANVAS_PX: u32 = 1024;
 pub const CELL_PX: u32 = 160;
 pub const CELL_PADDING: u32 = 8;
-pub const GRID_COLS: u32 = 6;
-/// Max cells we render in one pass; overflow gets an indicator.
-pub const MAX_CELLS: usize = 36;
+/// Hard cap on rendered rows. Beyond this we fall through to the "+N more"
+/// indicator instead of growing the canvas without bound (a wishlist with
+/// 200 items at 2 cols would otherwise blow up the texture). 8 keeps the
+/// canvas well under 2k pixels tall even at the smallest `cols`.
+pub const MAX_ROWS: u32 = 8;
+
+/// Dimensions used for the "no items tracked" placeholder — the canvas
+/// shouldn't reserve space for a grid that isn't there.
+const PLACEHOLDER_WIDTH: u32 = 600;
+const PLACEHOLDER_HEIGHT: u32 = 120;
 
 pub struct CellHit {
     pub item_id: String,
@@ -30,31 +39,45 @@ pub struct CellHit {
     pub needed: u32,
 }
 
-/// Render `items` to a fresh RGBA pixmap. `resolve_icon` is called with each
-/// item's `icon_path` and should return the raw image bytes (PNG/WebP/etc.),
-/// or `None` to render a placeholder square.
+/// Render `items` to a fresh RGBA pixmap with a `cols`-wide grid.
+/// `resolve_icon` is called with each item's `icon_path` and should return
+/// the raw image bytes (PNG/WebP/etc.), or `None` to render a placeholder
+/// square.
 ///
 /// Returns the pixmap plus a hit-test table mapping each rendered cell's
-/// rect back to its item id (for the VR input handler).
-pub fn render<F>(items: &[ActiveItem], mut resolve_icon: F) -> (Pixmap, Vec<CellHit>)
+/// rect back to its item id (for the VR input handler). The pixmap's
+/// width/height are derived from `cols` and the item count; callers that
+/// need to translate texture-space input coordinates into pixel coordinates
+/// should read those from the returned pixmap.
+pub fn render<F>(items: &[ActiveItem], cols: u32, mut resolve_icon: F) -> (Pixmap, Vec<CellHit>)
 where
     F: FnMut(&str) -> Option<std::borrow::Cow<'static, [u8]>>,
 {
-    let mut pixmap = Pixmap::new(CANVAS_PX, CANVAS_PX).expect("pixmap alloc");
-    // Dark translucent background — readable over any VR scene.
-    pixmap.fill(Color::from_rgba8(20, 20, 24, 220));
+    // Defensive: `Settings::sanitize` clamps to `bounds::GRID_COLS`, but a
+    // caller passing 0 would otherwise divide-by-zero below.
+    let cols = cols.max(1);
+    let max_cells = (cols * MAX_ROWS) as usize;
+    let visible_count = items.len().min(max_cells);
 
-    let mut hits = Vec::new();
-
-    let visible: Vec<&ActiveItem> = items.iter().take(MAX_CELLS).collect();
-    if visible.is_empty() {
+    if visible_count == 0 {
+        let mut pixmap = Pixmap::new(PLACEHOLDER_WIDTH, PLACEHOLDER_HEIGHT).expect("pixmap alloc");
+        pixmap.fill(Color::from_rgba8(20, 20, 24, 220));
         draw_placeholder_text(&mut pixmap);
-        return (pixmap, hits);
+        return (pixmap, Vec::new());
     }
 
-    for (idx, item) in visible.iter().enumerate() {
-        let col = idx as u32 % GRID_COLS;
-        let row = idx as u32 / GRID_COLS;
+    let rows_needed = (visible_count as u32).div_ceil(cols);
+    let canvas_w = CELL_PADDING + cols * (CELL_PX + CELL_PADDING);
+    let canvas_h = CELL_PADDING + rows_needed * (CELL_PX + CELL_PADDING);
+
+    let mut pixmap = Pixmap::new(canvas_w, canvas_h).expect("pixmap alloc");
+    pixmap.fill(Color::from_rgba8(20, 20, 24, 220));
+
+    let mut hits = Vec::with_capacity(visible_count);
+
+    for (idx, item) in items.iter().take(visible_count).enumerate() {
+        let col = idx as u32 % cols;
+        let row = idx as u32 / cols;
         let x = CELL_PADDING + col * (CELL_PX + CELL_PADDING);
         let y = CELL_PADDING + row * (CELL_PX + CELL_PADDING);
 
@@ -69,8 +92,8 @@ where
         });
     }
 
-    if items.len() > MAX_CELLS {
-        draw_more_indicator(&mut pixmap, items.len() - MAX_CELLS);
+    if items.len() > visible_count {
+        draw_more_indicator(&mut pixmap, items.len() - visible_count);
     }
 
     (pixmap, hits)
@@ -285,9 +308,17 @@ fn draw_progress_chip(pixmap: &mut Pixmap, cell: Rect, collected: u32, needed: u
 }
 
 fn draw_more_indicator(pixmap: &mut Pixmap, extra: usize) {
-    // A small filled rect bottom-right; full text rendering deferred to Phase 3.
-    let badge =
-        Rect::from_xywh((CANVAS_PX - 80) as f32, (CANVAS_PX - 30) as f32, 72.0, 22.0).unwrap();
+    // A small filled rect bottom-right; full text rendering deferred to
+    // Phase 3. Position is relative to the actual pixmap size so it lands
+    // in the bottom-right corner regardless of grid_cols / rows.
+    let Some(badge) = Rect::from_xywh(
+        (pixmap.width().saturating_sub(80)) as f32,
+        (pixmap.height().saturating_sub(30)) as f32,
+        72.0,
+        22.0,
+    ) else {
+        return;
+    };
     let mut paint = Paint::default();
     paint.set_color(Color::from_rgba8(160, 90, 70, 255));
     pixmap.fill_rect(badge, &paint, Transform::identity(), None);
@@ -295,15 +326,16 @@ fn draw_more_indicator(pixmap: &mut Pixmap, extra: usize) {
 }
 
 fn draw_placeholder_text(pixmap: &mut Pixmap) {
-    // Just paint a centered rect so VR users see "something" when nothing is
-    // tracked. Real text comes in Phase 3 with fontdue.
-    let r = Rect::from_xywh(
-        (CANVAS_PX / 2 - 200) as f32,
-        (CANVAS_PX / 2 - 30) as f32,
-        400.0,
-        60.0,
-    )
-    .unwrap();
+    // Centered rect so VR users see "something" when nothing is tracked.
+    // Sized relative to the placeholder canvas. Real text comes in Phase 3
+    // with fontdue.
+    let w = pixmap.width() as f32;
+    let h = pixmap.height() as f32;
+    let rect_w = (w * 0.66).min(400.0);
+    let rect_h = (h * 0.5).min(60.0);
+    let Some(r) = Rect::from_xywh((w - rect_w) * 0.5, (h - rect_h) * 0.5, rect_w, rect_h) else {
+        return;
+    };
     let mut paint = Paint::default();
     paint.set_color(Color::from_rgba8(50, 52, 58, 255));
     pixmap.fill_rect(r, &paint, Transform::identity(), None);
@@ -326,11 +358,13 @@ mod tests {
     }
 
     #[test]
-    fn renders_empty_to_canvas_sized_pixmap() {
-        let (pm, hits) = render(&[], |_| None);
-        assert_eq!(pm.width(), CANVAS_PX);
-        assert_eq!(pm.height(), CANVAS_PX);
+    fn renders_empty_to_placeholder_pixmap() {
+        let (pm, hits) = render(&[], 6, |_| None);
         assert!(hits.is_empty());
+        // Placeholder is small — we don't reserve grid-sized space when the
+        // wishlist is empty.
+        assert!(pm.width() < CELL_PX * 6);
+        assert!(pm.height() < CELL_PX);
     }
 
     #[test]
@@ -338,14 +372,14 @@ mod tests {
         let items: Vec<ActiveItem> = (0..7)
             .map(|i| item(&format!("i{i}"), &format!("Item {i}"), 5, i as u32))
             .collect();
-        let (_pm, hits) = render(&items, |_| None);
+        let (_pm, hits) = render(&items, 6, |_| None);
         assert_eq!(hits.len(), 7);
         // First cell at (8, 8), 160x160.
         let h0 = &hits[0];
         assert_eq!(h0.item_id, "i0");
         assert!((h0.rect.x() - 8.0).abs() < 0.5);
         assert!((h0.rect.y() - 8.0).abs() < 0.5);
-        // 7th cell wraps to row 2 (idx 6 → col 0, row 1).
+        // 7th cell wraps to row 2 (idx 6 → col 0, row 1) at the default 6 cols.
         let h6 = &hits[6];
         assert_eq!(h6.item_id, "i6");
         assert!((h6.rect.x() - 8.0).abs() < 0.5);
@@ -353,12 +387,32 @@ mod tests {
     }
 
     #[test]
-    fn caps_visible_at_max_cells() {
-        let items: Vec<ActiveItem> = (0..50)
+    fn rows_derive_from_cols() {
+        // 7 items at 3 cols → 3 rows (3+3+1). Last cell should be on row 2.
+        let items: Vec<ActiveItem> = (0..7)
             .map(|i| item(&format!("i{i}"), &format!("Item {i}"), 1, 0))
             .collect();
-        let (_pm, hits) = render(&items, |_| None);
-        assert_eq!(hits.len(), MAX_CELLS);
+        let (pm, hits) = render(&items, 3, |_| None);
+        assert_eq!(hits.len(), 7);
+        let last = &hits[6];
+        let row_2_y = (CELL_PADDING + 2 * (CELL_PX + CELL_PADDING)) as f32;
+        assert!((last.rect.y() - row_2_y).abs() < 0.5);
+        // Canvas height matches exactly the rows we rendered.
+        let expected_h = CELL_PADDING + 3 * (CELL_PX + CELL_PADDING);
+        assert_eq!(pm.height(), expected_h);
+        // Width matches 3 cols.
+        let expected_w = CELL_PADDING + 3 * (CELL_PX + CELL_PADDING);
+        assert_eq!(pm.width(), expected_w);
+    }
+
+    #[test]
+    fn caps_visible_at_max_rows_times_cols() {
+        // 100 items at 5 cols, MAX_ROWS=8 → cap at 40 cells.
+        let items: Vec<ActiveItem> = (0..100)
+            .map(|i| item(&format!("i{i}"), &format!("Item {i}"), 1, 0))
+            .collect();
+        let (_pm, hits) = render(&items, 5, |_| None);
+        assert_eq!(hits.len(), (5 * MAX_ROWS) as usize);
     }
 
     /// End-to-end snapshot using real embedded icons + the loaded data.json.
@@ -386,7 +440,7 @@ mod tests {
         let items = state.active_items();
         assert!(!items.is_empty(), "real data should produce active items");
 
-        let (pm, hits) = render(&items, assets::read_icon);
+        let (pm, hits) = render(&items, 6, assets::read_icon);
         assert!(!hits.is_empty());
 
         if std::env::var("RENDER_SNAPSHOT").as_deref() == Ok("1") {
@@ -410,7 +464,7 @@ mod tests {
             item("intel", "Intel", 9, 9),     // done
             item("paint", "Paint", 4, 2),
         ];
-        let (pm, _) = render(&items, |_| None);
+        let (pm, _) = render(&items, 6, |_| None);
         let path = std::env::temp_dir().join("ez-wishlist-overlay-snapshot.png");
         pm.save_png(&path).expect("save snapshot");
         eprintln!("snapshot saved to {}", path.display());
