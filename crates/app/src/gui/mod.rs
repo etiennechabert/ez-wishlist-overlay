@@ -37,6 +37,7 @@ pub struct App {
     confirm_reset: bool,
     tasks_filter: String,
     status_banner: Option<String>,
+    vr: Arc<crate::vr::Runtime>,
 }
 
 impl App {
@@ -45,6 +46,7 @@ impl App {
         state: Arc<RwLock<AppState>>,
         paths: Arc<PersistPaths>,
         save_tx: Sender<SaveTick>,
+        vr: Arc<crate::vr::Runtime>,
     ) -> Self {
         let icons = IconCache::new();
         // Pull any initial warning surfaced by persist::load.
@@ -59,6 +61,7 @@ impl App {
             confirm_reset: false,
             tasks_filter: String::new(),
             status_banner: banner,
+            vr,
         }
     }
 
@@ -74,6 +77,11 @@ impl App {
 
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // Re-paint at 1Hz so VR status transitions (connect / disconnect)
+        // surface even without user input. egui otherwise sleeps until the
+        // next event.
+        ctx.request_repaint_after(std::time::Duration::from_secs(1));
+
         // Header strip.
         egui::TopBottomPanel::top("header").show(ctx, |ui| self.header(ui));
 
@@ -139,8 +147,8 @@ impl App {
             ui.separator();
             ui.label(format!("Data: {data_version}"));
             ui.separator();
-            // VR status placeholder (Phase 3 will wire this up).
-            ui.colored_label(egui::Color32::GRAY, "VR: not wired");
+            let status = self.vr.status();
+            ui.colored_label(status.color(), status.label());
             ui.separator();
 
             if ui.button("Open data folder").clicked() {
