@@ -6,6 +6,7 @@ mod assets;
 mod data;
 mod gui;
 mod persist;
+mod platform;
 mod save_loop;
 mod state;
 mod vr;

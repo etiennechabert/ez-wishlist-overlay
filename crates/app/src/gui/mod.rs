@@ -144,7 +144,7 @@ impl App {
             ui.separator();
 
             if ui.button("Open data folder").clicked() {
-                let _ = open_in_explorer(&self.paths.data_dir);
+                let _ = crate::platform::open(&self.paths.data_dir);
             }
             if ui.button("About").clicked() {
                 self.show_about = true;
@@ -180,9 +180,3 @@ impl App {
     }
 }
 
-fn open_in_explorer(path: &std::path::Path) -> std::io::Result<()> {
-    std::process::Command::new("explorer")
-        .arg(path)
-        .spawn()
-        .map(|_| ())
-}

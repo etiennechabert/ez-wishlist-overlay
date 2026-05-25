@@ -79,7 +79,7 @@ fn task_row(
         ui.label(&task.name);
         ui.add_space(8.0);
         if ui.small_button("Open ↗").clicked() {
-            let _ = webbrowser_open(&task.source_url);
+            let _ = crate::platform::open(&task.source_url);
         }
     });
 
@@ -135,10 +135,3 @@ fn notify(state: &Arc<RwLock<AppState>>, save_tx: &Sender<SaveTick>) {
     let _ = save_tx.try_send(SaveTick { version: v });
 }
 
-fn webbrowser_open(url: &str) -> std::io::Result<()> {
-    // Use the Windows shell to open the user's default browser.
-    std::process::Command::new("cmd")
-        .args(["/C", "start", "", url])
-        .spawn()
-        .map(|_| ())
-}
