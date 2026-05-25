@@ -33,6 +33,19 @@ See [SPEC.md](./SPEC.md) for the engineering spec and [OPEN_QUESTIONS.md](./OPEN
 
 ---
 
+## Install (end users)
+
+1. **Install Steam, then SteamVR through Steam.** SteamVR is what we talk to over OpenVR — without it the desktop app still runs but the overlay does nothing. Install Steam from [store.steampowered.com](https://store.steampowered.com/), then in the Steam client go to *Library → Tools → SteamVR → Install*.
+2. **Download the latest `.msi`** from [Releases](https://github.com/etiennechabert/ez-wishlist-overlay/releases). The portable `.exe` is also there if you'd rather not install — just double-click to run.
+3. **Click through Windows SmartScreen.** The MSI is unsigned in v1, so first launch shows *"Windows protected your PC"*. Click **More info** → **Run anyway**. (Going away once we have a code-signing cert — for now the warning is normal, not malware.)
+4. **Installer:** standard Welcome → License → Install dir → Finish. Tick *"Launch EZ Wishlist Overlay"* on the last page to start it right away.
+5. **First run:** the app opens. If SteamVR isn't running yet, the header shows *"VR: not running"* — start SteamVR (or put on your headset to autolaunch it) and the indicator flips to *"VR: connected"* within a few seconds.
+6. **In headset:** look up past ~60° to bring up the overlay. Click items in the desktop app to mark them done; the overlay re-renders within a frame.
+
+The MSI installs per-machine under `%ProgramFiles%\EZ Wishlist Overlay\`. User state (tracked upgrades, collected counts, settings) lives in `%APPDATA%\etienneb\ez-wishlist-overlay\`. Uninstall via *Settings → Apps* leaves user state in place; delete the `%APPDATA%` folder by hand if you want a fresh start.
+
+---
+
 ## Repo layout
 
 ```

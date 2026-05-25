@@ -19,7 +19,13 @@ const RETRY_DELAY: Duration = Duration::from_secs(5);
 pub enum VrStatus {
     /// Compile target has no OpenVR support (e.g. macOS, Linux).
     Unsupported,
-    /// Worker is between attach attempts (SteamVR not running yet).
+    /// `VR_IsRuntimeInstalled()` returned false — SteamVR isn't installed
+    /// on this machine. Distinct from `Disconnected` because the user's
+    /// next step is "install Steam → install SteamVR" rather than "launch
+    /// SteamVR".
+    RuntimeNotInstalled,
+    /// SteamVR is installed but the worker can't attach (process not
+    /// running, dashboard not up, etc.). Retries every 5 s.
     Disconnected,
     /// Worker is calling `VR_Init` right now.
     Connecting,
@@ -33,6 +39,7 @@ impl VrStatus {
     pub fn label(&self) -> String {
         match self {
             Self::Unsupported => "VR: unavailable on this OS".into(),
+            Self::RuntimeNotInstalled => "VR: SteamVR not installed (install via Steam)".into(),
             Self::Disconnected => "VR: not running".into(),
             Self::Connecting => "VR: connecting…".into(),
             Self::Connected => "VR: connected".into(),
@@ -45,7 +52,9 @@ impl VrStatus {
             Self::Connected => egui::Color32::from_rgb(80, 180, 100),
             Self::Connecting => egui::Color32::from_rgb(200, 180, 80),
             Self::Error(_) => egui::Color32::from_rgb(220, 100, 90),
-            Self::Disconnected | Self::Unsupported => egui::Color32::GRAY,
+            Self::Disconnected | Self::Unsupported | Self::RuntimeNotInstalled => {
+                egui::Color32::GRAY
+            }
         }
     }
 }
@@ -101,6 +110,16 @@ fn run(
     use super::overlay::OverlaySession;
 
     loop {
+        // Cheap probe before we attempt VR_Init: if the OpenVR runtime
+        // isn't installed at all, surface that distinctly so the user
+        // knows the fix is "install SteamVR via Steam" rather than
+        // "launch the SteamVR you already have". `is_runtime_installed`
+        // is a top-level fn that doesn't need a Context.
+        if !openvr::is_runtime_installed() {
+            *status.write() = VrStatus::RuntimeNotInstalled;
+            std::thread::sleep(RETRY_DELAY);
+            continue;
+        }
         *status.write() = VrStatus::Connecting;
         let initial_width = settings.read().vr.width_meters;
         match OverlaySession::init(initial_width) {

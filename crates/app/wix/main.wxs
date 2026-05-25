@@ -130,5 +130,38 @@
         <Property Id='WIXUI_INSTALLDIR' Value='APPLICATIONFOLDER'/>
         <WixVariable Id='WixUILicenseRtf' Value='crates\app\wix\License.rtf'/>
 
+        <!-- "Launch EZ Wishlist Overlay" checkbox on the Finish dialog.
+             WixUI_InstallDir's exit dialog renders the optional checkbox
+             when WIXUI_EXITDIALOGOPTIONALCHECKBOX is set; clicking it
+             fires the LaunchApplication custom action which shells the
+             installed exe via WixShellExec.
+
+             WixShellExecTarget must be a formatted property that points
+             at the just-installed binary; '[#exe0]' resolves to the full
+             path of the File element with Id='exe0' (the .exe component
+             above).
+
+             Return='asyncNoWait' so the installer process exits
+             immediately instead of blocking on the launched app's
+             window. Impersonate='yes' runs the app as the invoking
+             user rather than SYSTEM (the perMachine MSI runs elevated;
+             without impersonation the launched exe would also run
+             elevated, which Steam/SteamVR clients don't accept). -->
+        <Property Id='WIXUI_EXITDIALOGOPTIONALCHECKBOX' Value='1'/>
+        <Property Id='WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT'
+                  Value='Launch EZ Wishlist Overlay'/>
+        <Property Id='WixShellExecTarget' Value='[#exe0]'/>
+        <CustomAction Id='LaunchApplication'
+                      BinaryKey='WixCA'
+                      DllEntry='WixShellExec'
+                      Impersonate='yes'
+                      Return='asyncNoWait'/>
+        <UI>
+            <Publish Dialog='ExitDialog'
+                     Control='Finish'
+                     Event='DoAction'
+                     Value='LaunchApplication'>WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 and NOT Installed</Publish>
+        </UI>
+
     </Product>
 </Wix>

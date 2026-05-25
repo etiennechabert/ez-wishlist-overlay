@@ -56,13 +56,22 @@ jobs:
       # but NOT to candle.exe — so the WixUI_InstallDir reference in main.wxs
       # is unresolved at compile time, which then cascades into dozens of
       # LGHT0094 errors at link time. Add it explicitly on the candle side
-      # via `-C -ext -C WixUIExtension`. --nocapture surfaces real WiX
-      # output if anything else trips later.
+      # via `-C -ext -C WixUIExtension`.
+      #
+      # WixUtilExtension hosts the WixCA binary, which our LaunchApplication
+      # custom action calls into for the "Launch after install" checkbox on
+      # the Finish dialog. Needs to be referenced on both candle (-C) and
+      # light (-L) so the WixCA binary is bundled into the .wixobj and the
+      # symbol resolves at link time.
+      #
+      # --nocapture surfaces real WiX output if anything else trips later.
       - name: Build MSI installer
         shell: pwsh
         run: >
           cargo wix -p ez-wishlist-overlay --no-build --nocapture
           -C -ext -C WixUIExtension
+          -C -ext -C WixUtilExtension
+          -L -ext -L WixUtilExtension
 
       - name: Stage artifacts
         shell: pwsh
