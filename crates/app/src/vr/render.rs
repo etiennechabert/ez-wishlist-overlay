@@ -321,6 +321,7 @@ mod tests {
             icon_path: format!("icons/{id}.png"),
             needed,
             collected,
+            pending: None,
             sources: vec!["test".into()],
         }
     }

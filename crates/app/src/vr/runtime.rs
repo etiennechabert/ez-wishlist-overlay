@@ -228,7 +228,15 @@ fn render_loop(
                     continue; // ignore clicks during fade or hidden
                 }
                 let (px, py) = texcoord_to_pixel(mouse.position.0, mouse.position.1, CANVAS_PX);
-                match handle_click(state, &last_hits, px, py, &mut debouncer, frame_start) {
+                match handle_click(
+                    state,
+                    &last_hits,
+                    px,
+                    py,
+                    &mut debouncer,
+                    frame_start,
+                    vr.tentative_overlay_edits,
+                ) {
                     ClickOutcome::Incremented { item_id, new_value } => {
                         session.haptic_pulse(ev.tracked_device_index, HAPTIC_INCREMENT_US);
                         tracing::debug!(%item_id, new_value, "overlay click: +1");

@@ -41,6 +41,11 @@ pub struct App {
     show_debug: bool,
     settings_dirty: bool,
     confirm_reset: bool,
+    /// Set by the preview pane when the user clicks "Discard" on the pending-
+    /// changes panel; consumed by the top-level update loop which renders
+    /// the confirmation modal. Lives here (not in the pane) because egui
+    /// modal windows want to render at the root.
+    confirm_discard_pending: bool,
     tasks_filter: String,
     status_banner: Option<String>,
     vr: Arc<crate::vr::Runtime>,
@@ -73,6 +78,7 @@ impl App {
             show_debug: false,
             settings_dirty: false,
             confirm_reset: false,
+            confirm_discard_pending: false,
             tasks_filter: String::new(),
             status_banner: banner,
             vr,
@@ -138,7 +144,13 @@ impl eframe::App for App {
             .default_width(480.0)
             .min_width(320.0)
             .show(ctx, |ui| {
-                preview_pane::ui(ui, &self.state, &mut self.icons, &self.save_tx);
+                preview_pane::ui(
+                    ui,
+                    &self.state,
+                    &mut self.icons,
+                    &self.save_tx,
+                    &mut self.confirm_discard_pending,
+                );
             });
 
         // Left main panel: tab strip + content.
@@ -168,6 +180,9 @@ impl eframe::App for App {
         }
         if self.confirm_reset {
             self.confirm_reset_dialog(ctx);
+        }
+        if self.confirm_discard_pending {
+            self.confirm_discard_dialog(ctx);
         }
         if self.show_settings {
             let outcome = settings_dialog::show(
@@ -236,6 +251,37 @@ impl App {
                         self.state.write().reset_all();
                         self.notify_save();
                         self.confirm_reset = false;
+                    }
+                });
+            });
+    }
+
+    fn confirm_discard_dialog(&mut self, ctx: &egui::Context) {
+        // Reads the count from state inside the show closure so it stays
+        // accurate if the VR loop adds more pending entries while the
+        // dialog is open.
+        let n = self.state.read().pending.len();
+        egui::Window::new("Discard pending changes?")
+            .collapsible(false)
+            .resizable(false)
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .show(ctx, |ui| {
+                ui.label(format!(
+                    "Throw away {n} tentative count change(s) from the overlay. \
+                     Your committed wishlist counts won't change.",
+                ));
+                ui.add_space(8.0);
+                ui.horizontal(|ui| {
+                    if ui.button("Cancel").clicked() {
+                        self.confirm_discard_pending = false;
+                    }
+                    if ui
+                        .add(egui::Button::new("Discard").fill(egui::Color32::DARK_RED))
+                        .clicked()
+                    {
+                        self.state.write().discard_pending();
+                        self.notify_save();
+                        self.confirm_discard_pending = false;
                     }
                 });
             });

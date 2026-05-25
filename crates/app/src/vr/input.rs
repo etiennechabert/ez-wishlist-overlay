@@ -84,6 +84,10 @@ pub fn hit_test(hits: &[CellHit], pixel_x: f32, pixel_y: f32) -> Option<&CellHit
 
 /// Apply a click on `(pixel_x, pixel_y)` to the current state. Returns
 /// the [`ClickOutcome`] so the runtime can decide haptics.
+///
+/// When `tentative` is true, the click writes into `AppState::pending`
+/// instead of `collected`; the player commits or discards it from the
+/// desktop later (see `VrSettings::tentative_overlay_edits`).
 pub fn handle_click(
     state: &Arc<RwLock<AppState>>,
     hits: &[CellHit],
@@ -91,6 +95,7 @@ pub fn handle_click(
     pixel_y: f32,
     debounce: &mut Debouncer,
     now: Instant,
+    tentative: bool,
 ) -> ClickOutcome {
     let Some(hit) = hit_test(hits, pixel_x, pixel_y) else {
         return ClickOutcome::Ignored;
@@ -99,7 +104,11 @@ pub fn handle_click(
         return ClickOutcome::Ignored;
     }
     let mut w = state.write();
-    let (new_value, was_reset) = w.cycle_collected(&hit.item_id, hit.needed);
+    let (new_value, was_reset) = if tentative {
+        w.cycle_pending(&hit.item_id, hit.needed)
+    } else {
+        w.cycle_collected(&hit.item_id, hit.needed)
+    };
     if was_reset {
         ClickOutcome::Reset {
             item_id: hit.item_id.clone(),
@@ -210,7 +219,7 @@ mod tests {
         let mut deb = Debouncer::new();
         let t0 = Instant::now();
 
-        let out = handle_click(&state, &hits, 50.0, 50.0, &mut deb, t0);
+        let out = handle_click(&state, &hits, 50.0, 50.0, &mut deb, t0, false);
         assert!(matches!(
             out,
             ClickOutcome::Incremented { new_value: 1, .. }
@@ -218,7 +227,7 @@ mod tests {
         assert_eq!(state.read().collected.get("bolts").copied().unwrap_or(0), 1);
 
         // Repeat inside the debounce window: ignored.
-        let out = handle_click(&state, &hits, 50.0, 50.0, &mut deb, t0);
+        let out = handle_click(&state, &hits, 50.0, 50.0, &mut deb, t0, false);
         assert_eq!(out, ClickOutcome::Ignored);
         assert_eq!(state.read().collected.get("bolts").copied().unwrap_or(0), 1);
     }
@@ -232,8 +241,28 @@ mod tests {
         let mut deb = Debouncer::new();
         let t0 = Instant::now();
 
-        let out = handle_click(&state, &hits, 50.0, 50.0, &mut deb, t0);
+        let out = handle_click(&state, &hits, 50.0, 50.0, &mut deb, t0, false);
         assert!(matches!(out, ClickOutcome::Reset { .. }));
         assert_eq!(state.read().collected.get("wire").copied().unwrap_or(0), 0);
+    }
+
+    #[test]
+    fn handle_click_tentative_writes_to_pending() {
+        // With tentative=true, the click should bump pending and leave
+        // collected at its committed value — the whole point of raid mode.
+        let state = one_item_state("bolts", 5);
+        state.write().set_collected(&"bolts".to_string(), 2);
+        let hits = vec![hit("bolts", 0.0, 0.0, 100.0, 100.0, 5)];
+        let mut deb = Debouncer::new();
+        let t0 = Instant::now();
+
+        let out = handle_click(&state, &hits, 50.0, 50.0, &mut deb, t0, true);
+        assert!(matches!(
+            out,
+            ClickOutcome::Incremented { new_value: 3, .. }
+        ));
+        let st = state.read();
+        assert_eq!(st.collected.get("bolts").copied().unwrap_or(0), 2);
+        assert_eq!(st.pending.get("bolts").copied().unwrap_or(0), 3);
     }
 }

@@ -141,6 +141,18 @@ fn vr_section(ui: &mut egui::Ui, vr: &mut VrSettings) {
             ui.end_row();
         });
 
+    ui.add_space(8.0);
+    ui.checkbox(
+        &mut vr.tentative_overlay_edits,
+        "Overlay clicks are tentative until committed",
+    )
+    .on_hover_text(
+        "When on, clicks on the VR overlay don't update your wishlist \
+         counts directly. They show up in a 'Pending raid changes' panel \
+         on the desktop where you can Commit (you survived) or Discard \
+         (you died). Turn off for immediate counts.",
+    );
+
     ui.add_space(4.0);
     let weak = ui.visuals().weak_text_color();
     ui.label(

@@ -57,6 +57,15 @@ pub struct VrSettings {
     pub hide_pitch_deg: f32,
     /// Time the show pitch must be held before fade-in begins.
     pub show_dwell_ms: u64,
+    /// Treat every overlay click as tentative until the user commits
+    /// (survived) or discards (died) from the desktop. Default on; turn
+    /// off for the old immediate-write behavior (e.g. PvE-only play).
+    #[serde(default = "default_tentative_overlay_edits")]
+    pub tentative_overlay_edits: bool,
+}
+
+fn default_tentative_overlay_edits() -> bool {
+    true
 }
 
 impl Default for VrSettings {
@@ -67,6 +76,7 @@ impl Default for VrSettings {
             show_pitch_deg: crate::vr::pose::SHOW_PITCH_DEG,
             hide_pitch_deg: crate::vr::pose::HIDE_PITCH_DEG,
             show_dwell_ms: crate::vr::pose::DWELL_MS,
+            tentative_overlay_edits: default_tentative_overlay_edits(),
         }
     }
 }
@@ -145,6 +155,7 @@ mod tests {
             show_pitch_deg: 40.0,
             hide_pitch_deg: 50.0,
             show_dwell_ms: 350,
+            tentative_overlay_edits: true,
         };
         vr.sanitize();
         assert!(
@@ -160,6 +171,7 @@ mod tests {
             show_pitch_deg: 200.0,
             hide_pitch_deg: -10.0,
             show_dwell_ms: 1_000_000,
+            tentative_overlay_edits: true,
         };
         vr.sanitize();
         assert_eq!(vr.width_meters, 2.0);

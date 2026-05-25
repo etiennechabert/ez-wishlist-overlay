@@ -13,7 +13,12 @@ pub fn ui(
     state: &Arc<RwLock<AppState>>,
     icons: &mut IconCache,
     save_tx: &Sender<SaveTick>,
+    confirm_discard_pending: &mut bool,
 ) {
+    // Pending panel always reads fresh — the VR thread may have added
+    // entries between frames.
+    pending_panel(ui, state, save_tx, confirm_discard_pending);
+
     let active = state.read().active_items();
     let weak = ui.visuals().weak_text_color();
 
@@ -85,7 +90,19 @@ fn row(
                     } else {
                         strong_text
                     };
-                    ui.label(egui::RichText::new(&item.name).color(name_color));
+                    ui.horizontal(|ui| {
+                        ui.label(egui::RichText::new(&item.name).color(name_color));
+                        if item.pending.is_some() {
+                            ui.label(
+                                egui::RichText::new("pending")
+                                    .small()
+                                    .color(egui::Color32::from_rgb(220, 180, 60)),
+                            )
+                            .on_hover_text(
+                                "Bumped from the VR overlay this raid. Not committed yet.",
+                            );
+                        }
+                    });
 
                     ui.horizontal(|ui| {
                         let progress = if item.needed == 0 {
@@ -131,4 +148,69 @@ fn row(
 fn notify(state: &Arc<RwLock<AppState>>, save_tx: &Sender<SaveTick>) {
     let v = state.read().version;
     let _ = save_tx.try_send(SaveTick { version: v });
+}
+
+fn pending_panel(
+    ui: &mut egui::Ui,
+    state: &Arc<RwLock<AppState>>,
+    save_tx: &Sender<SaveTick>,
+    confirm_discard_pending: &mut bool,
+) {
+    let diffs = state.read().pending_diffs();
+    if diffs.is_empty() {
+        return;
+    }
+
+    let dark = ui.visuals().dark_mode;
+    egui::Frame::default()
+        .fill(if dark {
+            egui::Color32::from_rgb(60, 50, 20)
+        } else {
+            egui::Color32::from_rgb(255, 240, 200)
+        })
+        .inner_margin(egui::Margin::same(8.0))
+        .show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(
+                    egui::RichText::new(format!("Pending raid changes ({})", diffs.len())).strong(),
+                );
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui.button("Discard…").clicked() {
+                        *confirm_discard_pending = true;
+                    }
+                    if ui
+                        .add(egui::Button::new("Commit").fill(egui::Color32::from_rgb(60, 120, 70)))
+                        .clicked()
+                    {
+                        state.write().commit_pending();
+                        notify(state, save_tx);
+                    }
+                });
+            });
+            ui.label(
+                egui::RichText::new(
+                    "From the overlay; nothing committed yet. Commit if you \
+                     survived; Discard if you died and lost what you picked up.",
+                )
+                .small(),
+            );
+            ui.add_space(4.0);
+            // Scroll cap — if a player has a lot of tentative entries, we
+            // don't want this panel to push the active-items list off-screen.
+            egui::ScrollArea::vertical()
+                .max_height(120.0)
+                .id_salt("pending-changes")
+                .show(ui, |ui| {
+                    for d in &diffs {
+                        ui.label(
+                            egui::RichText::new(format!(
+                                "{}: {} → {}",
+                                d.name, d.committed, d.pending
+                            ))
+                            .small(),
+                        );
+                    }
+                });
+        });
+    ui.add_space(6.0);
 }
