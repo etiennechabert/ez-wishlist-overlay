@@ -1,0 +1,58 @@
+name: Build MSI
+description: >
+  Builds the release binary and packages it as an MSI installer via
+  cargo-wix. Used by both ci.yml (PR validation) and release.yml
+  (tag-triggered release). Caller is responsible for setting up the
+  Rust toolchain, the rust-cache, and LLVM (libclang) ahead of this
+  step.
+#
+# Outputs (via $GITHUB_OUTPUT):
+#   msi-path  : absolute path of the produced .msi file
+#
+# Why composite: until this PR, the MSI build lived only in
+# release.yml. That meant wix/main.wxs and the cargo wix invocation
+# only got exercised at tag time, so issues like an `-ext` flag being
+# loaded twice or a CustomAction with an invalid Return attribute
+# only surfaced AFTER a release was tagged. Sharing this composite
+# between CI and release fixes that — every PR that touches wix or
+# the workflow validates the full MSI pipeline.
+runs:
+  using: composite
+  steps:
+    - name: Install WiX toolset
+      shell: pwsh
+      run: choco install wixtoolset -y --no-progress
+
+    - name: Build release binary
+      shell: pwsh
+      run: cargo build --release -p ez-wishlist-overlay
+
+    - name: Install cargo-wix
+      shell: pwsh
+      run: cargo install cargo-wix --version 0.3.9 --locked
+
+    # cargo-wix 0.3.9 passes `-ext WixUIExtension` to light.exe by
+    # default but NOT to candle.exe — so the WixUI_InstallDir reference
+    # in main.wxs is unresolved at compile time, which cascades into
+    # dozens of LGHT0094 errors at link time. Add it explicitly on
+    # candle via `-C -ext -C WixUIExtension`.
+    #
+    # WixUtilExtension (hosts the WixCA binary the LaunchApplication
+    # custom action calls into) is ALREADY passed to both candle and
+    # light by cargo-wix's default invocation — don't pass it again
+    # or candle errors with CNDL0125 ("extension loaded twice").
+    #
+    # --nocapture surfaces real WiX output if anything trips.
+    - name: Build MSI installer
+      shell: pwsh
+      run: >
+        cargo wix -p ez-wishlist-overlay --no-build --nocapture
+        -C -ext -C WixUIExtension
+
+    - name: Export MSI path
+      shell: pwsh
+      run: |
+        $msi = Get-ChildItem -Path target/wix/*.msi | Select-Object -First 1
+        if (-not $msi) { throw "no .msi produced under target/wix/" }
+        "msi-path=$($msi.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+        Write-Host "MSI produced: $($msi.FullName) ($([math]::Round($msi.Length / 1MB, 2)) MB)"
