@@ -1,12 +1,16 @@
 name: CI
 
-# Runs on every PR and every push to main. Four parallel gates:
-#  - format   : `cargo fmt --check`
-#  - clippy   : strict `cargo clippy -D warnings` on Linux
-#  - test     : `cargo test --workspace` on Linux
-#  - windows  : `cargo check --workspace --all-targets` on Windows, the only
-#               build that actually compiles the `cfg(target_os = "windows")`
-#               VR code (openvr_sys → cmake + bindgen + bundled OpenVR SDK).
+# Runs on every PR and every push to main. Five parallel gates:
+#  - format         : `cargo fmt --check`
+#  - clippy         : strict `cargo clippy -D warnings` on Linux
+#  - test           : `cargo test --workspace` on Linux
+#  - windows-check  : `cargo check --workspace --all-targets` on Windows; the
+#                     only build that compiles the `cfg(target_os = "windows")`
+#                     VR code (openvr_sys → cmake + bindgen + bundled OpenVR
+#                     SDK).
+#  - windows-test   : `cargo test --workspace` on Windows; the only job that
+#                     actually executes the vr/ unit tests (pitch math,
+#                     anchor matrix). Linux test runs skip them via cfg.
 
 on:
   pull_request:
@@ -72,15 +76,37 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: windows-check
       # openvr_sys's build.rs runs bindgen over the bundled OpenVR C++ SDK
       # and needs libclang on PATH. cmake is preinstalled on the runner.
-      - name: Install LLVM (libclang for bindgen)
-        run: choco install llvm -y --no-progress
+      - name: Install LLVM
+        uses: ./.github/actions/install-llvm
       - name: cargo check
         shell: pwsh
-        env:
-          LIBCLANG_PATH: C:\Program Files\LLVM\bin
-        run: cargo check --workspace --all-targets
+        run: cargo check --workspace --all-targets --target x86_64-pc-windows-msvc
+
+  windows-test:
+    name: cargo test (windows, VR enabled)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: windows-test
+      - name: Install LLVM
+        uses: ./.github/actions/install-llvm
+      # Cross-platform Linux `test` job runs cargo test on every PR but
+      # skips the vr/ module entirely (`cfg(target_os = "windows")`), so
+      # the pitch-extraction math, anchor-matrix builder, and FSM
+      # transitions never run there. This job is the only thing that
+      # actually executes those tests.
+      - name: cargo test
+        shell: pwsh
+        run: cargo test --workspace --target x86_64-pc-windows-msvc --no-fail-fast

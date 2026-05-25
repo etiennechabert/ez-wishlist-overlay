@@ -1,0 +1,38 @@
+name: Install LLVM
+description: >
+  Downloads and silently installs a pinned LLVM version on Windows so that
+  bindgen can find libclang.dll. Replaces `choco install llvm` so the
+  version is deterministic and the install path skips the chocolatey
+  middleman (saves ~1-2 min on cold runs).
+#
+# Why pinned: `choco install llvm` (no version) tracks chocolatey's
+# "current" package, which floats. A bindgen-incompatible LLVM bump
+# would otherwise turn into a mystery Windows CI failure. Bump the
+# `LLVM_VERSION` below deliberately when we want a newer one.
+#
+# Why the NSIS installer (.exe) and not the .tar.xz tarball: the .exe
+# is half the download size and the installer extracts faster on NTFS
+# than `tar -xJf` does for the ~6k LLVM files. The /S flag runs it
+# silent with the default install path of C:\Program Files\LLVM.
+runs:
+  using: composite
+  steps:
+    - name: Install LLVM (pinned)
+      shell: pwsh
+      run: |
+        $version = "20.1.0"
+        $url = "https://github.com/llvm/llvm-project/releases/download/llvmorg-$version/LLVM-$version-win64.exe"
+        $installer = Join-Path $env:RUNNER_TEMP "LLVM-installer.exe"
+        Write-Host "Downloading LLVM $version from $url"
+        Invoke-WebRequest -Uri $url -OutFile $installer -UseBasicParsing
+        Write-Host "Running silent install..."
+        $proc = Start-Process -FilePath $installer -ArgumentList "/S" -Wait -PassThru
+        if ($proc.ExitCode -ne 0) {
+          throw "LLVM installer exited with code $($proc.ExitCode)"
+        }
+        $libclang = "C:\Program Files\LLVM\bin\libclang.dll"
+        if (-not (Test-Path $libclang)) {
+          throw "libclang.dll not present at $libclang after install"
+        }
+        "LIBCLANG_PATH=C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+        Write-Host "LLVM $version installed; LIBCLANG_PATH exported."
