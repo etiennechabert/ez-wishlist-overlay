@@ -9,6 +9,7 @@ mod persist;
 mod platform;
 mod presets;
 mod save_loop;
+mod settings;
 mod state;
 mod vr;
 
@@ -61,7 +62,10 @@ fn main() -> Result<()> {
     let shared_state = Arc::new(RwLock::new(app_state));
     let (save_tx, save_rx) = crossbeam_channel::unbounded::<gui::SaveTick>();
     let _save_handle = save_loop::spawn(shared_state.clone(), paths.clone(), save_rx);
-    let vr_runtime = Arc::new(vr::Runtime::spawn(shared_state.clone()));
+
+    let settings = Arc::new(RwLock::new(settings::load(&paths.settings_file)));
+    tracing::info!(settings = ?&*settings.read(), "settings loaded");
+    let vr_runtime = Arc::new(vr::Runtime::spawn(shared_state.clone(), settings.clone()));
 
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
@@ -82,6 +86,7 @@ fn main() -> Result<()> {
                 paths,
                 save_tx,
                 vr_runtime,
+                settings,
             )))
         }),
     )

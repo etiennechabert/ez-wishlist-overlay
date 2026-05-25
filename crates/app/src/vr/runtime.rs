@@ -6,6 +6,7 @@
 //! the desktop app are platform-agnostic and we don't want a broken VR layer
 //! to bleed into macOS/Linux iteration builds.
 
+use crate::settings::Settings;
 use crate::state::AppState;
 use parking_lot::RwLock;
 use std::sync::Arc;
@@ -56,7 +57,7 @@ pub struct Runtime {
 }
 
 impl Runtime {
-    pub fn spawn(state: Arc<RwLock<AppState>>) -> Self {
+    pub fn spawn(state: Arc<RwLock<AppState>>, settings: Arc<RwLock<Settings>>) -> Self {
         let initial = if cfg!(target_os = "windows") {
             VrStatus::Connecting
         } else {
@@ -66,7 +67,7 @@ impl Runtime {
         let status_writer = status.clone();
         let join = std::thread::Builder::new()
             .name("ez-wishlist-vr".into())
-            .spawn(move || run(state, status_writer))
+            .spawn(move || run(state, settings, status_writer))
             .expect("spawn VR thread");
         Self {
             status,
@@ -80,20 +81,29 @@ impl Runtime {
 }
 
 #[cfg(not(target_os = "windows"))]
-fn run(_state: Arc<RwLock<AppState>>, status: Arc<RwLock<VrStatus>>) {
+fn run(
+    _state: Arc<RwLock<AppState>>,
+    _settings: Arc<RwLock<Settings>>,
+    status: Arc<RwLock<VrStatus>>,
+) {
     // Status is already Unsupported. Nothing else to do — park the thread.
     *status.write() = VrStatus::Unsupported;
     tracing::info!("VR worker idle: no OpenVR support on this target");
 }
 
 #[cfg(target_os = "windows")]
-fn run(_state: Arc<RwLock<AppState>>, status: Arc<RwLock<VrStatus>>) {
+fn run(
+    _state: Arc<RwLock<AppState>>,
+    settings: Arc<RwLock<Settings>>,
+    status: Arc<RwLock<VrStatus>>,
+) {
     use super::overlay::OverlaySession;
 
     loop {
         *status.write() = VrStatus::Connecting;
-        match OverlaySession::init() {
-            Ok(session) => {
+        let initial_width = settings.read().vr.width_meters;
+        match OverlaySession::init(initial_width) {
+            Ok(mut session) => {
                 *status.write() = VrStatus::Connected;
                 tracing::info!("VR overlay initialized");
                 // Hold the session alive until SteamVR goes away. The future
@@ -102,6 +112,12 @@ fn run(_state: Arc<RwLock<AppState>>, status: Arc<RwLock<VrStatus>>) {
                     if let Err(e) = session.heartbeat() {
                         tracing::warn!(error = %e, "VR session lost");
                         break;
+                    }
+                    // Apply any live settings changes (e.g. the user dragged
+                    // the width slider). Cheap idempotent OpenVR calls.
+                    let desired = settings.read().vr.clone();
+                    if let Err(e) = session.apply_settings(&desired) {
+                        tracing::warn!(error = %e, "applying VR settings failed");
                     }
                     std::thread::sleep(Duration::from_millis(500));
                 }

@@ -9,6 +9,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 pub struct PersistPaths {
     pub data_dir: PathBuf,
     pub state_file: PathBuf,
+    pub settings_file: PathBuf,
     pub log_dir: PathBuf,
 }
 
@@ -18,10 +19,12 @@ impl PersistPaths {
             .context("could not resolve %APPDATA% via `directories` crate")?;
         let data_dir = dirs.data_dir().to_path_buf();
         let state_file = data_dir.join("state.json");
+        let settings_file = data_dir.join("settings.json");
         let log_dir = data_dir.join("logs");
         Ok(Self {
             data_dir,
             state_file,
+            settings_file,
             log_dir,
         })
     }

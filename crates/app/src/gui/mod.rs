@@ -4,6 +4,7 @@ mod about_dialog;
 mod hideout_pane;
 mod icon_cache;
 mod preview_pane;
+mod settings_dialog;
 mod tasks_pane;
 
 use crate::data::GameData;
@@ -34,10 +35,13 @@ pub struct App {
     icons: IconCache,
     tab: LeftTab,
     show_about: bool,
+    show_settings: bool,
+    settings_dirty: bool,
     confirm_reset: bool,
     tasks_filter: String,
     status_banner: Option<String>,
     vr: Arc<crate::vr::Runtime>,
+    settings: Arc<RwLock<crate::settings::Settings>>,
 }
 
 impl App {
@@ -47,6 +51,7 @@ impl App {
         paths: Arc<PersistPaths>,
         save_tx: Sender<SaveTick>,
         vr: Arc<crate::vr::Runtime>,
+        settings: Arc<RwLock<crate::settings::Settings>>,
     ) -> Self {
         let icons = IconCache::new();
         // Pull any initial warning surfaced by persist::load.
@@ -58,10 +63,13 @@ impl App {
             icons,
             tab: LeftTab::Hideout,
             show_about: false,
+            show_settings: false,
+            settings_dirty: false,
             confirm_reset: false,
             tasks_filter: String::new(),
             status_banner: banner,
             vr,
+            settings,
         }
     }
 
@@ -72,6 +80,13 @@ impl App {
     fn notify_save(&self) {
         let v = self.state.read().version;
         let _ = self.save_tx.try_send(SaveTick { version: v });
+    }
+
+    fn persist_settings(&self) {
+        let snapshot = self.settings.read().clone();
+        if let Err(e) = crate::settings::save(&self.paths.settings_file, &snapshot) {
+            tracing::warn!(error = %e, "failed to persist settings.json");
+        }
     }
 }
 
@@ -136,6 +151,16 @@ impl eframe::App for App {
         if self.confirm_reset {
             self.confirm_reset_dialog(ctx);
         }
+        if self.show_settings {
+            let outcome = settings_dialog::show(ctx, &mut self.show_settings, &self.settings);
+            if outcome.changed {
+                self.settings_dirty = true;
+            }
+            if outcome.closed && self.settings_dirty {
+                self.persist_settings();
+                self.settings_dirty = false;
+            }
+        }
     }
 }
 
@@ -159,6 +184,9 @@ impl App {
             }
             if ui.button("Reset progress").clicked() {
                 self.confirm_reset = true;
+            }
+            if ui.button("Settings").clicked() {
+                self.show_settings = true;
             }
         });
     }
