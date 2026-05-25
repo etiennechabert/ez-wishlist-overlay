@@ -141,12 +141,12 @@
              path of the File element with Id='exe0' (the .exe component
              above).
 
-             Return='asyncNoWait' so the installer process exits
-             immediately instead of blocking on the launched app's
-             window. Impersonate='yes' runs the app as the invoking
-             user rather than SYSTEM (the perMachine MSI runs elevated;
-             without impersonation the launched exe would also run
-             elevated, which Steam/SteamVR clients don't accept). -->
+             Return='ignore': we don't block the installer on the launched
+             app's exit code (asyncNoWait is reserved for ExeCommand-style
+             CAs; DLL-based CAs use ignore/check). Impersonate='yes' runs
+             the app as the invoking user rather than elevated SYSTEM —
+             the perMachine MSI runs elevated, and Steam/SteamVR's IPC
+             handshake rejects elevated clients. -->
         <Property Id='WIXUI_EXITDIALOGOPTIONALCHECKBOX' Value='1'/>
         <Property Id='WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT'
                   Value='Launch EZ Wishlist Overlay'/>
@@ -155,7 +155,7 @@
                       BinaryKey='WixCA'
                       DllEntry='WixShellExec'
                       Impersonate='yes'
-                      Return='asyncNoWait'/>
+                      Return='ignore'/>
         <UI>
             <Publish Dialog='ExitDialog'
                      Control='Finish'
