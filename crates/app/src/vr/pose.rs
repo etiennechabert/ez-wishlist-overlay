@@ -1,20 +1,19 @@
 //! Pitch-driven visibility state machine.
 //!
-//! Shows the overlay when the user holds pitch ≥ `SHOW_PITCH_DEG` for
-//! `DWELL_MS` milliseconds; hides immediately when pitch drops below
-//! `HIDE_PITCH_DEG`. See SPEC.md §7.2.
+//! Shows the overlay the instant pitch crosses `SHOW_PITCH_DEG`, hides
+//! immediately when pitch drops below `HIDE_PITCH_DEG`. The 25° gap
+//! between the two thresholds is the hysteresis dead-zone that prevents
+//! the overlay from flickering at the boundary — no extra dwell timer is
+//! needed (an earlier iteration had one; user feedback said the lag from
+//! that debounce just felt sluggish). See SPEC.md §7.2.
 //!
 //! This module is intentionally OpenVR-agnostic — Phase 3 just feeds it the
 //! pitch it reads from `WaitGetPoses` each frame.
 
-use std::time::{Duration, Instant};
-
 /// Show threshold in degrees of pitch up from horizontal.
-pub const SHOW_PITCH_DEG: f32 = 60.0;
+pub const SHOW_PITCH_DEG: f32 = 45.0;
 /// Hide threshold in degrees of pitch up from horizontal.
-pub const HIDE_PITCH_DEG: f32 = 45.0;
-/// Required dwell above the show threshold before fade-in.
-pub const DWELL_MS: u64 = 350;
+pub const HIDE_PITCH_DEG: f32 = 20.0;
 
 /// Extract HMD pitch (degrees up from horizontal) from an OpenVR
 /// `device_to_absolute_tracking` 3×4 matrix.
@@ -38,16 +37,11 @@ pub fn pitch_from_hmd_matrix(matrix: &[[f32; 4]; 3]) -> f32 {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Visibility {
     Hidden,
-    /// Above SHOW threshold but still within the dwell window.
-    PendingShow,
     Visible,
 }
 
 pub struct VisibilityFsm {
     state: Visibility,
-    /// When pitch first crossed the SHOW threshold during the current
-    /// pending-show window.
-    pending_since: Option<Instant>,
 }
 
 impl Default for VisibilityFsm {
@@ -60,7 +54,6 @@ impl VisibilityFsm {
     pub fn new() -> Self {
         Self {
             state: Visibility::Hidden,
-            pending_since: None,
         }
     }
 
@@ -68,56 +61,23 @@ impl VisibilityFsm {
         self.state
     }
 
-    /// Feed one pitch sample. Returns the new state (which may equal the old).
-    #[allow(dead_code)] // Wired in by the Phase 3 OpenVR runtime loop.
-    pub fn tick(&mut self, pitch_deg: f32, now: Instant) -> Visibility {
-        self.tick_with_dwell(pitch_deg, now, Duration::from_millis(DWELL_MS))
+    /// Feed one pitch sample using the canonical SHOW/HIDE thresholds.
+    /// Returns the new state (which may equal the old).
+    #[allow(dead_code)] // Used by tests; runtime uses `tick_with` for live settings.
+    pub fn tick(&mut self, pitch_deg: f32) -> Visibility {
+        self.tick_with(pitch_deg, SHOW_PITCH_DEG, HIDE_PITCH_DEG)
     }
 
-    /// Variant that lets tests override the dwell duration.
-    pub fn tick_with_dwell(&mut self, pitch_deg: f32, now: Instant, dwell: Duration) -> Visibility {
-        self.tick_with(pitch_deg, now, SHOW_PITCH_DEG, HIDE_PITCH_DEG, dwell)
-    }
-
-    /// General variant: caller supplies the show/hide thresholds and dwell.
-    /// Used by the runtime so live settings edits take effect immediately.
-    pub fn tick_with(
-        &mut self,
-        pitch_deg: f32,
-        now: Instant,
-        show_deg: f32,
-        hide_deg: f32,
-        dwell: Duration,
-    ) -> Visibility {
-        match self.state {
-            Visibility::Hidden => {
-                if pitch_deg >= show_deg {
-                    self.pending_since = Some(now);
-                    self.state = Visibility::PendingShow;
-                }
-            }
-            Visibility::PendingShow => {
-                if pitch_deg < hide_deg {
-                    self.pending_since = None;
-                    self.state = Visibility::Hidden;
-                } else if pitch_deg >= show_deg {
-                    if let Some(t0) = self.pending_since {
-                        if now.duration_since(t0) >= dwell {
-                            self.state = Visibility::Visible;
-                            self.pending_since = None;
-                        }
-                    }
-                } else {
-                    // In the hysteresis band — hold.
-                }
-            }
-            Visibility::Visible => {
-                if pitch_deg < hide_deg {
-                    self.state = Visibility::Hidden;
-                    self.pending_since = None;
-                }
-            }
-        }
+    /// Variant that lets the caller supply the show/hide thresholds —
+    /// used by the runtime so live settings edits take effect on the
+    /// very next tick.
+    pub fn tick_with(&mut self, pitch_deg: f32, show_deg: f32, hide_deg: f32) -> Visibility {
+        self.state = match self.state {
+            Visibility::Hidden if pitch_deg >= show_deg => Visibility::Visible,
+            Visibility::Visible if pitch_deg < hide_deg => Visibility::Hidden,
+            // In the hysteresis band (or no threshold cross): hold.
+            s => s,
+        };
         self.state
     }
 }
@@ -127,58 +87,33 @@ mod tests {
     use super::*;
 
     #[test]
-    fn hides_until_dwell_elapses() {
+    fn shows_instantly_when_above_show_threshold() {
         let mut fsm = VisibilityFsm::new();
-        let t0 = Instant::now();
-        let dwell = Duration::from_millis(350);
-
-        // Look up immediately: pending, not visible.
-        assert_eq!(
-            fsm.tick_with_dwell(70.0, t0, dwell),
-            Visibility::PendingShow
-        );
-        // 200ms later still pending.
-        assert_eq!(
-            fsm.tick_with_dwell(70.0, t0 + Duration::from_millis(200), dwell),
-            Visibility::PendingShow
-        );
-        // 400ms in: visible.
-        assert_eq!(
-            fsm.tick_with_dwell(70.0, t0 + Duration::from_millis(400), dwell),
-            Visibility::Visible
-        );
+        assert_eq!(fsm.tick(70.0), Visibility::Visible);
     }
 
     #[test]
     fn hides_instantly_when_below_hide_threshold() {
         let mut fsm = VisibilityFsm::new();
-        let t0 = Instant::now();
-        let dwell = Duration::from_millis(350);
-        fsm.tick_with_dwell(70.0, t0, dwell);
-        fsm.tick_with_dwell(70.0, t0 + Duration::from_millis(400), dwell);
+        fsm.tick(70.0);
         assert_eq!(fsm.state(), Visibility::Visible);
 
-        // Look down: instant hide.
-        assert_eq!(
-            fsm.tick_with_dwell(20.0, t0 + Duration::from_millis(450), dwell),
-            Visibility::Hidden
-        );
+        // Look down clearly below HIDE_PITCH_DEG (20°): instant hide.
+        assert_eq!(fsm.tick(10.0), Visibility::Hidden);
     }
 
     #[test]
     fn hysteresis_band_holds_state() {
         let mut fsm = VisibilityFsm::new();
-        let t0 = Instant::now();
-        let dwell = Duration::from_millis(100);
-        fsm.tick_with_dwell(70.0, t0, dwell);
-        fsm.tick_with_dwell(70.0, t0 + Duration::from_millis(150), dwell);
+        fsm.tick(70.0);
         assert_eq!(fsm.state(), Visibility::Visible);
 
-        // 50° is in the band — should NOT hide.
-        assert_eq!(
-            fsm.tick_with_dwell(50.0, t0 + Duration::from_millis(200), dwell),
-            Visibility::Visible
-        );
+        // 30° is in the band (HIDE 20° < 30° < SHOW 45°) — should NOT hide.
+        assert_eq!(fsm.tick(30.0), Visibility::Visible);
+
+        // And while hidden, the same in-band value shouldn't pop us visible either.
+        let mut fsm = VisibilityFsm::new();
+        assert_eq!(fsm.tick(30.0), Visibility::Hidden);
     }
 
     /// Build a 3×4 OpenVR-style rotation matrix for a head pitched up by
@@ -210,19 +145,5 @@ mod tests {
     fn pitch_handles_degenerate_matrix() {
         let zero = [[0.0_f32; 4]; 3];
         assert_eq!(pitch_from_hmd_matrix(&zero), 0.0);
-    }
-
-    #[test]
-    fn brief_glance_does_not_show() {
-        let mut fsm = VisibilityFsm::new();
-        let t0 = Instant::now();
-        let dwell = Duration::from_millis(350);
-        // Look up...
-        fsm.tick_with_dwell(70.0, t0, dwell);
-        // ...look down before dwell elapses.
-        assert_eq!(
-            fsm.tick_with_dwell(20.0, t0 + Duration::from_millis(100), dwell),
-            Visibility::Hidden
-        );
     }
 }

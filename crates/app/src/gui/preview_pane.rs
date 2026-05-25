@@ -53,7 +53,6 @@ fn row(
     item: &crate::state::ActiveItem,
 ) {
     let dark = ui.visuals().dark_mode;
-    let strong_text = ui.visuals().strong_text_color();
     let done = item.collected >= item.needed && item.needed > 0;
     let frame_fill = if done {
         theme::done_frame_fill(dark)
@@ -66,66 +65,85 @@ fn row(
         .inner_margin(egui::Margin::same(6.0))
         .show(ui, |ui| {
             ui.horizontal(|ui| {
-                let texture = icons.get(ui.ctx(), &item.icon_path);
-                if let Some(tex) = texture {
-                    ui.add(
-                        egui::Image::new(tex).fit_to_exact_size(egui::vec2(ICON_SIZE, ICON_SIZE)),
-                    );
-                } else {
-                    let (rect, _) = ui.allocate_exact_size(
-                        egui::vec2(ICON_SIZE, ICON_SIZE),
-                        egui::Sense::hover(),
-                    );
-                    ui.painter()
-                        .rect_filled(rect, 4.0, theme::placeholder_icon(dark));
-                }
+                row_icon(ui, icons, &item.icon_path, dark);
                 ui.vertical(|ui| {
-                    let name_color = if done {
-                        theme::done_text(dark)
-                    } else {
-                        strong_text
-                    };
-                    ui.label(egui::RichText::new(&item.name).color(name_color));
-
-                    ui.horizontal(|ui| {
-                        let progress = if item.needed == 0 {
-                            0.0
-                        } else {
-                            (item.collected as f32 / item.needed as f32).clamp(0.0, 1.0)
-                        };
-                        ui.add(egui::ProgressBar::new(progress).desired_width(160.0).text(
-                            format!("{} / {}", item.collected.min(item.needed), item.needed),
-                        ));
-
-                        if ui.small_button("-").clicked() {
-                            state.write().adjust_collected(&item.item_id, -1);
-                            notify(state, save_tx);
-                        }
-                        let mut value = item.collected;
-                        if ui
-                            .add(egui::DragValue::new(&mut value).range(0..=9999).speed(0.05))
-                            .changed()
-                        {
-                            state.write().set_collected(&item.item_id, value);
-                            notify(state, save_tx);
-                        }
-                        if ui.small_button("+").clicked() {
-                            state.write().adjust_collected(&item.item_id, 1);
-                            notify(state, save_tx);
-                        }
-                    });
-
-                    if !item.sources.is_empty() {
-                        ui.label(
-                            egui::RichText::new(format!("↳ {}", item.sources.join(" • ")))
-                                .small()
-                                .color(theme::source_text(dark)),
-                        );
-                    }
+                    row_name(ui, &item.name, done, dark);
+                    ui.horizontal(|ui| row_controls(ui, state, save_tx, item));
+                    row_sources(ui, &item.sources, dark);
                 });
             });
         });
     ui.add_space(2.0);
+}
+
+fn row_icon(ui: &mut egui::Ui, icons: &mut IconCache, icon_path: &str, dark: bool) {
+    if let Some(tex) = icons.get(ui.ctx(), icon_path) {
+        ui.add(egui::Image::new(tex).fit_to_exact_size(egui::vec2(ICON_SIZE, ICON_SIZE)));
+    } else {
+        let (rect, _) =
+            ui.allocate_exact_size(egui::vec2(ICON_SIZE, ICON_SIZE), egui::Sense::hover());
+        ui.painter()
+            .rect_filled(rect, 4.0, theme::placeholder_icon(dark));
+    }
+}
+
+fn row_name(ui: &mut egui::Ui, name: &str, done: bool, dark: bool) {
+    let color = if done {
+        theme::done_text(dark)
+    } else {
+        ui.visuals().strong_text_color()
+    };
+    ui.label(egui::RichText::new(name).color(color));
+}
+
+fn row_controls(
+    ui: &mut egui::Ui,
+    state: &Arc<RwLock<AppState>>,
+    save_tx: &Sender<SaveTick>,
+    item: &crate::state::ActiveItem,
+) {
+    let progress = if item.needed == 0 {
+        0.0
+    } else {
+        (item.collected as f32 / item.needed as f32).clamp(0.0, 1.0)
+    };
+    ui.add(
+        egui::ProgressBar::new(progress)
+            .desired_width(160.0)
+            .text(format!(
+                "{} / {}",
+                item.collected.min(item.needed),
+                item.needed
+            )),
+    );
+
+    if ui.small_button("-").clicked() {
+        state.write().adjust_collected(&item.item_id, -1);
+        notify(state, save_tx);
+    }
+    let mut value = item.collected;
+    if ui
+        .add(egui::DragValue::new(&mut value).range(0..=9999).speed(0.05))
+        .changed()
+    {
+        state.write().set_collected(&item.item_id, value);
+        notify(state, save_tx);
+    }
+    if ui.small_button("+").clicked() {
+        state.write().adjust_collected(&item.item_id, 1);
+        notify(state, save_tx);
+    }
+}
+
+fn row_sources(ui: &mut egui::Ui, sources: &[String], dark: bool) {
+    if sources.is_empty() {
+        return;
+    }
+    ui.label(
+        egui::RichText::new(format!("↳ {}", sources.join(" • ")))
+            .small()
+            .color(theme::source_text(dark)),
+    );
 }
 
 fn notify(state: &Arc<RwLock<AppState>>, save_tx: &Sender<SaveTick>) {

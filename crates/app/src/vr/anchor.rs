@@ -14,8 +14,11 @@
 /// How far forward (along the user's horizontal facing direction, metres)
 /// the overlay sits from the HMD.
 pub const DISTANCE_M: f32 = 1.2;
-/// How far above (positive Y, metres) the overlay sits from the HMD.
-pub const HEIGHT_M: f32 = 0.6;
+/// How far above (positive Y, metres) the overlay sits from the HMD by
+/// default. Combined with the default `SHOW_PITCH_DEG = 45°` this puts
+/// the panel just above where your gaze lands when you tilt up to trigger
+/// it, so confirming the show + reading the panel are the same motion.
+pub const HEIGHT_M: f32 = 1.0;
 /// Tilt around the local X axis (positive degrees rotates the overlay's
 /// top edge backward, so the front face looks down toward the viewer).
 pub const TILT_DEG: f32 = 35.0;

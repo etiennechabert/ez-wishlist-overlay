@@ -119,38 +119,7 @@ pub fn parse(tasks_ts_path: &Path, catalog: &ItemCatalog) -> Result<TasksResult>
             continue;
         }
 
-        let mut requirements: BTreeMap<String, u32> = BTreeMap::new();
-
-        // 1. Pull in any task-items that link back to this task.
-        if let Some(linked) = item_to_tasks.get(&t.id) {
-            for item_id in linked {
-                requirements.entry(item_id.clone()).or_insert(1);
-            }
-        }
-
-        // 2. Walk objectives and try to extract (item_name, quantity) pairs.
-        for obj in &t.objectives {
-            if let Some((qty, name)) = match_objective(obj) {
-                if let Some(item_id) = resolve_item_name(&name, catalog, &t.id, &item_to_tasks) {
-                    // Update the quantity: use the parsed value (overwrite the
-                    // "1" default we placed for task-items).
-                    requirements.insert(item_id, qty);
-                } else if t.task_type.iter().any(|tt| tt == "submit") {
-                    unparsed.push(UnparsedObjective {
-                        task_id: t.id.clone(),
-                        objective: obj.clone(),
-                        reason: format!("no item match for `{name}`"),
-                    });
-                }
-            } else if is_submit_like(obj) {
-                unparsed.push(UnparsedObjective {
-                    task_id: t.id.clone(),
-                    objective: obj.clone(),
-                    reason: "regex did not match".to_string(),
-                });
-            }
-        }
-
+        let requirements = build_task_requirements(&t, &item_to_tasks, catalog, &mut unparsed);
         if requirements.is_empty() {
             dropped_no_requirements += 1;
             continue;
@@ -211,6 +180,59 @@ pub fn parse(tasks_ts_path: &Path, catalog: &ItemCatalog) -> Result<TasksResult>
         referenced_items,
         unparsed_objectives: unparsed,
     })
+}
+
+/// Build the (item_id → quantity) map for a single task. Pulls in any
+/// linked task-items first (default qty=1), then walks `objectives` and
+/// overwrites with parsed quantities. Anything we can't parse but looks
+/// like a submission objective is pushed to `unparsed` for diagnostics.
+fn build_task_requirements(
+    t: &UpstreamTask,
+    item_to_tasks: &HashMap<String, Vec<String>>,
+    catalog: &ItemCatalog,
+    unparsed: &mut Vec<UnparsedObjective>,
+) -> BTreeMap<String, u32> {
+    let mut requirements: BTreeMap<String, u32> = BTreeMap::new();
+
+    if let Some(linked) = item_to_tasks.get(&t.id) {
+        for item_id in linked {
+            requirements.entry(item_id.clone()).or_insert(1);
+        }
+    }
+
+    for obj in &t.objectives {
+        apply_objective(t, obj, catalog, item_to_tasks, &mut requirements, unparsed);
+    }
+
+    requirements
+}
+
+fn apply_objective(
+    t: &UpstreamTask,
+    obj: &str,
+    catalog: &ItemCatalog,
+    item_to_tasks: &HashMap<String, Vec<String>>,
+    requirements: &mut BTreeMap<String, u32>,
+    unparsed: &mut Vec<UnparsedObjective>,
+) {
+    if let Some((qty, name)) = match_objective(obj) {
+        if let Some(item_id) = resolve_item_name(&name, catalog, &t.id, item_to_tasks) {
+            // Overwrite the "1" default we placed for task-items.
+            requirements.insert(item_id, qty);
+        } else if t.task_type.iter().any(|tt| tt == "submit") {
+            unparsed.push(UnparsedObjective {
+                task_id: t.id.clone(),
+                objective: obj.to_string(),
+                reason: format!("no item match for `{name}`"),
+            });
+        }
+    } else if is_submit_like(obj) {
+        unparsed.push(UnparsedObjective {
+            task_id: t.id.clone(),
+            objective: obj.to_string(),
+            reason: "regex did not match".to_string(),
+        });
+    }
 }
 
 fn match_objective(obj: &str) -> Option<(u32, String)> {

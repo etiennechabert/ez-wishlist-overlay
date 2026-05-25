@@ -24,6 +24,32 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Fail fast on the most common release-cutting mistake: pushing a
+      # `v0.0.8` tag without first bumping `crates/app/Cargo.toml` to
+      # match. Without this guard the resulting MSI ships a binary whose
+      # in-app "About" version disagrees with the GitHub release tag.
+      # `workflow_dispatch` (no tag) skips this so manual dry runs still
+      # work.
+      - name: Verify Cargo.toml version matches tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $tag = $env:GITHUB_REF -replace '^refs/tags/v',''
+          $match = Select-String -Path crates/app/Cargo.toml `
+            -Pattern '^version\s*=\s*"([^"]+)"' | Select-Object -First 1
+          if (-not $match) {
+            Write-Error "Could not find a version line in crates/app/Cargo.toml"
+            exit 1
+          }
+          $cargoVersion = $match.Matches[0].Groups[1].Value
+          if ($tag -ne $cargoVersion) {
+            Write-Error ("Tag v$tag does not match crates/app/Cargo.toml " +
+              "version $cargoVersion. Bump Cargo.toml + push a fresh commit " +
+              "before tagging, then re-tag.")
+            exit 1
+          }
+          Write-Output "Version match: tag v$tag == Cargo.toml $cargoVersion"
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:

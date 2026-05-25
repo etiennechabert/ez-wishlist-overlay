@@ -14,11 +14,14 @@ const SCHEMA_VERSION: u32 = 1;
 pub mod bounds {
     pub const WIDTH_METERS: std::ops::RangeInclusive<f32> = 0.2..=2.0;
     pub const PITCH_DEG: std::ops::RangeInclusive<f32> = 0.0..=89.0;
-    pub const DWELL_MS: std::ops::RangeInclusive<u64> = 50..=2000;
     /// Items-per-row on the VR overlay grid. 2 is the lower bound where the
     /// layout still feels like a grid; above 10 each cell gets too small to
     /// be readable at typical overlay sizes.
     pub const GRID_COLS: std::ops::RangeInclusive<u32> = 2..=10;
+    /// Vertical offset of the overlay above the HMD at show-time, in metres.
+    /// 0 sits the panel at eye level (looking forward sees its lower edge);
+    /// the upper end pushes it well above so you have to crane up to see it.
+    pub const HEIGHT_OFFSET_M: std::ops::RangeInclusive<f32> = 0.0..=1.5;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -73,28 +76,37 @@ pub struct VrSettings {
     /// Pitch below which the overlay hides immediately. Must stay strictly
     /// below `show_pitch_deg` or the hysteresis collapses.
     pub hide_pitch_deg: f32,
-    /// Time the show pitch must be held before fade-in begins.
-    pub show_dwell_ms: u64,
     /// Items-per-row on the overlay grid. Rows are derived from the
     /// wishlist size at render time, so a smaller `grid_cols` produces a
     /// taller, narrower panel and vice versa.
     #[serde(default = "default_grid_cols")]
     pub grid_cols: u32,
+    /// Vertical offset above the HMD (metres) baked into the world anchor
+    /// captured on show. Takes effect on the next show — already-visible
+    /// overlays keep their position until they hide and reappear.
+    #[serde(default = "default_height_offset_m")]
+    pub height_offset_m: f32,
 }
 
 fn default_grid_cols() -> u32 {
-    6
+    8
+}
+
+fn default_height_offset_m() -> f32 {
+    // Tracks the canonical anchor::HEIGHT_M so the slider default and the
+    // hard-coded fallback used by `world_anchor_from_hmd` stay in lockstep.
+    crate::vr::anchor::HEIGHT_M
 }
 
 impl Default for VrSettings {
     fn default() -> Self {
         // Defaults track the SPEC.md §7.2 baselines documented in vr/pose.rs.
         Self {
-            width_meters: 0.6,
+            width_meters: 1.0,
             show_pitch_deg: crate::vr::pose::SHOW_PITCH_DEG,
             hide_pitch_deg: crate::vr::pose::HIDE_PITCH_DEG,
-            show_dwell_ms: crate::vr::pose::DWELL_MS,
             grid_cols: default_grid_cols(),
+            height_offset_m: default_height_offset_m(),
         }
     }
 }
@@ -110,10 +122,10 @@ impl VrSettings {
         if self.hide_pitch_deg >= self.show_pitch_deg {
             self.hide_pitch_deg = (self.show_pitch_deg - 1.0).max(*p.start());
         }
-        let d = bounds::DWELL_MS;
-        self.show_dwell_ms = self.show_dwell_ms.clamp(*d.start(), *d.end());
         let g = bounds::GRID_COLS;
         self.grid_cols = self.grid_cols.clamp(*g.start(), *g.end());
+        let h = bounds::HEIGHT_OFFSET_M;
+        self.height_offset_m = self.height_offset_m.clamp(*h.start(), *h.end());
     }
 }
 
@@ -174,8 +186,8 @@ mod tests {
             width_meters: 0.6,
             show_pitch_deg: 40.0,
             hide_pitch_deg: 50.0,
-            show_dwell_ms: 350,
             grid_cols: 6,
+            height_offset_m: 0.6,
         };
         vr.sanitize();
         assert!(
@@ -190,15 +202,25 @@ mod tests {
             width_meters: 99.0,
             show_pitch_deg: 200.0,
             hide_pitch_deg: -10.0,
-            show_dwell_ms: 1_000_000,
             grid_cols: 99,
+            height_offset_m: 99.0,
         };
         vr.sanitize();
         assert_eq!(vr.width_meters, 2.0);
         assert_eq!(vr.show_pitch_deg, 89.0);
         assert_eq!(vr.hide_pitch_deg, 0.0);
-        assert_eq!(vr.show_dwell_ms, 2000);
         assert_eq!(vr.grid_cols, *bounds::GRID_COLS.end());
+        assert_eq!(vr.height_offset_m, *bounds::HEIGHT_OFFSET_M.end());
+    }
+
+    #[test]
+    fn sanitize_clamps_height_offset_below_min() {
+        let mut vr = VrSettings {
+            height_offset_m: -2.0,
+            ..VrSettings::default()
+        };
+        vr.sanitize();
+        assert_eq!(vr.height_offset_m, *bounds::HEIGHT_OFFSET_M.start());
     }
 
     #[test]
@@ -216,6 +238,5 @@ mod tests {
         let vr = VrSettings::default();
         assert_eq!(vr.show_pitch_deg, crate::vr::pose::SHOW_PITCH_DEG);
         assert_eq!(vr.hide_pitch_deg, crate::vr::pose::HIDE_PITCH_DEG);
-        assert_eq!(vr.show_dwell_ms, crate::vr::pose::DWELL_MS);
     }
 }
