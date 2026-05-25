@@ -40,6 +40,37 @@ pub struct Settings {
     /// nagware, but newer versions still surface.
     #[serde(default)]
     pub dismissed_update_version: Option<String>,
+    #[serde(default)]
+    pub ocr: OcrSettings,
+}
+
+/// OCR / screenshot-watcher settings. Lives next to VrSettings so the
+/// single settings.json file covers the whole app surface.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct OcrSettings {
+    /// Whether to spawn the background watcher at all. Default on —
+    /// if the auto-detected dir doesn't exist the watcher just sits
+    /// quiet until it does, so the cost of "enabled" is ~free.
+    #[serde(default = "default_ocr_enabled")]
+    pub enabled: bool,
+    /// Override for the watched directory. When `None`, we auto-detect
+    /// the SteamVR per-app screenshots dir for ExfilZone
+    /// (`<Steam>\userdata\<id>\760\remote\2719160\screenshots\`).
+    #[serde(default)]
+    pub watch_dir_override: Option<PathBuf>,
+}
+
+impl Default for OcrSettings {
+    fn default() -> Self {
+        Self {
+            enabled: default_ocr_enabled(),
+            watch_dir_override: None,
+        }
+    }
+}
+
+fn default_ocr_enabled() -> bool {
+    true
 }
 
 fn default_check_for_updates() -> bool {
@@ -54,6 +85,7 @@ impl Default for Settings {
             theme: Theme::default(),
             check_for_updates: default_check_for_updates(),
             dismissed_update_version: None,
+            ocr: OcrSettings::default(),
         }
     }
 }

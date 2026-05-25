@@ -15,6 +15,7 @@ mod settings;
 mod state;
 mod updater;
 mod vr;
+mod wishlist;
 
 use anyhow::{Context, Result};
 use parking_lot::RwLock;
@@ -80,6 +81,39 @@ fn main() -> Result<()> {
         None
     };
 
+    // OCR screenshot watcher — looks at the SteamVR per-app screenshot
+    // dir for ExfilZone, OCRs anything new, and forwards events to the
+    // GUI. The thread stays alive for the program's lifetime; disabling
+    // the feature in settings is a TODO follow-up (today we just don't
+    // spawn at startup when the setting is off).
+    let ocr_watcher = if settings.read().ocr.enabled {
+        let watch_dir = settings
+            .read()
+            .ocr
+            .watch_dir_override
+            .clone()
+            .or_else(ocr::watcher::auto_detect_exfilzone_screenshots_dir);
+        match watch_dir {
+            Some(dir) => {
+                tracing::info!(dir = %dir.display(), "spawning OCR watcher");
+                Some(ocr::watcher::spawn(
+                    dir,
+                    paths.ocr_watcher_state_file.clone(),
+                ))
+            }
+            None => {
+                tracing::warn!(
+                    "OCR watcher disabled — could not auto-detect Steam screenshots dir; \
+                     set ocr.watch_dir_override in settings.json to enable",
+                );
+                None
+            }
+        }
+    } else {
+        tracing::info!("OCR watcher disabled by settings");
+        None
+    };
+
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title("EZ Wishlist Overlay")
@@ -103,6 +137,7 @@ fn main() -> Result<()> {
                 settings,
                 log_buf,
                 update_rx,
+                ocr_watcher,
             )))
         }),
     )

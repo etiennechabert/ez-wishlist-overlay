@@ -59,11 +59,40 @@ pub struct App {
     /// the user turned off the check), gets replaced once the worker
     /// thread reports.
     check_status: CheckStatus,
+    /// Keeps the OCR watcher thread alive for the GUI's lifetime; we
+    /// never read the join handle but dropping it would let the thread
+    /// detach and stop receiving file events.
+    _ocr_watcher: Option<crate::ocr::watcher::Watcher>,
+    /// Cloned event receiver so we can drain without borrowing
+    /// `_ocr_watcher`. `None` when the watcher couldn't spawn (no
+    /// detected Steam dir + no override).
+    ocr_events: Option<crossbeam_channel::Receiver<crate::ocr::watcher::WatchEvent>>,
+    /// Transient banner shown in the header for ~5 s after each
+    /// successful (or failed) capture, so the user knows their
+    /// screenshot was picked up.
+    ocr_capture_toast: Option<OcrToast>,
+    /// In-memory wishlist; rewritten to disk on every successful
+    /// capture. Lazily loaded from `paths.wishlist_file` on construction.
+    wishlist: crate::wishlist::Wishlist,
+}
+
+#[derive(Clone)]
+pub(crate) struct OcrToast {
+    pub message: String,
+    pub kind: OcrToastKind,
+    pub shown_at: std::time::Instant,
+}
+
+#[derive(Clone, Copy)]
+pub(crate) enum OcrToastKind {
+    Success,
+    Failure,
 }
 
 impl App {
     // Already a wide constructor before the update_rx addition; folding the
     // args into a builder/config struct is its own refactor.
+    #[allow(clippy::too_many_arguments)]
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         _cc: &eframe::CreationContext<'_>,
@@ -74,6 +103,7 @@ impl App {
         settings: Arc<RwLock<crate::settings::Settings>>,
         log_buf: crate::log_buffer::LogBuffer,
         update_rx: Option<Receiver<CheckStatus>>,
+        ocr_watcher: Option<crate::ocr::watcher::Watcher>,
     ) -> Self {
         let icons = IconCache::new();
         // Pull any initial warning surfaced by persist::load.
@@ -83,6 +113,12 @@ impl App {
         } else {
             CheckStatus::Disabled
         };
+        let ocr_events = ocr_watcher.as_ref().map(|w| w.events.clone());
+        let wishlist = crate::wishlist::load(&paths.wishlist_file);
+        tracing::info!(
+            entries = wishlist.entries.len(),
+            "wishlist loaded",
+        );
         Self {
             state,
             paths,
@@ -104,6 +140,10 @@ impl App {
             log_buf,
             update_rx,
             check_status,
+            _ocr_watcher: ocr_watcher,
+            ocr_events,
+            ocr_capture_toast: None,
+            wishlist,
         }
     }
 
@@ -141,6 +181,7 @@ impl eframe::App for App {
         egui::TopBottomPanel::top("header").show(ctx, |ui| self.header(ui));
 
         self.poll_update_check();
+        self.drain_ocr_events();
         self.update_banner(ctx);
 
         if let Some(msg) = &self.status_banner.clone() {
@@ -238,6 +279,20 @@ impl App {
                 self.confirm_reset = true;
             }
 
+            // Inline OCR-capture toast — shown right of the action
+            // buttons for ~6 s after each watcher event. Color codes
+            // success vs failure; full message in the tooltip lest a
+            // long filename push the header buttons offscreen.
+            if let Some(toast) = self.ocr_capture_toast.clone() {
+                ui.separator();
+                let color = match toast.kind {
+                    OcrToastKind::Success => egui::Color32::from_rgb(80, 180, 100),
+                    OcrToastKind::Failure => egui::Color32::from_rgb(220, 100, 90),
+                };
+                ui.colored_label(color, &toast.message)
+                    .on_hover_text(&toast.message);
+            }
+
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui.button("Settings").clicked() {
                     self.show_settings = true;
@@ -320,6 +375,112 @@ impl App {
                     };
                 }
                 self.update_rx = None;
+            }
+        }
+    }
+
+    /// Pull any newly-OCR'd screenshots from the watcher thread, parse
+    /// them into structured upgrades, upsert into the wishlist, persist,
+    /// and surface a header toast summarizing what landed.
+    fn drain_ocr_events(&mut self) {
+        let Some(rx) = self.ocr_events.as_ref() else {
+            return;
+        };
+        let mut latest: Option<OcrToast> = None;
+        let mut wishlist_dirty = false;
+        loop {
+            match rx.try_recv() {
+                Ok(crate::ocr::watcher::WatchEvent::Captured { path, result }) => {
+                    let filename = path
+                        .file_name()
+                        .map(|s| s.to_string_lossy().into_owned())
+                        .unwrap_or_else(|| path.display().to_string());
+                    tracing::info!(
+                        file = %filename,
+                        chars = result.text.len(),
+                        words = result.words.len(),
+                        "OCR captured (raw): {}",
+                        result.text.replace('\n', " | "),
+                    );
+                    latest = Some(match crate::ocr::parse::parse_upgrade(&result) {
+                        Some(upgrade) => {
+                            let key = upgrade.key.clone();
+                            let item_count = upgrade.items.len();
+                            let cost = upgrade.cost;
+                            let prev = crate::wishlist::upsert(
+                                &mut self.wishlist,
+                                upgrade,
+                                result.text.clone(),
+                                &path,
+                            );
+                            wishlist_dirty = true;
+                            let verb = if prev.is_some() { "Updated" } else { "Added" };
+                            let cost_str = cost
+                                .map(|c| format!(" · {c}¤"))
+                                .unwrap_or_default();
+                            tracing::info!(
+                                key = %key,
+                                items = item_count,
+                                cost,
+                                action = verb,
+                                "wishlist entry persisted",
+                            );
+                            OcrToast {
+                                message: format!(
+                                    "✓ {verb} \"{key}\" — {item_count} items{cost_str}"
+                                ),
+                                kind: OcrToastKind::Success,
+                                shown_at: std::time::Instant::now(),
+                            }
+                        }
+                        None => {
+                            tracing::warn!(
+                                file = %filename,
+                                "OCR text didn't look like an upgrade panel — skipping",
+                            );
+                            OcrToast {
+                                message: format!(
+                                    "⚠ {filename}: no upgrade panel detected ({} words)",
+                                    result.words.len()
+                                ),
+                                kind: OcrToastKind::Failure,
+                                shown_at: std::time::Instant::now(),
+                            }
+                        }
+                    });
+                }
+                Ok(crate::ocr::watcher::WatchEvent::Failed { path, error }) => {
+                    let filename = path
+                        .file_name()
+                        .map(|s| s.to_string_lossy().into_owned())
+                        .unwrap_or_else(|| path.display().to_string());
+                    tracing::warn!(file = %filename, %error, "OCR failed on screenshot");
+                    latest = Some(OcrToast {
+                        message: format!("× OCR failed on {filename}: {error}"),
+                        kind: OcrToastKind::Failure,
+                        shown_at: std::time::Instant::now(),
+                    });
+                }
+                Err(crossbeam_channel::TryRecvError::Empty) => break,
+                Err(crossbeam_channel::TryRecvError::Disconnected) => {
+                    self.ocr_events = None;
+                    break;
+                }
+            }
+        }
+        if wishlist_dirty {
+            if let Err(e) = crate::wishlist::save(&self.paths.wishlist_file, &self.wishlist) {
+                tracing::warn!(error = %e, "failed to persist wishlist.json");
+            }
+        }
+        if latest.is_some() {
+            self.ocr_capture_toast = latest;
+        }
+        // Auto-expire after ~6 seconds so the header doesn't permanently
+        // carry a stale message.
+        if let Some(t) = &self.ocr_capture_toast {
+            if t.shown_at.elapsed() > std::time::Duration::from_secs(6) {
+                self.ocr_capture_toast = None;
             }
         }
     }

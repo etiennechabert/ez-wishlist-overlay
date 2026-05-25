@@ -11,6 +11,12 @@ pub struct PersistPaths {
     pub state_file: PathBuf,
     pub settings_file: PathBuf,
     pub log_dir: PathBuf,
+    /// Tiny JSON file holding the OCR watcher's last-processed mtime
+    /// cutoff, so we don't re-OCR existing screenshots on every launch.
+    pub ocr_watcher_state_file: PathBuf,
+    /// OCR-captured upgrade entries — the new source of truth for what
+    /// the user wants to track. See [`crate::wishlist`].
+    pub wishlist_file: PathBuf,
 }
 
 impl PersistPaths {
@@ -21,11 +27,15 @@ impl PersistPaths {
         let state_file = data_dir.join("state.json");
         let settings_file = data_dir.join("settings.json");
         let log_dir = data_dir.join("logs");
+        let ocr_watcher_state_file = data_dir.join("ocr-watcher.json");
+        let wishlist_file = data_dir.join("wishlist.json");
         Ok(Self {
             data_dir,
             state_file,
             settings_file,
             log_dir,
+            ocr_watcher_state_file,
+            wishlist_file,
         })
     }
 

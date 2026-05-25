@@ -15,6 +15,7 @@
 #[cfg(target_os = "windows")]
 mod engine;
 pub mod parse;
+pub mod watcher;
 
 #[cfg(target_os = "windows")]
 pub use engine::recognize_file;
