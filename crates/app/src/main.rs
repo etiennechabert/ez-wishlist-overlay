@@ -61,6 +61,7 @@ fn main() -> Result<()> {
     let shared_state = Arc::new(RwLock::new(app_state));
     let (save_tx, save_rx) = crossbeam_channel::unbounded::<gui::SaveTick>();
     let _save_handle = save_loop::spawn(shared_state.clone(), paths.clone(), save_rx);
+    let vr_runtime = Arc::new(vr::Runtime::spawn(shared_state.clone()));
 
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
@@ -74,7 +75,15 @@ fn main() -> Result<()> {
     eframe::run_native(
         "EZ Wishlist Overlay",
         native_options,
-        Box::new(move |cc| Ok(Box::new(gui::App::new(cc, shared_state, paths, save_tx)))),
+        Box::new(move |cc| {
+            Ok(Box::new(gui::App::new(
+                cc,
+                shared_state,
+                paths,
+                save_tx,
+                vr_runtime,
+            )))
+        }),
     )
     .map_err(|e| anyhow::anyhow!("eframe failed: {e}"))?;
 

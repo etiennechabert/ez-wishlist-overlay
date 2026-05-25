@@ -45,6 +45,15 @@ rustup default stable-x86_64-pc-windows-gnullvm
 
 (MSVC also works once Visual Studio Build Tools with the C++ workload is installed. There's no toolchain pin — pick whichever you prefer.)
 
+The VR layer depends on the [`openvr`](https://crates.io/crates/openvr) crate, whose `openvr_sys` build script compiles Valve's OpenVR C++ SDK via cmake + bindgen. On Windows that also requires:
+
+```powershell
+winget install Kitware.CMake
+winget install LLVM.LLVM       # for libclang on PATH (bindgen)
+```
+
+The VR layer is gated behind `cfg(target_os = "windows")` — macOS and Linux builds skip it entirely and the app falls back to "VR: unavailable on this OS" so the desktop GUI stays iterable cross-platform.
+
 ### Run the desktop app
 
 ```powershell
