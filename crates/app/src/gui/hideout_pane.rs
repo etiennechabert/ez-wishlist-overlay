@@ -1,7 +1,7 @@
 //! Left tab: hideout upgrades, one row per module with up to 4 level cells.
 
 use crate::data::{HideoutModule, Requirement, Upgrade};
-use crate::gui::{icon_cache::IconCache, SaveTick};
+use crate::gui::{icon_cache::IconCache, theme, SaveTick};
 use crate::state::AppState;
 use crossbeam_channel::Sender;
 use parking_lot::RwLock;
@@ -40,6 +40,7 @@ pub fn ui(
 }
 
 fn header_row(ui: &mut egui::Ui, state: &Arc<RwLock<AppState>>, save_tx: &Sender<SaveTick>) {
+    let header_color = ui.visuals().strong_text_color();
     ui.horizontal(|ui| {
         ui.add_space(MODULE_NAME_W);
         for lvl in 1..=MAX_LEVELS {
@@ -50,7 +51,7 @@ fn header_row(ui: &mut egui::Ui, state: &Arc<RwLock<AppState>>, save_tx: &Sender
                     ui.label(
                         egui::RichText::new(format!("Level {lvl}"))
                             .strong()
-                            .color(egui::Color32::LIGHT_GRAY),
+                            .color(header_color),
                     );
                 },
             );
@@ -114,10 +115,11 @@ fn starter_preset_button(
         notify(state, save_tx);
     }
     ui.add_space(8.0);
+    let weak = ui.visuals().weak_text_color();
     ui.label(
         egui::RichText::new(format!("{covered}/{total} starter upgrades tracked"))
             .small()
-            .color(egui::Color32::GRAY),
+            .color(weak),
     );
 }
 
@@ -128,13 +130,15 @@ fn module_row(
     row_idx: usize,
     module: &HideoutModule,
 ) {
+    let dark = ui.visuals().dark_mode;
+    let strong = ui.visuals().strong_text_color();
     let bg_idx = ui.painter().add(egui::Shape::Noop);
 
     let inner = ui.horizontal(|ui| {
         ui.set_min_height(ROW_H);
         ui.add_sized(
             [MODULE_NAME_W, ROW_H],
-            egui::Label::new(egui::RichText::new(&module.name).strong()).truncate(),
+            egui::Label::new(egui::RichText::new(&module.name).strong().color(strong)).truncate(),
         );
         for slot in 0..MAX_LEVELS {
             ui.allocate_ui_with_layout(
@@ -153,9 +157,9 @@ fn module_row(
     let hovered = ui.rect_contains_pointer(row_rect);
     let stripe = row_idx % 2 == 1;
     let bg = if hovered {
-        egui::Color32::from_white_alpha(22)
+        theme::row_hover(dark)
     } else if stripe {
-        egui::Color32::from_white_alpha(3)
+        theme::row_stripe(dark)
     } else {
         egui::Color32::TRANSPARENT
     };
@@ -181,10 +185,11 @@ fn upgrade_cell(
     let original_tracked = tracked;
     let original_done = done;
 
+    let dark = ui.visuals().dark_mode;
     let fill = if done {
-        egui::Color32::from_rgb(30, 70, 40)
+        theme::done_fill(dark)
     } else if tracked {
-        egui::Color32::from_rgb(30, 60, 95)
+        theme::tracked_fill(dark)
     } else {
         egui::Color32::TRANSPARENT
     };
@@ -241,11 +246,10 @@ fn requirements_panel(
                 }
             });
 
+            let weak = ui.visuals().weak_text_color();
             if !upgrade.description.is_empty() {
                 ui.add_space(4.0);
-                ui.label(
-                    egui::RichText::new(&upgrade.description).color(egui::Color32::LIGHT_GRAY),
-                );
+                ui.label(egui::RichText::new(&upgrade.description).color(weak));
             }
             ui.add_space(6.0);
 
@@ -253,7 +257,7 @@ fn requirements_panel(
                 ui.label(
                     egui::RichText::new("No requirements.")
                         .italics()
-                        .color(egui::Color32::GRAY),
+                        .color(weak),
                 );
                 return;
             }
@@ -304,22 +308,21 @@ fn requirement_tile(
                     placeholder_icon(ui);
                 }
                 ui.add_space(4.0);
+                let weak = ui.visuals().weak_text_color();
                 ui.label(egui::RichText::new(&name).strong());
-                ui.label(
-                    egui::RichText::new(format!("× {}", req.quantity))
-                        .color(egui::Color32::LIGHT_GRAY),
-                );
+                ui.label(egui::RichText::new(format!("× {}", req.quantity)).color(weak));
             });
         });
 }
 
 fn placeholder_icon(ui: &mut egui::Ui) {
+    let dark = ui.visuals().dark_mode;
     let (rect, _) = ui.allocate_exact_size(
         egui::vec2(REQ_ICON_SIZE, REQ_ICON_SIZE),
         egui::Sense::hover(),
     );
     ui.painter()
-        .rect_filled(rect, 4.0, egui::Color32::from_gray(60));
+        .rect_filled(rect, 4.0, theme::placeholder_icon(dark));
 }
 
 fn find_upgrade<'a>(
