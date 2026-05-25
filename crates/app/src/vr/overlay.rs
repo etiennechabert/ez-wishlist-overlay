@@ -8,7 +8,11 @@
 
 use crate::settings::VrSettings;
 use anyhow::{Context as _, Result};
-use openvr::{init, tracked_device_index, ApplicationType, Context, TrackingUniverseOrigin};
+use openvr::system::EventInfo;
+use openvr::{
+    init, tracked_device_index, ApplicationType, Context, TrackedDeviceIndex,
+    TrackingUniverseOrigin,
+};
 
 const OVERLAY_KEY: &str = "com.etienneb.ez-wishlist-overlay.main\0";
 const OVERLAY_NAME: &str = "EZ Wishlist Overlay\0";
@@ -194,5 +198,32 @@ impl OverlaySession {
 
     pub fn handle(&self) -> openvr::overlay::OverlayHandle {
         self.handle
+    }
+
+    /// Drain pending VR events into the provided buffer. Cheap — typically
+    /// 0–2 events per ~11 ms tick. Caller filters by event type.
+    pub fn drain_events(&self, out: &mut Vec<EventInfo>) {
+        out.clear();
+        let Ok(system) = self.ctx.system() else {
+            return;
+        };
+        while let Some(ev) = system.poll_next_event() {
+            out.push(ev);
+            if out.len() > 64 {
+                // Safety cap: if something's misbehaving and flooding us
+                // we'd rather drop than spin the loop forever.
+                break;
+            }
+        }
+    }
+
+    /// Fire a haptic pulse on a controller. `duration_us` is microseconds;
+    /// OpenVR rejects values > 3999. Axis 0 is the conventional haptic
+    /// axis for legacy controllers (Vive wand, Quest Touch via OpenVR).
+    pub fn haptic_pulse(&self, device: TrackedDeviceIndex, duration_us: u16) {
+        let Ok(system) = self.ctx.system() else {
+            return;
+        };
+        system.trigger_haptic_pulse(device, 0, duration_us.min(3_999));
     }
 }

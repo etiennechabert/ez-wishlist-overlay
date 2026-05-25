@@ -23,6 +23,11 @@ pub const MAX_CELLS: usize = 36;
 pub struct CellHit {
     pub item_id: String,
     pub rect: Rect,
+    /// Target quantity at render time. Cached here so the click handler
+    /// doesn't have to re-derive it from `AppState::active_items()` —
+    /// any staleness between render and click is bounded by the debounce
+    /// window and the version-driven re-render.
+    pub needed: u32,
 }
 
 /// Render `items` to a fresh RGBA pixmap. `resolve_icon` is called with each
@@ -60,6 +65,7 @@ where
         hits.push(CellHit {
             item_id: item.item_id.clone(),
             rect,
+            needed: item.needed,
         });
     }
 

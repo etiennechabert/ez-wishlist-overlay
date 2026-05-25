@@ -154,16 +154,27 @@ fn render_loop(
     state: &Arc<RwLock<AppState>>,
     settings: &Arc<RwLock<Settings>>,
 ) -> anyhow::Result<()> {
+    use super::input::{
+        handle_click, texcoord_to_pixel, ClickOutcome, Debouncer, HAPTIC_INCREMENT_US,
+        HAPTIC_RESET_US,
+    };
     use super::pose::{Visibility, VisibilityFsm};
+    use super::render::{CellHit, CANVAS_PX};
+    use openvr::system::{Event, EventInfo};
     use std::time::Instant;
 
     const TICK: Duration = Duration::from_millis(11); // ~90Hz
     const FADE: Duration = Duration::from_millis(150);
+    /// EVRMouseButton::Left in the OpenVR mouse-event button bitfield.
+    const MOUSE_BUTTON_LEFT: u32 = 1;
 
     let mut fsm = VisibilityFsm::new();
     let mut last_rendered_version: Option<u64> = None;
+    let mut last_hits: Vec<CellHit> = Vec::new();
     let mut fade_start: Option<Instant> = None;
     let mut was_visible = false;
+    let mut debouncer = Debouncer::new();
+    let mut event_buf: Vec<EventInfo> = Vec::with_capacity(8);
 
     loop {
         let frame_start = Instant::now();
@@ -188,7 +199,7 @@ fn render_loop(
             session.ensure_anchor()?;
             // Force first render before showing so the user never sees a
             // stale or empty texture.
-            render_and_submit(session, state, &mut last_rendered_version)?;
+            render_and_submit(session, state, &mut last_rendered_version, &mut last_hits)?;
             session.set_alpha(0.0)?;
             session.set_visible(true)?;
             fade_start = Some(frame_start);
@@ -201,11 +212,39 @@ fn render_loop(
         }
         was_visible = visible_now;
 
+        // Drain input. We poll even while hidden so the queue doesn't
+        // back up across hide/show cycles; clicks while hidden are
+        // ignored by hit_test against an empty `last_hits`.
+        session.drain_events(&mut event_buf);
+        for ev in event_buf.drain(..) {
+            if let Event::MouseButtonDown(mouse) = ev.event {
+                if mouse.button & MOUSE_BUTTON_LEFT == 0 {
+                    continue;
+                }
+                if !visible_now {
+                    continue; // ignore clicks during fade or hidden
+                }
+                let (px, py) = texcoord_to_pixel(mouse.position.0, mouse.position.1, CANVAS_PX);
+                match handle_click(state, &last_hits, px, py, &mut debouncer, frame_start) {
+                    ClickOutcome::Incremented { item_id, new_value } => {
+                        session.haptic_pulse(ev.tracked_device_index, HAPTIC_INCREMENT_US);
+                        tracing::debug!(%item_id, new_value, "overlay click: +1");
+                    }
+                    ClickOutcome::Reset { item_id } => {
+                        session.haptic_pulse(ev.tracked_device_index, HAPTIC_RESET_US);
+                        tracing::debug!(%item_id, "overlay click: cycle reset to 0");
+                    }
+                    ClickOutcome::Ignored => {}
+                }
+            }
+        }
+
         if visible_now {
-            // Re-render on state-change.
+            // Re-render on state-change (including ones our own clicks
+            // just produced).
             let current_version = state.read().version;
             if last_rendered_version != Some(current_version) {
-                render_and_submit(session, state, &mut last_rendered_version)?;
+                render_and_submit(session, state, &mut last_rendered_version, &mut last_hits)?;
             }
 
             // Fade-in animation.
@@ -237,6 +276,7 @@ fn render_and_submit(
     session: &mut super::overlay::OverlaySession,
     state: &Arc<RwLock<AppState>>,
     last_rendered_version: &mut Option<u64>,
+    last_hits: &mut Vec<super::render::CellHit>,
 ) -> anyhow::Result<()> {
     use super::render;
     use crate::assets;
@@ -245,8 +285,9 @@ fn render_and_submit(
         let st = state.read();
         (st.active_items(), st.version)
     };
-    let (pixmap, _hits) = render::render(&items, assets::read_icon);
+    let (pixmap, hits) = render::render(&items, assets::read_icon);
     session.submit_rgba(pixmap.data(), pixmap.width(), pixmap.height())?;
     *last_rendered_version = Some(version);
+    *last_hits = hits;
     Ok(())
 }
