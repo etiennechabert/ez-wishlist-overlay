@@ -28,6 +28,9 @@ pub fn show(
             appearance_section(ui, &mut working.theme);
 
             ui.add_space(12.0);
+            updates_section(ui, &mut working.check_for_updates);
+
+            ui.add_space(12.0);
             vr_section(ui, &mut working.vr);
 
             ui.add_space(12.0);
@@ -76,6 +79,19 @@ fn appearance_section(ui: &mut egui::Ui, theme: &mut Theme) {
         ui.selectable_value(theme, Theme::Light, "Light");
         ui.selectable_value(theme, Theme::System, "System");
     });
+}
+
+fn updates_section(ui: &mut egui::Ui, check_for_updates: &mut bool) {
+    ui.heading("Updates");
+    ui.add_space(4.0);
+    ui.checkbox(check_for_updates, "Check for updates on startup")
+        .on_hover_text(
+            "Once per launch, queries the GitHub releases API to compare \
+             against the version you're running. Turning this off is fine \
+             if you'd rather the app stay fully offline.",
+        );
+    // Re-prompt for a previously-dismissed version if the user changes their
+    // mind — they'll get the banner again next time an update check runs.
 }
 
 fn storage_section(ui: &mut egui::Ui, data_dir: &Path) {

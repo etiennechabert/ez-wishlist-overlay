@@ -12,6 +12,7 @@ mod presets;
 mod save_loop;
 mod settings;
 mod state;
+mod updater;
 mod vr;
 
 use anyhow::{Context, Result};
@@ -71,6 +72,13 @@ fn main() -> Result<()> {
     tracing::info!(settings = ?&*settings.read(), "settings loaded");
     let vr_runtime = Arc::new(vr::Runtime::spawn(shared_state.clone(), settings.clone()));
 
+    let update_rx = if settings.read().check_for_updates {
+        Some(updater::spawn_check())
+    } else {
+        tracing::info!("update check disabled by settings");
+        None
+    };
+
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title("EZ Wishlist Overlay")
@@ -93,6 +101,7 @@ fn main() -> Result<()> {
                 vr_runtime,
                 settings,
                 log_buf,
+                update_rx,
             )))
         }),
     )
