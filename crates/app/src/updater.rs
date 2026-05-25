@@ -1,15 +1,16 @@
 //! Background "is there a newer release?" check.
 //!
-//! Spawns one thread at startup that hits the GitHub releases API and, if the
-//! latest tag is strictly newer than `CARGO_PKG_VERSION`, posts an
-//! `UpdateInfo` over a channel for the GUI to surface as a banner. Failures
-//! (offline, rate-limited, GitHub down) log a warning and are otherwise
-//! silent — the app has to work offline.
+//! Spawns one thread at startup that hits the GitHub releases API and posts
+//! the terminal [`CheckStatus`] back over a channel so the GUI can surface
+//! it (header indicator + About dialog), regardless of outcome. Failures
+//! (offline, rate-limited, GitHub down) are reported as
+//! [`CheckStatus::Failed`] rather than swallowed, so the user can tell
+//! "check ran, nothing to do" apart from "check never finished".
 //!
 //! This is the only runtime network call the app makes; everything else is
 //! embedded at compile time (see SPEC.md §data acquisition). Gated behind
-//! `Settings::check_for_updates` so users who want a fully offline binary
-//! can disable it.
+//! `Settings::check_for_updates`; when off, the GUI uses
+//! [`CheckStatus::Disabled`] directly without spawning the thread.
 
 use crossbeam_channel::Receiver;
 use serde::Deserialize;
@@ -26,6 +27,24 @@ pub struct UpdateInfo {
     pub release_url: String,
 }
 
+/// Terminal state of the most recent update check. The GUI starts in
+/// [`Self::Checking`] and replaces it with whichever variant the worker
+/// thread sends.
+#[derive(Debug, Clone)]
+pub enum CheckStatus {
+    /// User turned off `check_for_updates` in settings; no thread spawned.
+    Disabled,
+    /// Thread is running, no result yet.
+    Checking,
+    /// Check completed, the installed version is the latest.
+    UpToDate { latest_version: String },
+    /// Check completed, a newer release is available.
+    UpdateAvailable(UpdateInfo),
+    /// Network / parse / API error. Held for display; the next app start
+    /// will retry.
+    Failed { reason: String },
+}
+
 #[derive(Deserialize)]
 struct LatestRelease {
     tag_name: String,
@@ -38,57 +57,65 @@ struct LatestRelease {
 
 /// Spawn the check in a detached thread. Returns the receiving end of a
 /// 1-slot channel; the GUI polls it via `try_recv` each frame. The thread
-/// exits after one send (or one log on failure).
-pub fn spawn_check() -> Receiver<UpdateInfo> {
-    let (tx, rx) = crossbeam_channel::bounded::<UpdateInfo>(1);
+/// exits after exactly one send.
+pub fn spawn_check() -> Receiver<CheckStatus> {
+    let (tx, rx) = crossbeam_channel::bounded::<CheckStatus>(1);
     let thread = std::thread::Builder::new().name("update-check".into());
-    if let Err(e) = thread.spawn(move || run(tx)) {
+    if let Err(e) = thread.spawn(move || {
+        let status = run();
+        let _ = tx.try_send(status);
+    }) {
         tracing::warn!(error = %e, "could not spawn update-check thread");
     }
     rx
 }
 
-fn run(tx: crossbeam_channel::Sender<UpdateInfo>) {
+fn run() -> CheckStatus {
     let current_raw = env!("CARGO_PKG_VERSION");
     let Some(current) = parse_semver(current_raw) else {
-        tracing::warn!(
-            version = current_raw,
-            "could not parse own version; skipping update check"
-        );
-        return;
+        let reason = format!("could not parse own version `{current_raw}`");
+        tracing::warn!(version = current_raw, "skipping update check");
+        return CheckStatus::Failed { reason };
     };
 
     let release = match fetch_latest() {
         Ok(r) => r,
         Err(e) => {
-            tracing::warn!(error = %e, "update check failed");
-            return;
+            let reason = format!("{e}");
+            tracing::warn!(error = %reason, "update check failed");
+            return CheckStatus::Failed { reason };
         }
     };
 
     if release.draft || release.prerelease {
         tracing::debug!(tag = %release.tag_name, "skipping draft/prerelease");
-        return;
+        return CheckStatus::UpToDate {
+            latest_version: current_raw.to_string(),
+        };
     }
 
-    let latest_str = release.tag_name.trim_start_matches('v');
-    let Some(latest) = parse_semver(latest_str) else {
-        tracing::warn!(tag = %release.tag_name, "could not parse upstream version");
-        return;
+    let latest_str = release.tag_name.trim_start_matches('v').to_string();
+    let Some(latest) = parse_semver(&latest_str) else {
+        let reason = format!("could not parse upstream version `{}`", release.tag_name);
+        tracing::warn!(tag = %release.tag_name, "skipping malformed tag");
+        return CheckStatus::Failed { reason };
     };
 
     if latest > current {
         tracing::info!(
             current = current_raw,
-            latest = latest_str,
+            latest = %latest_str,
             "newer release available"
         );
-        let _ = tx.try_send(UpdateInfo {
-            latest_version: latest_str.to_string(),
+        CheckStatus::UpdateAvailable(UpdateInfo {
+            latest_version: latest_str,
             release_url: release.html_url,
-        });
+        })
     } else {
-        tracing::debug!(current = current_raw, latest = latest_str, "up to date");
+        tracing::debug!(current = current_raw, latest = %latest_str, "up to date");
+        CheckStatus::UpToDate {
+            latest_version: latest_str,
+        }
     }
 }
 
