@@ -1,6 +1,7 @@
 //! Top-level egui application.
 
 mod about_dialog;
+mod debug_dialog;
 mod hideout_pane;
 mod icon_cache;
 mod preview_pane;
@@ -37,6 +38,7 @@ pub struct App {
     tab: LeftTab,
     show_about: bool,
     show_settings: bool,
+    show_debug: bool,
     settings_dirty: bool,
     confirm_reset: bool,
     tasks_filter: String,
@@ -44,6 +46,7 @@ pub struct App {
     vr: Arc<crate::vr::Runtime>,
     settings: Arc<RwLock<crate::settings::Settings>>,
     applied_theme: Option<crate::settings::Theme>,
+    log_buf: crate::log_buffer::LogBuffer,
 }
 
 impl App {
@@ -54,6 +57,7 @@ impl App {
         save_tx: Sender<SaveTick>,
         vr: Arc<crate::vr::Runtime>,
         settings: Arc<RwLock<crate::settings::Settings>>,
+        log_buf: crate::log_buffer::LogBuffer,
     ) -> Self {
         let icons = IconCache::new();
         // Pull any initial warning surfaced by persist::load.
@@ -66,6 +70,7 @@ impl App {
             tab: LeftTab::Hideout,
             show_about: false,
             show_settings: false,
+            show_debug: false,
             settings_dirty: false,
             confirm_reset: false,
             tasks_filter: String::new(),
@@ -73,6 +78,7 @@ impl App {
             vr,
             settings,
             applied_theme: None,
+            log_buf,
         }
     }
 
@@ -157,6 +163,9 @@ impl eframe::App for App {
             let data = self.data();
             about_dialog::show(ctx, &mut self.show_about, &data);
         }
+        if self.show_debug {
+            debug_dialog::show(ctx, &mut self.show_debug, &self.log_buf);
+        }
         if self.confirm_reset {
             self.confirm_reset_dialog(ctx);
         }
@@ -197,6 +206,9 @@ impl App {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui.button("Settings").clicked() {
                     self.show_settings = true;
+                }
+                if ui.button("Debug").clicked() {
+                    self.show_debug = true;
                 }
                 if ui.button("About").clicked() {
                     self.show_about = true;

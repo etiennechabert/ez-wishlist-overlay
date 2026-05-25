@@ -5,6 +5,7 @@
 mod assets;
 mod data;
 mod gui;
+mod log_buffer;
 mod persist;
 mod platform;
 mod presets;
@@ -16,10 +17,13 @@ mod vr;
 use anyhow::{Context, Result};
 use parking_lot::RwLock;
 use std::sync::Arc;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::EnvFilter;
 
 fn main() -> Result<()> {
-    init_logging();
+    let log_buf = log_buffer::LogBuffer::new();
+    init_logging(log_buf.clone());
 
     let paths = Arc::new(persist::PersistPaths::discover().context("resolve user data dir")?);
     paths.ensure_dirs().context("create user data dirs")?;
@@ -88,6 +92,7 @@ fn main() -> Result<()> {
                 save_tx,
                 vr_runtime,
                 settings,
+                log_buf,
             )))
         }),
     )
@@ -123,11 +128,14 @@ fn load_window_icon() -> egui::IconData {
     }
 }
 
-fn init_logging() {
+fn init_logging(buf: log_buffer::LogBuffer) {
     let filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new("ez_wishlist_overlay=info,warn"));
-    tracing_subscriber::fmt()
-        .with_env_filter(filter)
-        .with_target(false)
+    let fmt_layer = tracing_subscriber::fmt::layer().with_target(false);
+    let buffer_layer = log_buffer::LogBufferLayer::new(buf);
+    tracing_subscriber::registry()
+        .with(filter)
+        .with(fmt_layer)
+        .with(buffer_layer)
         .init();
 }
