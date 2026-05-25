@@ -38,6 +38,11 @@ pub enum CheckStatus {
     Checking,
     /// Check completed, the installed version is the latest.
     UpToDate { latest_version: String },
+    /// Check completed and `CARGO_PKG_VERSION` is *newer* than the latest
+    /// published release. Typically a local dev build — surfaced
+    /// separately from [`Self::UpToDate`] so we don't claim "up to date"
+    /// for an unreleased version.
+    Ahead { latest_version: String },
     /// Check completed, a newer release is available.
     UpdateAvailable(UpdateInfo),
     /// Network / parse / API error. Held for display; the next app start
@@ -101,20 +106,33 @@ fn run() -> CheckStatus {
         return CheckStatus::Failed { reason };
     };
 
-    if latest > current {
-        tracing::info!(
-            current = current_raw,
-            latest = %latest_str,
-            "newer release available"
-        );
-        CheckStatus::UpdateAvailable(UpdateInfo {
-            latest_version: latest_str,
-            release_url: release.html_url,
-        })
-    } else {
-        tracing::debug!(current = current_raw, latest = %latest_str, "up to date");
-        CheckStatus::UpToDate {
-            latest_version: latest_str,
+    match latest.cmp(&current) {
+        std::cmp::Ordering::Greater => {
+            tracing::info!(
+                current = current_raw,
+                latest = %latest_str,
+                "newer release available"
+            );
+            CheckStatus::UpdateAvailable(UpdateInfo {
+                latest_version: latest_str,
+                release_url: release.html_url,
+            })
+        }
+        std::cmp::Ordering::Equal => {
+            tracing::debug!(current = current_raw, latest = %latest_str, "up to date");
+            CheckStatus::UpToDate {
+                latest_version: latest_str,
+            }
+        }
+        std::cmp::Ordering::Less => {
+            tracing::debug!(
+                current = current_raw,
+                latest = %latest_str,
+                "ahead of latest release (dev build)"
+            );
+            CheckStatus::Ahead {
+                latest_version: latest_str,
+            }
         }
     }
 }

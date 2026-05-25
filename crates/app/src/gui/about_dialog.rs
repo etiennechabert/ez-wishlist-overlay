@@ -93,6 +93,12 @@ fn release_status(ui: &mut egui::Ui, status: &CheckStatus) {
                 format!("✓ Up to date (latest release: v{latest_version})."),
             );
         }
+        CheckStatus::Ahead { latest_version } => {
+            ui.colored_label(
+                egui::Color32::from_rgb(100, 160, 220),
+                format!("✓ Dev build — ahead of latest release v{latest_version}."),
+            );
+        }
         CheckStatus::UpdateAvailable(info) => {
             ui.colored_label(
                 egui::Color32::from_rgb(220, 180, 60),
