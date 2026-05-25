@@ -158,7 +158,7 @@ fn render_loop(
         HAPTIC_RESET_US,
     };
     use super::pose::{Visibility, VisibilityFsm};
-    use super::render::{CellHit, CANVAS_PX};
+    use super::render::CellHit;
     use openvr::system::{Event, EventInfo};
     use std::time::Instant;
 
@@ -168,8 +168,15 @@ fn render_loop(
     const MOUSE_BUTTON_LEFT: u32 = 1;
 
     let mut fsm = VisibilityFsm::new();
-    let mut last_rendered_version: Option<u64> = None;
+    // Re-render whenever either the wishlist (state.version) or the grid
+    // shape (vr.grid_cols) changes — without the second component, dragging
+    // the items-per-row slider would only take effect on the next click.
+    let mut last_rendered: Option<(u64, u32)> = None;
     let mut last_hits: Vec<CellHit> = Vec::new();
+    // Width/height of the most recently submitted pixmap, so the mouse
+    // event mapping in `texcoord_to_pixel` reflects whatever shape we
+    // actually drew (the canvas is no longer fixed at 1024x1024).
+    let mut last_canvas: (u32, u32) = (0, 0);
     let mut fade_start: Option<Instant> = None;
     let mut was_visible = false;
     let mut debouncer = Debouncer::new();
@@ -198,7 +205,14 @@ fn render_loop(
             if session.anchor_at_current_hmd()? {
                 // Force first render before showing so the user never sees
                 // a stale or empty texture.
-                render_and_submit(session, state, &mut last_rendered_version, &mut last_hits)?;
+                render_and_submit(
+                    session,
+                    state,
+                    vr.grid_cols,
+                    &mut last_rendered,
+                    &mut last_hits,
+                    &mut last_canvas,
+                )?;
                 session.set_alpha(0.0)?;
                 session.set_visible(true)?;
                 fade_start = Some(frame_start);
@@ -227,7 +241,11 @@ fn render_loop(
                 if !visible_now {
                     continue; // ignore clicks during fade or hidden
                 }
-                let (px, py) = texcoord_to_pixel(mouse.position.0, mouse.position.1, CANVAS_PX);
+                let (cw, ch) = last_canvas;
+                if cw == 0 || ch == 0 {
+                    continue; // first frame after spawn — nothing rendered yet
+                }
+                let (px, py) = texcoord_to_pixel(mouse.position.0, mouse.position.1, cw, ch);
                 match handle_click(state, &last_hits, px, py, &mut debouncer, frame_start) {
                     ClickOutcome::Incremented { item_id, new_value } => {
                         session.haptic_pulse(ev.tracked_device_index, HAPTIC_INCREMENT_US);
@@ -244,10 +262,18 @@ fn render_loop(
 
         if visible_now {
             // Re-render on state-change (including ones our own clicks
-            // just produced).
+            // just produced) AND on grid_cols change.
             let current_version = state.read().version;
-            if last_rendered_version != Some(current_version) {
-                render_and_submit(session, state, &mut last_rendered_version, &mut last_hits)?;
+            let sig = (current_version, vr.grid_cols);
+            if last_rendered != Some(sig) {
+                render_and_submit(
+                    session,
+                    state,
+                    vr.grid_cols,
+                    &mut last_rendered,
+                    &mut last_hits,
+                    &mut last_canvas,
+                )?;
             }
 
             // Fade-in animation.
@@ -278,8 +304,10 @@ fn render_loop(
 fn render_and_submit(
     session: &mut super::overlay::OverlaySession,
     state: &Arc<RwLock<AppState>>,
-    last_rendered_version: &mut Option<u64>,
+    grid_cols: u32,
+    last_rendered: &mut Option<(u64, u32)>,
     last_hits: &mut Vec<super::render::CellHit>,
+    last_canvas: &mut (u32, u32),
 ) -> anyhow::Result<()> {
     use super::render;
     use crate::assets;
@@ -288,9 +316,10 @@ fn render_and_submit(
         let st = state.read();
         (st.active_items(), st.version)
     };
-    let (pixmap, hits) = render::render(&items, assets::read_icon);
+    let (pixmap, hits) = render::render(&items, grid_cols, assets::read_icon);
     session.submit_rgba(pixmap.data(), pixmap.width(), pixmap.height())?;
-    *last_rendered_version = Some(version);
+    *last_rendered = Some((version, grid_cols));
+    *last_canvas = (pixmap.width(), pixmap.height());
     *last_hits = hits;
     Ok(())
 }

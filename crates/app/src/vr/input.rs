@@ -66,10 +66,11 @@ impl Debouncer {
 }
 
 /// Convert the overlay's mouse position (texcoords, origin bottom-left)
-/// into pixel space (origin top-left) using the render canvas size.
-pub fn texcoord_to_pixel(tex_x: f32, tex_y: f32, canvas_px: u32) -> (f32, f32) {
-    let w = canvas_px as f32;
-    (tex_x * w, (1.0 - tex_y) * w)
+/// into pixel space (origin top-left) using the render canvas dimensions.
+/// Canvas width and height vary independently with `VrSettings::grid_cols`
+/// and wishlist size, so the caller must pass both.
+pub fn texcoord_to_pixel(tex_x: f32, tex_y: f32, canvas_w: u32, canvas_h: u32) -> (f32, f32) {
+    (tex_x * canvas_w as f32, (1.0 - tex_y) * canvas_h as f32)
 }
 
 /// Find the [`CellHit`] (if any) that contains the pixel point.
@@ -127,12 +128,21 @@ mod tests {
 
     #[test]
     fn texcoord_flips_y_and_scales() {
-        let (px, py) = texcoord_to_pixel(0.5, 0.5, 1024);
+        let (px, py) = texcoord_to_pixel(0.5, 0.5, 1024, 1024);
         assert!((px - 512.0).abs() < 0.01);
         assert!((py - 512.0).abs() < 0.01);
-        // Bottom-left of texcoord (0,0) → top-left of pixel (0, canvas).
-        let (_, py_origin) = texcoord_to_pixel(0.0, 0.0, 1024);
+        // Bottom-left of texcoord (0,0) → top-left of pixel (0, canvas_h).
+        let (_, py_origin) = texcoord_to_pixel(0.0, 0.0, 1024, 1024);
         assert!((py_origin - 1024.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn texcoord_uses_independent_w_and_h() {
+        // Non-square canvas (3-col grid, 5 rows): width and height scale
+        // their own axis.
+        let (px, py) = texcoord_to_pixel(0.5, 0.5, 512, 800);
+        assert!((px - 256.0).abs() < 0.01);
+        assert!((py - 400.0).abs() < 0.01);
     }
 
     #[test]

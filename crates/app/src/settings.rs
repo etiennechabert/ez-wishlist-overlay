@@ -15,6 +15,10 @@ pub mod bounds {
     pub const WIDTH_METERS: std::ops::RangeInclusive<f32> = 0.2..=2.0;
     pub const PITCH_DEG: std::ops::RangeInclusive<f32> = 0.0..=89.0;
     pub const DWELL_MS: std::ops::RangeInclusive<u64> = 50..=2000;
+    /// Items-per-row on the VR overlay grid. 2 is the lower bound where the
+    /// layout still feels like a grid; above 10 each cell gets too small to
+    /// be readable at typical overlay sizes.
+    pub const GRID_COLS: std::ops::RangeInclusive<u32> = 2..=10;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -57,6 +61,15 @@ pub struct VrSettings {
     pub hide_pitch_deg: f32,
     /// Time the show pitch must be held before fade-in begins.
     pub show_dwell_ms: u64,
+    /// Items-per-row on the overlay grid. Rows are derived from the
+    /// wishlist size at render time, so a smaller `grid_cols` produces a
+    /// taller, narrower panel and vice versa.
+    #[serde(default = "default_grid_cols")]
+    pub grid_cols: u32,
+}
+
+fn default_grid_cols() -> u32 {
+    6
 }
 
 impl Default for VrSettings {
@@ -67,6 +80,7 @@ impl Default for VrSettings {
             show_pitch_deg: crate::vr::pose::SHOW_PITCH_DEG,
             hide_pitch_deg: crate::vr::pose::HIDE_PITCH_DEG,
             show_dwell_ms: crate::vr::pose::DWELL_MS,
+            grid_cols: default_grid_cols(),
         }
     }
 }
@@ -84,6 +98,8 @@ impl VrSettings {
         }
         let d = bounds::DWELL_MS;
         self.show_dwell_ms = self.show_dwell_ms.clamp(*d.start(), *d.end());
+        let g = bounds::GRID_COLS;
+        self.grid_cols = self.grid_cols.clamp(*g.start(), *g.end());
     }
 }
 
@@ -145,6 +161,7 @@ mod tests {
             show_pitch_deg: 40.0,
             hide_pitch_deg: 50.0,
             show_dwell_ms: 350,
+            grid_cols: 6,
         };
         vr.sanitize();
         assert!(
@@ -160,12 +177,24 @@ mod tests {
             show_pitch_deg: 200.0,
             hide_pitch_deg: -10.0,
             show_dwell_ms: 1_000_000,
+            grid_cols: 99,
         };
         vr.sanitize();
         assert_eq!(vr.width_meters, 2.0);
         assert_eq!(vr.show_pitch_deg, 89.0);
         assert_eq!(vr.hide_pitch_deg, 0.0);
         assert_eq!(vr.show_dwell_ms, 2000);
+        assert_eq!(vr.grid_cols, *bounds::GRID_COLS.end());
+    }
+
+    #[test]
+    fn sanitize_clamps_grid_cols_below_min() {
+        let mut vr = VrSettings {
+            grid_cols: 0,
+            ..VrSettings::default()
+        };
+        vr.sanitize();
+        assert_eq!(vr.grid_cols, *bounds::GRID_COLS.start());
     }
 
     #[test]
