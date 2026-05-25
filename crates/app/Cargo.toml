@@ -42,6 +42,10 @@ fontdue = "0.9.3"
 # rustls + webpki-roots (HTTPS) and the JSON helper.
 ureq = { version = "2.12", default-features = false, features = ["tls", "json"] }
 
+# Native file picker for the "Import screenshot" flow. Sync API; no extra
+# runtime; bundles GTK on Linux, uses Common Item Dialog on Windows.
+rfd = "0.15"
+
 # VR — Windows-only. The `openvr` crate wraps Valve's OpenVR SDK; non-Windows
 # targets compile the vr/overlay.rs and vr/runtime.rs Windows branches to a
 # no-op so macOS/Linux dev builds stay green.
@@ -50,6 +54,19 @@ ureq = { version = "2.12", default-features = false, features = ["tls", "json"] 
 # (openvr_sys builds the bundled OpenVR SDK + bindgen). See README.
 [target.'cfg(target_os = "windows")'.dependencies]
 openvr = "0.9.0"
+
+# Windows.Media.Ocr (WinRT) for the OCR POC. Built into Win10+; no extra
+# binary to ship. We narrow features to just the namespaces we use to keep
+# compile-time reasonable.
+windows = { version = "0.58", features = [
+    "Foundation",
+    "Foundation_Collections",
+    "Globalization",
+    "Graphics_Imaging",
+    "Media_Ocr",
+    "Storage",
+    "Storage_Streams",
+] }
 
 [features]
 default = []

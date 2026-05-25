@@ -4,6 +4,7 @@ mod about_dialog;
 mod debug_dialog;
 mod hideout_pane;
 mod icon_cache;
+mod ocr_dialog;
 mod preview_pane;
 mod settings_dialog;
 mod tasks_pane;
@@ -40,6 +41,8 @@ pub struct App {
     show_about: bool,
     show_settings: bool,
     show_debug: bool,
+    show_ocr: bool,
+    ocr_state: ocr_dialog::OcrDialogState,
     settings_dirty: bool,
     confirm_reset: bool,
     tasks_filter: String,
@@ -89,6 +92,8 @@ impl App {
             show_about: false,
             show_settings: false,
             show_debug: false,
+            show_ocr: false,
+            ocr_state: ocr_dialog::OcrDialogState::default(),
             settings_dirty: false,
             confirm_reset: false,
             tasks_filter: String::new(),
@@ -189,6 +194,9 @@ impl eframe::App for App {
         if self.show_debug {
             debug_dialog::show(ctx, &mut self.show_debug, &self.log_buf);
         }
+        if self.show_ocr {
+            ocr_dialog::show(ctx, &mut self.show_ocr, &mut self.ocr_state);
+        }
         if self.confirm_reset {
             self.confirm_reset_dialog(ctx);
         }
@@ -233,6 +241,9 @@ impl App {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui.button("Settings").clicked() {
                     self.show_settings = true;
+                }
+                if ui.button("OCR").clicked() {
+                    self.show_ocr = true;
                 }
                 if ui.button("Debug").clicked() {
                     self.show_debug = true;

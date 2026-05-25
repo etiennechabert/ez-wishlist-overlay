@@ -6,6 +6,7 @@ mod assets;
 mod data;
 mod gui;
 mod log_buffer;
+mod ocr;
 mod persist;
 mod platform;
 mod presets;
