@@ -1,6 +1,6 @@
 name: CI
 
-# Runs on every PR and every push to main. Six parallel gates:
+# Runs on every PR and every push to main. Parallel gates:
 #  - format         : `cargo fmt --check`
 #  - clippy         : strict `cargo clippy -D warnings` on Linux
 #  - test           : `cargo test --workspace` on Linux
@@ -18,6 +18,12 @@ name: CI
 #                     tag is pushed. The slowest job (~10 min cold) but it
 #                     catches a class of bug that's expensive to discover
 #                     post-tag.
+#  - version-bump   : PR-only. Fails if `crates/app/Cargo.toml`'s version
+#                     still matches (or trails) the latest released `v*`
+#                     tag, so every merged PR ships with a version that's
+#                     already past the last release. Pairs with release.yml's
+#                     existing tag-vs-Cargo.toml guard so tagging never
+#                     finds a stale version on main.
 
 on:
   pull_request:
@@ -137,3 +143,47 @@ jobs:
       # v0.0.4 release) surface here instead of after a tag push.
       - name: Build MSI
         uses: ./.github/actions/build-msi
+
+  version-bump:
+    name: version bumped past latest release
+    runs-on: ubuntu-latest
+    # PR-only: pushes to main shouldn't fail this check (main IS the place
+    # where the version eventually equals a fresh tag, between bump and
+    # tagging). Forks without write access can still run it — no secrets
+    # needed.
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Need the full tag history to find the latest `v*` tag; the
+          # default shallow checkout fetches no tags.
+          fetch-depth: 0
+      - name: Verify Cargo.toml version is ahead of latest released tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo_v=$(grep -m1 -E '^version *= *"' crates/app/Cargo.toml \
+            | sed -E 's/.*"([^"]+)".*/\1/')
+          if [ -z "$cargo_v" ]; then
+            echo "::error file=crates/app/Cargo.toml::could not parse version"
+            exit 1
+          fi
+          latest=$(git tag -l 'v*' | sed 's/^v//' | sort -V | tail -n1)
+          echo "Cargo.toml version : $cargo_v"
+          echo "Latest released tag: ${latest:-<none>}"
+          if [ -z "$latest" ]; then
+            echo "No v* tag exists yet — nothing to compare against; skipping."
+            exit 0
+          fi
+          if [ "$cargo_v" = "$latest" ]; then
+            echo "::error file=crates/app/Cargo.toml::version $cargo_v matches the latest released tag v$latest — bump it before merging so the next release has a fresh version to tag."
+            exit 1
+          fi
+          # Defence-in-depth: also reject regressions, since release.yml's
+          # tag-vs-Cargo.toml guard only catches them at tag-push time.
+          highest=$(printf '%s\n%s\n' "$cargo_v" "$latest" | sort -V | tail -n1)
+          if [ "$highest" != "$cargo_v" ]; then
+            echo "::error file=crates/app/Cargo.toml::version $cargo_v is older than the latest released tag v$latest."
+            exit 1
+          fi
+          echo "OK: $cargo_v > $latest"
