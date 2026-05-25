@@ -7,6 +7,7 @@ mod data;
 mod gui;
 mod persist;
 mod platform;
+mod presets;
 mod save_loop;
 mod state;
 mod vr;

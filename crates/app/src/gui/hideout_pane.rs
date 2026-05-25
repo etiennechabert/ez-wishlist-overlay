@@ -24,7 +24,7 @@ pub fn ui(
 ) {
     let data = state.read().data.clone();
 
-    header_row(ui);
+    header_row(ui, state, save_tx);
     ui.separator();
 
     for (idx, module) in data.modules.iter().enumerate() {
@@ -39,7 +39,11 @@ pub fn ui(
     }
 }
 
-fn header_row(ui: &mut egui::Ui) {
+fn header_row(
+    ui: &mut egui::Ui,
+    state: &Arc<RwLock<AppState>>,
+    save_tx: &Sender<SaveTick>,
+) {
     ui.horizontal(|ui| {
         ui.add_space(MODULE_NAME_W);
         for lvl in 1..=MAX_LEVELS {
@@ -55,7 +59,70 @@ fn header_row(ui: &mut egui::Ui) {
                 },
             );
         }
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            starter_preset_button(ui, state, save_tx);
+        });
     });
+}
+
+fn starter_preset_button(
+    ui: &mut egui::Ui,
+    state: &Arc<RwLock<AppState>>,
+    save_tx: &Sender<SaveTick>,
+) {
+    let (missing, to_untrack): (Vec<&'static str>, Vec<&'static str>) = {
+        let s = state.read();
+        let missing = crate::presets::STARTER_HIDEOUT
+            .iter()
+            .copied()
+            .filter(|id| !s.tracked_upgrades.contains(*id) && !s.completed_upgrades.contains(*id))
+            .collect();
+        let to_untrack = crate::presets::STARTER_HIDEOUT
+            .iter()
+            .copied()
+            .filter(|id| s.tracked_upgrades.contains(*id))
+            .collect();
+        (missing, to_untrack)
+    };
+
+    let total = crate::presets::STARTER_HIDEOUT.len();
+    let covered = total - missing.len();
+    let fully_covered = missing.is_empty();
+    let undo_available = fully_covered && !to_untrack.is_empty();
+
+    let (label, action_apply, enabled) = if !fully_covered {
+        ("Apply starter preset", true, true)
+    } else if undo_available {
+        ("Undo starter preset", false, true)
+    } else {
+        ("Starter preset applied", false, false)
+    };
+    let tooltip = format!(
+        "Community-recommended starter upgrades:\n  • {}\n\n\
+         Apply tracks the missing ones; Undo untracks them again \
+         (completed upgrades stay completed).",
+        crate::presets::STARTER_HIDEOUT.join("\n  • "),
+    );
+
+    let resp = ui
+        .add_enabled(enabled, egui::Button::new(label))
+        .on_hover_text(&tooltip)
+        .on_disabled_hover_text(&tooltip);
+    if resp.clicked() && enabled {
+        let mut s = state.write();
+        let ids = if action_apply { &missing } else { &to_untrack };
+        for id in ids {
+            s.set_tracked_upgrade(&id.to_string(), action_apply);
+        }
+        drop(s);
+        notify(state, save_tx);
+    }
+    ui.add_space(8.0);
+    ui.label(
+        egui::RichText::new(format!("{covered}/{total} starter upgrades tracked"))
+            .small()
+            .color(egui::Color32::GRAY),
+    );
 }
 
 fn module_row(
