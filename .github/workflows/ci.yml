@@ -1,0 +1,86 @@
+name: CI
+
+# Runs on every PR and every push to main. Four parallel gates:
+#  - format   : `cargo fmt --check`
+#  - clippy   : strict `cargo clippy -D warnings` on Linux
+#  - test     : `cargo test --workspace` on Linux
+#  - windows  : `cargo check --workspace --all-targets` on Windows, the only
+#               build that actually compiles the `cfg(target_os = "windows")`
+#               VR code (openvr_sys → cmake + bindgen + bundled OpenVR SDK).
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  format:
+    name: rustfmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - run: cargo fmt --all -- --check
+
+  clippy:
+    name: clippy (linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: linux-clippy
+      # eframe → winit needs x11 headers to compile on Linux even when
+      # we're only type-checking. cmake is used by some transitive deps.
+      - name: Install Linux GUI build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev \
+            libxkbcommon-dev libssl-dev
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+
+  test:
+    name: test (linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: linux-test
+      - name: Install Linux GUI build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev \
+            libxkbcommon-dev libssl-dev
+      - run: cargo test --workspace --no-fail-fast
+
+  windows-check:
+    name: cargo check (windows, VR enabled)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: windows-check
+      # openvr_sys's build.rs runs bindgen over the bundled OpenVR C++ SDK
+      # and needs libclang on PATH. cmake is preinstalled on the runner.
+      - name: Install LLVM (libclang for bindgen)
+        run: choco install llvm -y --no-progress
+      - name: cargo check
+        shell: pwsh
+        env:
+          LIBCLANG_PATH: C:\Program Files\LLVM\bin
+        run: cargo check --workspace --all-targets

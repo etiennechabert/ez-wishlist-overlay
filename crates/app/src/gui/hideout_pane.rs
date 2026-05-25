@@ -39,11 +39,7 @@ pub fn ui(
     }
 }
 
-fn header_row(
-    ui: &mut egui::Ui,
-    state: &Arc<RwLock<AppState>>,
-    save_tx: &Sender<SaveTick>,
-) {
+fn header_row(ui: &mut egui::Ui, state: &Arc<RwLock<AppState>>, save_tx: &Sender<SaveTick>) {
     ui.horizontal(|ui| {
         ui.add_space(MODULE_NAME_W);
         for lvl in 1..=MAX_LEVELS {
@@ -144,9 +140,10 @@ fn module_row(
             ui.allocate_ui_with_layout(
                 egui::vec2(CELL_W, ROW_H),
                 egui::Layout::left_to_right(egui::Align::Center),
-                |ui| match module.upgrades.get(slot) {
-                    Some(upgrade) => upgrade_cell(ui, state, save_tx, upgrade),
-                    None => {}
+                |ui| {
+                    if let Some(upgrade) = module.upgrades.get(slot) {
+                        upgrade_cell(ui, state, save_tx, upgrade);
+                    }
                 },
             );
         }
@@ -236,7 +233,8 @@ fn requirements_panel(
         .show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label(
-                    egui::RichText::new(format!("{module_name} — Level {}", upgrade.level)).strong(),
+                    egui::RichText::new(format!("{module_name} — Level {}", upgrade.level))
+                        .strong(),
                 );
                 if ui.small_button("Close").clicked() {
                     set_selected(ui.ctx(), None);
@@ -316,8 +314,10 @@ fn requirement_tile(
 }
 
 fn placeholder_icon(ui: &mut egui::Ui) {
-    let (rect, _) =
-        ui.allocate_exact_size(egui::vec2(REQ_ICON_SIZE, REQ_ICON_SIZE), egui::Sense::hover());
+    let (rect, _) = ui.allocate_exact_size(
+        egui::vec2(REQ_ICON_SIZE, REQ_ICON_SIZE),
+        egui::Sense::hover(),
+    );
     ui.painter()
         .rect_filled(rect, 4.0, egui::Color32::from_gray(60));
 }
@@ -344,7 +344,10 @@ fn selected(ctx: &egui::Context) -> Option<String> {
 }
 
 fn set_selected(ctx: &egui::Context, value: Option<&str>) {
-    ctx.memory_mut(|m| m.data.insert_temp(selected_key(), value.unwrap_or("").to_string()));
+    ctx.memory_mut(|m| {
+        m.data
+            .insert_temp(selected_key(), value.unwrap_or("").to_string())
+    });
 }
 
 fn notify(state: &Arc<RwLock<AppState>>, save_tx: &Sender<SaveTick>) {

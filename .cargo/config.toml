@@ -10,5 +10,6 @@ scrape = "run -p scraper --release"
 t = "test --workspace"
 c = "check --workspace --all-targets"
 l = "clippy --workspace --all-targets -- -D warnings"
-fmt = "fmt --all"
+# Note: do NOT alias `fmt` — `cargo fmt` is a built-in subcommand and an
+# alias of `fmt = "fmt --all"` shadows it and recurses forever.
 fmt-check = "fmt --all -- --check"

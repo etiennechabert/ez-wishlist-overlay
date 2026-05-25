@@ -75,7 +75,6 @@ The workspace ships a set of aliases in [`.cargo/config.toml`](./.cargo/config.t
 | `cargo t`          | `test --workspace`                              |
 | `cargo c`          | `check --workspace --all-targets`               |
 | `cargo l`          | `clippy --workspace --all-targets -- -D warnings` |
-| `cargo fmt`        | `fmt --all`                                     |
 | `cargo fmt-check`  | `fmt --all -- --check`                          |
 
 ---

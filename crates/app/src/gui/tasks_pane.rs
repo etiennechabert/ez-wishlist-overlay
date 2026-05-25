@@ -134,4 +134,3 @@ fn notify(state: &Arc<RwLock<AppState>>, save_tx: &Sender<SaveTick>) {
     let v = state.read().version;
     let _ = save_tx.try_send(SaveTick { version: v });
 }
-
