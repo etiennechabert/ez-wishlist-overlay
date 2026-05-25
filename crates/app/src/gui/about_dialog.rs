@@ -32,10 +32,10 @@ pub fn show(ctx: &egui::Context, open: &mut bool, data: &GameData) {
             );
             ui.horizontal(|ui| {
                 if ui.button("Open ExfilZone Assistant ↗").clicked() {
-                    let _ = open_url("https://www.exfil-zone-assistant.app/");
+                    let _ = crate::platform::open("https://www.exfil-zone-assistant.app/");
                 }
                 if ui.button("Support pogapwnz on Ko-fi ↗").clicked() {
-                    let _ = open_url("https://ko-fi.com/J3J41GATK0");
+                    let _ = crate::platform::open("https://ko-fi.com/J3J41GATK0");
                 }
             });
             ui.label("Game by Caveman Studio.");
@@ -51,10 +51,12 @@ pub fn show(ctx: &egui::Context, open: &mut bool, data: &GameData) {
             ui.add_space(12.0);
             ui.horizontal(|ui| {
                 if ui.button("GitHub ↗").clicked() {
-                    let _ = open_url("https://github.com/etienneb/ez-wishlist-overlay");
+                    let _ = crate::platform::open("https://github.com/etienneb/ez-wishlist-overlay");
                 }
                 if ui.button("Report an issue ↗").clicked() {
-                    let _ = open_url("https://github.com/etienneb/ez-wishlist-overlay/issues");
+                    let _ = crate::platform::open(
+                        "https://github.com/etienneb/ez-wishlist-overlay/issues",
+                    );
                 }
                 if ui.button("Close").clicked() {
                     close_now = true;
@@ -64,11 +66,4 @@ pub fn show(ctx: &egui::Context, open: &mut bool, data: &GameData) {
     if close_now {
         *open = false;
     }
-}
-
-fn open_url(url: &str) -> std::io::Result<()> {
-    std::process::Command::new("cmd")
-        .args(["/C", "start", "", url])
-        .spawn()
-        .map(|_| ())
 }

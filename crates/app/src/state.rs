@@ -317,6 +317,7 @@ mod tests {
                         id: "workbench_lv1".into(),
                         name: "Workbench".into(),
                         level: 1,
+                        description: String::new(),
                         requirements: vec![
                             Requirement {
                                 item_id: "bolts".into(),
@@ -332,6 +333,7 @@ mod tests {
                         id: "workbench_lv2".into(),
                         name: "Workbench".into(),
                         level: 2,
+                        description: String::new(),
                         requirements: vec![Requirement {
                             item_id: "bolts".into(),
                             quantity: 7,

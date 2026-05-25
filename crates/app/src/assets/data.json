@@ -1,6 +1,6 @@
 {
   "data_version": "2.0.4+6b0b855",
-  "scraped_at": "2026-05-24T19:50:39.2057546Z",
+  "scraped_at": "2026-05-24T23:47:27.999507Z",
   "source_repo": "https://github.com/zelengeo/exfil-zone-assistant",
   "source_commit": "6b0b855985aca75ce0a87a478c355cc2afe2c76f",
   "modules": [
@@ -12,6 +12,7 @@
           "id": "BookcaseLv1",
           "name": "Bookdesk",
           "level": 1,
+          "description": "Manual ammo reloading time -10%",
           "requirements": [
             {
               "item_id": "misc_b_horrornovel",
@@ -35,6 +36,7 @@
           "id": "BookcaseLv2",
           "name": "Bookdesk",
           "level": 2,
+          "description": "Manual ammo reloading time -20%",
           "requirements": [
             {
               "item_id": "misc_b_antiquebook",
@@ -58,6 +60,7 @@
           "id": "BookcaseLv3",
           "name": "Bookdesk",
           "level": 3,
+          "description": "Manual ammo reloading time -30%",
           "requirements": [
             {
               "item_id": "misc_b_antiquebook",
@@ -87,6 +90,7 @@
           "id": "CoffeeMakerLv1",
           "name": "Coffee Maker",
           "level": 1,
+          "description": "In-Raid Hydration Consumption -5%",
           "requirements": [
             {
               "item_id": "misc_b_nut",
@@ -110,6 +114,7 @@
           "id": "CoffeeMakerLv2",
           "name": "Coffee Maker",
           "level": 2,
+          "description": "In-Raid Hydration Consumption -10%",
           "requirements": [
             {
               "item_id": "misc_b_electricdrill",
@@ -133,6 +138,7 @@
           "id": "CoffeeMakerLv3",
           "name": "Coffee Maker",
           "level": 3,
+          "description": "In-Raid Hydration Consumption -15%",
           "requirements": [
             {
               "item_id": "misc_b_antiqueteaset",
@@ -162,6 +168,7 @@
           "id": "CryptoMiningLv1",
           "name": "Bitcoin Mine",
           "level": 1,
+          "description": "Generate periodic income using GPUs.",
           "requirements": [
             {
               "item_id": "misc_b_ceramic_adhesive",
@@ -185,6 +192,7 @@
           "id": "CryptoMiningLv2",
           "name": "Bitcoin Mine",
           "level": 2,
+          "description": "Unlock more slots; Increase money output.",
           "requirements": [
             {
               "item_id": "misc_b_ceramic_adhesive",
@@ -208,6 +216,7 @@
           "id": "CryptoMiningLv3",
           "name": "Bitcoin Mine",
           "level": 3,
+          "description": "Unlock more slots; Increase money output.",
           "requirements": [
             {
               "item_id": "misc_b_ceramic_adhesive",
@@ -231,6 +240,7 @@
           "id": "CryptoMiningLv4",
           "name": "Bitcoin Mine",
           "level": 4,
+          "description": "Unlock more slots; Increase money output.",
           "requirements": [
             {
               "item_id": "misc_b_dataline",
@@ -260,12 +270,14 @@
           "id": "GeneratorLv1",
           "name": "Generator",
           "level": 1,
+          "description": "Increase Fuel capacity, reduce power consumption.\nSupport upgrades for more facilities.",
           "requirements": []
         },
         {
           "id": "GeneratorLv2",
           "name": "Generator",
           "level": 2,
+          "description": "Increase Fuel capacity, reduce power consumption.\nSupport upgrades for more facilities.",
           "requirements": [
             {
               "item_id": "misc_b_lighterfluid",
@@ -289,6 +301,7 @@
           "id": "GeneratorLv3",
           "name": "Generator",
           "level": 3,
+          "description": "Increase Fuel capacity, reduce power consumption.\nSupport upgrades for more facilities.",
           "requirements": [
             {
               "item_id": "misc_b_marinestoragebattery",
@@ -318,6 +331,7 @@
           "id": "GunsmithLv1",
           "name": "Gunsmith",
           "level": 1,
+          "description": "Weapon parts storage capacity + 10kg",
           "requirements": [
             {
               "item_id": "misc_b_lightbulb",
@@ -341,6 +355,7 @@
           "id": "GunsmithLv2",
           "name": "Gunsmith",
           "level": 2,
+          "description": "Weapon parts storage capacity + 10kg",
           "requirements": [
             {
               "item_id": "misc_b_ceramic_adhesive",
@@ -364,6 +379,7 @@
           "id": "GunsmithLv3",
           "name": "Gunsmith",
           "level": 3,
+          "description": "Weapon parts storage capacity + 10kg",
           "requirements": [
             {
               "item_id": "misc_b_civilradio",
@@ -387,6 +403,7 @@
           "id": "GunsmithLv4",
           "name": "Gunsmith",
           "level": 4,
+          "description": "Weapon parts storage capacity + 10kg",
           "requirements": [
             {
               "item_id": "misc_b_electricdrill",
@@ -416,6 +433,7 @@
           "id": "IntelligentLv1",
           "name": "Intel Center",
           "level": 1,
+          "description": "Show item prices with M.I.C.A.",
           "requirements": [
             {
               "item_id": "misc_b_dataline",
@@ -439,6 +457,7 @@
           "id": "IntelligentLv2",
           "name": "Intel Center",
           "level": 2,
+          "description": "Character experience gain +15%",
           "requirements": [
             {
               "item_id": "misc_b_civilradio",
@@ -462,6 +481,7 @@
           "id": "IntelligentLv3",
           "name": "Intel Center",
           "level": 3,
+          "description": "Character experience gain +20%",
           "requirements": [
             {
               "item_id": "misc_b_powerbank",
@@ -485,6 +505,7 @@
           "id": "IntelligentLv4",
           "name": "Intel Center",
           "level": 4,
+          "description": "Character experience gain +30%",
           "requirements": [
             {
               "item_id": "misc_b_visionmodule",
@@ -514,6 +535,7 @@
           "id": "KitchenAreaLv1",
           "name": "Kitchen Area",
           "level": 1,
+          "description": "Unlocks Coffee Machine, Microwave, Refrigerator",
           "requirements": [
             {
               "item_id": "misc_b_gastank",
@@ -543,6 +565,7 @@
           "id": "MedDeskLv1",
           "name": "Med Desk",
           "level": 1,
+          "description": "Drink recovery +10%.",
           "requirements": [
             {
               "item_id": "misc_b_bottledglucose",
@@ -566,6 +589,7 @@
           "id": "MedDeskLv2",
           "name": "Med Desk",
           "level": 2,
+          "description": "Drink recovery +20%.",
           "requirements": [
             {
               "item_id": "misc_b_aspire",
@@ -589,6 +613,7 @@
           "id": "MedDeskLv3",
           "name": "Med Desk",
           "level": 3,
+          "description": "Drink recovery +30%.",
           "requirements": [
             {
               "item_id": "misc_b_bottledglucose",
@@ -618,6 +643,7 @@
           "id": "MedicalAreaLv1",
           "name": "Medical Area",
           "level": 1,
+          "description": "Access to a syringe holder.\nUnlocks Med Desk, Plant Stand, Operating Bed",
           "requirements": [
             {
               "item_id": "misc_b_aspire",
@@ -647,6 +673,7 @@
           "id": "MicrowaveOvenLv1",
           "name": "Microwave",
           "level": 1,
+          "description": "In-Raid Energy Consumption -5%",
           "requirements": [
             {
               "item_id": "misc_b_pcfan",
@@ -670,6 +697,7 @@
           "id": "MicrowaveOvenLv2",
           "name": "Microwave",
           "level": 2,
+          "description": "In-Raid Energy Consumption -10%",
           "requirements": [
             {
               "item_id": "misc_b_nut",
@@ -693,6 +721,7 @@
           "id": "MicrowaveOvenLv3",
           "name": "Microwave",
           "level": 3,
+          "description": "In-Raid Energy Consumption -15%",
           "requirements": [
             {
               "item_id": "misc_b_digitalsensor",
@@ -722,6 +751,7 @@
           "id": "OperationBedLv1",
           "name": "Operating Bed",
           "level": 1,
+          "description": "Free limb damage repair available every hour.\nFaster health regeneration in Hideout.",
           "requirements": [
             {
               "item_id": "misc_b_aspire",
@@ -745,6 +775,7 @@
           "id": "OperationBedLv2",
           "name": "Operating Bed",
           "level": 2,
+          "description": "Faster health regeneration in Hideout.",
           "requirements": [
             {
               "item_id": "misc_b_disinfectingwipes",
@@ -768,6 +799,7 @@
           "id": "OperationBedLv3",
           "name": "Operating Bed",
           "level": 3,
+          "description": "Faster health regeneration in Hideout.",
           "requirements": [
             {
               "item_id": "misc_b_asthmamedication",
@@ -797,6 +829,7 @@
           "id": "PlantingLv1",
           "name": "Plant Stand",
           "level": 1,
+          "description": "Food recovery +10%.",
           "requirements": [
             {
               "item_id": "misc_b_lightbulb",
@@ -820,6 +853,7 @@
           "id": "PlantingLv2",
           "name": "Plant Stand",
           "level": 2,
+          "description": "Food recovery +20%.",
           "requirements": [
             {
               "item_id": "misc_b_ceramic_adhesive",
@@ -843,6 +877,7 @@
           "id": "PlantingLv3",
           "name": "Plant Stand",
           "level": 3,
+          "description": "Food recovery +30%.",
           "requirements": [
             {
               "item_id": "misc_b_flashlight",
@@ -872,6 +907,7 @@
           "id": "RefrigeratorLv1",
           "name": "Refrigerator",
           "level": 1,
+          "description": "Food and drinks Storage.\nRegenerate Energy faster inside Hideout.",
           "requirements": [
             {
               "item_id": "misc_b_rustedcleaner",
@@ -895,6 +931,7 @@
           "id": "RefrigeratorLv2",
           "name": "Refrigerator",
           "level": 2,
+          "description": "Regenerate Energy faster inside Hideout.",
           "requirements": [
             {
               "item_id": "misc_b_oliveoil",
@@ -918,6 +955,7 @@
           "id": "RefrigeratorLv3",
           "name": "Refrigerator",
           "level": 3,
+          "description": "Regenerate Energy faster inside Hideout.",
           "requirements": [
             {
               "item_id": "misc_b_gaspipewrench",
@@ -947,6 +985,7 @@
           "id": "RestRoomLv1",
           "name": "Toilet",
           "level": 1,
+          "description": "Character experience gain +2%",
           "requirements": [
             {
               "item_id": "misc_b_pesticide",
@@ -970,6 +1009,7 @@
           "id": "RestRoomLv2",
           "name": "Toilet",
           "level": 2,
+          "description": "Character experience gain +5%",
           "requirements": [
             {
               "item_id": "misc_b_beardoil",
@@ -993,6 +1033,7 @@
           "id": "RestRoomLv3",
           "name": "Toilet",
           "level": 3,
+          "description": "Character experience gain +10%",
           "requirements": [
             {
               "item_id": "misc_b_lightbulb",
@@ -1022,6 +1063,7 @@
           "id": "ShootingRangeLv1",
           "name": "Shooting Range",
           "level": 1,
+          "description": "Infinite ammo for firearms testing.",
           "requirements": [
             {
               "item_id": "misc_b_ceramic_adhesive",
@@ -1051,6 +1093,7 @@
           "id": "SofaLv1",
           "name": "Sofa",
           "level": 1,
+          "description": "Increase weight bearing capacity to 75",
           "requirements": [
             {
               "item_id": "misc_b_deodorant",
@@ -1074,6 +1117,7 @@
           "id": "SofaLv2",
           "name": "Sofa",
           "level": 2,
+          "description": "Increase weight bearing capacity to 80",
           "requirements": [
             {
               "item_id": "misc_b_gameconsole",
@@ -1097,6 +1141,7 @@
           "id": "SofaLv3",
           "name": "Sofa",
           "level": 3,
+          "description": "Increase weight bearing capacity to 90",
           "requirements": [
             {
               "item_id": "misc_b_defibrillator",
@@ -1126,6 +1171,7 @@
           "id": "StorageZoneLock1Lv1",
           "name": "Storage Room A",
           "level": 1,
+          "description": "Access to storage room A",
           "requirements": [
             {
               "item_id": "misc_b_batter_large",
@@ -1155,6 +1201,7 @@
           "id": "StorageZoneLock2Lv1",
           "name": "Storage Room B",
           "level": 1,
+          "description": "Access to storage room B",
           "requirements": [
             {
               "item_id": "misc_b_moldboard",
@@ -1184,6 +1231,7 @@
           "id": "StorageZoneLock3Lv1",
           "name": "Storage Room C",
           "level": 1,
+          "description": "Access to storage room C",
           "requirements": [
             {
               "item_id": "misc_b_gunoil",
@@ -1213,6 +1261,7 @@
           "id": "TVSetLv1",
           "name": "TV Set",
           "level": 1,
+          "description": "Scavenger mode CD -10%",
           "requirements": [
             {
               "item_id": "misc_1batterie_2",
@@ -1236,6 +1285,7 @@
           "id": "TVSetLv2",
           "name": "TV Set",
           "level": 2,
+          "description": "Scavenger mode CD -20%",
           "requirements": [
             {
               "item_id": "misc_b_electricdrill",
@@ -1259,6 +1309,7 @@
           "id": "TVSetLv3",
           "name": "TV Set",
           "level": 3,
+          "description": "Scavenger mode CD -30%",
           "requirements": [
             {
               "item_id": "misc_b_dataline",
@@ -1288,6 +1339,7 @@
           "id": "WaterCollectorLv1",
           "name": "Water Collector",
           "level": 1,
+          "description": "Access to a drink holder.\nRegenerate Hydration faster inside Hideout.",
           "requirements": [
             {
               "item_id": "misc_b_plier_large",
@@ -1311,6 +1363,7 @@
           "id": "WaterCollectorLv2",
           "name": "Water Collector",
           "level": 2,
+          "description": "Regenerate Hydration faster inside Hideout.",
           "requirements": [
             {
               "item_id": "misc_b_insulatingtape",
@@ -1334,6 +1387,7 @@
           "id": "WaterCollectorLv3",
           "name": "Water Collector",
           "level": 3,
+          "description": "Regenerate Hydration faster inside Hideout.",
           "requirements": [
             {
               "item_id": "misc_b_piezometer",
@@ -1363,6 +1417,7 @@
           "id": "WorkshopZoneLv1",
           "name": "Workshop",
           "level": 1,
+          "description": "Access to more storage spaces.\nAccess to Armor Repair, Ammo loader and Keys hanger.",
           "requirements": []
         }
       ]
