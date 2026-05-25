@@ -94,7 +94,7 @@
           "requirements": [
             {
               "item_id": "misc_b_nut",
-              "quantity": 5
+              "quantity": 3
             },
             {
               "item_id": "misc_b_screw",
@@ -200,7 +200,7 @@
             },
             {
               "item_id": "misc_b_pcfan",
-              "quantity": 6
+              "quantity": 8
             },
             {
               "item_id": "misc_bpu",
@@ -468,7 +468,7 @@
               "quantity": 3
             },
             {
-              "item_id": "misc_b_insulatingtape",
+              "item_id": "misc_b_tape",
               "quantity": 4
             },
             {
@@ -911,7 +911,7 @@
           "requirements": [
             {
               "item_id": "misc_b_rustedcleaner",
-              "quantity": 2
+              "quantity": 1
             },
             {
               "item_id": "misc_b_saltcan",
@@ -1174,7 +1174,7 @@
           "description": "Access to storage room A",
           "requirements": [
             {
-              "item_id": "misc_b_batter_large",
+              "item_id": "misc_b_1battery",
               "quantity": 1
             },
             {
@@ -1418,7 +1418,24 @@
           "name": "Workshop",
           "level": 1,
           "description": "Access to more storage spaces.\nAccess to Armor Repair, Ammo loader and Keys hanger.",
-          "requirements": []
+          "requirements": [
+            {
+              "item_id": "misc_b_tapemeasure",
+              "quantity": 1
+            },
+            {
+              "item_id": "misc_wrench",
+              "quantity": 1
+            },
+            {
+              "item_id": "misc_screwdriver",
+              "quantity": 2
+            },
+            {
+              "item_id": "misc_b_wd40",
+              "quantity": 2
+            }
+          ]
         }
       ]
     }
