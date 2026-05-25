@@ -6,9 +6,13 @@
 rustflags = ["-C", "target-feature=+crt-static"]
 
 [alias]
-# Run the desktop app
-app = "run -p ez-wishlist-overlay --release"
-app-dev = "run -p ez-wishlist-overlay"
+# Run the desktop app. Pinned to MSVC because openvr_sys hard-codes a
+# `/DWIN32` cxxflag that gnullvm's clang rejects (see memory/toolchain.md
+# and scripts/run-app.ps1). These aliases only work from a VS Dev Shell;
+# from a plain PowerShell, use `./scripts/run-app.ps1` which enters the
+# Dev Shell + sets LIBCLANG_PATH first.
+app = "run -p ez-wishlist-overlay --release --target x86_64-pc-windows-msvc"
+app-dev = "run -p ez-wishlist-overlay --target x86_64-pc-windows-msvc"
 
 # Refresh game data from upstream (maintainers)
 scrape = "run -p scraper --release"

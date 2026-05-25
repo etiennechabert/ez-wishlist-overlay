@@ -120,40 +120,18 @@ fn vr_section(ui: &mut egui::Ui, vr: &mut VrSettings) {
         .show(ui, |ui| {
             ui.label("Width (m)")
                 .on_hover_text("Apparent width of the overlay panel in your VR view.");
-            ui.add(
-                egui::Slider::new(&mut vr.width_meters, bounds::WIDTH_METERS)
-                    .step_by(0.05)
-                    .suffix(" m"),
-            );
+            stepper_slider_f32(ui, &mut vr.width_meters, bounds::WIDTH_METERS, 0.05, " m");
             ui.end_row();
 
             ui.label("Show pitch (°)").on_hover_text(
                 "Tilt your head up at least this many degrees to start the show timer.",
             );
-            ui.add(
-                egui::Slider::new(&mut vr.show_pitch_deg, bounds::PITCH_DEG)
-                    .step_by(1.0)
-                    .suffix("°"),
-            );
+            stepper_slider_f32(ui, &mut vr.show_pitch_deg, bounds::PITCH_DEG, 1.0, "°");
             ui.end_row();
 
             ui.label("Hide pitch (°)")
                 .on_hover_text("If pitch drops below this, the overlay hides immediately.");
-            ui.add(
-                egui::Slider::new(&mut vr.hide_pitch_deg, bounds::PITCH_DEG)
-                    .step_by(1.0)
-                    .suffix("°"),
-            );
-            ui.end_row();
-
-            ui.label("Show dwell (ms)").on_hover_text(
-                "How long you must hold the show pitch before the overlay fades in.",
-            );
-            ui.add(
-                egui::Slider::new(&mut vr.show_dwell_ms, bounds::DWELL_MS)
-                    .step_by(10.0)
-                    .suffix(" ms"),
-            );
+            stepper_slider_f32(ui, &mut vr.hide_pitch_deg, bounds::PITCH_DEG, 1.0, "°");
             ui.end_row();
 
             ui.label("Items per row").on_hover_text(
@@ -161,7 +139,22 @@ fn vr_section(ui: &mut egui::Ui, vr: &mut VrSettings) {
                  from the size of your wishlist, so a narrower grid produces a \
                  taller panel.",
             );
-            ui.add(egui::Slider::new(&mut vr.grid_cols, bounds::GRID_COLS).integer());
+            stepper_slider_u32(ui, &mut vr.grid_cols, bounds::GRID_COLS, 1, "");
+            ui.end_row();
+
+            ui.label("Height offset (m)").on_hover_text(
+                "How far above the HMD the overlay sits when it shows. Higher \
+                 values push the panel up so you have to crane further to see \
+                 it; lower values bring it down toward eye level. Takes effect \
+                 on the next show — already-visible overlays keep their spot.",
+            );
+            stepper_slider_f32(
+                ui,
+                &mut vr.height_offset_m,
+                bounds::HEIGHT_OFFSET_M,
+                0.05,
+                " m",
+            );
             ui.end_row();
         });
 
@@ -169,10 +162,73 @@ fn vr_section(ui: &mut egui::Ui, vr: &mut VrSettings) {
     let weak = ui.visuals().weak_text_color();
     ui.label(
         egui::RichText::new(
-            "Width applies live. Pitch and dwell currently persist only — they take \
-             effect when the VR pose loop lands in the next phase.",
+            "Width, pitch thresholds, and grid layout apply live. Height offset \
+             takes effect on the next show.",
         )
         .small()
         .color(weak),
     );
+}
+
+/// Width of the +/- buttons next to each slider. Chosen so they're large
+/// enough to land a VR-laser-pointer click on at typical overlay scale,
+/// while still leaving the slider track readable.
+const STEPPER_BUTTON_W: f32 = 24.0;
+
+fn stepper_slider_f32(
+    ui: &mut egui::Ui,
+    value: &mut f32,
+    range: std::ops::RangeInclusive<f32>,
+    step: f32,
+    suffix: &str,
+) {
+    let (min, max) = (*range.start(), *range.end());
+    ui.horizontal(|ui| {
+        if ui
+            .add_sized([STEPPER_BUTTON_W, 0.0], egui::Button::new("−"))
+            .clicked()
+        {
+            *value = (*value - step).max(min);
+        }
+        ui.add(
+            egui::Slider::new(value, range)
+                .step_by(step as f64)
+                .suffix(suffix),
+        );
+        if ui
+            .add_sized([STEPPER_BUTTON_W, 0.0], egui::Button::new("+"))
+            .clicked()
+        {
+            *value = (*value + step).min(max);
+        }
+    });
+}
+
+fn stepper_slider_u32(
+    ui: &mut egui::Ui,
+    value: &mut u32,
+    range: std::ops::RangeInclusive<u32>,
+    step: u32,
+    suffix: &str,
+) {
+    let (min, max) = (*range.start(), *range.end());
+    ui.horizontal(|ui| {
+        if ui
+            .add_sized([STEPPER_BUTTON_W, 0.0], egui::Button::new("−"))
+            .clicked()
+        {
+            *value = value.saturating_sub(step).max(min);
+        }
+        let mut slider = egui::Slider::new(value, range).integer();
+        if !suffix.is_empty() {
+            slider = slider.suffix(suffix);
+        }
+        ui.add(slider);
+        if ui
+            .add_sized([STEPPER_BUTTON_W, 0.0], egui::Button::new("+"))
+            .clicked()
+        {
+            *value = value.saturating_add(step).min(max);
+        }
+    });
 }

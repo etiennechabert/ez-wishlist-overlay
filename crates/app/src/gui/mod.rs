@@ -12,7 +12,7 @@ pub mod theme;
 use crate::data::GameData;
 use crate::persist::PersistPaths;
 use crate::state::AppState;
-use crate::updater::UpdateInfo;
+use crate::updater::CheckStatus;
 use crossbeam_channel::{Receiver, Sender};
 use parking_lot::RwLock;
 use std::sync::Arc;
@@ -51,9 +51,11 @@ pub struct App {
     /// One-slot channel from the background update-check thread. `None`
     /// when the user disabled the check in settings or the thread failed
     /// to spawn. Drained on the first frame that sees a value.
-    update_rx: Option<Receiver<UpdateInfo>>,
-    /// Latest release info from the check thread, if newer than us.
-    pending_update: Option<UpdateInfo>,
+    update_rx: Option<Receiver<CheckStatus>>,
+    /// Latest update-check status. Starts at `Checking` (or `Disabled` if
+    /// the user turned off the check), gets replaced once the worker
+    /// thread reports.
+    check_status: CheckStatus,
 }
 
 impl App {
@@ -68,11 +70,16 @@ impl App {
         vr: Arc<crate::vr::Runtime>,
         settings: Arc<RwLock<crate::settings::Settings>>,
         log_buf: crate::log_buffer::LogBuffer,
-        update_rx: Option<Receiver<UpdateInfo>>,
+        update_rx: Option<Receiver<CheckStatus>>,
     ) -> Self {
         let icons = IconCache::new();
         // Pull any initial warning surfaced by persist::load.
         let banner = state.read().load_warning.clone();
+        let check_status = if update_rx.is_some() {
+            CheckStatus::Checking
+        } else {
+            CheckStatus::Disabled
+        };
         Self {
             state,
             paths,
@@ -91,7 +98,7 @@ impl App {
             applied_theme: None,
             log_buf,
             update_rx,
-            pending_update: None,
+            check_status,
         }
     }
 
@@ -177,7 +184,7 @@ impl eframe::App for App {
         // Modal dialogs.
         if self.show_about {
             let data = self.data();
-            about_dialog::show(ctx, &mut self.show_about, &data);
+            about_dialog::show(ctx, &mut self.show_about, &data, &self.check_status);
         }
         if self.show_debug {
             debug_dialog::show(ctx, &mut self.show_debug, &self.log_buf);
@@ -207,7 +214,11 @@ impl App {
     fn header(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             let data_version = self.data().data_version.clone();
-            ui.label(egui::RichText::new("EZ Wishlist Overlay").strong());
+            ui.label(
+                egui::RichText::new(concat!("EZ Wishlist Overlay v", env!("CARGO_PKG_VERSION")))
+                    .strong(),
+            );
+            self.update_status_indicator(ui);
             ui.separator();
             ui.label(format!("Data: {data_version}"));
             ui.separator();
@@ -233,25 +244,77 @@ impl App {
         });
     }
 
+    /// Compact status chip next to the app name: spinner while the check
+    /// thread is in flight, colored glyph + tooltip afterwards. Clickable
+    /// — opens the About dialog where the full version comparison lives.
+    fn update_status_indicator(&mut self, ui: &mut egui::Ui) {
+        let (glyph, color, tooltip): (&str, egui::Color32, String) = match &self.check_status {
+            CheckStatus::Disabled => (
+                "—",
+                ui.visuals().weak_text_color(),
+                "Update check disabled in Settings".into(),
+            ),
+            CheckStatus::Checking => {
+                let resp = ui.add(egui::Spinner::new().size(14.0));
+                resp.on_hover_text("Checking for updates…");
+                return;
+            }
+            CheckStatus::UpToDate { latest_version } => (
+                "✓",
+                egui::Color32::from_rgb(80, 180, 100),
+                format!("Up to date (latest release: v{latest_version})"),
+            ),
+            CheckStatus::Ahead { latest_version } => (
+                "✓",
+                egui::Color32::from_rgb(100, 160, 220),
+                format!("Dev build — ahead of latest release v{latest_version}"),
+            ),
+            CheckStatus::UpdateAvailable(info) => (
+                "↑",
+                egui::Color32::from_rgb(220, 180, 60),
+                format!("Update available: v{}", info.latest_version),
+            ),
+            CheckStatus::Failed { reason } => (
+                "!",
+                egui::Color32::from_rgb(220, 100, 90),
+                format!("Update check failed: {reason}"),
+            ),
+        };
+        let resp = ui.add(
+            egui::Label::new(egui::RichText::new(glyph).color(color).strong())
+                .sense(egui::Sense::click()),
+        );
+        if resp.on_hover_text(tooltip).clicked() {
+            self.show_about = true;
+        }
+    }
+
     /// Drain the update-check channel. The producer only ever sends once,
     /// so after the first hit we drop the receiver to stop polling. Cheap
     /// regardless — `try_recv` returns Empty immediately.
     fn poll_update_check(&mut self) {
         let Some(rx) = &self.update_rx else { return };
         match rx.try_recv() {
-            Ok(info) => {
-                self.pending_update = Some(info);
+            Ok(status) => {
+                self.check_status = status;
                 self.update_rx = None;
             }
             Err(crossbeam_channel::TryRecvError::Empty) => {}
             Err(crossbeam_channel::TryRecvError::Disconnected) => {
+                // Sender dropped without producing a value — treat as a
+                // failure so the user sees *something* in the header.
+                if matches!(self.check_status, CheckStatus::Checking) {
+                    self.check_status = CheckStatus::Failed {
+                        reason: "check thread exited without reporting".into(),
+                    };
+                }
                 self.update_rx = None;
             }
         }
     }
 
     fn update_banner(&mut self, ctx: &egui::Context) {
-        let Some(info) = self.pending_update.clone() else {
+        let CheckStatus::UpdateAvailable(info) = self.check_status.clone() else {
             return;
         };
 
@@ -301,7 +364,12 @@ impl App {
             self.persist_settings();
         }
         if clear {
-            self.pending_update = None;
+            // User dismissed/snoozed the banner — collapse to an "up to date"-
+            // style status so the header indicator doesn't keep advertising
+            // an upgrade until the next app start.
+            self.check_status = CheckStatus::UpToDate {
+                latest_version: info.latest_version.clone(),
+            };
         }
     }
 

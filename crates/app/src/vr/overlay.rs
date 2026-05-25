@@ -127,9 +127,11 @@ impl OverlaySession {
     /// an absolute (world-space) transform. Yaw + position only — pitch and
     /// roll are dropped so the overlay sits in front of the user at the
     /// moment of trigger, not above their face where their gaze was
-    /// pointing. Returns `Ok(false)` if the HMD pose is invalid this frame
-    /// (caller should retry on the next tick).
-    pub fn anchor_at_current_hmd(&mut self) -> Result<bool> {
+    /// pointing. `height_offset_m` controls how far above the HMD the panel
+    /// floats (see [`super::anchor::HEIGHT_M`] for the historical default).
+    /// Returns `Ok(false)` if the HMD pose is invalid this frame (caller
+    /// should retry on the next tick).
+    pub fn anchor_at_current_hmd(&mut self, height_offset_m: f32) -> Result<bool> {
         let system = self
             .ctx
             .system()
@@ -140,7 +142,12 @@ impl OverlaySession {
         if !hmd.pose_is_valid() {
             return Ok(false);
         }
-        let m = super::anchor::world_anchor_from_hmd(hmd.device_to_absolute_tracking());
+        let m = super::anchor::world_anchor_from_hmd_with(
+            hmd.device_to_absolute_tracking(),
+            super::anchor::DISTANCE_M,
+            height_offset_m,
+            super::anchor::TILT_DEG,
+        );
         let matrix = openvr::pose::Matrix3x4(m);
         let mut overlay = self
             .ctx

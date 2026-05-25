@@ -87,10 +87,21 @@ The VR layer is gated behind `cfg(target_os = "windows")` — macOS and Linux bu
 
 ### Run the desktop app
 
+From a **VS Developer PowerShell**:
+
 ```powershell
 cargo app           # release build
 cargo app-dev       # debug build, faster compiles for UI iteration
 ```
+
+From a **plain PowerShell** (uses the bundled launcher to enter the VS Dev Shell + set `LIBCLANG_PATH`):
+
+```powershell
+./scripts/run-app.ps1            # debug build
+./scripts/run-app.ps1 -Release   # release build
+```
+
+Both aliases pin the MSVC target — the default gnullvm toolchain can't build `openvr_sys` (it rejects MSVC's `/DWIN32` cxxflag), so VR-enabled builds go through MSVC. See [`scripts/run-app.ps1`](./scripts/run-app.ps1) for the underlying setup.
 
 The window opens at 1200×800. State is persisted to `%APPDATA%\etienneb\ez-wishlist-overlay\data\state.json` on Windows, or the platform equivalent (`~/Library/Application Support/...` on macOS) elsewhere.
 
@@ -100,8 +111,8 @@ The workspace ships a set of aliases in [`.cargo/config.toml`](./.cargo/config.t
 
 | Alias              | Expands to                                      |
 | ------------------ | ----------------------------------------------- |
-| `cargo app`        | `run -p ez-wishlist-overlay --release`          |
-| `cargo app-dev`    | `run -p ez-wishlist-overlay`                    |
+| `cargo app`        | `run -p ez-wishlist-overlay --release --target x86_64-pc-windows-msvc` |
+| `cargo app-dev`    | `run -p ez-wishlist-overlay --target x86_64-pc-windows-msvc`           |
 | `cargo scrape`     | `run -p scraper --release`                      |
 | `cargo t`          | `test --workspace`                              |
 | `cargo c`          | `check --workspace --all-targets`               |

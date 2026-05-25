@@ -1,8 +1,9 @@
 //! About / Credits modal.
 
 use crate::data::GameData;
+use crate::updater::CheckStatus;
 
-pub fn show(ctx: &egui::Context, open: &mut bool, data: &GameData) {
+pub fn show(ctx: &egui::Context, open: &mut bool, data: &GameData, check_status: &CheckStatus) {
     let version = env!("CARGO_PKG_VERSION");
     let commit_short: String = data.source_commit.chars().take(7).collect();
 
@@ -14,6 +15,7 @@ pub fn show(ctx: &egui::Context, open: &mut bool, data: &GameData) {
         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
         .show(ctx, |ui| {
             ui.heading(format!("EZ Wishlist Overlay v{version}"));
+            release_status(ui, check_status);
             ui.label(format!(
                 "Data version: {} (synced from upstream {})",
                 data.data_version, commit_short
@@ -68,4 +70,49 @@ pub fn show(ctx: &egui::Context, open: &mut bool, data: &GameData) {
     if close_now {
         *open = false;
     }
+}
+
+/// One-line summary of the startup version check, sitting right under the
+/// app heading so the user always sees how their build compares to the
+/// latest GitHub release.
+fn release_status(ui: &mut egui::Ui, status: &CheckStatus) {
+    ui.horizontal(|ui| match status {
+        CheckStatus::Disabled => {
+            ui.label(
+                egui::RichText::new("Update check disabled in Settings.")
+                    .color(ui.visuals().weak_text_color()),
+            );
+        }
+        CheckStatus::Checking => {
+            ui.add(egui::Spinner::new().size(14.0));
+            ui.label("Checking for the latest release…");
+        }
+        CheckStatus::UpToDate { latest_version } => {
+            ui.colored_label(
+                egui::Color32::from_rgb(80, 180, 100),
+                format!("✓ Up to date (latest release: v{latest_version})."),
+            );
+        }
+        CheckStatus::Ahead { latest_version } => {
+            ui.colored_label(
+                egui::Color32::from_rgb(100, 160, 220),
+                format!("✓ Dev build — ahead of latest release v{latest_version}."),
+            );
+        }
+        CheckStatus::UpdateAvailable(info) => {
+            ui.colored_label(
+                egui::Color32::from_rgb(220, 180, 60),
+                format!("↑ Update available: v{}.", info.latest_version),
+            );
+            if ui.small_button("Download ↗").clicked() {
+                let _ = crate::platform::open(&info.release_url);
+            }
+        }
+        CheckStatus::Failed { reason } => {
+            ui.colored_label(
+                egui::Color32::from_rgb(220, 100, 90),
+                format!("⚠ Update check failed: {reason}"),
+            );
+        }
+    });
 }

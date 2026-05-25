@@ -18,6 +18,14 @@ use tiny_skia::{Color, FillRule, IntSize, Paint, PathBuilder, Pixmap, Rect, Stro
 
 pub const CELL_PX: u32 = 160;
 pub const CELL_PADDING: u32 = 8;
+/// Vertical space reserved at the top of each cell for the item name.
+/// Sized to comfortably fit a 14px font with breathing room above/below.
+const NAME_BAND_H: f32 = 22.0;
+/// Pixel size of the item name font.
+const NAME_FONT_PX: f32 = 14.0;
+/// Horizontal padding inside the name band — leaves the truncation
+/// ellipsis room before it bumps against the cell border.
+const NAME_SIDE_PAD: f32 = 6.0;
 /// Hard cap on rendered rows. Beyond this we fall through to the "+N more"
 /// indicator instead of growing the canvas without bound (a wishlist with
 /// 200 items at 2 cols would otherwise blow up the texture). 8 keeps the
@@ -133,13 +141,19 @@ where
         );
     }
 
-    // Icon, centered with 12px padding from edges.
+    // Item name across the top of the cell. Truncates with an ellipsis
+    // when wider than the cell can fit at the chosen font size.
+    draw_cell_name(pixmap, rect, &item.name);
+
+    // Icon, centered with 12px side padding. Top is offset to leave room
+    // for the name band (NAME_BAND_H); bottom reserves room for the
+    // progress chip (22px strip + 4px chrome).
     let icon_pad = 12.0;
     let icon_rect = Rect::from_xywh(
         rect.x() + icon_pad,
-        rect.y() + icon_pad,
+        rect.y() + NAME_BAND_H,
         rect.width() - 2.0 * icon_pad,
-        rect.height() - 2.0 * icon_pad - 18.0, // leave room for the bottom progress text
+        rect.height() - NAME_BAND_H - icon_pad - 26.0,
     )
     .unwrap_or(rect);
     if let Some(bytes) = resolve_icon(&item.icon_path) {
@@ -253,11 +267,58 @@ fn draw_icon_placeholder(pixmap: &mut Pixmap, rect: Rect) {
     }
 }
 
+fn draw_cell_name(pixmap: &mut Pixmap, cell: Rect, full_name: &str) {
+    let max_w = cell.width() - 2.0 * NAME_SIDE_PAD;
+    let label = truncate_to_width(full_name, max_w, NAME_FONT_PX);
+    if label.is_empty() {
+        return;
+    }
+    let text_w = super::text::measure_width(&label, NAME_FONT_PX);
+    let text_x = cell.x() + (cell.width() - text_w) * 0.5;
+    // Baseline ~70% down the band so the name sits closer to the icon than
+    // to the cell border (cap height + a hair of leading above).
+    let baseline_y = cell.y() + NAME_BAND_H * 0.70;
+    super::text::draw_text(
+        pixmap,
+        &label,
+        text_x,
+        baseline_y,
+        NAME_FONT_PX,
+        Color::from_rgba8(225, 228, 234, 255),
+    );
+}
+
+/// Trim `text` to whatever fits in `max_w` at the given font size, appending
+/// "…" when truncated. Returns the original string unchanged if it already
+/// fits, and an empty string if even the ellipsis alone is too wide (very
+/// narrow cells — shouldn't happen at our sizes but stays defensive).
+fn truncate_to_width(text: &str, max_w: f32, font_px: f32) -> String {
+    if super::text::measure_width(text, font_px) <= max_w {
+        return text.to_string();
+    }
+    let ellipsis = "…";
+    let ellipsis_w = super::text::measure_width(ellipsis, font_px);
+    if ellipsis_w > max_w {
+        return String::new();
+    }
+    let mut chars: Vec<char> = text.chars().collect();
+    // Drop chars from the end until "{prefix}…" fits.
+    while !chars.is_empty() {
+        chars.pop();
+        let prefix: String = chars.iter().collect();
+        if super::text::measure_width(&prefix, font_px) + ellipsis_w <= max_w {
+            return format!("{prefix}{ellipsis}");
+        }
+    }
+    ellipsis.to_string()
+}
+
 fn draw_progress_chip(pixmap: &mut Pixmap, cell: Rect, collected: u32, needed: u32) {
-    // Bottom strip with simple filled bar; numbers are visual only here
-    // (text rendering is intentionally minimal in the v1 CPU renderer —
-    // Phase 3 can add fontdue glyphs when we're ready to ship to VR).
-    let strip_h = 14.0;
+    // Bottom strip with filled progress bar + "collected/needed" text
+    // centered over it. Bar grows from left at the collected/needed ratio;
+    // text reads white over both the dark background and the colored fill,
+    // so it stays legible across the whole range.
+    let strip_h = 22.0;
     let strip = Rect::from_xywh(
         cell.x() + 4.0,
         cell.bottom() - strip_h - 4.0,
@@ -303,8 +364,29 @@ fn draw_progress_chip(pixmap: &mut Pixmap, cell: Rect, collected: u32, needed: u
             None,
         );
     }
-    // Use the parameter to silence dead-code in case borrow-checker shifts.
-    let _ = collected;
+
+    // "collected/needed" centered on the strip. Capped collected at
+    // `needed` so a stale state.json doesn't show "11/10" mid-debounce.
+    let shown_collected = collected.min(needed.max(1));
+    let label = if needed == 0 {
+        "—".to_string()
+    } else {
+        format!("{}/{}", shown_collected, needed)
+    };
+    let font_px = 14.0;
+    let text_w = super::text::measure_width(&label, font_px);
+    let text_x = strip.x() + (strip.width() - text_w) * 0.5;
+    // Baseline ~75% down the strip — empirical, lines up the digit caps
+    // with the vertical center of the bar at the font sizes we use.
+    let baseline_y = strip.y() + strip.height() * 0.75;
+    super::text::draw_text(
+        pixmap,
+        &label,
+        text_x,
+        baseline_y,
+        font_px,
+        Color::from_rgba8(245, 247, 250, 255),
+    );
 }
 
 fn draw_more_indicator(pixmap: &mut Pixmap, extra: usize) {
