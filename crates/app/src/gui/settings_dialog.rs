@@ -2,6 +2,7 @@
 
 use crate::settings::{bounds, Settings, VrSettings};
 use parking_lot::RwLock;
+use std::path::Path;
 use std::sync::Arc;
 
 /// Returns `true` if the user closed the dialog this frame (caller persists).
@@ -9,6 +10,7 @@ pub fn show(
     ctx: &egui::Context,
     open: &mut bool,
     settings: &Arc<RwLock<Settings>>,
+    data_dir: &Path,
 ) -> Outcome {
     let mut outcome = Outcome::default();
     let mut close_now = false;
@@ -26,6 +28,10 @@ pub fn show(
             vr_section(ui, &mut working.vr);
 
             ui.add_space(12.0);
+            storage_section(ui, data_dir);
+
+            ui.add_space(12.0);
+            ui.separator();
             ui.horizontal(|ui| {
                 if ui.button("Restore defaults").clicked() {
                     working = Settings::default();
@@ -56,6 +62,21 @@ pub struct Outcome {
     pub changed: bool,
     /// Window just closed (caller should persist).
     pub closed: bool,
+}
+
+fn storage_section(ui: &mut egui::Ui, data_dir: &Path) {
+    ui.heading("Storage");
+    ui.add_space(4.0);
+    ui.horizontal(|ui| {
+        if ui.button("Open data folder").clicked() {
+            let _ = crate::platform::open(data_dir);
+        }
+        ui.label(
+            egui::RichText::new(data_dir.display().to_string())
+                .small()
+                .color(egui::Color32::GRAY),
+        );
+    });
 }
 
 fn vr_section(ui: &mut egui::Ui, vr: &mut VrSettings) {

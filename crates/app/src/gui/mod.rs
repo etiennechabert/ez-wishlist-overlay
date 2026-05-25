@@ -152,7 +152,12 @@ impl eframe::App for App {
             self.confirm_reset_dialog(ctx);
         }
         if self.show_settings {
-            let outcome = settings_dialog::show(ctx, &mut self.show_settings, &self.settings);
+            let outcome = settings_dialog::show(
+                ctx,
+                &mut self.show_settings,
+                &self.settings,
+                &self.paths.data_dir,
+            );
             if outcome.changed {
                 self.settings_dirty = true;
             }
@@ -176,12 +181,6 @@ impl App {
             ui.colored_label(status.color(), status.label());
             ui.separator();
 
-            if ui.button("Open data folder").clicked() {
-                let _ = crate::platform::open(&self.paths.data_dir);
-            }
-            if ui.button("About").clicked() {
-                self.show_about = true;
-            }
             if ui.button("Reset progress").clicked() {
                 self.confirm_reset = true;
             }
@@ -189,6 +188,9 @@ impl App {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui.button("Settings").clicked() {
                     self.show_settings = true;
+                }
+                if ui.button("About").clicked() {
+                    self.show_about = true;
                 }
             });
         });
