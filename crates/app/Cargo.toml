@@ -10,6 +10,11 @@ publish = false
 name = "ez-wishlist-overlay"
 path = "src/main.rs"
 
+# Embed the .ico into the .exe so Explorer / Taskbar / Alt-Tab show our icon
+# instead of the default Windows binary glyph.
+[target.'cfg(target_os = "windows")'.build-dependencies]
+winresource = "0.1"
+
 [dependencies]
 anyhow.workspace = true
 thiserror.workspace = true

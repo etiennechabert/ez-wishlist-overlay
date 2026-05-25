@@ -98,5 +98,9 @@
 
         <SetProperty Id='ARPINSTALLLOCATION' Value='[APPLICATIONFOLDER]' After='CostFinalize'/>
 
+        <!-- App icon shown in Add/Remove Programs and on the Start Menu shortcut. -->
+        <Icon Id='AppIcon.ico' SourceFile='crates\app\assets\icon.ico'/>
+        <Property Id='ARPPRODUCTICON' Value='AppIcon.ico'/>
+
     </Product>
 </Wix>
