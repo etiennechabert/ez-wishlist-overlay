@@ -19,7 +19,7 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 image.workspace = true
 
-eframe = { version = "0.30.0", default-features = false, features = ["default_fonts", "glow", "persistence"] }
+eframe = { version = "0.30.0", default-features = false, features = ["default_fonts", "glow", "persistence", "x11"] }
 egui = "0.30.0"
 egui_extras = { version = "0.30.0", features = ["image"] }
 rust-embed = { version = "8.5.0", features = ["interpolate-folder-path", "include-exclude"] }

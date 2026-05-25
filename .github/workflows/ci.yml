@@ -39,6 +39,14 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: linux-clippy
+      # eframe → winit needs x11 headers to compile on Linux even when
+      # we're only type-checking. cmake is used by some transitive deps.
+      - name: Install Linux GUI build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev \
+            libxkbcommon-dev libssl-dev
       - run: cargo clippy --workspace --all-targets -- -D warnings
 
   test:
@@ -50,6 +58,12 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: linux-test
+      - name: Install Linux GUI build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev \
+            libxkbcommon-dev libssl-dev
       - run: cargo test --workspace --no-fail-fast
 
   windows-check:
