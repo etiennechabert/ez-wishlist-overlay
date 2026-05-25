@@ -94,39 +94,44 @@ fn find_matching_brace(source: &str, open_at: usize) -> Result<usize> {
                 }
                 i += 1;
             }
-            b'/' if i + 1 < bytes.len() && bytes[i + 1] == b'/' => {
-                while i < bytes.len() && bytes[i] != b'\n' {
-                    i += 1;
-                }
-            }
-            b'/' if i + 1 < bytes.len() && bytes[i + 1] == b'*' => {
-                i += 2;
-                while i + 1 < bytes.len() && !(bytes[i] == b'*' && bytes[i + 1] == b'/') {
-                    i += 1;
-                }
-                i += 2;
-            }
-            b'"' | b'\'' | b'`' => {
-                let quote = b;
-                i += 1;
-                while i < bytes.len() {
-                    match bytes[i] {
-                        b'\\' => {
-                            // Skip the escaped character.
-                            i += 2;
-                        }
-                        c if c == quote => {
-                            i += 1;
-                            break;
-                        }
-                        _ => i += 1,
-                    }
-                }
-            }
+            b'/' if peek_eq(bytes, i + 1, b'/') => i = skip_line_comment(bytes, i),
+            b'/' if peek_eq(bytes, i + 1, b'*') => i = skip_block_comment(bytes, i),
+            b'"' | b'\'' | b'`' => i = skip_string(bytes, i, b),
             _ => i += 1,
         }
     }
     bail!("ran off end of source before closing `{{` at offset {open_at}")
+}
+
+fn peek_eq(bytes: &[u8], i: usize, expected: u8) -> bool {
+    bytes.get(i) == Some(&expected)
+}
+
+fn skip_line_comment(bytes: &[u8], mut i: usize) -> usize {
+    while i < bytes.len() && bytes[i] != b'\n' {
+        i += 1;
+    }
+    i
+}
+
+fn skip_block_comment(bytes: &[u8], mut i: usize) -> usize {
+    i += 2;
+    while i + 1 < bytes.len() && !(bytes[i] == b'*' && bytes[i + 1] == b'/') {
+        i += 1;
+    }
+    i + 2
+}
+
+fn skip_string(bytes: &[u8], mut i: usize, quote: u8) -> usize {
+    i += 1;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'\\' => i += 2,
+            c if c == quote => return i + 1,
+            _ => i += 1,
+        }
+    }
+    i
 }
 
 #[cfg(test)]

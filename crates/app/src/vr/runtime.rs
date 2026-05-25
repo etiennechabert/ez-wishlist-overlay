@@ -153,19 +153,13 @@ fn render_loop(
     state: &Arc<RwLock<AppState>>,
     settings: &Arc<RwLock<Settings>>,
 ) -> anyhow::Result<()> {
-    use super::input::{
-        handle_click, texcoord_to_pixel, ClickOutcome, Debouncer, HAPTIC_INCREMENT_US,
-        HAPTIC_RESET_US,
-    };
+    use super::input::Debouncer;
     use super::pose::{Visibility, VisibilityFsm};
     use super::render::CellHit;
-    use openvr::system::{Event, EventInfo};
+    use openvr::system::EventInfo;
     use std::time::Instant;
 
     const TICK: Duration = Duration::from_millis(11); // ~90Hz
-    const FADE: Duration = Duration::from_millis(150);
-    /// EVRMouseButton::Left in the OpenVR mouse-event button bitfield.
-    const MOUSE_BUTTON_LEFT: u32 = 1;
 
     let mut fsm = VisibilityFsm::new();
     // Re-render whenever either the wishlist (state.version) or the grid
@@ -187,82 +181,48 @@ fn render_loop(
         let vr = settings.read().vr.clone();
         session.apply_settings(&vr)?;
 
-        // Pose → FSM.
         let pitch = session.hmd_pitch_deg().unwrap_or(0.0);
         let dwell = Duration::from_millis(vr.show_dwell_ms);
-        let vis = fsm.tick_with(
-            pitch,
-            frame_start,
-            vr.show_pitch_deg,
-            vr.hide_pitch_deg,
-            dwell,
+        let visible_now = matches!(
+            fsm.tick_with(
+                pitch,
+                frame_start,
+                vr.show_pitch_deg,
+                vr.hide_pitch_deg,
+                dwell
+            ),
+            Visibility::Visible
         );
 
-        let visible_now = matches!(vis, Visibility::Visible);
+        handle_visibility_transition(
+            session,
+            state,
+            VisibilityTransition {
+                visible_now,
+                pitch,
+                frame_start,
+                grid_cols: vr.grid_cols,
+            },
+            &mut was_visible,
+            &mut fade_start,
+            &mut last_rendered,
+            &mut last_hits,
+            &mut last_canvas,
+        )?;
 
-        // Transitions.
-        if visible_now && !was_visible {
-            if session.anchor_at_current_hmd()? {
-                // Force first render before showing so the user never sees
-                // a stale or empty texture.
-                render_and_submit(
-                    session,
-                    state,
-                    vr.grid_cols,
-                    &mut last_rendered,
-                    &mut last_hits,
-                    &mut last_canvas,
-                )?;
-                session.set_alpha(0.0)?;
-                session.set_visible(true)?;
-                fade_start = Some(frame_start);
-                was_visible = true;
-                tracing::debug!(pitch, "overlay: fade in");
-            } else {
-                tracing::debug!("overlay show deferred: HMD pose invalid");
-            }
-        } else if !visible_now && was_visible {
-            session.set_visible(false)?;
-            session.set_alpha(0.0)?;
-            fade_start = None;
-            was_visible = false;
-            tracing::debug!(pitch, "overlay: hide");
-        }
-
-        // Drain input. We poll even while hidden so the queue doesn't
-        // back up across hide/show cycles; clicks while hidden are
-        // ignored by hit_test against an empty `last_hits`.
         session.drain_events(&mut event_buf);
-        for ev in event_buf.drain(..) {
-            if let Event::MouseButtonDown(mouse) = ev.event {
-                if mouse.button & MOUSE_BUTTON_LEFT == 0 {
-                    continue;
-                }
-                if !visible_now {
-                    continue; // ignore clicks during fade or hidden
-                }
-                let (cw, ch) = last_canvas;
-                if cw == 0 || ch == 0 {
-                    continue; // first frame after spawn — nothing rendered yet
-                }
-                let (px, py) = texcoord_to_pixel(mouse.position.0, mouse.position.1, cw, ch);
-                match handle_click(state, &last_hits, px, py, &mut debouncer, frame_start) {
-                    ClickOutcome::Incremented { item_id, new_value } => {
-                        session.haptic_pulse(ev.tracked_device_index, HAPTIC_INCREMENT_US);
-                        tracing::debug!(%item_id, new_value, "overlay click: +1");
-                    }
-                    ClickOutcome::Reset { item_id } => {
-                        session.haptic_pulse(ev.tracked_device_index, HAPTIC_RESET_US);
-                        tracing::debug!(%item_id, "overlay click: cycle reset to 0");
-                    }
-                    ClickOutcome::Ignored => {}
-                }
-            }
-        }
+        handle_overlay_events(
+            session,
+            state,
+            &mut event_buf,
+            &last_hits,
+            visible_now,
+            last_canvas,
+            &mut debouncer,
+            frame_start,
+        );
 
         if visible_now {
-            // Re-render on state-change (including ones our own clicks
-            // just produced) AND on grid_cols change.
             let current_version = state.read().version;
             let sig = (current_version, vr.grid_cols);
             if last_rendered != Some(sig) {
@@ -275,18 +235,7 @@ fn render_loop(
                     &mut last_canvas,
                 )?;
             }
-
-            // Fade-in animation.
-            if let Some(t0) = fade_start {
-                let elapsed = frame_start.duration_since(t0);
-                let alpha = (elapsed.as_secs_f32() / FADE.as_secs_f32()).clamp(0.0, 1.0);
-                session.set_alpha(alpha)?;
-                if alpha >= 1.0 {
-                    fade_start = None;
-                }
-            } else {
-                session.set_alpha(1.0)?;
-            }
+            apply_fade_in(session, &mut fade_start, frame_start)?;
         }
 
         // Liveness probe — fails when SteamVR disappears.
@@ -298,6 +247,150 @@ fn render_loop(
             std::thread::sleep(TICK - spent);
         }
     }
+}
+
+#[cfg(target_os = "windows")]
+struct VisibilityTransition {
+    visible_now: bool,
+    pitch: f32,
+    frame_start: std::time::Instant,
+    grid_cols: u32,
+}
+
+#[cfg(target_os = "windows")]
+#[allow(clippy::too_many_arguments)]
+fn handle_visibility_transition(
+    session: &mut super::overlay::OverlaySession,
+    state: &Arc<RwLock<AppState>>,
+    t: VisibilityTransition,
+    was_visible: &mut bool,
+    fade_start: &mut Option<std::time::Instant>,
+    last_rendered: &mut Option<(u64, u32)>,
+    last_hits: &mut Vec<super::render::CellHit>,
+    last_canvas: &mut (u32, u32),
+) -> anyhow::Result<()> {
+    if t.visible_now && !*was_visible {
+        if session.anchor_at_current_hmd()? {
+            // Force first render before showing so the user never sees
+            // a stale or empty texture.
+            render_and_submit(
+                session,
+                state,
+                t.grid_cols,
+                last_rendered,
+                last_hits,
+                last_canvas,
+            )?;
+            session.set_alpha(0.0)?;
+            session.set_visible(true)?;
+            *fade_start = Some(t.frame_start);
+            *was_visible = true;
+            tracing::debug!(pitch = t.pitch, "overlay: fade in");
+        } else {
+            tracing::debug!("overlay show deferred: HMD pose invalid");
+        }
+    } else if !t.visible_now && *was_visible {
+        session.set_visible(false)?;
+        session.set_alpha(0.0)?;
+        *fade_start = None;
+        *was_visible = false;
+        tracing::debug!(pitch = t.pitch, "overlay: hide");
+    }
+    Ok(())
+}
+
+/// Drain queued mouse events. We poll even while hidden so the queue doesn't
+/// back up across hide/show cycles; clicks while hidden are dropped here.
+#[cfg(target_os = "windows")]
+#[allow(clippy::too_many_arguments)]
+fn handle_overlay_events(
+    session: &mut super::overlay::OverlaySession,
+    state: &Arc<RwLock<AppState>>,
+    event_buf: &mut Vec<openvr::system::EventInfo>,
+    last_hits: &[super::render::CellHit],
+    visible_now: bool,
+    last_canvas: (u32, u32),
+    debouncer: &mut super::input::Debouncer,
+    frame_start: std::time::Instant,
+) {
+    use openvr::system::Event;
+    for ev in event_buf.drain(..) {
+        let Event::MouseButtonDown(mouse) = ev.event else {
+            continue;
+        };
+        dispatch_mouse_down(
+            session,
+            state,
+            ev.tracked_device_index,
+            mouse,
+            last_hits,
+            visible_now,
+            last_canvas,
+            debouncer,
+            frame_start,
+        );
+    }
+}
+
+#[cfg(target_os = "windows")]
+#[allow(clippy::too_many_arguments)]
+fn dispatch_mouse_down(
+    session: &mut super::overlay::OverlaySession,
+    state: &Arc<RwLock<AppState>>,
+    device_index: openvr::TrackedDeviceIndex,
+    mouse: openvr::system::event::Mouse,
+    last_hits: &[super::render::CellHit],
+    visible_now: bool,
+    last_canvas: (u32, u32),
+    debouncer: &mut super::input::Debouncer,
+    frame_start: std::time::Instant,
+) {
+    use super::input::{
+        handle_click, texcoord_to_pixel, ClickOutcome, HAPTIC_INCREMENT_US, HAPTIC_RESET_US,
+    };
+
+    /// EVRMouseButton::Left in the OpenVR mouse-event button bitfield.
+    const MOUSE_BUTTON_LEFT: u32 = 1;
+
+    if mouse.button & MOUSE_BUTTON_LEFT == 0 || !visible_now {
+        return;
+    }
+    let (cw, ch) = last_canvas;
+    if cw == 0 || ch == 0 {
+        return; // first frame after spawn — nothing rendered yet
+    }
+    let (px, py) = texcoord_to_pixel(mouse.position.0, mouse.position.1, cw, ch);
+    match handle_click(state, last_hits, px, py, debouncer, frame_start) {
+        ClickOutcome::Incremented { item_id, new_value } => {
+            session.haptic_pulse(device_index, HAPTIC_INCREMENT_US);
+            tracing::debug!(%item_id, new_value, "overlay click: +1");
+        }
+        ClickOutcome::Reset { item_id } => {
+            session.haptic_pulse(device_index, HAPTIC_RESET_US);
+            tracing::debug!(%item_id, "overlay click: cycle reset to 0");
+        }
+        ClickOutcome::Ignored => {}
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn apply_fade_in(
+    session: &mut super::overlay::OverlaySession,
+    fade_start: &mut Option<std::time::Instant>,
+    frame_start: std::time::Instant,
+) -> anyhow::Result<()> {
+    const FADE: Duration = Duration::from_millis(150);
+    if let Some(t0) = *fade_start {
+        let elapsed = frame_start.duration_since(t0);
+        let alpha = (elapsed.as_secs_f32() / FADE.as_secs_f32()).clamp(0.0, 1.0);
+        session.set_alpha(alpha)?;
+        if alpha >= 1.0 {
+            *fade_start = None;
+        }
+    } else {
+        session.set_alpha(1.0)?;
+    }
+    Ok(())
 }
 
 #[cfg(target_os = "windows")]

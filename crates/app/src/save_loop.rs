@@ -42,30 +42,35 @@ fn run(state: Arc<RwLock<AppState>>, paths: Arc<PersistPaths>, rx: Receiver<Save
                 pending = Some(tick.version);
             }
             Err(RecvTimeoutError::Timeout) => {
-                if let Some(v) = pending.take() {
-                    if v != last_saved {
-                        match persist::save(&paths, &state.read()) {
-                            Ok(()) => {
-                                tracing::debug!(version = v, "state saved");
-                                last_saved = v;
-                            }
-                            Err(e) => {
-                                tracing::error!(error = %e, "save failed");
-                            }
-                        }
-                    }
-                }
+                flush_pending(&paths, &state, &mut pending, &mut last_saved);
             }
             Err(RecvTimeoutError::Disconnected) => {
                 // GUI is gone — do one last save if needed, then exit.
-                if let Some(v) = pending.take() {
-                    if v != last_saved {
-                        let _ = persist::save(&paths, &state.read());
-                    }
-                }
+                flush_pending(&paths, &state, &mut pending, &mut last_saved);
                 tracing::debug!("save thread shutting down");
                 return;
             }
+        }
+    }
+}
+
+fn flush_pending(
+    paths: &PersistPaths,
+    state: &Arc<RwLock<AppState>>,
+    pending: &mut Option<u64>,
+    last_saved: &mut u64,
+) {
+    let Some(v) = pending.take() else { return };
+    if v == *last_saved {
+        return;
+    }
+    match persist::save(paths, &state.read()) {
+        Ok(()) => {
+            tracing::debug!(version = v, "state saved");
+            *last_saved = v;
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "save failed");
         }
     }
 }
