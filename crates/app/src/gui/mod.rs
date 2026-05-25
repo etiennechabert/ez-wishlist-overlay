@@ -185,9 +185,12 @@ impl App {
             if ui.button("Reset progress").clicked() {
                 self.confirm_reset = true;
             }
-            if ui.button("Settings").clicked() {
-                self.show_settings = true;
-            }
+
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if ui.button("Settings").clicked() {
+                    self.show_settings = true;
+                }
+            });
         });
     }
 
