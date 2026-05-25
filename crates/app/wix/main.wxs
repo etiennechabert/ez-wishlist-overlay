@@ -9,7 +9,8 @@
   upgrades. Do not change it once a release ships — that will break
   upgrade paths for existing installs.
 -->
-<Wix xmlns='http://schemas.microsoft.com/wix/2006/wi'>
+<Wix xmlns='http://schemas.microsoft.com/wix/2006/wi'
+     xmlns:util='http://schemas.microsoft.com/wix/UtilExtension'>
     <Product
         Id='*'
         Name='EZ Wishlist Overlay'
@@ -32,6 +33,36 @@
         <MajorUpgrade
             Schedule='afterInstallInitialize'
             DowngradeErrorMessage='A newer version of [ProductName] is already installed. Setup will now exit.'/>
+
+        <!-- Politely close a running instance before MSI tries to swap files,
+             so the user doesn't have to do it manually (and we don't fall
+             through to MSI's "Files in Use" dialog or a reboot prompt).
+
+             WixCloseApplications runs before InstallValidate, which is well
+             ahead of RemoveExistingProducts (scheduled afterInstallInitialize
+             above), so on an upgrade the old binary is gone from memory by
+             the time the uninstall step touches it.
+
+             - CloseMessage='yes' / EndSessionMessage='yes' send WM_CLOSE /
+               WM_QUERYENDSESSION; eframe's winit loop translates these into
+               a clean shutdown and the OS releases the file lock.
+             - ElevatedCloseMessage='yes' is mandatory because the MSI runs
+               elevated while the overlay was launched by the unelevated
+               user — without this, the elevated msiexec can't enumerate the
+               user-session windows to send WM_CLOSE to.
+             - RebootPrompt='no': if the app refuses to close, we'd rather
+               surface the standard FilesInUse dialog than schedule a reboot.
+
+             Hosted by WixUtilExtension, which cargo-wix already passes to
+             both candle and light by default (see .github/actions/build-msi
+             for why we don't re-declare it). -->
+        <util:CloseApplication
+            Id='CloseRunningOverlay'
+            Target='ez-wishlist-overlay.exe'
+            CloseMessage='yes'
+            EndSessionMessage='yes'
+            ElevatedCloseMessage='yes'
+            RebootPrompt='no'/>
 
         <Media Id='1' Cabinet='media1.cab' EmbedCab='yes' DiskPrompt='CD-ROM #1'/>
         <Property Id='DiskPrompt' Value='EZ Wishlist Overlay Installation'/>

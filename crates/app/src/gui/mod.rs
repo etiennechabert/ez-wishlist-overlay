@@ -12,7 +12,8 @@ pub mod theme;
 use crate::data::GameData;
 use crate::persist::PersistPaths;
 use crate::state::AppState;
-use crossbeam_channel::Sender;
+use crate::updater::UpdateInfo;
+use crossbeam_channel::{Receiver, Sender};
 use parking_lot::RwLock;
 use std::sync::Arc;
 
@@ -47,9 +48,18 @@ pub struct App {
     settings: Arc<RwLock<crate::settings::Settings>>,
     applied_theme: Option<crate::settings::Theme>,
     log_buf: crate::log_buffer::LogBuffer,
+    /// One-slot channel from the background update-check thread. `None`
+    /// when the user disabled the check in settings or the thread failed
+    /// to spawn. Drained on the first frame that sees a value.
+    update_rx: Option<Receiver<UpdateInfo>>,
+    /// Latest release info from the check thread, if newer than us.
+    pending_update: Option<UpdateInfo>,
 }
 
 impl App {
+    // Already a wide constructor before the update_rx addition; folding the
+    // args into a builder/config struct is its own refactor.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         _cc: &eframe::CreationContext<'_>,
         state: Arc<RwLock<AppState>>,
@@ -58,6 +68,7 @@ impl App {
         vr: Arc<crate::vr::Runtime>,
         settings: Arc<RwLock<crate::settings::Settings>>,
         log_buf: crate::log_buffer::LogBuffer,
+        update_rx: Option<Receiver<UpdateInfo>>,
     ) -> Self {
         let icons = IconCache::new();
         // Pull any initial warning surfaced by persist::load.
@@ -79,6 +90,8 @@ impl App {
             settings,
             applied_theme: None,
             log_buf,
+            update_rx,
+            pending_update: None,
         }
     }
 
@@ -114,6 +127,9 @@ impl eframe::App for App {
 
         // Header strip.
         egui::TopBottomPanel::top("header").show(ctx, |ui| self.header(ui));
+
+        self.poll_update_check();
+        self.update_banner(ctx);
 
         if let Some(msg) = &self.status_banner.clone() {
             egui::TopBottomPanel::top("banner")
@@ -215,6 +231,80 @@ impl App {
                 }
             });
         });
+    }
+
+    /// Drain the update-check channel. The producer only ever sends once,
+    /// so after the first hit we drop the receiver to stop polling. Cheap
+    /// regardless — `try_recv` returns Empty immediately.
+    fn poll_update_check(&mut self) {
+        let Some(rx) = &self.update_rx else { return };
+        match rx.try_recv() {
+            Ok(info) => {
+                self.pending_update = Some(info);
+                self.update_rx = None;
+            }
+            Err(crossbeam_channel::TryRecvError::Empty) => {}
+            Err(crossbeam_channel::TryRecvError::Disconnected) => {
+                self.update_rx = None;
+            }
+        }
+    }
+
+    fn update_banner(&mut self, ctx: &egui::Context) {
+        let Some(info) = self.pending_update.clone() else { return };
+
+        // If the user already dismissed this exact version, stay quiet — but
+        // a newer release that comes out later will have a different
+        // `latest_version` string and will re-show the banner.
+        let dismissed = self
+            .settings
+            .read()
+            .dismissed_update_version
+            .as_deref()
+            == Some(info.latest_version.as_str());
+        if dismissed {
+            return;
+        }
+
+        let current = env!("CARGO_PKG_VERSION");
+        let mut clear = false;
+        let mut dismiss = false;
+        egui::TopBottomPanel::top("update_banner")
+            .frame(
+                egui::Frame::default()
+                    .fill(egui::Color32::from_rgb(30, 90, 50))
+                    .inner_margin(8.0),
+            )
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(
+                        egui::RichText::new(format!(
+                            "Update available: v{} (you have v{}).",
+                            info.latest_version, current
+                        ))
+                        .color(egui::Color32::WHITE)
+                        .strong(),
+                    );
+                    if ui.button("Download ↗").clicked() {
+                        let _ = crate::platform::open(&info.release_url);
+                    }
+                    if ui.small_button("Dismiss").clicked() {
+                        dismiss = true;
+                        clear = true;
+                    }
+                    if ui.small_button("Later").clicked() {
+                        clear = true;
+                    }
+                });
+            });
+
+        if dismiss {
+            self.settings.write().dismissed_update_version = Some(info.latest_version.clone());
+            self.persist_settings();
+        }
+        if clear {
+            self.pending_update = None;
+        }
     }
 
     fn confirm_reset_dialog(&mut self, ctx: &egui::Context) {

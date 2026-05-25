@@ -25,6 +25,18 @@ pub struct Settings {
     pub vr: VrSettings,
     #[serde(default)]
     pub theme: Theme,
+    #[serde(default = "default_check_for_updates")]
+    pub check_for_updates: bool,
+    /// Latest release version (e.g. "0.2.0") the user clicked "Dismiss" on.
+    /// Suppresses the in-app update banner until a strictly newer release
+    /// shows up — re-prompting for the same version every launch would be
+    /// nagware, but newer versions still surface.
+    #[serde(default)]
+    pub dismissed_update_version: Option<String>,
+}
+
+fn default_check_for_updates() -> bool {
+    true
 }
 
 impl Default for Settings {
@@ -33,6 +45,8 @@ impl Default for Settings {
             schema_version: SCHEMA_VERSION,
             vr: VrSettings::default(),
             theme: Theme::default(),
+            check_for_updates: default_check_for_updates(),
+            dismissed_update_version: None,
         }
     }
 }
