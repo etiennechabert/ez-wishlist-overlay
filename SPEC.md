@@ -49,7 +49,7 @@ The app MAY:
 | Concern | Crate | Notes |
 |---|---|---|
 | GUI framework | `eframe` + `egui` | Latest stable. Single-window desktop app. |
-| VR overlay | `ovr_overlay` or direct FFI via `openvr-sys` | Pick whichever is currently maintained; check crates.io activity before committing. |
+| VR overlay | `openvr` 0.9.0 (wraps `openvr_sys` 2.1.4) | Builds Valve's bundled OpenVR C++ SDK via cmake + bindgen at compile time. Requires MSVC + libclang for the build. |
 | Overlay texture rendering | `tiny-skia` + `image` | CPU rasterizer. The overlay is a static-ish grid that re-renders at <2Hz, so GPU is overkill and the wgpu↔OpenVR DXGI shared-handle path is fiddly. Render to a `Vec<u8>` (RGBA) and submit via `SetOverlayRaw`. Revisit if perf becomes an issue. |
 | State serialization | `serde` + `serde_json` | JSON on disk, human-readable. |
 | Async runtime | `tokio` | Only used for the scraper tool and debounced disk writes. |

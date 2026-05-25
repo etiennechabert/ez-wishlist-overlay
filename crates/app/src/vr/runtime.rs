@@ -1,4 +1,5 @@
-//! VR background thread: owns the OpenVR session, reports status to the GUI.
+//! VR background thread: owns the OpenVR session, drives pose → visibility,
+//! renders the overlay texture, reports status to the GUI.
 //!
 //! On Windows this thread tries to attach to SteamVR, retries every 5s while
 //! disconnected, and surfaces transitions via a shared [`VrStatus`]. On other
@@ -93,7 +94,7 @@ fn run(
 
 #[cfg(target_os = "windows")]
 fn run(
-    _state: Arc<RwLock<AppState>>,
+    state: Arc<RwLock<AppState>>,
     settings: Arc<RwLock<Settings>>,
     status: Arc<RwLock<VrStatus>>,
 ) {
@@ -106,20 +107,12 @@ fn run(
             Ok(mut session) => {
                 *status.write() = VrStatus::Connected;
                 tracing::info!("VR overlay initialized");
-                // Hold the session alive until SteamVR goes away. The future
-                // pose/render loop will replace this sleep with real work.
-                loop {
-                    if let Err(e) = session.heartbeat() {
-                        tracing::warn!(error = %e, "VR session lost");
-                        break;
-                    }
-                    // Apply any live settings changes (e.g. the user dragged
-                    // the width slider). Cheap idempotent OpenVR calls.
-                    let desired = settings.read().vr.clone();
-                    if let Err(e) = session.apply_settings(&desired) {
-                        tracing::warn!(error = %e, "applying VR settings failed");
-                    }
-                    std::thread::sleep(Duration::from_millis(500));
+                if let Err(e) = session.ensure_anchor() {
+                    tracing::warn!(error = %e, "could not place overlay anchor");
+                }
+                let lost = render_loop(&mut session, &state, &settings);
+                if let Err(e) = lost {
+                    tracing::warn!(error = %e, "VR session lost");
                 }
                 drop(session); // VR_Shutdown via Context Drop.
                 *status.write() = VrStatus::Disconnected;
@@ -132,4 +125,109 @@ fn run(
         }
         std::thread::sleep(RETRY_DELAY);
     }
+}
+
+/// ~90Hz inner loop. Returns `Err` when SteamVR appears to have gone away
+/// (any OpenVR call returning an error), prompting the outer loop to retry.
+#[cfg(target_os = "windows")]
+fn render_loop(
+    session: &mut super::overlay::OverlaySession,
+    state: &Arc<RwLock<AppState>>,
+    settings: &Arc<RwLock<Settings>>,
+) -> anyhow::Result<()> {
+    use super::pose::{Visibility, VisibilityFsm};
+    use std::time::Instant;
+
+    const TICK: Duration = Duration::from_millis(11); // ~90Hz
+    const FADE: Duration = Duration::from_millis(150);
+
+    let mut fsm = VisibilityFsm::new();
+    let mut last_rendered_version: Option<u64> = None;
+    let mut fade_start: Option<Instant> = None;
+    let mut was_visible = false;
+
+    loop {
+        let frame_start = Instant::now();
+        let vr = settings.read().vr.clone();
+        session.apply_settings(&vr)?;
+
+        // Pose → FSM.
+        let pitch = session.hmd_pitch_deg().unwrap_or(0.0);
+        let dwell = Duration::from_millis(vr.show_dwell_ms);
+        let vis = fsm.tick_with(
+            pitch,
+            frame_start,
+            vr.show_pitch_deg,
+            vr.hide_pitch_deg,
+            dwell,
+        );
+
+        let visible_now = matches!(vis, Visibility::Visible);
+
+        // Transitions.
+        if visible_now && !was_visible {
+            session.ensure_anchor()?;
+            // Force first render before showing so the user never sees a
+            // stale or empty texture.
+            render_and_submit(session, state, &mut last_rendered_version)?;
+            session.set_alpha(0.0)?;
+            session.set_visible(true)?;
+            fade_start = Some(frame_start);
+            tracing::debug!(pitch, "overlay: fade in");
+        } else if !visible_now && was_visible {
+            session.set_visible(false)?;
+            session.set_alpha(0.0)?;
+            fade_start = None;
+            tracing::debug!(pitch, "overlay: hide");
+        }
+        was_visible = visible_now;
+
+        if visible_now {
+            // Re-render on state-change.
+            let current_version = state.read().version;
+            if last_rendered_version != Some(current_version) {
+                render_and_submit(session, state, &mut last_rendered_version)?;
+            }
+
+            // Fade-in animation.
+            if let Some(t0) = fade_start {
+                let elapsed = frame_start.duration_since(t0);
+                let alpha = (elapsed.as_secs_f32() / FADE.as_secs_f32()).clamp(0.0, 1.0);
+                session.set_alpha(alpha)?;
+                if alpha >= 1.0 {
+                    fade_start = None;
+                }
+            } else {
+                session.set_alpha(1.0)?;
+            }
+        }
+
+        // Liveness probe — fails when SteamVR disappears.
+        session.heartbeat()?;
+
+        // Pace the loop.
+        let spent = frame_start.elapsed();
+        if spent < TICK {
+            std::thread::sleep(TICK - spent);
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn render_and_submit(
+    session: &mut super::overlay::OverlaySession,
+    state: &Arc<RwLock<AppState>>,
+    last_rendered_version: &mut Option<u64>,
+) -> anyhow::Result<()> {
+    use super::render;
+    use crate::assets;
+
+    let (items, version) = {
+        let st = state.read();
+        (st.active_items(), st.version)
+    };
+    let (pixmap, _hits) = render::render(&items, assets::read_icon);
+    session.submit_rgba(pixmap.data(), pixmap.width(), pixmap.height())?;
+    *last_rendered_version = Some(version);
+    Ok(())
 }

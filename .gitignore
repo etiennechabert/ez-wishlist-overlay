@@ -17,3 +17,6 @@ state.json
 
 # Scraper temp dir
 .scraper-cache/
+
+# Per-clone Claude Code agent state (scheduled tasks, local settings)
+.claude/

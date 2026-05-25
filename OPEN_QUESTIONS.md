@@ -6,24 +6,19 @@ Anything in this list is either non-blocking for the current phase or genuinely 
 
 ## Phase 3 — VR overlay
 
-### OpenVR Rust binding (the big one)
+### OpenVR Rust binding — RESOLVED
 
-The crates.io ecosystem for OpenVR is sparse:
+We use [`openvr` 0.9.0](https://crates.io/crates/openvr) (which pulls `openvr_sys 2.1.4`). It exposes everything we need today — `CreateOverlay`, `SetOverlayWidthInMeters`, `SetOverlayTransformTrackedDeviceRelative`, `SetOverlayAlpha`, `SetOverlayRaw`, `GetDeviceToAbsoluteTrackingPose`, and `PollNextOverlayEvent` for the Phase 4 input loop. Newer IVROverlay v25+ niceties (curvature flags, etc.) aren't required for v1.
 
-- `ovr_overlay` only publishes `0.0.0` on crates.io; the active development is on GitHub (`Niedzwiedzw/ovr_overlay`). Using it means a git dependency — pin a commit.
-- `openvr` (the original crate) hasn't been updated in years and may not reflect the modern `IVROverlay` v25+ surface.
-- Raw `openvr-sys` + hand-written wrapper is the most work but the most stable.
-- A new option to evaluate: build a tiny C shim that calls `IVROverlay_*` and bind it via `bindgen`. Possibly overkill.
+`openvr_sys`'s build script assumes MSVC on Windows (hard-coded `/DWIN32` cxxflag), so the shipped binary builds via `x86_64-pc-windows-msvc`. The desktop-only / cross-platform branches still build under gnullvm because the entire `vr/` Windows-side is `cfg(target_os = "windows")`.
 
-**Recommendation:** start with the GitHub `ovr_overlay` pin to a known commit; fall back to a hand-rolled binding if it doesn't expose `SetOverlayRaw` cleanly. Document the chosen approach in `SPEC.md §2` once decided.
+### Anchor position & overlay orientation — placeholder defaults
 
-### Anchor position & overlay orientation
+Defaults in [`crates/app/src/vr/anchor.rs`](crates/app/src/vr/anchor.rs): 1.2 m forward, 0.6 m above eye line, 35° tilt around the X axis (front face looks down toward viewer). All three are public consts — tune after first headset test, or expose as VR settings sliders.
 
-SPEC.md §7.2 says "HMD-relative, 1.2m forward, tilted so the surface faces the user". The exact transform matrix needs trial-and-error on a real headset. Expose tweakable constants in `vr/pose.rs` (or a new `vr/anchor.rs`) so iteration is cheap.
+### `SetOverlayRaw` color format — RESOLVED
 
-### `SetOverlayRaw` color format
-
-OpenVR's `SetOverlayRaw` expects RGBA8 in a specific channel order — `tiny-skia`'s pixmap stores premultiplied BGRA on little-endian platforms (need to verify). May require a channel swizzle before submission.
+`tiny-skia`'s `Pixmap::data()` returns RGBA8 in literal `[R, G, B, A]` byte order (premultiplied). OpenVR's `SetOverlayRaw` expects RGBA8 in the same byte order. No channel swizzle needed. Premultiplied alpha could cause haloing if the overlay's background were transparent against a complex scene, but our background fills are mostly opaque (`rgba(20,20,24,220)`), so any artefacts are negligible — revisit if needed during the manual headset pass.
 
 ---
 
@@ -59,9 +54,11 @@ Currently the data is baked in at compile time. After a wipe, users must downloa
 
 ## Distribution / build infra
 
-### Toolchain pin
+### Toolchain pin — partially resolved
 
-Right now there's no `rust-toolchain.toml`. The repo builds with both MSVC and gnullvm. For CI reproducibility, eventually pin one — gnullvm is friendlier for contributors on machines without VS Build Tools, MSVC is the conventional Windows release path.
+The shipped Windows binary now requires `x86_64-pc-windows-msvc` because `openvr_sys`'s build.rs hard-codes the MSVC `/DWIN32` cxxflag. macOS / Linux iteration builds still work with any toolchain because the VR layer is `cfg(target_os = "windows")`-gated. CI uses MSVC for the Windows-check job; we still don't ship a `rust-toolchain.toml` so contributors can pick their own host toolchain.
+
+Open: should we vendor a patched `openvr_sys` to drop the MSVC dependency, or live with MSVC as the official Windows build path? cargo-dist's eventual MSI release targets MSVC anyway, so this is purely a dev-experience question.
 
 ### Code signing
 
@@ -78,6 +75,7 @@ SPEC.md §12 says v1 ships unsigned and users will see SmartScreen. Reconsider o
 
 ## Spec ambiguities discovered during build
 
-- §7.3 mentions text rendering "via fontdue" — the current CPU renderer omits text (numbers in the progress chip are visual via the bar fill only). Add fontdue glyph blitting in Phase 3 once we know exact font sizes feel right in-headset.
+- §7.3 mentions text rendering "via fontdue" — the current CPU renderer still omits glyphs (progress is the bar fill only). Add fontdue blits once we know what font sizes feel right in-headset.
 - §8.2 "Save errors logged, surfaced as a yellow banner". Implemented for *load* errors; save errors currently only log. Wire the save-thread to a channel that surfaces to the GUI banner.
 - §10 #9 "controller bumper" pagination — not wired anywhere yet; for v1 just cap at `MAX_CELLS` (currently 36) and show a small "+N more" badge. Real pagination = post-v1.
+- Tick cadence: the VR loop runs at ~90 Hz via a plain `std::thread::sleep(11 ms - elapsed)` rather than `WaitGetPoses` (which is for Scene apps). Good enough for overlays; revisit if the head-tracking feels laggy in headset.
