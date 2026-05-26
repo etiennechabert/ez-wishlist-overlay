@@ -4,12 +4,16 @@
 //! (future) VR thread mutate it; both hold the write lock only for the
 //! duration of the mutation.
 
-use crate::data::{DataIndex, GameData, ItemId, TaskId, UpgradeId};
+use crate::data::{
+    base_slots, DataIndex, GameData, ItemId, RecipeOverride, Requirement, TaskId, UpgradeId,
+    RECIPE_SLOTS,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
 
 pub const STATE_SCHEMA_VERSION: u32 = 1;
+pub const OVERRIDES_SCHEMA_VERSION: u32 = 1;
 
 pub struct AppState {
     pub data: Arc<GameData>,
@@ -19,6 +23,9 @@ pub struct AppState {
     pub tracked_tasks: HashSet<TaskId>,
     pub completed_tasks: HashSet<TaskId>,
     pub collected: HashMap<ItemId, u32>,
+    /// User-supplied recipe corrections, keyed by upgrade id. Present entries
+    /// fully replace the bundled recipe; absence falls through to `data.json`.
+    pub overrides: HashMap<UpgradeId, RecipeOverride>,
     /// Bumped on every mutation. The VR thread reads this to decide whether
     /// to re-render the overlay texture.
     pub version: u64,
@@ -38,9 +45,57 @@ impl AppState {
             tracked_tasks: HashSet::new(),
             completed_tasks: HashSet::new(),
             collected: HashMap::new(),
+            overrides: HashMap::new(),
             version: 0,
             load_warning: None,
         }
+    }
+
+    /// 4-slot view of a recipe with overrides applied. Slots not yet populated
+    /// (either by base recipe or override) come back as `None`. Empties stay
+    /// in position so the edit panel doesn't shuffle when a slot is cleared.
+    pub fn effective_slots(&self, upgrade_id: &UpgradeId) -> [Option<Requirement>; RECIPE_SLOTS] {
+        if let Some(o) = self.overrides.get(upgrade_id) {
+            return o.slots.clone();
+        }
+        if let Some(uref) = self.index.upgrades_by_id.get(upgrade_id) {
+            return base_slots(&uref.upgrade);
+        }
+        std::array::from_fn(|_| None)
+    }
+
+    /// Flat list of the recipe's non-empty slots, post-override. This is the
+    /// shape the preview pane and overlay aggregations consume.
+    pub fn effective_requirements(&self, upgrade_id: &UpgradeId) -> Vec<Requirement> {
+        self.effective_slots(upgrade_id)
+            .into_iter()
+            .flatten()
+            .collect()
+    }
+
+    /// Persist a 4-slot override. If the slots match the bundled recipe we
+    /// drop the entry instead — keeps `overrides.json` minimal and the
+    /// "modified" indicator honest.
+    pub fn set_recipe_override(&mut self, upgrade_id: &UpgradeId, new_override: RecipeOverride) {
+        if let Some(uref) = self.index.upgrades_by_id.get(upgrade_id) {
+            if new_override.matches_base(&uref.upgrade) {
+                self.overrides.remove(upgrade_id);
+                self.bump();
+                return;
+            }
+        }
+        self.overrides.insert(upgrade_id.clone(), new_override);
+        self.bump();
+    }
+
+    pub fn clear_recipe_override(&mut self, upgrade_id: &UpgradeId) {
+        if self.overrides.remove(upgrade_id).is_some() {
+            self.bump();
+        }
+    }
+
+    pub fn is_overridden(&self, upgrade_id: &UpgradeId) -> bool {
+        self.overrides.contains_key(upgrade_id)
     }
 
     pub fn bump(&mut self) {
@@ -147,7 +202,7 @@ impl AppState {
                     uref.module_name, uref.upgrade.level, uref.upgrade.name
                 )
             };
-            for req in &uref.upgrade.requirements {
+            for req in self.effective_requirements(id) {
                 let entry = totals
                     .entry(req.item_id.clone())
                     .or_insert_with(|| (0, Vec::new()));
@@ -312,6 +367,63 @@ where
     (kept, dropped)
 }
 
+/// On-disk shape for `overrides.json`. Lives next to `state.json` so a
+/// corrupt overrides file never takes user progress down with it.
+#[derive(Serialize, Deserialize)]
+pub struct PersistedOverrides {
+    pub schema_version: u32,
+    pub data_version: String,
+    #[serde(default)]
+    pub overrides: HashMap<UpgradeId, RecipeOverride>,
+}
+
+impl PersistedOverrides {
+    pub fn from_app(state: &AppState) -> Self {
+        Self {
+            schema_version: OVERRIDES_SCHEMA_VERSION,
+            data_version: state.data.data_version.clone(),
+            overrides: state.overrides.clone(),
+        }
+    }
+
+    /// Drop entries whose upgrade IDs no longer resolve, but keep the rest —
+    /// renames between data versions will surface as orphans here, identical
+    /// to how `PersistedState` handles tracked-but-missing upgrades.
+    pub fn merge_into(self, state: &mut AppState) -> Option<String> {
+        let mut warnings = Vec::new();
+        if self.data_version != state.data.data_version {
+            warnings.push(format!(
+                "Recipe overrides were saved against data {} (now {}); rechecking.",
+                self.data_version, state.data.data_version
+            ));
+        }
+
+        let mut kept = HashMap::new();
+        let mut dropped = 0usize;
+        for (id, ov) in self.overrides {
+            if state.index.upgrades_by_id.contains_key(&id) {
+                kept.insert(id, ov);
+            } else {
+                dropped += 1;
+            }
+        }
+        if dropped > 0 {
+            warnings.push(format!(
+                "Dropped {dropped} recipe override(s) for upgrade(s) no longer present."
+            ));
+        }
+
+        state.overrides = kept;
+        state.bump();
+
+        if warnings.is_empty() {
+            None
+        } else {
+            Some(warnings.join(" "))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -450,6 +562,105 @@ mod tests {
         back.merge_into(&mut s2);
         assert!(s2.tracked_upgrades.contains("workbench_lv1"));
         assert_eq!(*s2.collected.get("bolts").unwrap(), 3);
+    }
+
+    #[test]
+    fn effective_requirements_falls_back_to_base_when_no_override() {
+        let s = AppState::new(fixture());
+        let reqs = s.effective_requirements(&"workbench_lv1".to_string());
+        // Fixture defines bolts × 5 and screws × 3 for workbench_lv1.
+        assert_eq!(reqs.len(), 2);
+        assert!(reqs.iter().any(|r| r.item_id == "bolts" && r.quantity == 5));
+        assert!(reqs
+            .iter()
+            .any(|r| r.item_id == "screws" && r.quantity == 3));
+    }
+
+    #[test]
+    fn override_drives_active_items_aggregation() {
+        let mut s = AppState::new(fixture());
+        s.set_tracked_upgrade(&"workbench_lv1".to_string(), true);
+
+        // User says: workbench_lv1 actually needs bolts × 10 (not 5) and no screws.
+        let mut slots: [Option<crate::data::Requirement>; RECIPE_SLOTS] =
+            std::array::from_fn(|_| None);
+        slots[0] = Some(crate::data::Requirement {
+            item_id: "bolts".into(),
+            quantity: 10,
+        });
+        s.set_recipe_override(
+            &"workbench_lv1".to_string(),
+            crate::data::RecipeOverride { slots },
+        );
+
+        let active = s.active_items();
+        let bolts = active.iter().find(|a| a.item_id == "bolts").unwrap();
+        assert_eq!(
+            bolts.needed, 10,
+            "override quantity should flow into aggregation"
+        );
+        assert!(
+            !active.iter().any(|a| a.item_id == "screws"),
+            "removed item should disappear from the wishlist"
+        );
+    }
+
+    #[test]
+    fn set_recipe_override_clears_when_matches_base() {
+        let mut s = AppState::new(fixture());
+        // Build a "fake override" that exactly mirrors the bundled recipe.
+        let mut slots: [Option<crate::data::Requirement>; RECIPE_SLOTS] =
+            std::array::from_fn(|_| None);
+        slots[0] = Some(crate::data::Requirement {
+            item_id: "bolts".into(),
+            quantity: 5,
+        });
+        slots[1] = Some(crate::data::Requirement {
+            item_id: "screws".into(),
+            quantity: 3,
+        });
+        s.set_recipe_override(
+            &"workbench_lv1".to_string(),
+            crate::data::RecipeOverride { slots },
+        );
+
+        assert!(
+            !s.is_overridden(&"workbench_lv1".to_string()),
+            "an override identical to the bundled recipe should collapse to no override"
+        );
+    }
+
+    #[test]
+    fn persisted_overrides_drop_unknown_upgrades() {
+        let mut s = AppState::new(fixture());
+        let mut slots: [Option<crate::data::Requirement>; RECIPE_SLOTS] =
+            std::array::from_fn(|_| None);
+        slots[0] = Some(crate::data::Requirement {
+            item_id: "bolts".into(),
+            quantity: 7,
+        });
+        let persisted = PersistedOverrides {
+            schema_version: OVERRIDES_SCHEMA_VERSION,
+            data_version: "older".into(),
+            overrides: HashMap::from([
+                (
+                    "workbench_lv1".to_string(),
+                    crate::data::RecipeOverride {
+                        slots: slots.clone(),
+                    },
+                ),
+                (
+                    "ghost_upgrade".to_string(),
+                    crate::data::RecipeOverride { slots },
+                ),
+            ]),
+        };
+        let warn = persisted
+            .merge_into(&mut s)
+            .expect("data-version drift should warn");
+        assert!(warn.contains("Dropped 1 recipe override"));
+        assert!(s.overrides.contains_key("workbench_lv1"));
+        assert!(!s.overrides.contains_key("ghost_upgrade"));
     }
 
     #[test]
