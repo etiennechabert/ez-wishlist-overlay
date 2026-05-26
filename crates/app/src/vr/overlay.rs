@@ -66,6 +66,15 @@ impl OverlaySession {
             .map_err(|e| anyhow::anyhow!("{e:?}"))
             .context("SetOverlayAlpha")?;
 
+        // Mark the overlay interactive so the controller laser intersects it
+        // and SteamVR emits MouseButtonDown events on trigger pulls. The
+        // `openvr` 0.9.0 safe wrapper omits `SetOverlayInputMethod` and
+        // `SetOverlayFlag`, so we drop down to openvr_sys for these two
+        // calls. Without them PR #22's click pipeline never receives a
+        // single event — the laser passes right through the overlay.
+        unsafe { enable_overlay_interaction(handle) }
+            .context("make overlay interactive (input method + visibility flag)")?;
+
         Ok(Self {
             handle,
             ctx,
@@ -237,4 +246,55 @@ impl OverlaySession {
         };
         system.trigger_haptic_pulse(device, 0, duration_us.min(3_999));
     }
+}
+
+/// Set `VROverlayInputMethod_Mouse` and turn on
+/// `VROverlayFlags_MakeOverlaysInteractiveIfVisible` on the given handle —
+/// the two missing pieces that make SteamVR route controller-laser
+/// intersections to our overlay as mouse events.
+///
+/// # Safety
+/// Must be called after a successful `VR_Init`. Re-acquires the IVROverlay
+/// function-table pointer via `VR_GetGenericInterface`; the resulting
+/// pointer is valid for the lifetime of the current OpenVR session, which
+/// the caller (`OverlaySession`) owns.
+unsafe fn enable_overlay_interaction(handle: openvr::overlay::OverlayHandle) -> Result<()> {
+    use openvr_sys as sys;
+
+    let mut init_err: sys::EVRInitError = sys::EVRInitError_VRInitError_None;
+    let table_ptr =
+        sys::VR_GetGenericInterface(sys::IVROverlay_Version.as_ptr().cast(), &mut init_err)
+            as *const sys::VR_IVROverlay_FnTable;
+    if init_err != sys::EVRInitError_VRInitError_None || table_ptr.is_null() {
+        anyhow::bail!(
+            "VR_GetGenericInterface(IVROverlay_Version) failed: err={init_err}, ptr={table_ptr:?}"
+        );
+    }
+    let table = &*table_ptr;
+    let h: sys::VROverlayHandle_t = handle.0;
+
+    let set_input = table
+        .SetOverlayInputMethod
+        .context("IVROverlay::SetOverlayInputMethod missing from fn table")?;
+    let e = set_input(h, sys::VROverlayInputMethod_Mouse);
+    if e != sys::EVROverlayError_VROverlayError_None {
+        anyhow::bail!("SetOverlayInputMethod(Mouse) returned EVROverlayError={e}");
+    }
+
+    let set_flag = table
+        .SetOverlayFlag
+        .context("IVROverlay::SetOverlayFlag missing from fn table")?;
+    let e = set_flag(
+        h,
+        sys::VROverlayFlags_MakeOverlaysInteractiveIfVisible,
+        true,
+    );
+    if e != sys::EVROverlayError_VROverlayError_None {
+        anyhow::bail!(
+            "SetOverlayFlag(MakeOverlaysInteractiveIfVisible) returned EVROverlayError={e}"
+        );
+    }
+
+    tracing::info!("overlay marked interactive (Mouse input, visible-interactive flag)");
+    Ok(())
 }
