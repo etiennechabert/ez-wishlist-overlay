@@ -7,13 +7,21 @@
 //! the desktop app are platform-agnostic and we don't want a broken VR layer
 //! to bleed into macOS/Linux iteration builds.
 
+use crate::persist::PersistPaths;
 use crate::settings::Settings;
 use crate::state::AppState;
+use crossbeam_channel::{Receiver, Sender};
 use parking_lot::RwLock;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
 const RETRY_DELAY: Duration = Duration::from_secs(5);
+
+/// Subdirectory under `PersistPaths::data_dir` where captured mirror-texture
+/// PNGs are written. Kept simple — the OCR test bed under `ocr_data/` is
+/// happy to consume from wherever.
+const SCREENSHOT_SUBDIR: &str = "vr_screenshots";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum VrStatus {
@@ -63,11 +71,28 @@ impl VrStatus {
 /// session state.
 pub struct Runtime {
     status: Arc<RwLock<VrStatus>>,
+    /// One-shot trigger for "save the next mirror texture as PNG". Bounded
+    /// so the GUI can't queue thousands of pending captures if the user
+    /// mashes the button while SteamVR is disconnected.
+    capture_tx: Sender<()>,
+    /// Most recent capture result the worker thread reported. Cleared when
+    /// the GUI consumes it via [`Runtime::take_last_capture`].
+    last_capture: Arc<RwLock<Option<CaptureResult>>>,
     _join: std::thread::JoinHandle<()>,
 }
 
+#[derive(Clone, Debug)]
+pub enum CaptureResult {
+    Ok(PathBuf),
+    Err(String),
+}
+
 impl Runtime {
-    pub fn spawn(state: Arc<RwLock<AppState>>, settings: Arc<RwLock<Settings>>) -> Self {
+    pub fn spawn(
+        state: Arc<RwLock<AppState>>,
+        settings: Arc<RwLock<Settings>>,
+        paths: Arc<PersistPaths>,
+    ) -> Self {
         let initial = if cfg!(target_os = "windows") {
             VrStatus::Connecting
         } else {
@@ -75,12 +100,30 @@ impl Runtime {
         };
         let status = Arc::new(RwLock::new(initial));
         let status_writer = status.clone();
+        let last_capture = Arc::new(RwLock::new(None));
+        let last_capture_writer = last_capture.clone();
+        // Bound at 4 so a mashed button doesn't queue work the worker can't
+        // service. `try_send` from the GUI side is non-blocking; excess
+        // presses are silently dropped, which is fine semantically — a
+        // screenshot is a one-shot ask.
+        let (capture_tx, capture_rx) = crossbeam_channel::bounded::<()>(4);
         let join = std::thread::Builder::new()
             .name("ez-wishlist-vr".into())
-            .spawn(move || run(state, settings, status_writer))
+            .spawn(move || {
+                run(
+                    state,
+                    settings,
+                    paths,
+                    status_writer,
+                    capture_rx,
+                    last_capture_writer,
+                )
+            })
             .expect("spawn VR thread");
         Self {
             status,
+            capture_tx,
+            last_capture,
             _join: join,
         }
     }
@@ -88,13 +131,29 @@ impl Runtime {
     pub fn status(&self) -> VrStatus {
         self.status.read().clone()
     }
+
+    /// Ask the VR worker to take one mirror-texture screenshot the next time
+    /// it ticks. Non-blocking; if the queue is full (4 pending captures) the
+    /// extra press is dropped silently.
+    pub fn request_screenshot(&self) {
+        let _ = self.capture_tx.try_send(());
+    }
+
+    /// Returns the most recent capture result and clears it, so the GUI
+    /// shows a status line once per capture instead of permanently.
+    pub fn take_last_capture(&self) -> Option<CaptureResult> {
+        self.last_capture.write().take()
+    }
 }
 
 #[cfg(not(target_os = "windows"))]
 fn run(
     _state: Arc<RwLock<AppState>>,
     _settings: Arc<RwLock<Settings>>,
+    _paths: Arc<PersistPaths>,
     status: Arc<RwLock<VrStatus>>,
+    _capture_rx: Receiver<()>,
+    _last_capture: Arc<RwLock<Option<CaptureResult>>>,
 ) {
     // Status is already Unsupported. Nothing else to do — park the thread.
     *status.write() = VrStatus::Unsupported;
@@ -105,7 +164,10 @@ fn run(
 fn run(
     state: Arc<RwLock<AppState>>,
     settings: Arc<RwLock<Settings>>,
+    paths: Arc<PersistPaths>,
     status: Arc<RwLock<VrStatus>>,
+    capture_rx: Receiver<()>,
+    last_capture: Arc<RwLock<Option<CaptureResult>>>,
 ) {
     use super::overlay::OverlaySession;
 
@@ -128,7 +190,7 @@ fn run(
                 tracing::info!("VR overlay initialized");
                 // Anchor is captured on each show transition, not at init —
                 // see render_loop / OverlaySession::anchor_at_current_hmd.
-                let lost = render_loop(&mut session, &state, &settings);
+                let lost = render_loop(&mut session, &state, &settings, &paths, &capture_rx, &last_capture);
                 if let Err(e) = lost {
                     tracing::warn!(error = %e, "VR session lost");
                 }
@@ -152,6 +214,9 @@ fn render_loop(
     session: &mut super::overlay::OverlaySession,
     state: &Arc<RwLock<AppState>>,
     settings: &Arc<RwLock<Settings>>,
+    paths: &Arc<PersistPaths>,
+    capture_rx: &Receiver<()>,
+    last_capture: &Arc<RwLock<Option<CaptureResult>>>,
 ) -> anyhow::Result<()> {
     use super::input::Debouncer;
     use super::pose::{Visibility, VisibilityFsm};
@@ -225,6 +290,24 @@ fn render_loop(
             &mut debouncer,
             frame_start,
         );
+
+        // Drain pending capture requests. Non-blocking; each request maps to
+        // one PNG written under `<data_dir>/vr_screenshots/`. Errors are
+        // surfaced to the GUI via `last_capture` rather than aborting the
+        // render loop — the overlay should keep working even if a screenshot
+        // fails.
+        while capture_rx.try_recv().is_ok() {
+            let path = next_screenshot_path(paths);
+            let (result, success) = match session.capture_screenshot(&path) {
+                Ok(()) => (CaptureResult::Ok(path), true),
+                Err(e) => {
+                    tracing::warn!(error = %e, "compositor mirror capture failed");
+                    (CaptureResult::Err(format!("{e:#}")), false)
+                }
+            };
+            super::capture::play_capture_done_beep(success);
+            *last_capture.write() = Some(result);
+        }
 
         if visible_now {
             let current_version = state.read().version;
@@ -529,6 +612,31 @@ fn apply_fade_in(
         session.set_alpha(1.0)?;
     }
     Ok(())
+}
+
+/// Build the path for the next screenshot. Format matches the in-game F12
+/// naming convention (`YYYYMMDDhhmmss_<nanos>.png`) so sorting it next to
+/// Steam's JPEGs in a file browser feels natural.
+#[cfg(target_os = "windows")]
+fn next_screenshot_path(paths: &PersistPaths) -> PathBuf {
+    use time::macros::format_description;
+    use time::OffsetDateTime;
+
+    let now = OffsetDateTime::now_local().unwrap_or_else(|_| OffsetDateTime::now_utc());
+    let stamp = now
+        .format(format_description!(
+            "[year][month][day][hour][minute][second]"
+        ))
+        .unwrap_or_else(|_| "00000000000000".into());
+    // Nanosecond suffix disambiguates rapid presses within the same second.
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.subsec_nanos())
+        .unwrap_or(0);
+    paths
+        .data_dir
+        .join(SCREENSHOT_SUBDIR)
+        .join(format!("{stamp}_{nanos:09}.png"))
 }
 
 /// Re-render the wishlist grid into `clean_pixmap` (no hover overlay).

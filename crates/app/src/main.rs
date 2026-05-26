@@ -101,7 +101,11 @@ fn main() -> Result<()> {
 
     let settings = Arc::new(RwLock::new(settings::load(&paths.settings_file)));
     tracing::info!(settings = ?&*settings.read(), "settings loaded");
-    let vr_runtime = Arc::new(vr::Runtime::spawn(shared_state.clone(), settings.clone()));
+    let vr_runtime = Arc::new(vr::Runtime::spawn(
+        shared_state.clone(),
+        settings.clone(),
+        paths.clone(),
+    ));
 
     let update_rx = if settings.read().check_for_updates {
         Some(updater::spawn_check())

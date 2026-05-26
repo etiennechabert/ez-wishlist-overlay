@@ -1,10 +1,22 @@
-//! Modal that surfaces the in-memory log buffer (see `log_buffer.rs`).
+//! Modal that surfaces the in-memory log buffer (see `log_buffer.rs`) plus a
+//! "Capture VR Screenshot" button — a developer tool that pulls the SteamVR
+//! compositor's left-eye mirror texture as a lossless PNG. We use this to
+//! collect clean OCR samples without Steam's F12 JPEG compression.
 
 use crate::log_buffer::{LogBuffer, LogLine};
+use crate::vr::runtime::CaptureResult;
+use crate::vr::Runtime;
 use egui::Color32;
+use std::sync::Arc;
 use tracing::Level;
 
-pub fn show(ctx: &egui::Context, open: &mut bool, log_buf: &LogBuffer) {
+pub fn show(
+    ctx: &egui::Context,
+    open: &mut bool,
+    log_buf: &LogBuffer,
+    vr: &Arc<Runtime>,
+    last_capture: Option<&CaptureResult>,
+) {
     let mut close_now = false;
     egui::Window::new("Debug logs")
         .open(open)
@@ -16,6 +28,37 @@ pub fn show(ctx: &egui::Context, open: &mut bool, log_buf: &LogBuffer) {
             let lines = log_buf.snapshot();
             let dark = ui.visuals().dark_mode;
             let weak = ui.visuals().weak_text_color();
+
+            ui.horizontal(|ui| {
+                if ui.button("Capture VR screenshot").clicked() {
+                    vr.request_screenshot();
+                }
+                ui.label(
+                    egui::RichText::new("Or press Space when this window is focused")
+                        .small()
+                        .color(weak),
+                );
+            });
+            match last_capture {
+                Some(CaptureResult::Ok(path)) => {
+                    ui.label(
+                        egui::RichText::new(format!("Saved: {}", path.display()))
+                            .small()
+                            .color(Color32::from_rgb(80, 180, 100)),
+                    );
+                }
+                Some(CaptureResult::Err(msg)) => {
+                    ui.label(
+                        egui::RichText::new(format!("Capture failed: {msg}"))
+                            .small()
+                            .color(Color32::from_rgb(220, 100, 90)),
+                    );
+                }
+                None => {
+                    ui.label(egui::RichText::new(" ").small());
+                }
+            }
+            ui.separator();
 
             ui.horizontal(|ui| {
                 ui.label(
