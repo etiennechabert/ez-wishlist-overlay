@@ -334,10 +334,19 @@ fn editable_recipe_panel(
     // (set by `slot_editor` when the user clicks an item button) and writes
     // back into `slots` on selection.
     if let Some(slot_idx) = active_picker_slot(ui.ctx(), &upgrade.id) {
-        if let Some(choice) =
-            item_picker_modal(ui.ctx(), icons, state, &upgrade.id, slot_idx, module_name, upgrade.level)
-        {
-            let current_qty = slots[slot_idx].as_ref().map(|s| s.quantity.max(1)).unwrap_or(1);
+        if let Some(choice) = item_picker_modal(
+            ui.ctx(),
+            icons,
+            state,
+            &upgrade.id,
+            slot_idx,
+            module_name,
+            upgrade.level,
+        ) {
+            let current_qty = slots[slot_idx]
+                .as_ref()
+                .map(|s| s.quantity.max(1))
+                .unwrap_or(1);
             slots[slot_idx] = match choice {
                 PickerChoice::None => None,
                 PickerChoice::Item(item_id) => Some(Requirement {
@@ -419,10 +428,8 @@ fn slot_editor(
                             }
                             ui.add_space(4.0);
                             ui.add(
-                                egui::Label::new(
-                                    egui::RichText::new(&current_label).strong(),
-                                )
-                                .wrap_mode(egui::TextWrapMode::Truncate),
+                                egui::Label::new(egui::RichText::new(&current_label).strong())
+                                    .wrap_mode(egui::TextWrapMode::Truncate),
                             );
                         });
                     });
@@ -464,9 +471,7 @@ fn slot_editor(
                         let center_w = (ui.available_width() - 32.0).max(0.0);
                         ui.allocate_ui_with_layout(
                             egui::vec2(center_w, 26.0),
-                            egui::Layout::centered_and_justified(
-                                egui::Direction::LeftToRight,
-                            ),
+                            egui::Layout::centered_and_justified(egui::Direction::LeftToRight),
                             |ui| {
                                 ui.label(
                                     egui::RichText::new(format!("{}", req.quantity))
@@ -565,7 +570,10 @@ fn item_picker_modal(
     let mut filter = picker_filter(ctx, upgrade_id);
     let needs_focus = take_picker_needs_focus(ctx, upgrade_id);
 
-    let title = format!("{module_name} Lv{level} — pick item for slot {}", slot_idx + 1);
+    let title = format!(
+        "{module_name} Lv{level} — pick item for slot {}",
+        slot_idx + 1
+    );
     egui::Window::new(title)
         .open(&mut open)
         .collapsible(false)
@@ -596,8 +604,7 @@ fn item_picker_modal(
 
             // Heuristic column count based on the actual available width.
             let avail = ui.available_width();
-            let cols = ((avail + PICKER_TILE_SPACING)
-                / (PICKER_TILE_W + PICKER_TILE_SPACING))
+            let cols = ((avail + PICKER_TILE_SPACING) / (PICKER_TILE_W + PICKER_TILE_SPACING))
                 .floor()
                 .max(1.0) as usize;
 
@@ -638,11 +645,7 @@ fn item_picker_modal(
 
 /// One clickable tile in the picker grid. Frame + icon + name; click sense on
 /// the whole frame so the user doesn't have to aim at the label specifically.
-fn picker_tile(
-    ui: &mut egui::Ui,
-    icons: &mut IconCache,
-    item: &ItemListEntry,
-) -> egui::Response {
+fn picker_tile(ui: &mut egui::Ui, icons: &mut IconCache, item: &ItemListEntry) -> egui::Response {
     let dark = ui.visuals().dark_mode;
     let inner = egui::Frame::group(ui.style())
         .inner_margin(egui::Margin::same(4.0))
@@ -652,10 +655,8 @@ fn picker_tile(
             ui.vertical_centered(|ui| {
                 if let Some(tex) = icons.get(ui.ctx(), &item.icon_path) {
                     ui.add(
-                        egui::Image::new(tex).fit_to_exact_size(egui::vec2(
-                            PICKER_TILE_ICON,
-                            PICKER_TILE_ICON,
-                        )),
+                        egui::Image::new(tex)
+                            .fit_to_exact_size(egui::vec2(PICKER_TILE_ICON, PICKER_TILE_ICON)),
                     );
                 } else {
                     let (rect, _) = ui.allocate_exact_size(
