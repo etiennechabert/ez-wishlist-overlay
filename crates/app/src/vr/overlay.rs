@@ -228,6 +228,16 @@ impl OverlaySession {
         }
     }
 
+    /// Pull the compositor's left-eye mirror texture (native render-target
+    /// resolution, lossless) and save it as PNG. This is what we'd use
+    /// instead of Steam's JPEG F12 screenshot to get a clean image for OCR.
+    /// Method lives on `OverlaySession` purely so the type system enforces
+    /// "VR_Init has run on this thread" — the underlying call doesn't need
+    /// any of our overlay's own state.
+    pub fn capture_screenshot(&self, out_path: &std::path::Path) -> Result<()> {
+        super::capture::capture_compositor_mirror_to_png(out_path)
+    }
+
     /// Fire a haptic pulse on a controller. `duration_us` is microseconds;
     /// OpenVR rejects values > 3999. Axis 0 is the conventional haptic
     /// axis for legacy controllers (Vive wand, Quest Touch via OpenVR).

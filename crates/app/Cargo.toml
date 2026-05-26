@@ -48,8 +48,22 @@ ureq = { version = "2.12", default-features = false, features = ["tls", "json"] 
 #
 # Building on Windows requires a C++ toolchain, cmake, and libclang on PATH
 # (openvr_sys builds the bundled OpenVR SDK + bindgen). See README.
+#
+# `openvr_sys` is reached for directly (not through the `openvr` safe wrapper)
+# only to call IVRCompositor::GetMirrorTextureD3D11, which 0.9.0 does not
+# expose. `windows` is needed for the D3D11 device + staging-texture readback
+# the mirror-texture pull does.
 [target.'cfg(target_os = "windows")'.dependencies]
 openvr = "0.9.0"
+openvr_sys = "2.1.4"
+windows = { version = "0.58", features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Direct3D",
+    "Win32_Graphics_Direct3D11",
+    "Win32_Graphics_Dxgi_Common",
+    "Win32_System_Diagnostics_Debug",
+    "Win32_UI_WindowsAndMessaging",
+] }
 
 [features]
 default = []

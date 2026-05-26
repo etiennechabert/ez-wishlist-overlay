@@ -24,6 +24,8 @@ pub mod runtime;
 pub mod text;
 
 #[cfg(target_os = "windows")]
+mod capture;
+#[cfg(target_os = "windows")]
 mod overlay;
 
 pub use runtime::Runtime;
