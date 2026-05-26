@@ -90,3 +90,13 @@ pub fn source_text(dark: bool) -> Color32 {
         Color32::from_gray(95)
     }
 }
+
+/// Warm tint applied to the "Edit" button on recipes the user has corrected,
+/// so modified rows stand out in the otherwise neutral grid.
+pub fn override_marker(dark: bool) -> Color32 {
+    if dark {
+        Color32::from_rgb(140, 90, 30)
+    } else {
+        Color32::from_rgb(245, 205, 130)
+    }
+}

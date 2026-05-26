@@ -4,6 +4,7 @@ mod about_dialog;
 mod debug_dialog;
 mod hideout_pane;
 mod icon_cache;
+mod overrides_export;
 mod preview_pane;
 mod settings_dialog;
 mod tasks_pane;
@@ -56,6 +57,19 @@ pub struct App {
     /// the user turned off the check), gets replaced once the worker
     /// thread reports.
     check_status: CheckStatus,
+    /// Markdown body of the "Export corrections" modal — `Some` while the
+    /// dialog is open. Editable so the user can prepend their own context
+    /// before copying to the GitHub issue body.
+    export_body: Option<String>,
+    /// Pre-computed proposed issue title (shown in the dialog) and the new-
+    /// issue URL with `?title=…` pre-filled. Built when the dialog opens so
+    /// the labels in the title match the overrides at that moment, even if
+    /// the user subsequently edits more recipes.
+    export_title: Option<String>,
+    export_url: Option<String>,
+    /// One-shot confirmation ("Copied. …") that appears under the Copy
+    /// button after a successful copy; cleared when the dialog closes.
+    export_copy_feedback: Option<String>,
 }
 
 impl App {
@@ -99,6 +113,10 @@ impl App {
             log_buf,
             update_rx,
             check_status,
+            export_body: None,
+            export_title: None,
+            export_url: None,
+            export_copy_feedback: None,
         }
     }
 
@@ -207,6 +225,25 @@ impl eframe::App for App {
                 self.settings_dirty = false;
             }
         }
+        if let (Some(body), Some(title), Some(url)) = (
+            self.export_body.as_mut(),
+            self.export_title.as_deref(),
+            self.export_url.as_deref(),
+        ) {
+            let still_open = overrides_export::show_dialog(
+                ctx,
+                title,
+                body,
+                url,
+                &mut self.export_copy_feedback,
+            );
+            if !still_open {
+                self.export_body = None;
+                self.export_title = None;
+                self.export_url = None;
+                self.export_copy_feedback = None;
+            }
+        }
     }
 }
 
@@ -240,8 +277,35 @@ impl App {
                 if ui.button("About").clicked() {
                     self.show_about = true;
                 }
+                self.export_corrections_button(ui);
             });
         });
+    }
+
+    /// "Export corrections" pops up a modal with the user's per-recipe edits
+    /// rendered as a markdown body, ready to be copied into a new GitHub
+    /// issue. Disabled when no overrides exist.
+    fn export_corrections_button(&mut self, ui: &mut egui::Ui) {
+        let count = self.state.read().overrides.len();
+        let tooltip = if count == 0 {
+            "Edit a recipe first (click an upgrade's \"Edit\" button) to enable this.".to_string()
+        } else {
+            format!(
+                "Show a copy-able markdown summary of your {count} recipe correction(s) \
+                 so you can paste them into a new GitHub issue."
+            )
+        };
+        let resp = ui
+            .add_enabled(count > 0, egui::Button::new("Export corrections ↗"))
+            .on_hover_text(&tooltip)
+            .on_disabled_hover_text(&tooltip);
+        if resp.clicked() && count > 0 {
+            let snapshot = self.state.read();
+            self.export_body = Some(overrides_export::build_issue_body(&snapshot));
+            self.export_title = Some(overrides_export::build_issue_title(&snapshot));
+            self.export_url = Some(overrides_export::build_issue_url(&snapshot));
+            self.export_copy_feedback = None;
+        }
     }
 
     /// Compact status chip next to the app name: spinner while the check

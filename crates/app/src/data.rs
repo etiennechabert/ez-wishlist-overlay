@@ -61,6 +61,49 @@ pub struct Requirement {
     pub quantity: u32,
 }
 
+/// The game caps every hideout recipe at four item slots. We carry the full
+/// 4-slot shape (with empties as `None`) in overrides so slot indices stay
+/// stable as the user clears or repopulates positions.
+pub const RECIPE_SLOTS: usize = 4;
+
+/// A user-supplied correction for a single upgrade's recipe. Replaces the
+/// official recipe in its entirety once present — slot-level merging would be
+/// surprising when upstream data shifts.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RecipeOverride {
+    pub slots: [Option<Requirement>; RECIPE_SLOTS],
+}
+
+impl RecipeOverride {
+    /// True iff every slot matches the bundled recipe — useful for collapsing
+    /// "user edited then put it all back" into a clean unoverridden state.
+    pub fn matches_base(&self, base: &Upgrade) -> bool {
+        let base_slots = base_slots(base);
+        slots_equal(&self.slots, &base_slots)
+    }
+}
+
+/// Lift a recipe out of its `Vec<Requirement>` shape into a fixed 4-slot view,
+/// trailing entries padded with `None`.
+pub fn base_slots(upgrade: &Upgrade) -> [Option<Requirement>; RECIPE_SLOTS] {
+    let mut out: [Option<Requirement>; RECIPE_SLOTS] = std::array::from_fn(|_| None);
+    for (i, req) in upgrade.requirements.iter().take(RECIPE_SLOTS).enumerate() {
+        out[i] = Some(req.clone());
+    }
+    out
+}
+
+fn slots_equal(
+    a: &[Option<Requirement>; RECIPE_SLOTS],
+    b: &[Option<Requirement>; RECIPE_SLOTS],
+) -> bool {
+    a.iter().zip(b.iter()).all(|(x, y)| match (x, y) {
+        (None, None) => true,
+        (Some(x), Some(y)) => x.item_id == y.item_id && x.quantity == y.quantity,
+        _ => false,
+    })
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Item {
     pub id: ItemId,
