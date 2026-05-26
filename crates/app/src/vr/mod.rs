@@ -6,11 +6,13 @@
 //! VR overlay subsystem.
 //!
 //! Module map:
-//!   - [`render`]   — CPU rasterizer for the icon grid (DONE; unit-tested).
-//!   - [`pose`]     — pitch hysteresis state machine (DONE; unit-tested).
-//!   - [`runtime`]  — background thread + status surface (Phase 3 PR 1).
-//!   - `overlay`    — OpenVR init + handle (Windows-only, Phase 3 PR 1).
-//!   - `input`      — overlay mouse events → grid hit-test (TODO Phase 4).
+//!   - [`render`]   — CPU rasterizer for the icon grid (unit-tested).
+//!   - [`pose`]     — pitch hysteresis state machine (unit-tested).
+//!   - [`runtime`]  — background thread + status surface.
+//!   - `overlay`    — OpenXR session + composition layer (Windows-only).
+//!   - [`input`]    — click hit-test + cycle logic (OpenXR-agnostic; the
+//!                    event-source plumbing still needs porting in
+//!                    `runtime.rs` — see `TODO(openxr)`).
 //!
 //! On non-Windows targets `overlay` doesn't exist and `runtime` parks at
 //! [`runtime::VrStatus::Unsupported`], so the desktop app stays fully

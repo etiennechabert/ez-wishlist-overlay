@@ -1,177 +1,160 @@
-//! Thin safe wrapper over the [`openvr`] crate: just enough surface to
-//! attach to SteamVR, anchor the overlay in world space at show-time,
-//! query head pose, push pixel buffers, and dispatch click input.
+//! OpenXR overlay session.
 //!
-//! This module is `cfg(target_os = "windows")` because `openvr_sys` builds
-//! Valve's C++ SDK via cmake + bindgen and only does that on Windows in our
-//! workspace.
+//! Connects to the active OpenXR runtime, advertises ourselves as a
+//! `XR_EXTX_overlay` overlay app (so we sit on top of whatever scene app
+//! is running), creates the world-anchored composition layer, and exposes
+//! the lifecycle hooks the [`super::runtime`] thread drives every tick.
+//!
+//! This module is `cfg(target_os = "windows")` for now because we'll be
+//! pairing the OpenXR session with a D3D11 device for swapchain pixel
+//! pushes. Non-Windows targets keep the no-op behavior the older OpenVR
+//! version had, so macOS/Linux iteration builds stay green.
+//!
+//! ## Status
+//!
+//! This is a fresh rewrite away from OpenVR. The lifecycle skeleton +
+//! extension detection are in place; the actual swapchain submission,
+//! input action set, and composition-layer transform need in-headset
+//! validation. Search this file for `TODO(openxr)` for the gaps.
 
 use crate::settings::VrSettings;
 use anyhow::{Context as _, Result};
-use openvr::system::EventInfo;
-use openvr::{
-    init, tracked_device_index, ApplicationType, Context, TrackedDeviceIndex,
-    TrackingUniverseOrigin,
-};
+use openxr as xr;
 
-const OVERLAY_KEY: &str = "com.etienneb.ez-wishlist-overlay.main\0";
-const OVERLAY_NAME: &str = "EZ Wishlist Overlay\0";
+/// Display name and short id that show up in SteamVR's overlay list / logs.
+const OVERLAY_NAME: &str = "EZ Wishlist Overlay";
 
-/// Owns the OpenVR runtime + a single overlay handle for the program's
-/// lifetime. Drop runs `VR_Shutdown` via `Context::drop`.
+/// Owns the OpenXR instance + session + composition-layer resources for
+/// the program's lifetime. Dropping runs the OpenXR cleanup in order
+/// (session → instance) via the [`xr`] crate's RAII handles.
 pub struct OverlaySession {
-    handle: openvr::overlay::OverlayHandle,
-    ctx: Context,
-    /// Last width we pushed via SetOverlayWidthInMeters. Used by
-    /// `apply_settings` to skip redundant calls.
+    /// The XR instance — represents this app's connection to the runtime.
+    /// Drops last (after the session) so the runtime sees a clean shutdown.
+    _instance: xr::Instance,
+    /// Active session. Holds the swapchain + composition-layer state. The
+    /// session has a finite-state lifecycle (IDLE → READY → SYNCHRONIZED →
+    /// VISIBLE → FOCUSED) driven by `xrPollEvent` in [`super::runtime`].
+    _session: xr::Session<xr::AnyGraphics>,
+    /// Reference space the overlay's transform is expressed in. We use
+    /// `LOCAL` (player-relative, gravity-aligned) so the overlay anchors
+    /// where the player is *now* rather than where their game's stage
+    /// origin happens to be.
+    _local_space: xr::Space,
+    /// Last quad width we used in the composition layer (meters). Kept so
+    /// `apply_settings` can skip pushing identical values.
     last_width: f32,
-    /// Last alpha pushed via SetOverlayAlpha. Skips redundant calls
-    /// inside the fade loop.
+    /// Last alpha applied. Skips redundant calls during fade.
     last_alpha: f32,
 }
 
 impl OverlaySession {
-    pub fn init(width_meters: f32) -> Result<Self> {
-        // SAFETY: VR_Init is documented as one-per-process. The runtime
-        // thread is the sole caller and only re-enters after the previous
-        // `Context` has been dropped (which calls VR_Shutdown).
-        let ctx = unsafe { init(ApplicationType::Overlay) }
-            .map_err(|e| anyhow::anyhow!("{e:?}"))
-            .context("VR_Init failed — is SteamVR running?")?;
+    pub fn init(_width_meters: f32) -> Result<Self> {
+        // The openxr crate doesn't link the loader at compile time on
+        // Windows — it dlopens openxr_loader.dll at runtime. The unsafe
+        // call surface here is purely from "I'm loading an arbitrary DLL
+        // and trusting its FFI"; we propagate failure as a normal error.
+        let entry = unsafe { xr::Entry::load() }
+            .context("loading openxr_loader.dll — is an OpenXR runtime installed?")?;
 
-        let mut overlay = ctx
-            .overlay()
-            .map_err(|e| anyhow::anyhow!("{e:?}"))
-            .context("get IVROverlay interface")?;
+        // Probe what the runtime supports. We require the overlay extension
+        // (otherwise we'd take over the whole compositor instead of layering
+        // onto whatever game is running). Surface a clear error if it's
+        // missing — the user's next move is "use a runtime that ships
+        // XR_EXTX_overlay" (SteamVR, recent Quest runtimes).
+        let available = entry
+            .enumerate_extensions()
+            .context("enumerate OpenXR extensions")?;
+        if !available.extx_overlay {
+            anyhow::bail!(
+                "OpenXR runtime does not advertise XR_EXTX_overlay — overlay app mode \
+                 is unavailable. SteamVR exposes it; some Quest runtimes do too. \
+                 If you're on a different runtime, switch to SteamVR or check the \
+                 vendor's extension list."
+            );
+        }
 
-        let handle = overlay
-            .create_overlay(OVERLAY_KEY, OVERLAY_NAME)
-            .map_err(|e| anyhow::anyhow!("{e:?}"))
-            .context("CreateOverlay")?;
+        let mut enabled = xr::ExtensionSet::default();
+        enabled.extx_overlay = true;
+        // TODO(openxr): also request the D3D11 (or Vulkan / D3D12) extension
+        // matching whichever graphics device we end up creating below.
 
-        overlay
-            .set_width(handle, width_meters)
-            .map_err(|e| anyhow::anyhow!("{e:?}"))
-            .context("SetOverlayWidthInMeters")?;
+        let instance = entry
+            .create_instance(
+                &xr::ApplicationInfo {
+                    application_name: OVERLAY_NAME,
+                    application_version: env!("CARGO_PKG_VERSION")
+                        .split('.')
+                        .next()
+                        .and_then(|s| s.parse().ok())
+                        .unwrap_or(0),
+                    engine_name: "ez-wishlist-overlay",
+                    engine_version: 1,
+                    api_version: xr::Version::new(1, 0, 0),
+                },
+                &enabled,
+                &[],
+            )
+            .context("xrCreateInstance — is an OpenXR runtime active?")?;
 
-        // Hide by default; pose-driven show takes over.
-        overlay
-            .set_visibility(handle, false)
-            .map_err(|e| anyhow::anyhow!("{e:?}"))
-            .context("HideOverlay")?;
-
-        // Start fully transparent so the first fade-in goes 0 → 1.
-        overlay
-            .set_opacity(handle, 0.0)
-            .map_err(|e| anyhow::anyhow!("{e:?}"))
-            .context("SetOverlayAlpha")?;
-
-        Ok(Self {
-            handle,
-            ctx,
-            last_width: width_meters,
-            last_alpha: 0.0,
-        })
+        // TODO(openxr): pick a system + graphics binding. With XR_EXTX_overlay
+        // the spec requires a graphics binding even though the scene app
+        // owns the actual scene render. The minimal viable path is D3D11:
+        //
+        //   1. instance.system(FormFactor::HEAD_MOUNTED_DISPLAY)?
+        //   2. create a D3D11 device on the LUID openxr returns via
+        //      instance.graphics_requirements::<D3D11>(...)?
+        //   3. instance.create_session::<D3D11>(...) with the overlay
+        //      session-create-info chained in (xrCreateSessionOverlayEXTX
+        //      via the openxr crate's overlay extension helpers).
+        //
+        // Until that's wired, we bail with a clear "not yet implemented"
+        // so the rest of the app stays functional and the VR header chip
+        // shows "Disconnected" rather than silently failing later.
+        let _ = instance;
+        anyhow::bail!(
+            "OpenXR session creation is not yet implemented in this branch. \
+             See vr/overlay.rs TODO(openxr) comments for the remaining wiring."
+        );
     }
 
-    /// Cheap probe used by the runtime loop to detect that SteamVR vanished.
-    /// Any operation that hits the IVROverlay fn-table works; we use the
-    /// dashboard query because it has no side effects and is documented as
-    /// safe to call from an overlay app.
+    /// Cheap probe used by the runtime loop to detect that the OpenXR
+    /// runtime vanished (e.g. SteamVR shut down). TODO(openxr): currently
+    /// a no-op; once we have a real session, this should poll session
+    /// state via `xrPollEvent` or call an idempotent query.
     pub fn heartbeat(&self) -> Result<()> {
-        let mut overlay = self
-            .ctx
-            .overlay()
-            .map_err(|e| anyhow::anyhow!("{e:?}"))
-            .context("IVROverlay interface")?;
-        let _ = overlay.is_dashboard_visible();
         Ok(())
     }
 
-    /// Push width changes the user made since last tick.
+    /// Push width changes the user made since last tick. TODO(openxr):
+    /// update the composition-layer `XrCompositionLayerQuad::size` next
+    /// frame.
     pub fn apply_settings(&mut self, desired: &VrSettings) -> Result<()> {
         if (desired.width_meters - self.last_width).abs() > f32::EPSILON {
-            let mut overlay = self
-                .ctx
-                .overlay()
-                .map_err(|e| anyhow::anyhow!("{e:?}"))
-                .context("IVROverlay interface")?;
-            overlay
-                .set_width(self.handle, desired.width_meters)
-                .map_err(|e| anyhow::anyhow!("{e:?}"))
-                .context("SetOverlayWidthInMeters")?;
             self.last_width = desired.width_meters;
-            tracing::debug!(width = desired.width_meters, "applied new overlay width");
+            tracing::debug!(width = desired.width_meters, "queued new overlay width");
         }
         Ok(())
     }
 
-    /// Read the HMD's current pose and extract pitch (degrees up from
-    /// horizontal). Returns `None` if the HMD pose is currently invalid
-    /// (e.g. tracking lost, headset off the head).
+    /// HMD pitch in degrees above horizontal. TODO(openxr): query via
+    /// `locate_views(LOCAL)` or `xrLocateSpace(VIEW, LOCAL)`.
     pub fn hmd_pitch_deg(&self) -> Option<f32> {
-        let system = self.ctx.system().ok()?;
-        // 0.0 = "right now". Photons-ahead prediction is for compositor-side
-        // submission timing; for visibility we want the current head pose.
-        let poses = system.device_to_absolute_tracking_pose(TrackingUniverseOrigin::Standing, 0.0);
-        let hmd = &poses[tracked_device_index::HMD.0 as usize];
-        if !hmd.pose_is_valid() {
-            return None;
-        }
-        Some(super::pose::pitch_from_hmd_matrix(
-            hmd.device_to_absolute_tracking(),
-        ))
+        None
     }
 
-    /// Capture the HMD's current world pose and pin the overlay there as
-    /// an absolute (world-space) transform. Yaw + position only — pitch and
-    /// roll are dropped so the overlay sits in front of the user at the
-    /// moment of trigger, not above their face where their gaze was
-    /// pointing. `height_offset_m` controls how far above the HMD the panel
-    /// floats (see [`super::anchor::HEIGHT_M`] for the historical default).
-    /// Returns `Ok(false)` if the HMD pose is invalid this frame (caller
-    /// should retry on the next tick).
-    pub fn anchor_at_current_hmd(&mut self, height_offset_m: f32) -> Result<bool> {
-        let system = self
-            .ctx
-            .system()
-            .map_err(|e| anyhow::anyhow!("{e:?}"))
-            .context("IVRSystem interface")?;
-        let poses = system.device_to_absolute_tracking_pose(TrackingUniverseOrigin::Standing, 0.0);
-        let hmd = &poses[tracked_device_index::HMD.0 as usize];
-        if !hmd.pose_is_valid() {
-            return Ok(false);
-        }
-        let m = super::anchor::world_anchor_from_hmd_with(
-            hmd.device_to_absolute_tracking(),
-            super::anchor::DISTANCE_M,
-            height_offset_m,
-            super::anchor::TILT_DEG,
-        );
-        let matrix = openvr::pose::Matrix3x4(m);
-        let mut overlay = self
-            .ctx
-            .overlay()
-            .map_err(|e| anyhow::anyhow!("{e:?}"))
-            .context("IVROverlay interface")?;
-        overlay
-            .set_transform_absolute(self.handle, TrackingUniverseOrigin::Standing, &matrix)
-            .map_err(|e| anyhow::anyhow!("{e:?}"))
-            .context("SetOverlayTransformAbsolute")?;
-        tracing::debug!("anchor transform applied (world-space, yaw-only)");
-        Ok(true)
+    /// Capture HMD world pose and pin the overlay there. TODO(openxr):
+    /// compute the anchor transform via [`super::anchor::world_anchor_from_hmd_with`]
+    /// (the math is OpenVR-agnostic) and stash an `XrPosef` for the next
+    /// composition-layer submission.
+    pub fn anchor_at_current_hmd(&mut self, _height_offset_m: f32) -> Result<bool> {
+        Ok(false)
     }
 
-    pub fn set_visible(&mut self, visible: bool) -> Result<()> {
-        let mut overlay = self
-            .ctx
-            .overlay()
-            .map_err(|e| anyhow::anyhow!("{e:?}"))
-            .context("IVROverlay interface")?;
-        overlay
-            .set_visibility(self.handle, visible)
-            .map_err(|e| anyhow::anyhow!("{e:?}"))
-            .context("Show/HideOverlay")
+    pub fn set_visible(&mut self, _visible: bool) -> Result<()> {
+        // TODO(openxr): toggle whether we include the composition layer in
+        // `xrEndFrame` submissions next tick. There's no "show overlay"
+        // call in OpenXR; visibility is a per-frame layer-list choice.
+        Ok(())
     }
 
     pub fn set_alpha(&mut self, alpha: f32) -> Result<()> {
@@ -179,62 +162,21 @@ impl OverlaySession {
         if (a - self.last_alpha).abs() < 1.0 / 256.0 {
             return Ok(());
         }
-        let mut overlay = self
-            .ctx
-            .overlay()
-            .map_err(|e| anyhow::anyhow!("{e:?}"))
-            .context("IVROverlay interface")?;
-        overlay
-            .set_opacity(self.handle, a)
-            .map_err(|e| anyhow::anyhow!("{e:?}"))
-            .context("SetOverlayAlpha")?;
+        // TODO(openxr): apply via composition-layer flags + tint.
         self.last_alpha = a;
         Ok(())
     }
 
-    /// Push an RGBA8 pixel buffer to the overlay. `bytes.len()` must equal
-    /// `width * height * 4`.
+    /// Push an RGBA8 pixel buffer to the overlay swapchain. TODO(openxr):
+    /// acquire/wait/release a swapchain image and copy `bytes` into it
+    /// via D3D11 (or whichever graphics backend we end up on).
     pub fn submit_rgba(&mut self, bytes: &[u8], width: u32, height: u32) -> Result<()> {
         debug_assert_eq!(bytes.len(), (width * height * 4) as usize);
-        let mut overlay = self
-            .ctx
-            .overlay()
-            .map_err(|e| anyhow::anyhow!("{e:?}"))
-            .context("IVROverlay interface")?;
-        overlay
-            .set_raw_data(self.handle, bytes, width as usize, height as usize, 4)
-            .map_err(|e| anyhow::anyhow!("{e:?}"))
-            .context("SetOverlayRaw")
+        Ok(())
     }
 
-    pub fn handle(&self) -> openvr::overlay::OverlayHandle {
-        self.handle
-    }
-
-    /// Drain pending VR events into the provided buffer. Cheap — typically
-    /// 0–2 events per ~11 ms tick. Caller filters by event type.
-    pub fn drain_events(&self, out: &mut Vec<EventInfo>) {
-        out.clear();
-        let Ok(system) = self.ctx.system() else {
-            return;
-        };
-        while let Some(ev) = system.poll_next_event() {
-            out.push(ev);
-            if out.len() > 64 {
-                // Safety cap: if something's misbehaving and flooding us
-                // we'd rather drop than spin the loop forever.
-                break;
-            }
-        }
-    }
-
-    /// Fire a haptic pulse on a controller. `duration_us` is microseconds;
-    /// OpenVR rejects values > 3999. Axis 0 is the conventional haptic
-    /// axis for legacy controllers (Vive wand, Quest Touch via OpenVR).
-    pub fn haptic_pulse(&self, device: TrackedDeviceIndex, duration_us: u16) {
-        let Ok(system) = self.ctx.system() else {
-            return;
-        };
-        system.trigger_haptic_pulse(device, 0, duration_us.min(3_999));
-    }
+    /// Drain pending XR events. TODO(openxr): use `xrPollEvent` to surface
+    /// session-state transitions + input-action events. The runtime loop
+    /// will consume click events from here once input is wired.
+    pub fn drain_events(&self) {}
 }

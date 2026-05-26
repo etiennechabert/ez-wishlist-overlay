@@ -1,6 +1,6 @@
 [package]
 name = "ez-wishlist-overlay"
-version = "0.0.8"
+version = "0.0.9"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
@@ -42,14 +42,12 @@ fontdue = "0.9.3"
 # rustls + webpki-roots (HTTPS) and the JSON helper.
 ureq = { version = "2.12", default-features = false, features = ["tls", "json"] }
 
-# VR — Windows-only. The `openvr` crate wraps Valve's OpenVR SDK; non-Windows
-# targets compile the vr/overlay.rs and vr/runtime.rs Windows branches to a
-# no-op so macOS/Linux dev builds stay green.
-#
-# Building on Windows requires a C++ toolchain, cmake, and libclang on PATH
-# (openvr_sys builds the bundled OpenVR SDK + bindgen). See README.
+# VR — Windows-only for now. We're on `openxr` (Khronos open standard) rather
+# than `openvr` (Valve proprietary, EOL'd ABI for our use). OpenXR overlays
+# go through the `XR_EXTX_overlay` extension; runtimes that don't expose it
+# (or don't have a scene app running) leave us parked at `Disconnected`.
 [target.'cfg(target_os = "windows")'.dependencies]
-openvr = "0.9.0"
+openxr = "0.21.1"
 
 [features]
 default = []
