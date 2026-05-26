@@ -18,7 +18,7 @@
 //! A 1 s `read_dir` over a folder that typically holds <100 files is
 //! noise-floor cheap.
 
-use crate::ocr;
+use crate::ocr::parse::CapturedUpgrade;
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
@@ -31,13 +31,15 @@ const POLL_INTERVAL: Duration = Duration::from_millis(1000);
 const STABILITY_INTERVAL: Duration = Duration::from_millis(250);
 
 pub enum WatchEvent {
-    /// A new screenshot was successfully OCR'd. Includes the source
-    /// path (mainly for diagnostics / debug banner) and the raw OCR
-    /// result; the parser + wishlist write happen on the receiver end
-    /// so the watcher stays a pure I/O thread.
+    /// A screenshot was successfully decoded, OCR'd (two-pass), and
+    /// parsed into a structured [`CapturedUpgrade`]. The receiver
+    /// just needs to upsert this into the wishlist and notify the user.
+    /// `raw_text` is the first-pass full-image OCR dump, kept so we
+    /// can re-parse historical captures if the parser logic changes.
     Captured {
         path: PathBuf,
-        result: ocr::OcrResult,
+        upgrade: CapturedUpgrade,
+        raw_text: String,
     },
     Failed {
         path: PathBuf,
@@ -122,17 +124,25 @@ fn run(watch_dir: PathBuf, state_file: PathBuf, tx: Sender<WatchEvent>) {
                 }
             }
 
-            match ocr::recognize_file(&path) {
-                Ok(result) => {
+            match crate::ocr::extract::extract_upgrade(&path) {
+                Ok((upgrade, raw_text)) => {
                     tracing::info!(
                         path = %path.display(),
-                        words = result.words.len(),
-                        "OCR captured screenshot",
+                        key = %upgrade.key,
+                        items = upgrade.items.len(),
+                        cost = upgrade.cost,
+                        with_progress = upgrade
+                            .items
+                            .iter()
+                            .filter(|i| i.collected.is_some())
+                            .count(),
+                        "OCR two-pass extract finished",
                     );
                     if tx
                         .send(WatchEvent::Captured {
                             path: path.clone(),
-                            result,
+                            upgrade,
+                            raw_text,
                         })
                         .is_err()
                     {
@@ -142,7 +152,7 @@ fn run(watch_dir: PathBuf, state_file: PathBuf, tx: Sender<WatchEvent>) {
                 }
                 Err(e) => {
                     let err_msg = format!("{e:#}");
-                    tracing::warn!(path = %path.display(), error = %err_msg, "OCR failed");
+                    tracing::warn!(path = %path.display(), error = %err_msg, "OCR extract failed");
                     let _ = tx.send(WatchEvent::Failed {
                         path,
                         error: err_msg,

@@ -13,8 +13,12 @@
 //! `gui::ocr_dialog`.
 
 #[cfg(target_os = "windows")]
-mod engine;
+pub mod engine;
+#[cfg(target_os = "windows")]
+pub mod extract;
 pub mod parse;
+#[cfg(target_os = "windows")]
+pub mod preprocess;
 pub mod watcher;
 
 #[cfg(target_os = "windows")]

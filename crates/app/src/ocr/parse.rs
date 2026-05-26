@@ -314,12 +314,22 @@ fn find_items(lines: &[Line]) -> Vec<CapturedItem> {
     // line and the "BACK / LEVEL UP" button row. Within that region,
     // gather all non-noise words and cluster them by X-gap into cells.
     let (start_y, end_y) = item_region_y_range(lines);
-    let mut cell_words: Vec<&OcrWord> = Vec::new();
+    // Tag each word with its original index (the order it arrived in
+    // from OCR — Windows OCR returns them in reading order: top-to-
+    // bottom by line, left-to-right within line). We need this to
+    // restore reading order *within* a cell after X-sorting splits the
+    // words across cell-clusters — without it, multi-line cell names
+    // like "Large gas / can" come out as "Large can gas" (X-order
+    // when the second line is centered below the first).
+    let mut cell_words: Vec<(usize, &OcrWord)> = Vec::new();
+    let mut original_idx = 0usize;
     for line in lines {
         if line.y < start_y || line.y > end_y {
             continue;
         }
         for w in &line.words {
+            let idx = original_idx;
+            original_idx += 1;
             if is_noise_word(&w.text) {
                 continue;
             }
@@ -329,7 +339,7 @@ fn find_items(lines: &[Line]) -> Vec<CapturedItem> {
                 // come out with progress = None.
                 continue;
             }
-            cell_words.push(w);
+            cell_words.push((idx, w));
         }
     }
     if cell_words.is_empty() {
@@ -344,27 +354,35 @@ fn find_items(lines: &[Line]) -> Vec<CapturedItem> {
     // as the cell boundary, which is robust against any single
     // unusually wide word (e.g. "Disinfectant") skewing the metric.
     cell_words.sort_by(|a, b| {
-        a.rect
+        a.1.rect
             .x
-            .partial_cmp(&b.rect.x)
+            .partial_cmp(&b.1.rect.x)
             .unwrap_or(std::cmp::Ordering::Equal)
     });
-    let cell_gap = compute_cell_gap_threshold(&cell_words);
+    let by_word: Vec<&OcrWord> = cell_words.iter().map(|(_, w)| *w).collect();
+    let cell_gap = compute_cell_gap_threshold(&by_word);
 
-    let mut cells: Vec<Vec<&OcrWord>> = Vec::new();
-    for w in cell_words {
+    let mut cells: Vec<Vec<(usize, &OcrWord)>> = Vec::new();
+    for entry in cell_words {
+        let w = entry.1;
         if let Some(last_cell) = cells.last() {
             if let Some(prev) = last_cell.last() {
-                if w.rect.x - prev.rect.right() > cell_gap {
-                    cells.push(vec![w]);
+                if w.rect.x - prev.1.rect.right() > cell_gap {
+                    cells.push(vec![entry]);
                     continue;
                 }
             }
         }
         match cells.last_mut() {
-            Some(cell) => cell.push(w),
-            None => cells.push(vec![w]),
+            Some(cell) => cell.push(entry),
+            None => cells.push(vec![entry]),
         }
+    }
+
+    // Restore reading order within each cell so multi-line names
+    // come out as they're actually displayed in-game.
+    for cell in &mut cells {
+        cell.sort_by_key(|(idx, _)| *idx);
     }
 
     cells
@@ -372,7 +390,7 @@ fn find_items(lines: &[Line]) -> Vec<CapturedItem> {
         .map(|cell| CapturedItem {
             name: cell
                 .iter()
-                .map(|w| w.text.as_str())
+                .map(|(_, w)| w.text.as_str())
                 .collect::<Vec<_>>()
                 .join(" "),
             collected: None,

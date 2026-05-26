@@ -13,20 +13,29 @@
 
 use crate::ocr::{OcrRect, OcrResult, OcrWord};
 use anyhow::{Context, Result};
+use image::DynamicImage;
 use std::path::Path;
 use windows::Graphics::Imaging::{BitmapPixelFormat, SoftwareBitmap};
 use windows::Media::Ocr::OcrEngine;
 use windows::Storage::Streams::DataWriter;
 
-/// OCR the file at `path` and return word-level boxes.
-///
-/// Tries to use a US-English language model — the in-game UI we're
-/// targeting is English; if a different language pack is installed the
-/// engine will fall back to whatever's available, with a warning logged.
+/// Decode the image at `path` and OCR it. Thin wrapper over
+/// [`recognize_image`] kept for callers that just want the file path
+/// interface (e.g. the manual file-picker dialog).
 pub fn recognize_file(path: &Path) -> Result<OcrResult> {
     let img = image::open(path).with_context(|| format!("opening {}", path.display()))?;
+    recognize_image(&img)
+}
+
+/// Run Windows.Media.Ocr on an already-decoded image. The two-pass
+/// pipeline calls this once on the full screenshot, then again on each
+/// preprocessed per-cell crop without re-loading from disk.
+pub fn recognize_image(img: &DynamicImage) -> Result<OcrResult> {
     let rgba = img.to_rgba8();
     let (width, height) = rgba.dimensions();
+    if width == 0 || height == 0 {
+        anyhow::bail!("zero-sized image cannot be OCR'd");
+    }
 
     // WinRT wants BGRA8 with the alpha channel marked premultiplied (the
     // engine doesn't actually use alpha, but it validates the descriptor).
@@ -71,7 +80,8 @@ pub fn recognize_file(path: &Path) -> Result<OcrResult> {
     }
 
     tracing::debug!(
-        path = %path.display(),
+        width,
+        height,
         words = words.len(),
         chars = text.len(),
         "OCR finished",

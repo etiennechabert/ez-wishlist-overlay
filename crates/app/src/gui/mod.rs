@@ -236,7 +236,12 @@ impl eframe::App for App {
             debug_dialog::show(ctx, &mut self.show_debug, &self.log_buf);
         }
         if self.show_ocr {
-            ocr_dialog::show(ctx, &mut self.show_ocr, &mut self.ocr_state);
+            ocr_dialog::show(
+                ctx,
+                &mut self.show_ocr,
+                &mut self.ocr_state,
+                &self.settings,
+            );
         }
         if self.confirm_reset {
             self.confirm_reset_dialog(ctx);
@@ -390,63 +395,48 @@ impl App {
         let mut wishlist_dirty = false;
         loop {
             match rx.try_recv() {
-                Ok(crate::ocr::watcher::WatchEvent::Captured { path, result }) => {
+                Ok(crate::ocr::watcher::WatchEvent::Captured {
+                    path,
+                    upgrade,
+                    raw_text,
+                }) => {
                     let filename = path
                         .file_name()
                         .map(|s| s.to_string_lossy().into_owned())
                         .unwrap_or_else(|| path.display().to_string());
+                    let key = upgrade.key.clone();
+                    let item_count = upgrade.items.len();
+                    let with_progress = upgrade
+                        .items
+                        .iter()
+                        .filter(|i| i.collected.is_some())
+                        .count();
+                    let cost = upgrade.cost;
+                    let prev = crate::wishlist::upsert(
+                        &mut self.wishlist,
+                        upgrade,
+                        raw_text,
+                        &path,
+                    );
+                    wishlist_dirty = true;
+                    let verb = if prev.is_some() { "Updated" } else { "Added" };
+                    let cost_str = cost.map(|c| format!(" · {c}¤")).unwrap_or_default();
                     tracing::info!(
                         file = %filename,
-                        chars = result.text.len(),
-                        words = result.words.len(),
-                        "OCR captured (raw): {}",
-                        result.text.replace('\n', " | "),
+                        key = %key,
+                        items = item_count,
+                        with_progress,
+                        cost,
+                        action = verb,
+                        "wishlist entry persisted",
                     );
-                    latest = Some(match crate::ocr::parse::parse_upgrade(&result) {
-                        Some(upgrade) => {
-                            let key = upgrade.key.clone();
-                            let item_count = upgrade.items.len();
-                            let cost = upgrade.cost;
-                            let prev = crate::wishlist::upsert(
-                                &mut self.wishlist,
-                                upgrade,
-                                result.text.clone(),
-                                &path,
-                            );
-                            wishlist_dirty = true;
-                            let verb = if prev.is_some() { "Updated" } else { "Added" };
-                            let cost_str = cost
-                                .map(|c| format!(" · {c}¤"))
-                                .unwrap_or_default();
-                            tracing::info!(
-                                key = %key,
-                                items = item_count,
-                                cost,
-                                action = verb,
-                                "wishlist entry persisted",
-                            );
-                            OcrToast {
-                                message: format!(
-                                    "✓ {verb} \"{key}\" — {item_count} items{cost_str}"
-                                ),
-                                kind: OcrToastKind::Success,
-                                shown_at: std::time::Instant::now(),
-                            }
-                        }
-                        None => {
-                            tracing::warn!(
-                                file = %filename,
-                                "OCR text didn't look like an upgrade panel — skipping",
-                            );
-                            OcrToast {
-                                message: format!(
-                                    "⚠ {filename}: no upgrade panel detected ({} words)",
-                                    result.words.len()
-                                ),
-                                kind: OcrToastKind::Failure,
-                                shown_at: std::time::Instant::now(),
-                            }
-                        }
+                    latest = Some(OcrToast {
+                        message: format!(
+                            "✓ {verb} \"{key}\" — {with_progress}/{item_count} progress, \
+                             {item_count} items{cost_str}"
+                        ),
+                        kind: OcrToastKind::Success,
+                        shown_at: std::time::Instant::now(),
                     });
                 }
                 Ok(crate::ocr::watcher::WatchEvent::Failed { path, error }) => {
