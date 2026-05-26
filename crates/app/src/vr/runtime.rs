@@ -153,66 +153,119 @@ fn render_loop(
     let mut last_canvas: (u32, u32) = (0, 0);
     let mut fade_start: Option<Instant> = None;
     let mut was_visible = false;
-    // TODO(openxr): wire the OpenXR action-system click events into
-    // `super::input::handle_click` so trigger-on-tile increments the
-    // collected counter (the post-event logic is OpenXR-agnostic and
-    // ready to go; only the event-source side needs porting).
+    let mut debouncer = super::input::Debouncer::new();
 
     loop {
         let frame_start = Instant::now();
         let vr = settings.read().vr.clone();
         session.apply_settings(&vr)?;
+        session.poll_events()?;
 
-        let pitch = session.hmd_pitch_deg().unwrap_or(0.0);
-        let visible_now = matches!(
-            fsm.tick_with(pitch, vr.show_pitch_deg, vr.hide_pitch_deg),
-            Visibility::Visible
-        );
+        // Frame loop is required even when nothing's visible — without
+        // begin/end the runtime won't advance the session state past READY.
+        let display_time = session.wait_frame()?;
+        session.begin_frame()?;
 
-        handle_visibility_transition(
-            session,
-            state,
-            VisibilityTransition {
-                visible_now,
-                pitch,
-                frame_start,
-                grid_cols: vr.grid_cols,
-                height_offset_m: vr.height_offset_m,
-            },
-            &mut was_visible,
-            &mut fade_start,
-            &mut last_rendered,
-            &mut last_hits,
-            &mut last_canvas,
-        )?;
+        if session.is_running() {
+            let pitch = session.hmd_pitch_deg().unwrap_or(0.0);
+            let visible_now = matches!(
+                fsm.tick_with(pitch, vr.show_pitch_deg, vr.hide_pitch_deg),
+                Visibility::Visible
+            );
 
-        // TODO(openxr): drain `xrPollEvent` for session state transitions
-        // + input-action snapshots, then hit-test + dispatch like the
-        // OpenVR version did.
-        session.drain_events();
+            handle_visibility_transition(
+                session,
+                state,
+                VisibilityTransition {
+                    visible_now,
+                    pitch,
+                    frame_start,
+                    grid_cols: vr.grid_cols,
+                    height_offset_m: vr.height_offset_m,
+                },
+                &mut was_visible,
+                &mut fade_start,
+                &mut last_rendered,
+                &mut last_hits,
+                &mut last_canvas,
+            )?;
 
-        if visible_now {
-            let current_version = state.read().version;
-            let sig = (current_version, vr.grid_cols);
-            if last_rendered != Some(sig) {
-                render_and_submit(
+            if visible_now {
+                let current_version = state.read().version;
+                let sig = (current_version, vr.grid_cols);
+                if last_rendered != Some(sig) {
+                    render_and_submit(
+                        session,
+                        state,
+                        vr.grid_cols,
+                        &mut last_rendered,
+                        &mut last_hits,
+                        &mut last_canvas,
+                    )?;
+                }
+                apply_fade_in(session, &mut fade_start, frame_start)?;
+            }
+
+            for hit in session.poll_click(display_time)? {
+                dispatch_click(
                     session,
                     state,
-                    vr.grid_cols,
-                    &mut last_rendered,
-                    &mut last_hits,
-                    &mut last_canvas,
-                )?;
+                    hit,
+                    &last_hits,
+                    last_canvas,
+                    visible_now,
+                    &mut debouncer,
+                    frame_start,
+                );
             }
-            apply_fade_in(session, &mut fade_start, frame_start)?;
         }
 
+        session.end_frame_with_layer(display_time)?;
         session.heartbeat()?;
 
         let spent = frame_start.elapsed();
         if spent < TICK {
             std::thread::sleep(TICK - spent);
         }
+    }
+}
+
+#[cfg(target_os = "windows")]
+#[allow(clippy::too_many_arguments)]
+fn dispatch_click(
+    session: &super::overlay::OverlaySession,
+    state: &Arc<RwLock<AppState>>,
+    hit: super::overlay::ClickHit,
+    last_hits: &[super::render::CellHit],
+    last_canvas: (u32, u32),
+    visible_now: bool,
+    debouncer: &mut super::input::Debouncer,
+    frame_start: std::time::Instant,
+) {
+    use super::input::{handle_click, ClickOutcome};
+
+    if !visible_now {
+        return;
+    }
+    let (cw, ch) = last_canvas;
+    if cw == 0 || ch == 0 {
+        return;
+    }
+    // ClickHit's (u, v) is in [0,1] with v measured from top; multiply by
+    // canvas extents to land in pixel space, matching what render::render
+    // produces.
+    let px = hit.u * cw as f32;
+    let py = hit.v * ch as f32;
+    match handle_click(state, last_hits, px, py, debouncer, frame_start) {
+        ClickOutcome::Incremented { item_id, new_value } => {
+            let _ = session.fire_haptic(hit.hand, std::time::Duration::from_millis(15));
+            tracing::debug!(%item_id, new_value, "overlay click: +1");
+        }
+        ClickOutcome::Reset { item_id } => {
+            let _ = session.fire_haptic(hit.hand, std::time::Duration::from_millis(60));
+            tracing::debug!(%item_id, "overlay click: cycle reset to 0");
+        }
+        ClickOutcome::Ignored => {}
     }
 }
 

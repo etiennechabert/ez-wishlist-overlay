@@ -46,8 +46,20 @@ ureq = { version = "2.12", default-features = false, features = ["tls", "json"] 
 # than `openvr` (Valve proprietary, EOL'd ABI for our use). OpenXR overlays
 # go through the `XR_EXTX_overlay` extension; runtimes that don't expose it
 # (or don't have a scene app running) leave us parked at `Disconnected`.
+#
+# `windows` provides the D3D11 + DXGI types the OpenXR session-create-info
+# needs. We do the minimum graphics work: create a D3D11 device on the
+# runtime-required adapter LUID and use it to copy CPU RGBA buffers into
+# the OpenXR swapchain images.
 [target.'cfg(target_os = "windows")'.dependencies]
 openxr = "0.21.1"
+windows = { version = "0.62", features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Direct3D",
+    "Win32_Graphics_Direct3D11",
+    "Win32_Graphics_Dxgi",
+    "Win32_Graphics_Dxgi_Common",
+] }
 
 [features]
 default = []
