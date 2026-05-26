@@ -10,9 +10,7 @@
 //!   - [`pose`]     — pitch hysteresis state machine (unit-tested).
 //!   - [`runtime`]  — background thread + status surface.
 //!   - `overlay`    — OpenXR session + composition layer (Windows-only).
-//!   - [`input`]    — click hit-test + cycle logic (OpenXR-agnostic; the
-//!                    event-source plumbing still needs porting in
-//!                    `runtime.rs` — see `TODO(openxr)`).
+//!   - [`input`]    — click hit-test + cycle logic (OpenXR-agnostic; event-source plumbing pending — see `TODO(openxr)` in `runtime.rs`).
 //!
 //! On non-Windows targets `overlay` doesn't exist and `runtime` parks at
 //! [`runtime::VrStatus::Unsupported`], so the desktop app stays fully
