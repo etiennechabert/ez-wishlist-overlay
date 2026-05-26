@@ -662,7 +662,8 @@ fn picker_tile(
                         egui::vec2(PICKER_TILE_ICON, PICKER_TILE_ICON),
                         egui::Sense::hover(),
                     );
-                    ui.painter().rect_filled(rect, 2.0, theme::placeholder_icon(dark));
+                    ui.painter()
+                        .rect_filled(rect, 2.0, theme::placeholder_icon(dark));
                 }
                 ui.add_space(2.0);
                 ui.add(
@@ -674,7 +675,8 @@ fn picker_tile(
 
     let resp = inner.response.interact(egui::Sense::click());
     if resp.hovered() {
-        ui.painter().rect_filled(resp.rect, 4.0, theme::row_hover(dark));
+        ui.painter()
+            .rect_filled(resp.rect, 4.0, theme::row_hover(dark));
     }
     resp.on_hover_text(&item.name)
 }

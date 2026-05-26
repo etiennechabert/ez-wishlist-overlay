@@ -294,10 +294,7 @@ mod tests {
                 slots: one_nut.clone(),
             },
         );
-        assert_eq!(
-            build_issue_title(&state),
-            "Recipe correction: Kitchen Lv1"
-        );
+        assert_eq!(build_issue_title(&state), "Recipe correction: Kitchen Lv1");
 
         // 2 overrides → both named, alphabetical order.
         state.set_recipe_override(
@@ -414,10 +411,7 @@ mod tests {
                 slots: one_nut.clone(),
             },
         );
-        state.set_recipe_override(
-            &"armory_lv1".to_string(),
-            RecipeOverride { slots: one_nut },
-        );
+        state.set_recipe_override(&"armory_lv1".to_string(), RecipeOverride { slots: one_nut });
 
         let body = build_issue_body(&state);
         let armory_idx = body.find("Armory Lv1").unwrap();
