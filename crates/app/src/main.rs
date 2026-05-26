@@ -64,6 +64,36 @@ fn main() -> Result<()> {
         }
     }
 
+    match persist::load_overrides(&paths) {
+        persist::OverridesLoadOutcome::Fresh => {
+            tracing::info!("no recipe overrides — using bundled recipes");
+        }
+        persist::OverridesLoadOutcome::Loaded(p) => {
+            if let Some(warning) = p.merge_into(&mut app_state) {
+                tracing::warn!(%warning, "overrides loaded with warnings");
+                // Don't clobber an existing state warning — concatenate.
+                app_state.load_warning = Some(match app_state.load_warning.take() {
+                    Some(prev) => format!("{prev} {warning}"),
+                    None => warning,
+                });
+            } else {
+                tracing::info!(count = app_state.overrides.len(), "overrides loaded");
+            }
+        }
+        persist::OverridesLoadOutcome::Corrupt(boxed) => {
+            let msg = format!(
+                "overrides.json was corrupt and has been backed up to {}: {}",
+                boxed.backup_path.display(),
+                boxed.error
+            );
+            tracing::warn!(%msg);
+            app_state.load_warning = Some(match app_state.load_warning.take() {
+                Some(prev) => format!("{prev} {msg}"),
+                None => msg,
+            });
+        }
+    }
+
     let shared_state = Arc::new(RwLock::new(app_state));
     let (save_tx, save_rx) = crossbeam_channel::unbounded::<gui::SaveTick>();
     let _save_handle = save_loop::spawn(shared_state.clone(), paths.clone(), save_rx);
