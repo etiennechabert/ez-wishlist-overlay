@@ -137,7 +137,7 @@ fn run(
             }
             Err(e) => {
                 let msg = format!("{e:#}");
-                tracing::debug!(error = %msg, "VR init failed (SteamVR likely not running)");
+                tracing::warn!(error = %msg, "VR init failed");
                 *status.write() = VrStatus::Disconnected;
             }
         }

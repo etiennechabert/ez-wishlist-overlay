@@ -250,36 +250,43 @@ impl OverlaySession {
 
 /// Set `VROverlayInputMethod_Mouse` and turn on
 /// `VROverlayFlags_MakeOverlaysInteractiveIfVisible` on the given handle —
-/// the two missing pieces that make SteamVR route controller-laser
-/// intersections to our overlay as mouse events.
+/// the two pieces that make SteamVR route controller-laser intersections
+/// to our overlay as mouse events.
+///
+/// ## Why we re-acquire the fn-table
+///
+/// The `openvr` 0.9.0 safe wrapper queries `VR_GetGenericInterface` with
+/// the bare interface version `"IVROverlay_028"`. That actually returns a
+/// **C++ COM object pointer**, not a fn-table — its private member layout
+/// happens to overlap with valid function pointers for a handful of
+/// methods (ShowOverlay, SetOverlayWidthInMeters, SetOverlayAlpha, etc.),
+/// which is why the safe wrapper appears to work. For the methods we need
+/// here that overlap simply isn't there — `SetOverlayFlag`'s would-be
+/// position reads as null garbage.
+///
+/// The fix is to ask for the C fn-table directly via the `"FnTable:"`
+/// prefix, which is what the C API was designed around. We then call
+/// through that fn-table at the offsets `openvr_sys` 2.1.4's bindgen
+/// expects — both match this way.
 ///
 /// # Safety
-/// Must be called after a successful `VR_Init`. Re-acquires the IVROverlay
-/// function-table pointer via `VR_GetGenericInterface`; the resulting
-/// pointer is valid for the lifetime of the current OpenVR session, which
-/// the caller (`OverlaySession`) owns.
+/// Must be called after a successful `VR_Init`. The fn-table pointer is
+/// valid for the lifetime of the current OpenVR session, which the
+/// caller (`OverlaySession`) owns.
 unsafe fn enable_overlay_interaction(handle: openvr::overlay::OverlayHandle) -> Result<()> {
     use openvr_sys as sys;
 
     let mut init_err: sys::EVRInitError = sys::EVRInitError_VRInitError_None;
-    let table_ptr =
-        sys::VR_GetGenericInterface(sys::IVROverlay_Version.as_ptr().cast(), &mut init_err)
-            as *const sys::VR_IVROverlay_FnTable;
+    let version = c"FnTable:IVROverlay_028".as_ptr();
+    let table_ptr = sys::VR_GetGenericInterface(version.cast(), &mut init_err)
+        as *const sys::VR_IVROverlay_FnTable;
     if init_err != sys::EVRInitError_VRInitError_None || table_ptr.is_null() {
         anyhow::bail!(
-            "VR_GetGenericInterface(IVROverlay_Version) failed: err={init_err}, ptr={table_ptr:?}"
+            "VR_GetGenericInterface(FnTable:IVROverlay_028) failed: err={init_err}, ptr={table_ptr:?}"
         );
     }
     let table = &*table_ptr;
     let h: sys::VROverlayHandle_t = handle.0;
-
-    let set_input = table
-        .SetOverlayInputMethod
-        .context("IVROverlay::SetOverlayInputMethod missing from fn table")?;
-    let e = set_input(h, sys::VROverlayInputMethod_Mouse);
-    if e != sys::EVROverlayError_VROverlayError_None {
-        anyhow::bail!("SetOverlayInputMethod(Mouse) returned EVROverlayError={e}");
-    }
 
     let set_flag = table
         .SetOverlayFlag
@@ -294,7 +301,16 @@ unsafe fn enable_overlay_interaction(handle: openvr::overlay::OverlayHandle) -> 
             "SetOverlayFlag(MakeOverlaysInteractiveIfVisible) returned EVROverlayError={e}"
         );
     }
+    tracing::info!("overlay flag set (MakeOverlaysInteractiveIfVisible)");
 
-    tracing::info!("overlay marked interactive (Mouse input, visible-interactive flag)");
+    let set_input = table
+        .SetOverlayInputMethod
+        .context("IVROverlay::SetOverlayInputMethod missing from fn table")?;
+    let e = set_input(h, sys::VROverlayInputMethod_Mouse);
+    if e != sys::EVROverlayError_VROverlayError_None {
+        anyhow::bail!("SetOverlayInputMethod(Mouse) returned EVROverlayError={e}");
+    }
+    tracing::info!("overlay input method set (Mouse)");
+
     Ok(())
 }
