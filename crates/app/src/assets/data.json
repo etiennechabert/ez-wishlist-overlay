@@ -438,22 +438,23 @@
           "name": "Intel Center",
           "level": 1,
           "description": "Show item prices with M.I.C.A.",
+          "cost": 100000,
           "requirements": [
-            {
-              "item_id": "misc_b_dataline",
-              "quantity": 2
-            },
-            {
-              "item_id": "misc_b_oldphone",
-              "quantity": 1
-            },
             {
               "item_id": "misc_b_opticaldisc",
               "quantity": 2
             },
             {
-              "item_id": "misc_mouse",
+              "item_id": "misc_b_1battery",
               "quantity": 2
+            },
+            {
+              "item_id": "misc_1batterie_2",
+              "quantity": 2
+            },
+            {
+              "item_id": "misc_b_oldphone",
+              "quantity": 1
             }
           ]
         },
@@ -1425,6 +1426,37 @@
             },
             {
               "item_id": "misc_videotape",
+              "quantity": 2
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "TerminalStorage",
+      "name": "Starter's Storage Expansion",
+      "upgrades": [
+        {
+          "id": "TerminalStorageLv1",
+          "name": "Starter's Storage Expansion",
+          "level": 1,
+          "description": "Expand storage capacity in the Terminal area.",
+          "cost": 80000,
+          "requirements": [
+            {
+              "item_id": "misc_b_screw",
+              "quantity": 2
+            },
+            {
+              "item_id": "misc_b_nut",
+              "quantity": 2
+            },
+            {
+              "item_id": "misc_barcleaner",
+              "quantity": 1
+            },
+            {
+              "item_id": "misc_b_wrench",
               "quantity": 2
             }
           ]
