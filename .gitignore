@@ -18,5 +18,16 @@ state.json
 # Scraper temp dir
 .scraper-cache/
 
+# OCR experiment scratch crops & debug dumps (kept local)
+ocr_data/zoomed/
+ocr_data/crops_debug/
+ocr_data/digits/
+ocr_data/digits_debug/
+ocr_data/grids/
+ocr_data/ocr_debug/
+ocr_data/prepped/
+ocr_data/templates_debug/
+ocr_data/predictions.json
+
 # Per-clone Claude Code agent state (scheduled tasks, local settings)
 .claude/

@@ -1,0 +1,379 @@
+{
+  "schema_version": 1,
+  "notes": "Ground-truth labels for OCR dataset. X/Y values confirmed by user. Two capture sessions (09:13 and 10:06) of the same player state.",
+  "images": {
+    "20260526091314_1.jpg": {
+      "title": "Gunsmith",
+      "level": "LV1",
+      "description": "Weapon parts storage capacity +10kg",
+      "cost": 80000,
+      "items": [
+        { "name": "Valve",            "collected": 2, "needed": 2 },
+        { "name": "Boxed Nails",      "collected": 2, "needed": 8 },
+        { "name": "Ceramic adhesive", "collected": 1, "needed": 8 },
+        { "name": "Floppydisk",       "collected": 0, "needed": 2 }
+      ]
+    },
+    "20260526091333_1.jpg": {
+      "title": "Quality",
+      "level": "LV0",
+      "description": "Procurement Quality / Higher quality",
+      "cost": 120000,
+      "items": [
+        { "name": "Recorder",   "collected": 2, "needed": 2 },
+        { "name": "Power Bank", "collected": 0, "needed": 2 },
+        { "name": "RAM",        "collected": 1, "needed": 2 },
+        { "name": "Tape",       "collected": 0, "needed": 8 }
+      ]
+    },
+    "20260526091339_1.jpg": {
+      "title": "Moreitem",
+      "level": "LV0",
+      "description": "Procurement System / More goods",
+      "cost": 120000,
+      "items": [
+        { "name": "Hammer",          "collected": 2, "needed": 2 },
+        { "name": "Recorder",        "collected": 2, "needed": 3 },
+        { "name": "Size D battery2", "collected": 4, "needed": 5 }
+      ]
+    },
+    "20260526091345_1.jpg": {
+      "title": "Quality",
+      "level": "LV0",
+      "description": "Procurement Quality / Higher quality",
+      "cost": 120000,
+      "items": [
+        { "name": "Recorder",   "collected": 2, "needed": 2 },
+        { "name": "Power Bank", "collected": 0, "needed": 2 },
+        { "name": "RAM",        "collected": 1, "needed": 2 },
+        { "name": "Tape",       "collected": 0, "needed": 8 }
+      ]
+    },
+    "20260526091355_1.jpg": {
+      "title": "Generator",
+      "level": "LV1",
+      "description": "Increase Fuel capacity, reduce power consumption. Support upgrades for more facilities.",
+      "cost": 100000,
+      "items": [
+        { "name": "Lighter fluid",   "collected": 0, "needed": 6 },
+        { "name": "Oil can",         "collected": 1, "needed": 8 },
+        { "name": "Insulating Tape", "collected": 0, "needed": 6 },
+        { "name": "Spark Plug",      "collected": 0, "needed": 1 }
+      ]
+    },
+    "20260526091408_1.jpg": {
+      "title": "Bitcoin Mine",
+      "level": "LV1",
+      "description": "Generate periodic income using GPUs.",
+      "cost": 200000,
+      "items": [
+        { "name": "CPU",        "collected": 0, "needed": 4 },
+        { "name": "CPU Fan",    "collected": 2, "needed": 6 },
+        { "name": "RAM",        "collected": 1, "needed": 4 },
+        { "name": "Floppydisk", "collected": 0, "needed": 4 }
+      ]
+    },
+    "20260526091416_1.jpg": {
+      "title": "Water Collector",
+      "level": "LV1",
+      "description": "Faster Hydration Regeneration in HQ",
+      "cost": 50000,
+      "items": [
+        { "name": "Valve",           "collected": 2, "needed": 5 },
+        { "name": "Insulating Tape", "collected": 0, "needed": 5 },
+        { "name": "Boxed Nails",     "collected": 2, "needed": 6 },
+        { "name": "Spray can",       "collected": 0, "needed": 2 }
+      ]
+    },
+    "20260526091423_1.jpg": {
+      "title": "Toilet",
+      "level": "LV0",
+      "description": "Increased EXP Gain",
+      "cost": 120000,
+      "items": [
+        { "name": "Toilet Paper",  "collected": 0, "needed": 2 },
+        { "name": "Hammer",        "collected": 2, "needed": 1 },
+        { "name": "Pesticide",     "collected": 1, "needed": 1 },
+        { "name": "Rust cleaner",  "collected": 2, "needed": 1 }
+      ]
+    },
+    "20260526091444_1.jpg": {
+      "title": "TV Set",
+      "level": "LV0",
+      "description": "Reduced Scav Mode Cooldown",
+      "cost": 50000,
+      "items": [
+        { "name": "Size D battery1", "collected": 1, "needed": 3 },
+        { "name": "Size D battery2", "collected": 4, "needed": 3 },
+        { "name": "Ion Battery",     "collected": 0, "needed": 3 },
+        { "name": "Civil Radio",     "collected": 3, "needed": 3 }
+      ]
+    },
+    "20260526091450_1.jpg": {
+      "title": "Bookdesk",
+      "level": "LV0",
+      "description": "Reduced Magazine Load Time",
+      "cost": 50000,
+      "items": [
+        { "name": "Flash light",        "collected": 2, "needed": 5 },
+        { "name": "Energy-saving lamp", "collected": 0, "needed": 5 },
+        { "name": "Socket",             "collected": 0, "needed": 3 },
+        { "name": "Civil Radio",        "collected": 3, "needed": 2 }
+      ]
+    },
+    "20260526091456_1.jpg": {
+      "title": "Sofa",
+      "level": "LV0",
+      "description": "Increased Carry Weight Capacity",
+      "cost": 50000,
+      "items": [
+        { "name": "Climbing rope", "collected": 0, "needed": 5 },
+        { "name": "Tire Sealant",  "collected": 1, "needed": 3 },
+        { "name": "Large Plier",   "collected": 4, "needed": 3 },
+        { "name": "Hammer",        "collected": 2, "needed": 5 }
+      ]
+    },
+    "20260526091506_1.jpg": {
+      "title": "Storage Room C",
+      "level": "LV0",
+      "description": "Access to storage room C",
+      "cost": 400000,
+      "items": [
+        { "name": "Gunpowder",        "collected": 0, "needed": 10 },
+        { "name": "Smokeless powder", "collected": 0, "needed": 10 },
+        { "name": "Piezometer",       "collected": 0, "needed": 8 },
+        { "name": "Imaging module",   "collected": 0, "needed": 6 }
+      ]
+    },
+    "20260526091511_1.jpg": {
+      "title": "Storage Room B",
+      "level": "LV0",
+      "description": "Access to storage room B",
+      "cost": 400000,
+      "items": [
+        { "name": "Large gas can",         "collected": 3, "needed": 6 },
+        { "name": "Wrench",                "collected": 1, "needed": 6 },
+        { "name": "Screwdriver",           "collected": 1, "needed": 6 },
+        { "name": "Small storage battery", "collected": 0, "needed": 6 }
+      ]
+    },
+    "20260526091515_1.jpg": {
+      "title": "Storage Room A",
+      "level": "LV0",
+      "description": "Access to storage room A",
+      "cost": 80000,
+      "items": [
+        { "name": "Boxed Nails",        "collected": 2, "needed": 3 },
+        { "name": "Boxed Bolts",        "collected": 2, "needed": 3 },
+        { "name": "Disinfectant wipes", "collected": 1, "needed": 3 },
+        { "name": "Large gas can",      "collected": 3, "needed": 3 }
+      ]
+    },
+    "20260526091528_1.jpg": {
+      "title": "Intel Center",
+      "level": "LV1",
+      "description": "Item Market Price Visible",
+      "description_next": "Increased EXP Gain",
+      "cost": 160000,
+      "items": [
+        { "name": "CD",       "collected": 1, "needed": 4 },
+        { "name": "Tape",     "collected": 0, "needed": 3 },
+        { "name": "Notebook", "collected": 1, "needed": 3 },
+        { "name": "Radio",    "collected": 0, "needed": 2 }
+      ]
+    },
+    "20260526100603_1.jpg": {
+      "title": "Bookdesk",
+      "level": "LV0",
+      "description": "Reduced Magazine Load Time",
+      "cost": 50000,
+      "items": [
+        { "name": "Flash light",        "collected": 2, "needed": 5 },
+        { "name": "Energy-saving lamp", "collected": 0, "needed": 5 },
+        { "name": "Socket",             "collected": 0, "needed": 3 },
+        { "name": "Civil Radio",        "collected": 3, "needed": 2 }
+      ]
+    },
+    "20260526100609_1.jpg": {
+      "title": "Sofa",
+      "level": "LV0",
+      "description": "Increased Carry Weight Capacity",
+      "cost": 50000,
+      "items": [
+        { "name": "Climbing rope", "collected": 0, "needed": 5 },
+        { "name": "Tire Sealant",  "collected": 1, "needed": 3 },
+        { "name": "Large Plier",   "collected": 4, "needed": 3 },
+        { "name": "Hammer",        "collected": 2, "needed": 5 }
+      ]
+    },
+    "20260526100614_1.jpg": {
+      "title": "TV Set",
+      "level": "LV0",
+      "description": "Reduced Scav Mode Cooldown",
+      "cost": 50000,
+      "items": [
+        { "name": "Size D battery1", "collected": 1, "needed": 3 },
+        { "name": "Size D battery2", "collected": 4, "needed": 3 },
+        { "name": "Ion Battery",     "collected": 0, "needed": 3 },
+        { "name": "Civil Radio",     "collected": 3, "needed": 3 }
+      ]
+    },
+    "20260526100622_1.jpg": {
+      "title": "Storage Room C",
+      "level": "LV0",
+      "description": "Access to storage room C",
+      "cost": 400000,
+      "items": [
+        { "name": "Gunpowder",        "collected": 0, "needed": 10 },
+        { "name": "Smokeless powder", "collected": 0, "needed": 10 },
+        { "name": "Piezometer",       "collected": 0, "needed": 8 },
+        { "name": "Imaging module",   "collected": 0, "needed": 6 }
+      ]
+    },
+    "20260526100628_1.jpg": {
+      "title": "Storage Room B",
+      "level": "LV0",
+      "description": "Access to storage room B",
+      "cost": 400000,
+      "items": [
+        { "name": "Large gas can",         "collected": 3, "needed": 6 },
+        { "name": "Wrench",                "collected": 1, "needed": 6 },
+        { "name": "Screwdriver",           "collected": 1, "needed": 6 },
+        { "name": "Small storage battery", "collected": 0, "needed": 6 }
+      ]
+    },
+    "20260526100633_1.jpg": {
+      "title": "Storage Room A",
+      "level": "LV0",
+      "description": "Access to storage room A",
+      "cost": 80000,
+      "items": [
+        { "name": "Boxed Nails",        "collected": 2, "needed": 3 },
+        { "name": "Boxed Bolts",        "collected": 2, "needed": 3 },
+        { "name": "Disinfectant wipes", "collected": 1, "needed": 3 },
+        { "name": "Large gas can",      "collected": 3, "needed": 3 }
+      ]
+    },
+    "20260526100641_1.jpg": {
+      "title": "Quality",
+      "level": "LV0",
+      "description": "Procurement Quality / Higher quality",
+      "cost": 120000,
+      "items": [
+        { "name": "Recorder",   "collected": 2, "needed": 2 },
+        { "name": "Power Bank", "collected": 0, "needed": 2 },
+        { "name": "RAM",        "collected": 1, "needed": 2 },
+        { "name": "Tape",       "collected": 0, "needed": 8 }
+      ]
+    },
+    "20260526100646_1.jpg": {
+      "title": "Storagevaluable",
+      "level": "LV0",
+      "description": "Storage / Expand Junk Box Capacity",
+      "cost": 488500,
+      "items": [
+        { "name": "wastechip",   "collected": 1, "needed": 2 },
+        { "name": "Flash light", "collected": 2, "needed": 2 },
+        { "name": "Ion Battery", "collected": 0, "needed": 2 },
+        { "name": "Tape player", "collected": 1, "needed": 1 }
+      ]
+    },
+    "20260526100651_1.jpg": {
+      "title": "Moreitem",
+      "level": "LV0",
+      "description": "Procurement System / More goods",
+      "cost": 120000,
+      "items": [
+        { "name": "Hammer",          "collected": 2, "needed": 2 },
+        { "name": "Recorder",        "collected": 2, "needed": 3 },
+        { "name": "Size D battery2", "collected": 4, "needed": 5 }
+      ]
+    },
+    "20260526100656_1.jpg": {
+      "title": "Bitcoin Mine",
+      "level": "LV1",
+      "description": "Generate periodic income using GPUs.",
+      "cost": 200000,
+      "items": [
+        { "name": "CPU",        "collected": 0, "needed": 4 },
+        { "name": "CPU Fan",    "collected": 2, "needed": 6 },
+        { "name": "RAM",        "collected": 1, "needed": 4 },
+        { "name": "Floppydisk", "collected": 0, "needed": 4 }
+      ]
+    },
+    "20260526100703_1.jpg": {
+      "title": "Generator",
+      "level": "LV1",
+      "description": "Increase Fuel capacity, reduce power consumption. Support upgrades for more facilities.",
+      "cost": 100000,
+      "items": [
+        { "name": "Lighter fluid",   "collected": 0, "needed": 6 },
+        { "name": "Oil can",         "collected": 1, "needed": 8 },
+        { "name": "Insulating Tape", "collected": 0, "needed": 6 },
+        { "name": "Spark Plug",      "collected": 0, "needed": 1 }
+      ]
+    },
+    "20260526100710_1.jpg": {
+      "title": "Intel Center",
+      "level": "LV1",
+      "description": "Item Market Price Visible",
+      "description_next": "Increased EXP Gain",
+      "cost": 160000,
+      "items": [
+        { "name": "CD",       "collected": 1, "needed": 4 },
+        { "name": "Tape",     "collected": 0, "needed": 3 },
+        { "name": "Notebook", "collected": 1, "needed": 3 },
+        { "name": "Radio",    "collected": 0, "needed": 2 }
+      ]
+    },
+    "20260526100715_1.jpg": {
+      "title": "Water Collector",
+      "level": "LV1",
+      "description": "Faster Hydration Regeneration in HQ",
+      "cost": 50000,
+      "items": [
+        { "name": "Valve",           "collected": 2, "needed": 5 },
+        { "name": "Insulating Tape", "collected": 0, "needed": 5 },
+        { "name": "Boxed Nails",     "collected": 2, "needed": 6 },
+        { "name": "Spray can",       "collected": 0, "needed": 2 }
+      ]
+    },
+    "20260526100726_1.jpg": {
+      "title": "Kitchen",
+      "level": "LV0",
+      "description": "Kitchen Area / Unlocks Coffee Machine, Microwave, Refrigerator / Increased Energy & Hydration Cap",
+      "cost": 70000,
+      "items": [
+        { "name": "Olive oil",   "collected": 0, "needed": 3 },
+        { "name": "Salt can",    "collected": 0, "needed": 2 },
+        { "name": "Gas can",     "collected": 1, "needed": 1 },
+        { "name": "Large Plier", "collected": 4, "needed": 1 }
+      ]
+    },
+    "20260526100736_1.jpg": {
+      "title": "Toilet",
+      "level": "LV0",
+      "description": "Increased EXP Gain",
+      "cost": 120000,
+      "items": [
+        { "name": "Toilet Paper",  "collected": 0, "needed": 2 },
+        { "name": "Hammer",        "collected": 2, "needed": 1 },
+        { "name": "Pesticide",     "collected": 1, "needed": 1 },
+        { "name": "Rust cleaner",  "collected": 2, "needed": 1 }
+      ]
+    },
+    "20260526100748_1.jpg": {
+      "title": "Intel Center",
+      "level": "LV1",
+      "description": "Item Market Price Visible",
+      "description_next": "Increased EXP Gain",
+      "cost": 160000,
+      "items": [
+        { "name": "CD",       "collected": 1, "needed": 4 },
+        { "name": "Tape",     "collected": 0, "needed": 3 },
+        { "name": "Notebook", "collected": 1, "needed": 3 },
+        { "name": "Radio",    "collected": 0, "needed": 2 }
+      ]
+    }
+  }
+}
