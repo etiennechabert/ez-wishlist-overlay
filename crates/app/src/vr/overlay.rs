@@ -111,15 +111,18 @@ pub enum Hand {
 impl OverlaySession {
     pub fn init(width_meters: f32) -> Result<Self> {
         // 1) Load the OpenXR loader DLL + check for our required extensions.
-        let entry = unsafe { xr::Entry::load() }
-            .context("loading openxr_loader.dll — is an OpenXR runtime installed?")?;
+        let entry = load_openxr_entry()
+            .context("could not load openxr_loader.dll from any known location")?;
         let available = entry
             .enumerate_extensions()
             .context("enumerate OpenXR extensions")?;
         if !available.extx_overlay {
+            let active = read_active_openxr_runtime().unwrap_or_else(|| "(unknown)".into());
             anyhow::bail!(
-                "OpenXR runtime does not advertise XR_EXTX_overlay — overlay mode unavailable. \
-                 SteamVR exposes it; some Quest runtimes do too."
+                "Active OpenXR runtime ({active}) does not advertise XR_EXTX_overlay, so we \
+                 can't run as an overlay app. Fix: launch SteamVR, open Settings → Developer \
+                 (enable Advanced if needed), click \"Set SteamVR as OpenXR Runtime\", then \
+                 relaunch this app."
             );
         }
         if !available.khr_d3d11_enable {
@@ -539,6 +542,73 @@ impl OverlaySession {
             .context("xrApplyHapticFeedback")?;
         Ok(())
     }
+}
+
+/// Read the JSON manifest path the OpenXR loader uses to pick the active
+/// runtime. Returns a short human-readable name (filename basename) for
+/// surfacing in error messages. Best-effort — silently returns `None` if
+/// the registry key is missing or unreadable.
+fn read_active_openxr_runtime() -> Option<String> {
+    use std::process::Command;
+    let out = Command::new("reg")
+        .args([
+            "query",
+            r"HKLM\SOFTWARE\Khronos\OpenXR\1",
+            "/v",
+            "ActiveRuntime",
+        ])
+        .output()
+        .ok()?;
+    let text = String::from_utf8_lossy(&out.stdout);
+    let line = text.lines().find(|l| l.contains("ActiveRuntime"))?;
+    let path = line.split_whitespace().last()?;
+    let basename = std::path::Path::new(path)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or(path);
+    Some(basename.to_string())
+}
+
+// ---------------------------------------------------------------------------
+// OpenXR loader discovery
+// ---------------------------------------------------------------------------
+
+/// `openxr_loader.dll` is the small bootstrap DLL that finds whichever
+/// OpenXR runtime is set as active in the registry. Khronos publishes a
+/// redistributable version; SteamVR also ships its own copy. We try the
+/// default loader path first (PATH + exe dir), then fall back to
+/// well-known install locations so users don't have to manually copy the
+/// DLL.
+fn load_openxr_entry() -> Result<xr::Entry> {
+    // Default search: PATH + exe directory.
+    if let Ok(entry) = unsafe { xr::Entry::load() } {
+        return Ok(entry);
+    }
+    let candidates = [
+        // Khronos's redistributable install path.
+        r"C:\Program Files\Common Files\Khronos\OpenXR\1\x86_64\openxr_loader.dll",
+        // SteamVR ships a loader as part of its install.
+        r"C:\Program Files (x86)\Steam\steamapps\common\SteamVR\bin\win64\openxr_loader.dll",
+    ];
+    for path in candidates {
+        let p = std::path::Path::new(path);
+        if !p.exists() {
+            continue;
+        }
+        match unsafe { xr::Entry::load_from(p) } {
+            Ok(entry) => {
+                tracing::info!(loader = path, "loaded OpenXR loader from fallback location");
+                return Ok(entry);
+            }
+            Err(e) => {
+                tracing::warn!(loader = path, error = ?e, "loader present but failed to load");
+            }
+        }
+    }
+    anyhow::bail!(
+        "openxr_loader.dll not found. Install the Khronos OpenXR redistributable, or \
+         ensure SteamVR is installed at its default location."
+    )
 }
 
 // ---------------------------------------------------------------------------

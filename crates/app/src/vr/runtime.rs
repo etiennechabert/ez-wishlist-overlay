@@ -125,7 +125,7 @@ fn run(
             }
             Err(e) => {
                 let msg = format!("{e:#}");
-                tracing::debug!(error = %msg, "VR init failed (no runtime / no scene app / no overlay ext)");
+                tracing::warn!(error = %msg, "VR init failed (no runtime / no scene app / no overlay ext)");
                 *status.write() = VrStatus::Disconnected;
             }
         }
