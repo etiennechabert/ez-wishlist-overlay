@@ -367,11 +367,6 @@ fn handle_overlay_events(
                 );
             }
             Event::ButtonPress(c) if c.button == TRIGGER_BUTTON_ID => {
-                // Legacy ButtonPress fallback — modern SteamVR routes trigger
-                // pulls through the action system (poll_trigger_actions), which
-                // is where we split left/right by hand. Default this path to
-                // Increment so users on the legacy stack still get a counter
-                // bump on trigger.
                 dispatch_trigger_press(
                     session,
                     state,
@@ -381,7 +376,6 @@ fn handle_overlay_events(
                     last_canvas,
                     debouncer,
                     frame_start,
-                    super::input::ClickAction::Increment,
                 );
             }
             _ => {}
@@ -405,12 +399,8 @@ fn poll_trigger_actions(
     debouncer: &mut super::input::Debouncer,
     frame_start: std::time::Instant,
 ) {
-    use super::input::ClickAction;
     let (left, right) = session.poll_trigger_actions();
-    for (label, device, action) in [
-        ("left", left, ClickAction::Decrement),
-        ("right", right, ClickAction::Increment),
-    ] {
+    for (label, device) in [("left", left), ("right", right)] {
         let Some(device) = device else { continue };
         tracing::info!(hand = label, device = device.0, "trigger action fired");
         dispatch_trigger_press(
@@ -422,7 +412,6 @@ fn poll_trigger_actions(
             last_canvas,
             debouncer,
             frame_start,
-            action,
         );
     }
 }
@@ -438,11 +427,9 @@ fn dispatch_trigger_press(
     last_canvas: (u32, u32),
     debouncer: &mut super::input::Debouncer,
     frame_start: std::time::Instant,
-    action: super::input::ClickAction,
 ) {
     use super::input::{
-        handle_click, texcoord_to_pixel, ClickOutcome, HAPTIC_DECREMENT_US, HAPTIC_INCREMENT_US,
-        HAPTIC_RESET_US,
+        handle_click, texcoord_to_pixel, ClickOutcome, HAPTIC_INCREMENT_US, HAPTIC_RESET_US,
     };
 
     if !visible_now {
@@ -460,7 +447,7 @@ fn dispatch_trigger_press(
     };
     let (px, py) = texcoord_to_pixel(u, v, cw, ch);
     tracing::info!(u, v, px, py, "trigger-ray hit overlay");
-    match handle_click(state, last_hits, px, py, debouncer, frame_start, action) {
+    match handle_click(state, last_hits, px, py, debouncer, frame_start) {
         ClickOutcome::Incremented { item_id, new_value } => {
             session.haptic_pulse(device_index, HAPTIC_INCREMENT_US);
             tracing::info!(%item_id, new_value, "trigger-ray click: +1");
@@ -468,10 +455,6 @@ fn dispatch_trigger_press(
         ClickOutcome::Reset { item_id } => {
             session.haptic_pulse(device_index, HAPTIC_RESET_US);
             tracing::info!(%item_id, "trigger-ray click: cycle reset to 0");
-        }
-        ClickOutcome::Decremented { item_id, new_value } => {
-            session.haptic_pulse(device_index, HAPTIC_DECREMENT_US);
-            tracing::info!(%item_id, new_value, "trigger-ray click: -1");
         }
         ClickOutcome::Ignored => {
             tracing::info!("trigger-ray click: ignored (no hit / debounced)");
@@ -493,25 +476,15 @@ fn dispatch_mouse_down(
     frame_start: std::time::Instant,
 ) {
     use super::input::{
-        handle_click, texcoord_to_pixel, ClickAction, ClickOutcome, HAPTIC_DECREMENT_US,
-        HAPTIC_INCREMENT_US, HAPTIC_RESET_US,
+        handle_click, texcoord_to_pixel, ClickOutcome, HAPTIC_INCREMENT_US, HAPTIC_RESET_US,
     };
 
     /// EVRMouseButton::Left in the OpenVR mouse-event button bitfield.
     const MOUSE_BUTTON_LEFT: u32 = 1;
-    /// EVRMouseButton::Right.
-    const MOUSE_BUTTON_RIGHT: u32 = 2;
 
-    if !visible_now {
+    if mouse.button & MOUSE_BUTTON_LEFT == 0 || !visible_now {
         return;
     }
-    let action = if mouse.button & MOUSE_BUTTON_RIGHT != 0 {
-        ClickAction::Increment
-    } else if mouse.button & MOUSE_BUTTON_LEFT != 0 {
-        ClickAction::Decrement
-    } else {
-        return; // some other button (middle, etc.) — ignore.
-    };
     let (cw, ch) = last_canvas;
     if cw == 0 || ch == 0 {
         return; // first frame after spawn — nothing rendered yet
@@ -525,10 +498,9 @@ fn dispatch_mouse_down(
         canvas_w = cw,
         canvas_h = ch,
         hits = last_hits.len(),
-        ?action,
         "overlay mouse-down received"
     );
-    match handle_click(state, last_hits, px, py, debouncer, frame_start, action) {
+    match handle_click(state, last_hits, px, py, debouncer, frame_start) {
         ClickOutcome::Incremented { item_id, new_value } => {
             session.haptic_pulse(device_index, HAPTIC_INCREMENT_US);
             tracing::info!(%item_id, new_value, "overlay click: +1");
@@ -536,10 +508,6 @@ fn dispatch_mouse_down(
         ClickOutcome::Reset { item_id } => {
             session.haptic_pulse(device_index, HAPTIC_RESET_US);
             tracing::info!(%item_id, "overlay click: cycle reset to 0");
-        }
-        ClickOutcome::Decremented { item_id, new_value } => {
-            session.haptic_pulse(device_index, HAPTIC_DECREMENT_US);
-            tracing::info!(%item_id, new_value, "overlay click: -1");
         }
         ClickOutcome::Ignored => {
             tracing::info!("overlay click: ignored (no hit / debounced)");
