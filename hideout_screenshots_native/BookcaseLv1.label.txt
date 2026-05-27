@@ -1,0 +1,5 @@
+# BookcaseLv1 — ground truth (owned / needed)
+misc_b_flashlight  1/5
+misc_b_lightbulb   1/5
+misc_b_socket      2/3
+misc_b_civilradio  1/2

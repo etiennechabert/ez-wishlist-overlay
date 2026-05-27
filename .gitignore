@@ -27,12 +27,12 @@ dev.log
 vr-fntable.txt
 ocr_data/
 
-# Native VR captures used for digit-template extraction and future OCR
-# regression. Each PNG is ~10 MB lossless; we keep them locally as
-# ground-truth references but don't commit by default. To commit a
-# specific fixture (e.g. for the integration test), `git add -f
-# hideout_screenshots_native/<UpgradeId>.png`.
-hideout_screenshots_native/*.png
+# Native VR captures are now the OCR pipeline's ground-truth test set
+# (paired with `<UpgradeId>.label.txt` files). Committed despite their
+# size (~10 MB lossless per PNG, ~150 MB total) because the
+# fixture-test + regression diagnostics depend on them. New
+# screenshots from `<data_dir>/vr_screenshots/` should NOT be added
+# here unless they're meant as fixtures.
 
 # OCR debug dumps generated next to captured screenshots in debug builds.
 # Filenames are `<stem>.ocr-debug.<HHMMSS>.txt` (HHMMSS = when the dump

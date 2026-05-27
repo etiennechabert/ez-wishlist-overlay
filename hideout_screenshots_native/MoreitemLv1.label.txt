@@ -1,0 +1,5 @@
+# MoreitemLv1 — ground truth (owned / needed)
+# Procurement System has only 3 requirements, not 4.
+misc_hammer      3/2
+misc_b_recorder  2/3
+misc_b_1battery  4/5

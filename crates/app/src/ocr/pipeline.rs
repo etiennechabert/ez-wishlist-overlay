@@ -260,6 +260,70 @@ mod fixture_tests {
     /// `data.json` (verified by grep), so this pass cannot produce
     /// `7.png` / `9.png`. Capture a panel where you've collected 7 or 9
     /// of an item and follow up with manual extraction.
+    /// Dump a 2×-upscaled crop of the whole digit-row band for every
+    /// native fixture, anchored on FROM-RAID position. Output PNGs
+    /// land in `target/ocr_cells_wide/<UpgradeId>.png` and stay
+    /// legible at preview scale — usable for hand-labelling the
+    /// ground-truth X values across all 15 fixtures.
+    #[test]
+    #[ignore = "diagnostic — run with --ignored"]
+    fn dump_wide_count_rows() {
+        use crate::ocr::{anchor, engine};
+        use image::GenericImageView;
+
+        let in_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../hideout_screenshots_native");
+        let out_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../target/ocr_cells_wide");
+        std::fs::create_dir_all(&out_dir).expect("create out dir");
+
+        let mut entries: Vec<_> = std::fs::read_dir(&in_dir)
+            .unwrap_or_else(|e| panic!("read_dir {}: {e}", in_dir.display()))
+            .filter_map(|e| e.ok())
+            .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("png"))
+            .collect();
+        entries.sort_by_key(|e| e.file_name());
+
+        for entry in &entries {
+            let path = entry.path();
+            let stem = path.file_stem().unwrap().to_string_lossy().into_owned();
+            let img = match image::open(&path) {
+                Ok(i) => i,
+                Err(_) => continue,
+            };
+            let (img_w, img_h) = img.dimensions();
+            let words = match engine::recognize_image(&img) {
+                Ok(w) => w,
+                Err(_) => continue,
+            };
+            let layout = match anchor::detect_panel(&words, img_w, img_h) {
+                Some(l) => l,
+                None => continue,
+            };
+            let a = layout.anchor;
+            // Anchor-relative band. Digit row + FROM RAID + a bit of
+            // margin top/bottom for variation across head tilts.
+            let top = a.y + a.h * 2;
+            let bot = (a.y + a.h * 9).min(img_h);
+            let panel_w_est = a.w * 10 / 3;
+            let cx = a.x + a.w / 2;
+            let left = cx.saturating_sub(panel_w_est / 2).min(img_w);
+            let right = (cx + panel_w_est / 2).min(img_w);
+            let cw = right - left;
+            let ch = bot.saturating_sub(top);
+            let crop = img.crop_imm(left, top, cw, ch);
+            let up = image::imageops::resize(
+                &crop.to_rgba8(),
+                cw * 2,
+                ch * 2,
+                image::imageops::FilterType::Nearest,
+            );
+            let out = out_dir.join(format!("{stem}.png"));
+            up.save(&out).expect("save wide crop");
+            eprintln!("saved {}", out.display());
+        }
+    }
+
     /// One-shot regen for the "0" digit template. The bootstrap
     /// extractor in `extract_digit_templates_from_native_pngs` pulls
     /// "0" from `/10` cells, but those only exist in StorageZoneLock3
