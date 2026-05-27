@@ -24,7 +24,11 @@ use crate::ocr::OcrOutcome;
 use crate::state::{AppState, OcrProgression};
 use std::time::Duration;
 
-/// How long terminal overlay states stay before fading in release builds.
+/// How long terminal overlay states stay before fading in release
+/// builds. Read by `vr::runtime::drive_ocr_overlay`
+/// (`#[cfg(target_os = "windows")]`); marked dead-code-allowed so the
+/// Linux build doesn't fail at clippy/-D warnings.
+#[allow(dead_code)]
 pub const AUTO_DISMISS: Duration = Duration::from_secs(3);
 
 #[derive(Clone, Debug)]
