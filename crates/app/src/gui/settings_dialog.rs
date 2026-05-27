@@ -92,7 +92,10 @@ fn ocr_section(ui: &mut egui::Ui, ocr_enabled: &mut bool) {
             "When you press the screenshot hotkey on the Facility Upgrade \
              panel, the saved image is OCR'd and the owned counts for that \
              upgrade's required items are written to your wishlist. \
-             Disable to keep the screenshot trigger but skip the OCR pass.",
+             Disable to keep the screenshot trigger but skip the OCR pass. \
+             Defaults to OFF until per-digit OCR templates ship — without \
+             those, recognition reads every count as 0 and would silently \
+             zero out your tracked progress on every capture.",
         );
 }
 
