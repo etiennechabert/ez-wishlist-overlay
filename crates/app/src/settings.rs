@@ -8,7 +8,7 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
-const SCHEMA_VERSION: u32 = 1;
+const SCHEMA_VERSION: u32 = 2;
 
 /// Bounds on each tunable (UI clamps the slider; loader clamps the file).
 pub mod bounds {
@@ -42,11 +42,11 @@ pub struct Settings {
     pub dismissed_update_version: Option<String>,
     /// When true, the OCR worker auto-extracts owned counts from every
     /// VR mirror-texture screenshot and overwrites `AppState.collected`
-    /// for the matched upgrade. Defaults to false until per-digit
-    /// templates ship under `crates/app/src/assets/ocr_templates/` —
-    /// without templates, recognition reads every count as 0 and would
-    /// silently zero out the user's tracked progress on every capture.
-    /// Flip on after the templates are populated.
+    /// for the matched upgrade. Defaults to ON now that the per-digit
+    /// templates ship under `crates/app/src/assets/ocr_templates/` and
+    /// the pipeline has been validated against
+    /// `hideout_screenshots_native/` (15/15 upgrades identified, owned
+    /// counts read correctly across the committed digit templates).
     #[serde(default = "default_ocr_enabled")]
     pub ocr_enabled: bool,
 }
@@ -56,7 +56,7 @@ fn default_check_for_updates() -> bool {
 }
 
 fn default_ocr_enabled() -> bool {
-    false
+    true
 }
 
 impl Default for Settings {
@@ -156,6 +156,7 @@ pub fn load(path: &Path) -> Settings {
     };
     match serde_json::from_str::<Settings>(&raw) {
         Ok(mut s) => {
+            migrate(&mut s);
             s.vr.sanitize();
             s
         }
@@ -164,6 +165,29 @@ pub fn load(path: &Path) -> Settings {
             let _ = backup_corrupt(path);
             Settings::default()
         }
+    }
+}
+
+/// Forward-migrate a settings struct loaded from a previous schema
+/// version. Runs once per load; we don't gate behind a fresh
+/// `SCHEMA_VERSION` check after each step because the migration is
+/// idempotent (each branch's predicate is "is this still on the
+/// older default I want to flip?").
+///
+/// v1 → v2: flip `ocr_enabled` from the old default-false (kept while
+/// per-digit templates were still being calibrated) to true, so the
+/// in-headset feedback overlay surfaces on every capture without the
+/// user having to dig into Settings.
+fn migrate(s: &mut Settings) {
+    if s.schema_version < 2 {
+        if !s.ocr_enabled {
+            tracing::info!(
+                "settings migration v1→v2: enabling OCR (default flipped on now \
+                 that digit templates ship and the pipeline is validated)",
+            );
+            s.ocr_enabled = true;
+        }
+        s.schema_version = 2;
     }
 }
 
@@ -245,6 +269,36 @@ mod tests {
         };
         vr.sanitize();
         assert_eq!(vr.grid_cols, *bounds::GRID_COLS.start());
+    }
+
+    #[test]
+    fn migration_v1_to_v2_flips_ocr_enabled_on() {
+        // Simulate the saved settings the previous build wrote:
+        // schema_version 1 with ocr_enabled deliberately false (kept
+        // off while templates were being calibrated).
+        let mut s = Settings {
+            schema_version: 1,
+            ocr_enabled: false,
+            ..Settings::default()
+        };
+        migrate(&mut s);
+        assert_eq!(s.schema_version, 2);
+        assert!(s.ocr_enabled, "OCR must auto-enable on v1 → v2 migration");
+    }
+
+    #[test]
+    fn migration_leaves_v2_settings_alone() {
+        // A user who already chose to turn OCR off on schema v2 must
+        // keep that choice — the migration only runs when bumping out
+        // of v1.
+        let mut s = Settings {
+            schema_version: 2,
+            ocr_enabled: false,
+            ..Settings::default()
+        };
+        migrate(&mut s);
+        assert!(!s.ocr_enabled);
+        assert_eq!(s.schema_version, 2);
     }
 
     #[test]

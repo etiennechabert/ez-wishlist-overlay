@@ -90,12 +90,12 @@ fn ocr_section(ui: &mut egui::Ui, ocr_enabled: &mut bool) {
     ui.checkbox(ocr_enabled, "Auto-extract counts from VR screenshots")
         .on_hover_text(
             "When you press the screenshot hotkey on the Facility Upgrade \
-             panel, the saved image is OCR'd and the owned counts for that \
-             upgrade's required items are written to your wishlist. \
-             Disable to keep the screenshot trigger but skip the OCR pass. \
-             Defaults to OFF until per-digit OCR templates ship — without \
-             those, recognition reads every count as 0 and would silently \
-             zero out your tracked progress on every capture.",
+             panel, the captured image is OCR'd: the matched upgrade gets \
+             auto-tracked, every lower-level upgrade in the same module is \
+             auto-completed, and the owned counts for that upgrade's \
+             required items are written to your wishlist. A head-locked \
+             feedback card pops up in the headset showing every change. \
+             Disable to keep the screenshot trigger but skip the OCR pass.",
         );
 }
 
