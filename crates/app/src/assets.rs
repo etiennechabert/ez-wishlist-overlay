@@ -15,7 +15,10 @@ pub struct Assets;
 /// the VR runtime to drop them into a temp dir on startup and feed the
 /// manifest path to `IVRInput::SetActionManifestPath`. Manifest first,
 /// bindings after — order matters because the manifest references the
-/// bindings by relative path.
+/// bindings by relative path. Gated to Windows: the only consumer
+/// (`vr::overlay::init_action_input`) is Windows-only too, so on Linux
+/// it would be dead code under `-D warnings`.
+#[cfg(target_os = "windows")]
 pub const VR_ACTION_FILES: &[&str] = &[
     "vr_actions.json",
     "vr_bindings_oculus_touch.json",
@@ -42,6 +45,7 @@ pub fn read_icon(icon_path: &str) -> Option<std::borrow::Cow<'static, [u8]>> {
 /// `IVRInput::SetActionManifestPath` wants. The binding files are
 /// referenced from the manifest by relative path and need to live next to
 /// it on disk.
+#[cfg(target_os = "windows")]
 pub fn extract_vr_actions(dir: &std::path::Path) -> Result<std::path::PathBuf> {
     std::fs::create_dir_all(dir).context("create VR actions dir")?;
     let mut manifest_path = None;
