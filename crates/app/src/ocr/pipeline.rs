@@ -99,7 +99,7 @@ pub fn process_screenshot(path: &Path, data: &GameData) -> Result<Option<OcrOutc
                 "OCR pipeline: FROM RAID cell count mismatched requirements — falling back to positional",
             );
         }
-        anchor::positional_cells(&layout, upgrade.requirements.len())
+        anchor::positional_cells(&layout, &full_words, upgrade.requirements.len())
     };
 
     // Binarize the full image once; cell strips are cropped from it.
@@ -162,6 +162,234 @@ mod fixture_tests {
     /// design plan: ≥ 18/20). Owned-count digits are not asserted; the
     /// JPGs are the regression-detection floor for identification + cell
     /// ordering, not for digit accuracy.
+    /// One-shot bootstrap: walk every PNG in `hideout_screenshots_native/`,
+    /// identify the upgrade, crop each cell's owned/needed count strip,
+    /// connected-component it, and save labeled PNG templates under
+    /// `crates/app/src/assets/ocr_templates/`.
+    ///
+    /// Auto-labeling strategy: we know the upgrade-Id from the filename
+    /// (e.g. `BookcaseLv1.png` → `BookcaseLv1`), so we know each cell's
+    /// `requirements[i].quantity` (the Y in "X/Y"). The right-most
+    /// `len(str(Y))` connected components are the Y digits (known
+    /// labels), the component immediately to their left is the slash,
+    /// and everything to the left is the X (owned) digit(s) which we
+    /// don't know automatically and therefore skip in this pass.
+    ///
+    /// First-encounter wins: once `crates/app/src/assets/ocr_templates/
+    /// <digit>.png` exists, subsequent encounters for the same digit
+    /// are skipped. Re-run after deleting a template if a specific
+    /// instance is bad.
+    ///
+    /// Digits 7 and 9 do not appear in any `requirements.quantity` in
+    /// `data.json` (verified by grep), so this pass cannot produce
+    /// `7.png` / `9.png`. Capture a panel where you've collected 7 or 9
+    /// of an item and follow up with manual extraction.
+    #[test]
+    #[ignore = "bootstrap — run with --ignored after populating hideout_screenshots_native/"]
+    fn extract_digit_templates_from_native_pngs() {
+        use crate::ocr::{anchor, engine, prep, templates};
+        use image::GenericImageView;
+
+        let data = load_data();
+        let in_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../hideout_screenshots_native");
+        let out_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("src/assets/ocr_templates");
+        std::fs::create_dir_all(&out_dir).expect("create output dir");
+
+        let mut entries: Vec<_> = std::fs::read_dir(&in_dir)
+            .unwrap_or_else(|e| panic!("read_dir {}: {e}", in_dir.display()))
+            .filter_map(|e| e.ok())
+            .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("png"))
+            .collect();
+        entries.sort_by_key(|e| e.file_name());
+        assert!(!entries.is_empty(), "no PNGs in {}", in_dir.display());
+
+        let mut saved: std::collections::BTreeMap<char, String> =
+            std::collections::BTreeMap::new();
+
+        for entry in &entries {
+            let path = entry.path();
+            let stem = path.file_stem().unwrap().to_string_lossy().into_owned();
+
+            let img = match image::open(&path) {
+                Ok(i) => i,
+                Err(e) => {
+                    eprintln!("SKIP  {stem}: open failed: {e}");
+                    continue;
+                }
+            };
+            let (img_w, img_h) = img.dimensions();
+            let upgrade = match data
+                .modules
+                .iter()
+                .flat_map(|m| &m.upgrades)
+                .find(|u| u.id == stem)
+            {
+                Some(u) => u,
+                None => {
+                    eprintln!("SKIP  {stem}: filename doesn't match any Upgrade.id");
+                    continue;
+                }
+            };
+
+            let full = match engine::recognize_image(&img) {
+                Ok(w) => w,
+                Err(e) => {
+                    eprintln!("SKIP  {stem}: first-pass OCR failed: {e}");
+                    continue;
+                }
+            };
+            let layout = match anchor::detect_panel(&full, img_w, img_h) {
+                Some(l) => l,
+                None => {
+                    eprintln!("SKIP  {stem}: no panel detected");
+                    continue;
+                }
+            };
+            eprintln!(
+                "{stem}: anchor y={} h={}; FROM-RAID cells: {}",
+                layout.anchor.y,
+                layout.anchor.h,
+                layout.cells.len(),
+            );
+
+            let cells = if layout.cells.len() == upgrade.requirements.len() {
+                layout.cells.clone()
+            } else {
+                anchor::positional_cells(&layout, &full, upgrade.requirements.len())
+            };
+            if cells.len() != upgrade.requirements.len() {
+                eprintln!(
+                    "SKIP  {stem}: cell count {} != requirements {}",
+                    cells.len(),
+                    upgrade.requirements.len(),
+                );
+                continue;
+            }
+
+            let prepped = prep::keep_white_invert(&img);
+            for (cell_idx, (cell, req)) in cells.iter().zip(upgrade.requirements.iter()).enumerate()
+            {
+                let strip = prepped.crop_imm(cell.x, cell.y, cell.w, cell.h);
+                // Pad with 12 px of white border so any digit that
+                // would otherwise touch the strip edges ends up safely
+                // inside, where
+                // `find_components`' edge guard won't drop it.
+                let strip_w = strip.width();
+                let strip_h = strip.height();
+                const PAD: u32 = 12;
+                let mut gray = image::GrayImage::from_pixel(
+                    strip_w + PAD * 2,
+                    strip_h + PAD * 2,
+                    image::Luma([255]),
+                );
+                let strip_gray = strip.to_luma8();
+                for y in 0..strip_h {
+                    for x in 0..strip_w {
+                        gray.put_pixel(x + PAD, y + PAD, *strip_gray.get_pixel(x, y));
+                    }
+                }
+                let mut comps = templates::find_components(&gray);
+                let padded_h = gray.height();
+                // Drop tiny noise + edge-touching artifacts.
+                comps.retain(|c| {
+                    c.w >= 4
+                        && c.h >= 8
+                        && c.y > 0
+                        && c.y + c.h < padded_h
+                });
+                // The strip is wide (3 text-rows tall) so it can
+                // contain TWO horizontal rows of components: the
+                // digit row at top, and the FROM RAID label at
+                // bottom. Cluster by Y row and keep only the topmost
+                // cluster — that's the digits.
+                if !comps.is_empty() {
+                    let min_y = comps.iter().map(|c| c.y).min().unwrap();
+                    let max_h = comps.iter().map(|c| c.h).max().unwrap();
+                    // Tolerance: components within ±h of min_y belong
+                    // to the topmost row.
+                    let row_cutoff = min_y + max_h;
+                    comps.retain(|c| c.y <= row_cutoff);
+                }
+                comps.sort_by_key(|c| c.x);
+                if std::env::var_os("OCR_EXTRACT_DEBUG").is_some() {
+                    eprintln!(
+                        "  {stem} cell{cell_idx} (Y={}): {} components in top row: {:?}",
+                        req.quantity,
+                        comps.len(),
+                        comps
+                            .iter()
+                            .map(|c| (c.x, c.y, c.w, c.h))
+                            .collect::<Vec<_>>(),
+                    );
+                }
+
+                let y_str = req.quantity.to_string();
+                let y_n = y_str.len();
+                if comps.len() < y_n + 1 {
+                    eprintln!(
+                        "  {stem} cell {cell_idx}: only {} components (need ≥ {} for Y={} + slash)",
+                        comps.len(),
+                        y_n + 1,
+                        req.quantity,
+                    );
+                    continue;
+                }
+
+                // Last y_n components = Y digits (known labels).
+                let y_start = comps.len() - y_n;
+                for (digit_char, comp) in y_str.chars().zip(&comps[y_start..]) {
+                    save_template_if_missing(comp, digit_char, &out_dir, &mut saved, &stem, cell_idx);
+                }
+                // The one immediately left of the Y digits = slash.
+                let slash_comp = &comps[y_start - 1];
+                save_template_if_missing(slash_comp, '/', &out_dir, &mut saved, &stem, cell_idx);
+            }
+        }
+
+        eprintln!("\n=== template extraction summary ===");
+        for digit in "0123456789".chars().chain(std::iter::once('/')) {
+            match saved.get(&digit) {
+                Some(src) => eprintln!("  {digit}: ✓ from {src}"),
+                None => eprintln!("  {digit}: MISSING — need a panel with this digit"),
+            }
+        }
+    }
+
+    fn save_template_if_missing(
+        comp: &crate::ocr::templates::Component,
+        label: char,
+        out_dir: &std::path::Path,
+        saved: &mut std::collections::BTreeMap<char, String>,
+        source_stem: &str,
+        cell_idx: usize,
+    ) {
+        let filename = match label {
+            '/' => "slash.png".to_string(),
+            c => format!("{c}.png"),
+        };
+        let path = out_dir.join(&filename);
+        if path.exists() {
+            return;
+        }
+        let mut img = image::GrayImage::from_pixel(comp.w, comp.h, image::Luma([255]));
+        for y in 0..comp.h {
+            for x in 0..comp.w {
+                if comp.mask[(y * comp.w + x) as usize] {
+                    img.put_pixel(x, y, image::Luma([0]));
+                }
+            }
+        }
+        match img.save(&path) {
+            Ok(()) => {
+                saved.insert(label, format!("{source_stem} cell{cell_idx}"));
+                eprintln!("  saved {filename} ({}×{}) from {source_stem} cell{cell_idx}", comp.w, comp.h);
+            }
+            Err(e) => eprintln!("  FAILED to save {filename}: {e}"),
+        }
+    }
+
     /// Diagnostic: run the pipeline against one fixture and print the
     /// row-label OCR + match score regardless of outcome. Helps localise
     /// failures that show up only as `pipeline returned None`.
@@ -222,6 +450,32 @@ mod fixture_tests {
         match match_upgrade::resolve(&data, &row_text, current_level) {
             Some(id) => eprintln!("RESOLVED: {id}"),
             None => eprintln!("UNRESOLVED"),
+        }
+    }
+
+    /// Diagnostic: dump every OCR'd word for one native PNG, with
+    /// focus on the area below the anchor (where FROM RAID labels +
+    /// counts live).
+    #[test]
+    #[ignore = "diagnostic — run with --ignored"]
+    fn dump_native_png_words() {
+        use crate::ocr::{anchor, engine};
+        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../hideout_screenshots_native/CryptoMiningLv2.png");
+        let img = image::open(&path).expect("open BookcaseLv1.png");
+        let words = engine::recognize_image(&img).expect("OCR");
+        eprintln!("{} words total:", words.len());
+        let mut sorted: Vec<_> = words.iter().collect();
+        sorted.sort_by(|a, b| a.rect.y.partial_cmp(&b.rect.y).unwrap());
+        for w in &sorted {
+            eprintln!(
+                "  y={:>4.0} x={:>4.0} h={:>3.0}  {:?}",
+                w.rect.y, w.rect.x, w.rect.height, w.text,
+            );
+        }
+        // Anchor info for cross-reference
+        if let Some(layout) = anchor::detect_panel(&words, img.width(), img.height()) {
+            eprintln!("anchor y={} h={}", layout.anchor.y, layout.anchor.h);
         }
     }
 

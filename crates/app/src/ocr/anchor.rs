@@ -125,36 +125,84 @@ pub fn detect_panel(words: &[OcrWord], img_w: u32, img_h: u32) -> Option<PanelLa
 }
 
 /// Fallback when FROM RAID couldn't be located: lay out N equal-width
-/// cell strips across the panel, positioned just above the BACK/LEVEL UP
-/// button row. Used by [`pipeline::process_screenshot`] only after the
-/// upgrade has been identified (so `n` is the authoritative
-/// `requirements.len()` from `data.json`).
-pub fn positional_cells(layout: &PanelLayout, n: usize) -> Vec<BBox> {
+/// count-strip rects across the panel. The strip's Y is derived from
+/// the OCR'd item-name row (more robust than fixed anchor.h multipliers
+/// — anchor.h varies 30-50% across captures depending on head tilt /
+/// panel zoom, while the item name → count gap is always one text-row
+/// regardless of capture scale).
+///
+/// If the OCR caught no item-name words (rare, but possible if the
+/// item names render too small at extreme HMD distances), the function
+/// falls back to anchor-relative offsets.
+pub fn positional_cells(layout: &PanelLayout, words: &[OcrWord], n: usize) -> Vec<BBox> {
     let anchor = layout.anchor;
     let img_w = layout.img_w;
     let img_h = layout.img_h;
 
-    // Panel left/right derived the same way as detect_panel.
+    // Panel left/right: "Need to submit items" sits centred in the panel
+    // and is ~30% of the panel's width, so panel_w ≈ anchor.w * 10/3.
     let anchor_cx = anchor.x + anchor.w / 2;
     let panel_w_est = anchor.w * 10 / 3;
     let panel_left = anchor_cx.saturating_sub(panel_w_est / 2).min(img_w);
     let panel_right = (anchor_cx + panel_w_est / 2).min(img_w);
     let panel_w = panel_right.saturating_sub(panel_left);
 
-    // Cell strip Y: starts ~2 anchor heights below the "Need to submit
-    // items" row (skipping the cost line) and runs for ~4 anchor heights
-    // (icon + name + counter). The count strip is the bottom third.
-    let cells_top = (anchor.y + anchor.h * 2).min(img_h);
-    let cells_bottom = (anchor.y + anchor.h * 6).min(img_h);
-    let cells_h = cells_bottom.saturating_sub(cells_top);
-    let count_top = cells_top + cells_h * 55 / 100;
-    let count_bottom = cells_top + cells_h * 88 / 100;
+    // Find the item-name row. Item-name words sit between the cost line
+    // (~2 anchor heights below the anchor) and the buttons (~10 anchor
+    // heights below). Filter by Y range, by X inside the panel, and
+    // drop button text we know about.
+    let name_band_top = anchor.y + anchor.h * 2;
+    let name_band_bottom = anchor.y + anchor.h * 12;
+    let names: Vec<&OcrWord> = words
+        .iter()
+        .filter(|w| {
+            let wy = w.rect.y as u32;
+            let wx = w.rect.x as u32;
+            wy > name_band_top
+                && wy < name_band_bottom
+                && wx >= panel_left
+                && wx <= panel_right
+        })
+        .filter(|w| {
+            let up = w.text.to_ascii_uppercase();
+            !matches!(up.as_str(), "BACK" | "LEVEL" | "UP" | "FROM" | "RAID")
+        })
+        .collect();
+
+    let (count_top, count_bottom) = if !names.is_empty() {
+        // count strip top = MAX bottom of item-name words + half a
+        // text-row gap. Using the MAX (not median) handles multi-line
+        // item names like "Energy-saving lamp" — OCR splits them
+        // into two Y rows and the second row's bottom is the true
+        // bottom of the name region.
+        //
+        // Strip is 3 text-rows tall so it spans the count digits even
+        // when the panel is captured at a tilt (head not perfectly
+        // aligned, ≤ one text-row of vertical drift between leftmost
+        // and rightmost cells). The pipeline does connected-components
+        // on this, so the wider strip is fine — digit row sits well
+        // above the FROM RAID label and well below the name row.
+        let max_bottom = names
+            .iter()
+            .map(|w| (w.rect.y + w.rect.height) as u32)
+            .max()
+            .unwrap();
+        let mut heights: Vec<u32> = names.iter().map(|w| w.rect.height as u32).collect();
+        heights.sort_unstable();
+        let median_h = heights[heights.len() / 2].max(8);
+        let top = (max_bottom + median_h / 2).min(img_h);
+        let bottom = (top + median_h * 3).min(img_h);
+        (top, bottom)
+    } else {
+        let top = (anchor.y + anchor.h * 11 / 2).min(img_h);
+        let bottom = (anchor.y + anchor.h * 15 / 2).min(img_h);
+        (top, bottom)
+    };
 
     let mut out = Vec::with_capacity(n);
     if n == 0 || panel_w == 0 {
         return out;
     }
-    // Inset slightly from the panel edges to skip the rounded frame.
     let usable_left = panel_left + panel_w / 30;
     let usable_w = panel_w - panel_w * 2 / 30;
     let pitch = usable_w / n as u32;
