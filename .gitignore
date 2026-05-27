@@ -20,3 +20,9 @@ state.json
 
 # Per-clone Claude Code agent state (scheduled tasks, local settings)
 .claude/
+
+# Local dev-loop diagnostic dumps (script-redirected stdout, fn-table probes,
+# OCR scratch). Useful for in-flight debugging but never meant to land in git.
+dev.log
+vr-fntable.txt
+ocr_data/

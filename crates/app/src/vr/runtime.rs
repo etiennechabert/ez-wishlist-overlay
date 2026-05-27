@@ -162,19 +162,18 @@ fn render_loop(
     const TICK: Duration = Duration::from_millis(11); // ~90Hz
 
     let mut fsm = VisibilityFsm::new();
-    // Re-render whenever either the wishlist (state.version) or the grid
-    // shape (vr.grid_cols) changes — without the second component, dragging
-    // the items-per-row slider would only take effect on the next click.
-    let mut last_rendered: Option<(u64, u32)> = None;
+    // The data-rendered pixmap is cached so we don't re-decode all icons on
+    // every frame — only re-render when version/grid_cols changes. Hover
+    // border is a cheap copy+stroke applied per frame on top of the cache.
+    let mut clean_pixmap: Option<tiny_skia::Pixmap> = None;
+    let mut clean_sig: Option<(u64, u32)> = None;
     let mut last_hits: Vec<CellHit> = Vec::new();
-    // Width/height of the most recently submitted pixmap, so the mouse
-    // event mapping in `texcoord_to_pixel` reflects whatever shape we
-    // actually drew (the canvas is no longer fixed at 1024x1024).
     let mut last_canvas: (u32, u32) = (0, 0);
     let mut fade_start: Option<Instant> = None;
     let mut was_visible = false;
     let mut debouncer = Debouncer::new();
     let mut event_buf: Vec<EventInfo> = Vec::with_capacity(8);
+    let mut current_hover: Option<String> = None;
 
     loop {
         let frame_start = Instant::now();
@@ -199,9 +198,11 @@ fn render_loop(
             },
             &mut was_visible,
             &mut fade_start,
-            &mut last_rendered,
+            &mut clean_pixmap,
+            &mut clean_sig,
             &mut last_hits,
             &mut last_canvas,
+            &mut current_hover,
         )?;
 
         session.drain_events(&mut event_buf);
@@ -215,19 +216,49 @@ fn render_loop(
             &mut debouncer,
             frame_start,
         );
+        poll_trigger_actions(
+            session,
+            state,
+            &last_hits,
+            visible_now,
+            last_canvas,
+            &mut debouncer,
+            frame_start,
+        );
 
         if visible_now {
             let current_version = state.read().version;
-            let sig = (current_version, vr.grid_cols);
-            if last_rendered != Some(sig) {
-                render_and_submit(
-                    session,
+            let need_data_render = clean_sig != Some((current_version, vr.grid_cols));
+            if need_data_render {
+                render_data(
                     state,
                     vr.grid_cols,
-                    &mut last_rendered,
+                    &mut clean_pixmap,
+                    &mut clean_sig,
                     &mut last_hits,
                     &mut last_canvas,
                 )?;
+            }
+
+            let new_hover = compute_hover(session, &last_hits, last_canvas);
+            if new_hover != current_hover {
+                match (&current_hover, &new_hover) {
+                    (None, Some(id)) => tracing::info!(item = %id, "hover ON"),
+                    (Some(prev), None) => tracing::info!(was = %prev, "hover OFF"),
+                    (Some(prev), Some(next)) => {
+                        tracing::info!(from = %prev, to = %next, "hover SWITCH")
+                    }
+                    (None, None) => {}
+                }
+            }
+            if need_data_render || new_hover != current_hover {
+                submit_with_hover(
+                    session,
+                    clean_pixmap.as_ref(),
+                    &last_hits,
+                    new_hover.as_deref(),
+                )?;
+                current_hover = new_hover;
             }
             apply_fade_in(session, &mut fade_start, frame_start)?;
         }
@@ -260,22 +291,24 @@ fn handle_visibility_transition(
     t: VisibilityTransition,
     was_visible: &mut bool,
     fade_start: &mut Option<std::time::Instant>,
-    last_rendered: &mut Option<(u64, u32)>,
+    clean_pixmap: &mut Option<tiny_skia::Pixmap>,
+    clean_sig: &mut Option<(u64, u32)>,
     last_hits: &mut Vec<super::render::CellHit>,
     last_canvas: &mut (u32, u32),
+    current_hover: &mut Option<String>,
 ) -> anyhow::Result<()> {
     if t.visible_now && !*was_visible {
         if session.anchor_at_current_hmd(t.height_offset_m)? {
-            // Force first render before showing so the user never sees
-            // a stale or empty texture.
-            render_and_submit(
-                session,
+            render_data(
                 state,
                 t.grid_cols,
-                last_rendered,
+                clean_pixmap,
+                clean_sig,
                 last_hits,
                 last_canvas,
             )?;
+            submit_with_hover(session, clean_pixmap.as_ref(), last_hits, None)?;
+            *current_hover = None;
             session.set_alpha(0.0)?;
             session.set_visible(true)?;
             *fade_start = Some(t.frame_start);
@@ -309,21 +342,119 @@ fn handle_overlay_events(
     frame_start: std::time::Instant,
 ) {
     use openvr::system::Event;
+    // OpenVR `EButton_SteamVR_Trigger`. In modern SteamVR, non-dashboard
+    // overlays don't get auto-routed `MouseButtonDown` events — the trigger
+    // comes through as a raw `ButtonPress` and we ray-cast ourselves.
+    const TRIGGER_BUTTON_ID: u32 = 33;
+
     for ev in event_buf.drain(..) {
-        let Event::MouseButtonDown(mouse) = ev.event else {
-            continue;
-        };
-        dispatch_mouse_down(
+        match ev.event {
+            Event::MouseButtonDown(mouse) => {
+                dispatch_mouse_down(
+                    session,
+                    state,
+                    ev.tracked_device_index,
+                    mouse,
+                    last_hits,
+                    visible_now,
+                    last_canvas,
+                    debouncer,
+                    frame_start,
+                );
+            }
+            Event::ButtonPress(c) if c.button == TRIGGER_BUTTON_ID => {
+                dispatch_trigger_press(
+                    session,
+                    state,
+                    ev.tracked_device_index,
+                    last_hits,
+                    visible_now,
+                    last_canvas,
+                    debouncer,
+                    frame_start,
+                );
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Step the IVRInput action set and fire `dispatch_trigger_press` for
+/// each hand whose trigger transitioned to pressed this tick. This is the
+/// supported click path: legacy `GetControllerState` returns dead zeros
+/// for Quest Touch via Link / Index knuckles via SteamVR's modern driver
+/// stack, while the action system stays alive.
+#[cfg(target_os = "windows")]
+#[allow(clippy::too_many_arguments)]
+fn poll_trigger_actions(
+    session: &mut super::overlay::OverlaySession,
+    state: &Arc<RwLock<AppState>>,
+    last_hits: &[super::render::CellHit],
+    visible_now: bool,
+    last_canvas: (u32, u32),
+    debouncer: &mut super::input::Debouncer,
+    frame_start: std::time::Instant,
+) {
+    let (left, right) = session.poll_trigger_actions();
+    for (label, device) in [("left", left), ("right", right)] {
+        let Some(device) = device else { continue };
+        tracing::info!(hand = label, device = device.0, "trigger action fired");
+        dispatch_trigger_press(
             session,
             state,
-            ev.tracked_device_index,
-            mouse,
+            device,
             last_hits,
             visible_now,
             last_canvas,
             debouncer,
             frame_start,
         );
+    }
+}
+
+#[cfg(target_os = "windows")]
+#[allow(clippy::too_many_arguments)]
+fn dispatch_trigger_press(
+    session: &mut super::overlay::OverlaySession,
+    state: &Arc<RwLock<AppState>>,
+    device_index: openvr::TrackedDeviceIndex,
+    last_hits: &[super::render::CellHit],
+    visible_now: bool,
+    last_canvas: (u32, u32),
+    debouncer: &mut super::input::Debouncer,
+    frame_start: std::time::Instant,
+) {
+    use super::input::{
+        handle_click, texcoord_to_pixel, ClickOutcome, HAPTIC_INCREMENT_US, HAPTIC_RESET_US,
+    };
+
+    if !visible_now {
+        tracing::info!("trigger ignored: overlay not visible (look up to summon)");
+        return;
+    }
+    let (cw, ch) = last_canvas;
+    if cw == 0 || ch == 0 {
+        tracing::info!("trigger ignored: nothing rendered yet (canvas 0x0)");
+        return;
+    }
+    let Some((u, v)) = session.intersect_from_device(device_index) else {
+        tracing::info!(?device_index, "trigger fired but ray missed overlay");
+        return;
+    };
+    let (px, py) = texcoord_to_pixel(u, v, cw, ch);
+    tracing::info!(u, v, px, py, "trigger-ray hit overlay");
+    match handle_click(state, last_hits, px, py, debouncer, frame_start) {
+        ClickOutcome::Incremented { item_id, new_value } => {
+            session.haptic_pulse(device_index, HAPTIC_INCREMENT_US);
+            tracing::info!(%item_id, new_value, "trigger-ray click: +1");
+        }
+        ClickOutcome::Reset { item_id } => {
+            session.haptic_pulse(device_index, HAPTIC_RESET_US);
+            tracing::info!(%item_id, "trigger-ray click: cycle reset to 0");
+        }
+        ClickOutcome::Ignored => {
+            tracing::info!("trigger-ray click: ignored (no hit / debounced)");
+        }
     }
 }
 
@@ -355,16 +486,28 @@ fn dispatch_mouse_down(
         return; // first frame after spawn — nothing rendered yet
     }
     let (px, py) = texcoord_to_pixel(mouse.position.0, mouse.position.1, cw, ch);
+    tracing::info!(
+        tex_x = mouse.position.0,
+        tex_y = mouse.position.1,
+        px,
+        py,
+        canvas_w = cw,
+        canvas_h = ch,
+        hits = last_hits.len(),
+        "overlay mouse-down received"
+    );
     match handle_click(state, last_hits, px, py, debouncer, frame_start) {
         ClickOutcome::Incremented { item_id, new_value } => {
             session.haptic_pulse(device_index, HAPTIC_INCREMENT_US);
-            tracing::debug!(%item_id, new_value, "overlay click: +1");
+            tracing::info!(%item_id, new_value, "overlay click: +1");
         }
         ClickOutcome::Reset { item_id } => {
             session.haptic_pulse(device_index, HAPTIC_RESET_US);
-            tracing::debug!(%item_id, "overlay click: cycle reset to 0");
+            tracing::info!(%item_id, "overlay click: cycle reset to 0");
         }
-        ClickOutcome::Ignored => {}
+        ClickOutcome::Ignored => {
+            tracing::info!("overlay click: ignored (no hit / debounced)");
+        }
     }
 }
 
@@ -388,12 +531,15 @@ fn apply_fade_in(
     Ok(())
 }
 
+/// Re-render the wishlist grid into `clean_pixmap` (no hover overlay).
+/// Slow path: decodes icons, lays out cells. Called only when the data
+/// changes (wishlist version bump, grid-cols change).
 #[cfg(target_os = "windows")]
-fn render_and_submit(
-    session: &mut super::overlay::OverlaySession,
+fn render_data(
     state: &Arc<RwLock<AppState>>,
     grid_cols: u32,
-    last_rendered: &mut Option<(u64, u32)>,
+    clean_pixmap: &mut Option<tiny_skia::Pixmap>,
+    clean_sig: &mut Option<(u64, u32)>,
     last_hits: &mut Vec<super::render::CellHit>,
     last_canvas: &mut (u32, u32),
 ) -> anyhow::Result<()> {
@@ -405,9 +551,69 @@ fn render_and_submit(
         (st.active_items(), st.version)
     };
     let (pixmap, hits) = render::render(&items, grid_cols, assets::read_icon);
-    session.submit_rgba(pixmap.data(), pixmap.width(), pixmap.height())?;
-    *last_rendered = Some((version, grid_cols));
     *last_canvas = (pixmap.width(), pixmap.height());
     *last_hits = hits;
+    *clean_pixmap = Some(pixmap);
+    *clean_sig = Some((version, grid_cols));
     Ok(())
+}
+
+/// Clone the cached clean pixmap, paint the hover-highlight border on top
+/// (if any), submit. Cheap path: per-frame when the user sweeps the laser.
+#[cfg(target_os = "windows")]
+fn submit_with_hover(
+    session: &mut super::overlay::OverlaySession,
+    clean: Option<&tiny_skia::Pixmap>,
+    hits: &[super::render::CellHit],
+    hover_id: Option<&str>,
+) -> anyhow::Result<()> {
+    let Some(clean) = clean else {
+        return Ok(()); // Nothing to submit yet — first render hasn't run.
+    };
+    let mut frame = clean.clone();
+    if let Some(id) = hover_id {
+        super::render::apply_hover_highlight(&mut frame, hits, id);
+    }
+    session.submit_rgba(frame.data(), frame.width(), frame.height())?;
+    Ok(())
+}
+
+/// Per-tick hover detection: ray-cast from each controller, find whichever
+/// cell the laser is currently pointing at (if any).
+#[cfg(target_os = "windows")]
+fn compute_hover(
+    session: &super::overlay::OverlaySession,
+    last_hits: &[super::render::CellHit],
+    last_canvas: (u32, u32),
+) -> Option<String> {
+    use super::input::{hit_test, texcoord_to_pixel};
+    let (cw, ch) = last_canvas;
+    if cw == 0 || ch == 0 || last_hits.is_empty() {
+        return None;
+    }
+    // Controllers typically live at indices 1+ (0 is the HMD). Scan a
+    // generous range to handle multi-controller / index-shifted setups.
+    for idx in 1..=8u32 {
+        let device = openvr::TrackedDeviceIndex(idx);
+        let Some((u, v)) = session.intersect_from_device(device) else {
+            continue;
+        };
+        let (px, py) = texcoord_to_pixel(u, v, cw, ch);
+        let hit = hit_test(last_hits, px, py);
+        // Per-tick spam: downgraded to debug. The `hover ON/OFF/SWITCH` info
+        // logs below already tell the story at transition granularity.
+        tracing::debug!(
+            device = idx,
+            u,
+            v,
+            px,
+            py,
+            hit = ?hit.map(|h| h.item_id.as_str()),
+            "ray intersect"
+        );
+        if let Some(hit) = hit {
+            return Some(hit.item_id.clone());
+        }
+    }
+    None
 }

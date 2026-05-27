@@ -62,5 +62,10 @@ Enter-VsDevShell `
     -DevCmdArguments '-arch=amd64 -host_arch=amd64' | Out-Null
 
 $alias = if ($Release) { 'app' } else { 'app-dev' }
+# Cargo writes its progress to stderr. With $ErrorActionPreference = 'Stop'
+# above, PS 5.1 wraps each native stderr line as a terminating ErrorRecord
+# when this script is piped/redirected from outside — which kills the run
+# before cargo finishes. Drop the strict policy just for the cargo call.
+$ErrorActionPreference = 'Continue'
 & cargo $alias @Forward
 exit $LASTEXITCODE
