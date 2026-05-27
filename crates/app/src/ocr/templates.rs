@@ -163,12 +163,47 @@ pub fn score(comp: &Component, t: &Template) -> f32 {
 /// can't shift the digits out of frame — but that means the strip can
 /// also contain the "FROM RAID" label sitting below the count. We
 /// cluster by Y and keep only the topmost row (where the digits are).
+// Thin wrapper around `recognize_with_debug` for callers that don't
+// need the per-component score breakdown. The pipeline now always
+// goes through the debug variant (it's nearly free), but external
+// tests + ignored diagnostics still call this convenient version.
+#[allow(dead_code)]
 pub fn recognize(strip: &GrayImage, templates: &[Template]) -> String {
+    recognize_with_debug(strip, templates).recognised
+}
+
+/// Bag of intermediate state that [`recognize_with_debug`] returns so
+/// the debug-dump writer can show exactly what the matcher saw, what
+/// it kept after filtering, and which templates each kept component
+/// scored against. The pipeline's [`recognize`] wrapper drops this.
+pub struct RecognizeDebug {
+    pub recognised: String,
+    pub raw_components: Vec<(u32, u32, u32, u32)>,
+    pub kept_components: Vec<KeptComponent>,
+}
+
+pub struct KeptComponent {
+    pub x: u32,
+    pub y: u32,
+    pub w: u32,
+    pub h: u32,
+    /// All template scores, sorted desc by score. First entry is the
+    /// winner that ended up in the recognised string.
+    pub scores: Vec<(char, f32)>,
+}
+
+pub fn recognize_with_debug(strip: &GrayImage, templates: &[Template]) -> RecognizeDebug {
     if templates.is_empty() {
-        return String::new();
+        return RecognizeDebug {
+            recognised: String::new(),
+            raw_components: Vec::new(),
+            kept_components: Vec::new(),
+        };
     }
     let img_h = strip.height();
     let mut comps = find_components(strip);
+    let raw_components: Vec<(u32, u32, u32, u32)> =
+        comps.iter().map(|c| (c.x, c.y, c.w, c.h)).collect();
     // Drop tiny noise AND components touching the top/bottom edges (cell
     // row separator lines / strip artefacts). The "1" glyph in this
     // pixel-art font is a 2-px-wide vertical bar — using c.w >= 4 here
@@ -187,16 +222,27 @@ pub fn recognize(strip: &GrayImage, templates: &[Template]) -> String {
     }
     comps.sort_by_key(|c| c.x);
     let mut out = String::new();
+    let mut kept_components = Vec::with_capacity(comps.len());
     for c in &comps {
-        let best = templates
-            .iter()
-            .map(|t| (t.label, score(c, t)))
-            .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
-        if let Some((label, _s)) = best {
+        let mut scores: Vec<(char, f32)> =
+            templates.iter().map(|t| (t.label, score(c, t))).collect();
+        scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        if let Some(&(label, _)) = scores.first() {
             out.push(label);
         }
+        kept_components.push(KeptComponent {
+            x: c.x,
+            y: c.y,
+            w: c.w,
+            h: c.h,
+            scores,
+        });
     }
-    out
+    RecognizeDebug {
+        recognised: out,
+        raw_components,
+        kept_components,
+    }
 }
 
 /// Split a string like "3/8" or "12/20" into `(owned, needed)` integers.

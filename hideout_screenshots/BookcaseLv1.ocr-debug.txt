@@ -1,0 +1,175 @@
+=== OCR DEBUG DUMP ===
+Source: C:\Users\etien\Desktop\ez-wishlist-overlay\crates\app\../../hideout_screenshots\BookcaseLv1.jpg
+Image:  2300×2300
+
+=== ANCHOR ("Need to submit items") ===
+  x=1267 y=1052 w=219 h=23
+
+=== RESOLUTION ===
+  upgrade_id:     BookcaseLv1
+  module name:    Bookdesk
+  upgrade level:  1
+  current level:  0 (parsed from LV<n>)
+
+=== OCR PANEL TEXT (whitespace-joined) ===
+  e 490026 Wiz UiO:xxbiwefhfuOOf 440 Arm Leo MARKE_VI UT RIAL FACILITY UPGRADE Leg Bookdesk LVO Bookdesk Reduced Magazine Load Time Bookdesk Reduced Magazine Load Time Bookdesk Reduced Magazine Load Time t Need to submit items O soooo Energy- Flash light saving lamp BACK Socket Civil Radia LEVEL UP
+
+=== OCR WORDS (48 total, sorted by Y then X) ===
+  y=   23 x= 1310 w= 253 h= 58  "MARKE_VI"
+  y=   28 x=  461 w= 117 h= 32  "490026"
+  y=   28 x=  758 w=  32 h= 15  "440"
+  y=   35 x=  414 w=  34 h= 34  "e"
+  y=  162 x= 1705 w=  67 h= 29  "RIAL"
+  y=  169 x= 1640 w=  39 h= 28  "UT"
+  y=  230 x=  747 w=  30 h= 11  "Arm"
+  y=  290 x=  516 w=  45 h= 21  "Wiz"
+  y=  315 x=  442 w= 174 h= 29  "UiO:xxbiwefhfuOOf"
+  y=  319 x= 1044 w=  25 h= 13  "Leg"
+  y=  342 x=  781 w=  26 h= 11  "Leo"
+  y=  432 x=  678 w= 160 h= 38  "UPGRADE"
+  y=  443 x=  525 w= 142 h= 37  "FACILITY"
+  y=  693 x=  979 w= 115 h= 25  "Bookdesk"
+  y=  730 x=  980 w=  36 h= 19  "LVO"
+  y=  792 x=  995 w=  92 h= 21  "Bookdesk"
+  y=  821 x= 1180 w=  38 h= 14  "Time"
+  y=  822 x= 1140 w=  36 h= 15  "Load"
+  y=  824 x= 1064 w=  71 h= 18  "Magazine"
+  y=  826 x=  995 w=  63 h= 16  "Reduced"
+  y=  878 x=  997 w=  93 h= 21  "Bookdesk"
+  y=  908 x= 1144 w=  36 h= 17  "Load"
+  y=  908 x= 1184 w=  39 h= 16  "Time"
+  y=  910 x= 1067 w=  72 h= 19  "Magazine"
+  y=  912 x=  997 w=  64 h= 17  "Reduced"
+  y=  965 x= 1000 w=  94 h= 21  "Bookdesk"
+  y=  996 x= 1189 w=  38 h= 16  "Time"
+  y=  997 x= 1148 w=  36 h= 16  "Load"
+  y=  998 x= 1070 w=  73 h= 20  "Magazine"
+  y=  999 x= 1000 w=  64 h= 17  "Reduced"
+  y= 1052 x= 1428 w=  58 h= 21  "items"
+  y= 1053 x= 1234 w=  20 h= 28  "t"
+  y= 1053 x= 1353 w=  71 h= 21  "submit"
+  y= 1054 x= 1267 w=  53 h= 21  "Need"
+  y= 1056 x= 1325 w=  22 h= 18  "to"
+  y= 1089 x= 1311 w=  24 h= 25  "O"
+  y= 1093 x= 1346 w=  57 h= 16  "soooo"
+  y= 1139 x= 1247 w=  62 h= 18  "Energy-"
+  y= 1147 x= 1650 w=  39 h= 18  "Civil"
+  y= 1147 x= 1692 w=  48 h= 17  "Radia"
+  y= 1149 x= 1446 w=  58 h= 17  "Socket"
+  y= 1151 x= 1055 w=  42 h= 17  "Flash"
+  y= 1151 x= 1102 w=  38 h= 21  "light"
+  y= 1164 x= 1248 w=  53 h= 19  "saving"
+  y= 1164 x= 1305 w=  39 h= 19  "lamp"
+  y= 1308 x= 1138 w=  59 h= 19  "BACK"
+  y= 1310 x= 1535 w=  65 h= 20  "LEVEL"
+  y= 1311 x= 1607 w=  30 h= 19  "UP"
+
+=== CELLS (4) ===
+
+-- Cell 0: Flash light (misc_b_flashlight) needed=5 --
+  strip rect:  x=1052 y=1192 w=136 h=54
+  raw components (19):
+    x=  8 y=  0 w=  6 h= 10
+    x= 16 y=  0 w=  4 h= 10
+    x= 22 y=  0 w=  7 h= 11
+    x=  0 y= 29 w=  3 h=  7
+    x=  6 y= 29 w=  2 h=  2
+    x=  9 y= 29 w=  7 h=  7
+    x= 16 y= 29 w=  2 h=  8
+    x= 22 y= 29 w=  5 h=  8
+    x= 30 y= 30 w=  5 h=  7
+    x= 36 y= 30 w=  2 h=  7
+    x= 40 y= 30 w=  3 h=  3
+    x=  5 y= 31 w=  1 h=  4
+    x= 43 y= 31 w=  1 h=  2
+    x= 40 y= 34 w=  1 h=  1
+    x=  6 y= 35 w=  1 h=  1
+    x=  8 y= 35 w=  1 h=  1
+    x= 26 y= 35 w=  1 h=  2
+    x= 43 y= 35 w=  1 h=  2
+    x= 40 y= 36 w=  2 h=  2
+  kept after filter + row-cluster (2):
+    x= 16 y= 29 w=  2 h=  8   '4'=0.673  '8'=0.595  '6'=0.560
+    x= 22 y= 29 w=  5 h=  8   '2'=0.583  '4'=0.577  '8'=0.488
+  recognised:   "42"
+  parsed owned: 4  (applied to AppState)
+
+-- Cell 1: Energy-saving lamp (misc_b_lightbulb) needed=5 --
+  strip rect:  x=1222 y=1192 w=136 h=54
+  raw components (17):
+    x= 31 y=  6 w=  7 h= 11
+    x= 48 y=  6 w=  6 h= 11
+    x= 43 y=  7 w=  2 h=  3
+    x= 41 y= 10 w=  2 h=  6
+    x= 15 y= 35 w=  4 h=  6
+    x= 21 y= 35 w=  5 h=  8
+    x= 29 y= 36 w=  1 h=  2
+    x= 31 y= 36 w=  1 h=  1
+    x= 29 y= 36 w= 13 h=  7
+    x= 46 y= 36 w=  4 h=  7
+    x= 54 y= 37 w=  5 h=  7
+    x= 61 y= 37 w=  1 h=  7
+    x= 64 y= 37 w=  4 h=  8
+    x= 28 y= 38 w=  1 h=  3
+    x= 68 y= 39 w=  1 h=  4
+    x= 50 y= 42 w=  1 h=  1
+    x= 67 y= 43 w=  1 h=  1
+  kept after filter + row-cluster (2):
+    x= 31 y=  6 w=  7 h= 11   '0'=0.883  '8'=0.821  '6'=0.758
+    x= 48 y=  6 w=  6 h= 11   '5'=0.818  '6'=0.802  '8'=0.726
+  recognised:   "05"
+  parsed owned: 0  (applied to AppState)
+
+-- Cell 2: Socket (misc_b_socket) needed=3 --
+  strip rect:  x=1392 y=1192 w=136 h=54
+  raw components (18):
+    x= 60 y= 12 w=  8 h= 11
+    x= 70 y= 13 w=  4 h= 10
+    x= 76 y= 13 w=  6 h= 10
+    x= 45 y= 42 w=  3 h=  7
+    x= 50 y= 42 w=  6 h=  8
+    x= 59 y= 43 w=  1 h=  1
+    x= 61 y= 43 w=  1 h=  1
+    x= 59 y= 43 w= 13 h=  7
+    x= 76 y= 43 w=  5 h=  7
+    x= 84 y= 43 w=  5 h=  8
+    x= 57 y= 44 w=  2 h=  2
+    x= 91 y= 44 w=  2 h=  7
+    x= 95 y= 44 w=  2 h=  4
+    x= 98 y= 44 w=  2 h=  3
+    x= 58 y= 47 w=  1 h=  1
+    x= 99 y= 48 w=  1 h=  1
+    x= 95 y= 49 w=  2 h=  3
+    x= 98 y= 50 w=  1 h=  1
+  kept after filter + row-cluster (3):
+    x= 60 y= 12 w=  8 h= 11   '0'=0.818  '8'=0.762  '6'=0.758
+    x= 70 y= 13 w=  4 h= 10   '/'=0.818  '1'=0.589  '3'=0.524
+    x= 76 y= 13 w=  6 h= 10   '3'=0.881  '8'=0.726  '2'=0.704
+  recognised:   "0/3"
+  parsed owned: 0  (applied to AppState)
+
+-- Cell 3: Civil radio (misc_b_civilradio) needed=2 --
+  strip rect:  x=1562 y=1192 w=136 h=54
+  raw components (16):
+    x= 95 y= 19 w=  9 h= 11
+    x=106 y= 19 w=  4 h= 10
+    x=112 y= 19 w=  7 h= 11
+    x= 80 y= 49 w=  4 h=  5
+    x= 86 y= 49 w=  6 h=  5
+    x= 96 y= 49 w=  1 h=  1
+    x= 95 y= 50 w=  1 h=  1
+    x= 97 y= 50 w=  1 h=  1
+    x= 98 y= 50 w=  5 h=  4
+    x=105 y= 50 w=  3 h=  4
+    x=113 y= 50 w=  5 h=  4
+    x=122 y= 50 w=  3 h=  4
+    x= 94 y= 51 w=  1 h=  1
+    x=128 y= 51 w=  2 h=  3
+    x=132 y= 51 w=  4 h=  2
+    x= 94 y= 53 w=  1 h=  1
+  kept after filter + row-cluster (3):
+    x= 95 y= 19 w=  9 h= 11   '0'=0.727  '8'=0.702  '5'=0.667
+    x=106 y= 19 w=  4 h= 10   '/'=0.682  '4'=0.596  '1'=0.571
+    x=112 y= 19 w=  7 h= 11   '2'=0.796  '8'=0.607  '0'=0.584
+  recognised:   "0/2"
+  parsed owned: 0  (applied to AppState)

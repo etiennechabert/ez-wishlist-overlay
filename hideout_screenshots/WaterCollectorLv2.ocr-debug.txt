@@ -1,0 +1,176 @@
+=== OCR DEBUG DUMP ===
+Source: C:\Users\etien\Desktop\ez-wishlist-overlay\crates\app\../../hideout_screenshots\WaterCollectorLv2.jpg
+Image:  2300×2300
+
+=== ANCHOR ("Need to submit items") ===
+  x=1342 y=921 w=219 h=21
+
+=== RESOLUTION ===
+  upgrade_id:     WaterCollectorLv2
+  module name:    Water Collector
+  upgrade level:  2
+  current level:  1 (parsed from LV<n>)
+
+=== OCR PANEL TEXT (whitespace-joined) ===
+  Arm Wiz biwefhfuOOf FACILITY UPGRADE TUT Arm Storage ZMIe Upgraded:ota Water Collector LVI Water Collector Faster Hydration Regeneration in HQ Water Collector Faster Hydration Regeneration in HQ Water Collector Faster Hydration Regeneration in HQ t Need to submit items 0 50000 RIAL Spray can Insula tine BACK Boxed Nails LEVEL up
+
+=== OCR WORDS (51 total, sorted by Y then X) ===
+  y=   47 x= 1730 w=  69 h= 30  "RIAL"
+  y=   54 x= 1644 w=  60 h= 37  "TUT"
+  y=   92 x= 1043 w=  30 h= 11  "Arm"
+  y=  114 x=  752 w=  31 h= 12  "Arm"
+  y=  176 x=  517 w=  47 h= 22  "Wiz"
+  y=  202 x=  505 w= 116 h= 28  "biwefhfuOOf"
+  y=  294 x=  752 w= 162 h= 37  "UPGRADE"
+  y=  305 x=  599 w= 143 h= 36  "FACILITY"
+  y=  467 x= 1555 w=  35 h= 10  "ZMIe"
+  y=  469 x= 1495 w=  56 h= 12  "Storage"
+  y=  485 x= 1495 w= 100 h= 18  "Upgraded:ota"
+  y=  560 x= 1135 w= 111 h= 23  "Collector"
+  y=  565 x= 1055 w=  71 h= 20  "Water"
+  y=  598 x= 1058 w=  36 h= 17  "LVI"
+  y=  660 x= 1135 w=  89 h= 19  "Collector"
+  y=  662 x= 1071 w=  58 h= 18  "Water"
+  y=  689 x= 1313 w=  14 h= 15  "in"
+  y=  690 x= 1205 w= 104 h= 19  "Regeneration"
+  y=  690 x= 1333 w=  21 h= 17  "HQ"
+  y=  692 x= 1125 w=  75 h= 18  "Hydration"
+  y=  695 x= 1072 w=  49 h= 13  "Faster"
+  y=  745 x= 1138 w=  89 h= 18  "Collector"
+  y=  747 x= 1073 w=  58 h= 17  "Water"
+  y=  776 x= 1208 w= 104 h= 18  "Regeneration"
+  y=  776 x= 1316 w=  14 h= 15  "in"
+  y=  777 x= 1127 w=  75 h= 18  "Hydration"
+  y=  777 x= 1336 w=  22 h= 16  "HQ"
+  y=  779 x= 1074 w=  49 h= 14  "Faster"
+  y=  830 x= 1140 w=  90 h= 18  "Collector"
+  y=  831 x= 1075 w=  59 h= 17  "Water"
+  y=  862 x= 1129 w=  76 h= 19  "Hydration"
+  y=  862 x= 1210 w= 105 h= 19  "Regeneration"
+  y=  862 x= 1319 w=  15 h= 16  "in"
+  y=  863 x= 1077 w=  49 h= 15  "Faster"
+  y=  864 x= 1339 w=  22 h= 18  "HQ"
+  y=  918 x= 1309 w=  20 h= 28  "t"
+  y=  921 x= 1342 w=  52 h= 20  "Need"
+  y=  921 x= 1428 w=  70 h= 21  "submit"
+  y=  922 x= 1504 w=  57 h= 20  "items"
+  y=  923 x= 1400 w=  21 h= 18  "to"
+  y=  954 x= 1385 w=  24 h= 25  "0"
+  y=  960 x= 1420 w=  57 h= 15  "50000"
+  y= 1001 x= 1320 w=  48 h= 16  "Insula"
+  y= 1001 x= 1370 w=  33 h= 19  "tine"
+  y= 1013 x= 1519 w=  50 h= 15  "Boxed"
+  y= 1014 x= 1574 w=  43 h= 15  "Nails"
+  y= 1020 x= 1725 w=  50 h= 20  "Spray"
+  y= 1025 x= 1779 w=  31 h= 12  "can"
+  y= 1158 x= 1211 w=  57 h= 20  "BACK"
+  y= 1171 x= 1602 w=  65 h= 20  "LEVEL"
+  y= 1174 x= 1675 w=  30 h= 18  "up"
+
+=== CELLS (4) ===
+
+-- Cell 0: Valve (misc_b_valve) needed=5 --
+  strip rect:  x=1127 y=1048 w=136 h=48
+  raw components (19):
+    x= 10 y=  2 w=  6 h= 10
+    x= 18 y=  2 w=  3 h=  9
+    x= 23 y=  2 w=  7 h= 10
+    x=  0 y= 29 w=  6 h=  7
+    x=  8 y= 30 w=  1 h=  2
+    x= 10 y= 30 w=  1 h=  1
+    x= 10 y= 30 w= 10 h=  7
+    x= 24 y= 30 w=  5 h=  7
+    x= 31 y= 30 w=  5 h=  7
+    x= 38 y= 30 w=  2 h=  7
+    x= 41 y= 30 w=  3 h=  3
+    x=  7 y= 32 w=  1 h=  3
+    x= 45 y= 32 w=  1 h=  4
+    x= 41 y= 34 w=  1 h=  1
+    x=  8 y= 35 w=  1 h=  1
+    x= 28 y= 35 w=  1 h=  2
+    x= 41 y= 36 w=  2 h=  1
+    x= 44 y= 36 w=  1 h=  1
+    x= 43 y= 37 w=  1 h=  1
+  kept after filter + row-cluster (3):
+    x= 10 y=  2 w=  6 h= 10   '2'=0.861  '8'=0.690  '6'=0.681
+    x= 18 y=  2 w=  3 h=  9   '1'=0.661  '/'=0.614  '2'=0.602
+    x= 23 y=  2 w=  7 h= 10   '6'=0.802  '5'=0.768  '8'=0.726
+  recognised:   "216"
+  parsed owned: NONE  (split_progress failed — existing count preserved)
+
+-- Cell 1: Insulating Tape (misc_b_insulatingtape) needed=5 --
+  strip rect:  x=1297 y=1048 w=136 h=48
+  raw components (18):
+    x= 30 y=  6 w=  7 h= 10
+    x= 40 y=  6 w=  3 h= 10
+    x= 45 y=  6 w=  6 h= 10
+    x= 15 y= 34 w=  2 h=  7
+    x= 20 y= 34 w=  6 h=  7
+    x= 29 y= 34 w=  2 h=  1
+    x= 32 y= 34 w=  9 h=  7
+    x= 28 y= 35 w=  1 h=  1
+    x= 31 y= 35 w=  1 h=  1
+    x= 45 y= 35 w=  5 h=  6
+    x= 53 y= 35 w=  5 h=  7
+    x= 60 y= 35 w=  1 h=  7
+    x= 63 y= 35 w=  4 h=  3
+    x= 67 y= 37 w=  1 h=  1
+    x= 63 y= 39 w=  4 h=  3
+    x= 67 y= 39 w=  1 h=  2
+    x= 29 y= 40 w=  1 h=  1
+    x= 31 y= 40 w=  1 h=  1
+  kept after filter + row-cluster (3):
+    x= 30 y=  6 w=  7 h= 10   '0'=0.909  '8'=0.845  '6'=0.758
+    x= 40 y=  6 w=  3 h= 10   '/'=0.705  '2'=0.611  '1'=0.571
+    x= 45 y=  6 w=  6 h= 10   '5'=0.788  '6'=0.769  '8'=0.690
+  recognised:   "0/5"
+  parsed owned: 0  (applied to AppState)
+
+-- Cell 2: Nails (misc_b_nail) needed=6 --
+  strip rect:  x=1467 y=1048 w=136 h=48
+  raw components (18):
+    x= 70 y=  1 w=  1 h=  3
+    x= 59 y=  2 w=  7 h=  9
+    x= 74 y=  3 w=  5 h=  9
+    x= 69 y=  5 w=  1 h=  4
+    x= 68 y=  9 w=  1 h=  2
+    x= 43 y= 39 w=  2 h=  6
+    x= 48 y= 39 w=  6 h=  7
+    x= 57 y= 39 w=  3 h=  2
+    x= 57 y= 39 w=  9 h=  7
+    x= 66 y= 39 w=  4 h=  7
+    x= 75 y= 39 w=  4 h=  7
+    x= 60 y= 40 w=  1 h=  1
+    x= 83 y= 40 w=  5 h=  7
+    x= 90 y= 40 w=  1 h=  7
+    x= 93 y= 40 w=  3 h=  2
+    x= 56 y= 41 w=  1 h=  3
+    x= 97 y= 41 w=  1 h=  2
+    x= 93 y= 43 w=  6 h=  4
+  kept after filter + row-cluster (2):
+    x= 59 y=  2 w=  7 h=  9   '2'=0.833  '8'=0.655  '6'=0.593
+    x= 74 y=  3 w=  5 h=  9   '8'=0.821  '6'=0.758  '0'=0.636
+  recognised:   "28"
+  parsed owned: 2  (applied to AppState)
+
+-- Cell 3: Spray Can (misc_b_spraycan) needed=2 --
+  strip rect:  x=1637 y=1048 w=136 h=48
+  raw components (12):
+    x= 95 y= 14 w=  9 h= 11
+    x=106 y= 15 w=  4 h= 10
+    x=112 y= 15 w=  7 h= 10
+    x= 79 y= 44 w=  3 h=  4
+    x= 85 y= 44 w=  6 h=  4
+    x= 93 y= 44 w=  5 h=  4
+    x= 98 y= 44 w=  5 h=  4
+    x=105 y= 44 w=  3 h=  4
+    x=112 y= 44 w=  5 h=  4
+    x=122 y= 45 w=  3 h=  3
+    x=128 y= 45 w=  2 h=  3
+    x=132 y= 45 w=  4 h=  3
+  kept after filter + row-cluster (3):
+    x= 95 y= 14 w=  9 h= 11   '0'=0.857  '6'=0.736  '8'=0.726
+    x=106 y= 15 w=  4 h= 10   '/'=0.795  '1'=0.589  '4'=0.558
+    x=112 y= 15 w=  7 h= 10   '2'=0.935  '8'=0.714  '3'=0.655
+  recognised:   "0/2"
+  parsed owned: 0  (applied to AppState)

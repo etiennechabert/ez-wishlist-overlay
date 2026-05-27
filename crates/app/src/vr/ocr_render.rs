@@ -290,25 +290,48 @@ fn draw_item_row(pix: &mut Pixmap, item: &OcrItemDelta, y_top: f32) {
     let baseline = y_top + ROW_PX * 0.95;
     text::draw_text(pix, &item.item_name, PAD_X, baseline, ROW_PX, fg());
 
-    let after_text = if item.needed > 0 {
-        format!("{} / {}", item.after, item.needed)
-    } else {
-        format!("{}", item.after)
-    };
-    let after_color = match item.after.cmp(&item.before) {
-        std::cmp::Ordering::Greater => positive(),
-        std::cmp::Ordering::Less => negative(),
-        std::cmp::Ordering::Equal => weak(),
-    };
-    let after_w = text::measure_width(&after_text, ROW_PX);
-    let after_x = pix.width() as f32 - PAD_X - after_w;
-    text::draw_text(pix, &after_text, after_x, baseline, ROW_PX, after_color);
-
-    if item.before != item.after {
-        let before_text = format!("({}→) ", item.before);
-        let before_w = text::measure_width(&before_text, SMALL_PX);
-        let before_x = after_x - before_w - 4.0;
-        text::draw_text(pix, &before_text, before_x, baseline, SMALL_PX, weak());
+    match item.after {
+        Some(after) => {
+            let after_text = if item.needed > 0 {
+                format!("{after} / {}", item.needed)
+            } else {
+                format!("{after}")
+            };
+            let after_color = match after.cmp(&item.before) {
+                std::cmp::Ordering::Greater => positive(),
+                std::cmp::Ordering::Less => negative(),
+                std::cmp::Ordering::Equal => weak(),
+            };
+            let after_w = text::measure_width(&after_text, ROW_PX);
+            let after_x = pix.width() as f32 - PAD_X - after_w;
+            text::draw_text(pix, &after_text, after_x, baseline, ROW_PX, after_color);
+            if item.before != after {
+                let before_text = format!("({}→) ", item.before);
+                let before_w = text::measure_width(&before_text, SMALL_PX);
+                let before_x = after_x - before_w - 4.0;
+                text::draw_text(pix, &before_text, before_x, baseline, SMALL_PX, weak());
+            }
+        }
+        None => {
+            // Unread cell — show "kept N / M" in amber so the user
+            // can tell the OCR couldn't read the count and we left
+            // their existing value intact.
+            let kept_text = if item.needed > 0 {
+                format!("kept {} / {}", item.before, item.needed)
+            } else {
+                format!("kept {}", item.before)
+            };
+            let kept_w = text::measure_width(&kept_text, ROW_PX);
+            let kept_x = pix.width() as f32 - PAD_X - kept_w;
+            text::draw_text(
+                pix,
+                &kept_text,
+                kept_x,
+                baseline,
+                ROW_PX,
+                not_panel_accent(),
+            );
+        }
     }
 }
 
@@ -340,14 +363,20 @@ mod tests {
                     OcrItemDelta {
                         item_name: "BPU".into(),
                         before: 0,
-                        after: 4,
+                        after: Some(4),
                         needed: 4,
                     },
                     OcrItemDelta {
                         item_name: "Floppy Disk".into(),
                         before: 3,
-                        after: 2,
+                        after: Some(2),
                         needed: 4,
+                    },
+                    OcrItemDelta {
+                        item_name: "PC Fan (unread)".into(),
+                        before: 5,
+                        after: None,
+                        needed: 6,
                     },
                 ],
                 progression_notes: vec![
@@ -396,7 +425,7 @@ mod tests {
                 items.push(OcrItemDelta {
                     item_name: format!("Filler item #{i}"),
                     before: 0,
-                    after: 1,
+                    after: Some(1),
                     needed: 5,
                 });
             }

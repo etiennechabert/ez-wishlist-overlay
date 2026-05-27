@@ -1,0 +1,164 @@
+=== OCR DEBUG DUMP ===
+Source: C:\Users\etien\Desktop\ez-wishlist-overlay\crates\app\../../hideout_screenshots\StorageZoneLock2Lv1.jpg
+Image:  2300×2300
+
+=== ANCHOR ("Need to submit items") ===
+  x=1197 y=938 w=214 h=22
+
+=== RESOLUTION ===
+  upgrade_id:     StorageZoneLock2Lv1
+  module name:    Storage Room B
+  upgrade level:  1
+  current level:  0 (parsed from LV<n>)
+
+=== OCR PANEL TEXT (whitespace-joined) ===
+  MARKETA"' Arm Wiz :xxbiwefhfuOOf Leg FACILITY UPGRADE Arm Leg Storage LVO Storage Room B Access to storage room B TUT RIAL on t Need to submit items 0 400000 Large Wrench can BACK Screwdriver LEVEL UP
+
+=== OCR WORDS (36 total, sorted by Y then X) ===
+  y=   26 x= 1246 w= 255 h= 41  "MARKETA\"'"
+  y=  175 x=  967 w=  31 h= 12  "Arm"
+  y=  175 x= 1629 w=  64 h= 26  "RIAL"
+  y=  177 x= 1549 w=  57 h= 26  "TUT"
+  y=  180 x=  672 w=  32 h= 12  "Arm"
+  y=  230 x=  422 w=  49 h= 21  "Wiz"
+  y=  260 x=  380 w= 149 h= 22  ":xxbiwefhfuOOf"
+  y=  289 x=  976 w=  25 h= 14  "Leg"
+  y=  297 x=  704 w=  26 h= 14  "Leg"
+  y=  381 x=  628 w= 166 h= 31  "UPGRADE"
+  y=  384 x=  468 w= 150 h= 29  "FACILITY"
+  y=  658 x= 1164 w=  35 h= 18  "on"
+  y=  743 x=  924 w=  91 h= 27  "Storage"
+  y=  778 x=  923 w=  37 h= 17  "LVO"
+  y=  844 x=  935 w=  76 h= 23  "Storage"
+  y=  845 x= 1018 w=  54 h= 18  "Room"
+  y=  846 x= 1079 w=  13 h= 17  "B"
+  y=  877 x=  932 w=  55 h= 15  "Access"
+  y=  879 x=  993 w=  16 h= 13  "to"
+  y=  879 x= 1015 w=  59 h= 17  "storage"
+  y=  879 x= 1123 w=  10 h= 15  "B"
+  y=  883 x= 1079 w=  39 h= 11  "room"
+  y=  934 x= 1164 w=  20 h= 29  "t"
+  y=  938 x= 1197 w=  51 h= 19  "Need"
+  y=  939 x= 1281 w=  69 h= 20  "submit"
+  y=  940 x= 1355 w=  56 h= 20  "items"
+  y=  941 x= 1254 w=  20 h= 17  "to"
+  y=  972 x= 1232 w=  23 h= 25  "0"
+  y=  977 x= 1266 w=  68 h= 17  "400000"
+  y= 1016 x=  982 w=  41 h= 18  "Large"
+  y= 1031 x= 1171 w=  61 h= 17  "Wrench"
+  y= 1035 x= 1367 w=  97 h= 18  "Screwdriver"
+  y= 1043 x=  981 w=  27 h= 12  "can"
+  y= 1182 x= 1056 w=  58 h= 19  "BACK"
+  y= 1192 x= 1444 w=  63 h= 21  "LEVEL"
+  y= 1194 x= 1515 w=  28 h= 19  "UP"
+
+=== CELLS (4) ===
+
+-- Cell 0: Large gas can (misc_b_gastank_large) needed=6 --
+  strip rect:  x=987 y=1064 w=133 h=54
+  raw components (13):
+    x=  0 y=  8 w=  3 h= 11
+    x=  6 y=  8 w=  3 h= 10
+    x= 11 y=  8 w=  7 h= 11
+    x=  5 y= 18 w=  1 h=  1
+    x=  0 y= 38 w=  5 h=  7
+    x=  5 y= 38 w=  2 h=  7
+    x= 11 y= 38 w=  5 h=  7
+    x= 19 y= 38 w=  5 h=  7
+    x= 25 y= 38 w=  2 h=  7
+    x= 29 y= 38 w=  2 h=  2
+    x= 32 y= 38 w=  2 h=  4
+    x= 29 y= 41 w=  1 h=  1
+    x= 29 y= 43 w=  4 h=  2
+  kept after filter + row-cluster (3):
+    x=  0 y=  8 w=  3 h= 11   '3'=0.738  '8'=0.702  '6'=0.615
+    x=  6 y=  8 w=  3 h= 10   '/'=0.773  '4'=0.615  '2'=0.583
+    x= 11 y=  8 w=  7 h= 11   '6'=0.890  '8'=0.881  '0'=0.766
+  recognised:   "3/6"
+  parsed owned: 3  (applied to AppState)
+
+-- Cell 1: Wrench (misc_b_wrench) needed=6 --
+  strip rect:  x=1153 y=1064 w=133 h=54
+  raw components (18):
+    x= 23 y=  8 w=  6 h= 11
+    x= 31 y=  8 w=  5 h= 11
+    x= 38 y=  8 w=  6 h= 11
+    x=  7 y= 38 w=  3 h=  7
+    x= 13 y= 38 w=  5 h=  7
+    x= 21 y= 38 w=  1 h=  1
+    x= 23 y= 38 w=  1 h=  1
+    x= 24 y= 38 w=  9 h=  7
+    x= 38 y= 38 w=  4 h=  7
+    x= 45 y= 38 w=  5 h=  7
+    x= 52 y= 38 w=  1 h=  7
+    x= 55 y= 38 w=  4 h=  2
+    x= 20 y= 39 w=  1 h=  4
+    x= 59 y= 40 w=  1 h=  4
+    x= 55 y= 41 w=  1 h=  2
+    x= 21 y= 43 w=  1 h=  2
+    x= 55 y= 43 w=  4 h=  2
+    x= 23 y= 44 w=  1 h=  1
+  kept after filter + row-cluster (3):
+    x= 23 y=  8 w=  6 h= 11   '1'=0.732  '5'=0.535  '3'=0.500
+    x= 31 y=  8 w=  5 h= 11   '/'=0.773  '1'=0.643  '2'=0.593
+    x= 38 y=  8 w=  6 h= 11   '6'=0.879  '8'=0.833  '5'=0.808
+  recognised:   "1/6"
+  parsed owned: 1  (applied to AppState)
+
+-- Cell 2: Screwdriver (misc_screwdriver) needed=6 --
+  strip rect:  x=1319 y=1064 w=133 h=54
+  raw components (21):
+    x=  5 y=  0 w= 17 h=  3
+    x= 23 y=  0 w=  1 h=  1
+    x= 52 y=  7 w=  6 h= 12
+    x= 66 y=  7 w=  8 h= 12
+    x= 61 y=  8 w=  3 h= 11
+    x= 37 y= 38 w=  2 h=  7
+    x= 42 y= 38 w=  6 h=  7
+    x= 51 y= 38 w=  2 h=  1
+    x= 54 y= 38 w=  7 h=  7
+    x= 61 y= 38 w=  2 h=  7
+    x= 68 y= 38 w=  4 h=  7
+    x= 75 y= 38 w=  5 h=  7
+    x= 82 y= 38 w=  2 h=  7
+    x= 85 y= 38 w=  4 h=  5
+    x= 50 y= 39 w=  1 h=  5
+    x= 53 y= 39 w=  1 h=  1
+    x= 89 y= 39 w=  2 h=  3
+    x= 89 y= 43 w=  1 h=  2
+    x= 51 y= 44 w=  1 h=  1
+    x= 53 y= 44 w=  1 h=  1
+    x= 86 y= 44 w=  2 h=  2
+  kept after filter + row-cluster (3):
+    x= 52 y=  7 w=  6 h= 12   '1'=0.750  '3'=0.512  '5'=0.505
+    x= 61 y=  8 w=  3 h= 11   '/'=0.841  '2'=0.611  '4'=0.596
+    x= 66 y=  7 w=  8 h= 12   '6'=0.835  '8'=0.833  '0'=0.766
+  recognised:   "1/6"
+  parsed owned: 1  (applied to AppState)
+
+-- Cell 3: Storage Battery (misc_b_batter_large) needed=6 --
+  strip rect:  x=1485 y=1064 w=133 h=54
+  raw components (17):
+    x=127 y=  0 w=  2 h=  1
+    x= 85 y=  7 w=  8 h= 12
+    x= 95 y=  7 w=  4 h= 12
+    x=100 y=  7 w=  7 h= 12
+    x= 70 y= 38 w=  4 h=  7
+    x= 75 y= 38 w=  6 h=  8
+    x= 83 y= 38 w=  4 h=  7
+    x= 88 y= 38 w=  9 h=  8
+    x=102 y= 38 w=  4 h=  7
+    x=110 y= 38 w=  4 h=  7
+    x=116 y= 38 w=  2 h=  8
+    x=120 y= 38 w=  3 h=  8
+    x= 87 y= 39 w=  1 h=  1
+    x=123 y= 39 w=  1 h=  1
+    x=123 y= 41 w=  2 h=  4
+    x= 87 y= 44 w=  1 h=  1
+    x= 85 y= 45 w=  2 h=  1
+  kept after filter + row-cluster (3):
+    x= 85 y=  7 w=  8 h= 12   '0'=0.896  '8'=0.833  '6'=0.758
+    x= 95 y=  7 w=  4 h= 12   '/'=0.818  '1'=0.589  '4'=0.538
+    x=100 y=  7 w=  7 h= 12   '6'=0.769  '8'=0.738  '5'=0.667
+  recognised:   "0/6"
+  parsed owned: 0  (applied to AppState)

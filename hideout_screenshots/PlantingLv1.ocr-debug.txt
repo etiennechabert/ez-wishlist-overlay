@@ -1,0 +1,154 @@
+=== OCR DEBUG DUMP ===
+Source: C:\Users\etien\Desktop\ez-wishlist-overlay\crates\app\../../hideout_screenshots\PlantingLv1.jpg
+Image:  2300×2300
+
+=== ANCHOR ("Need to submit items") ===
+  x=1486 y=975 w=279 h=28
+
+=== RESOLUTION ===
+  upgrade_id:     PlantingLv1
+  module name:    Plant Stand
+  upgrade level:  1
+  current level:  0 (parsed from LV<n>)
+
+=== OCR PANEL TEXT (whitespace-joined) ===
+  FACILITY UPGRADE 0/3 Plant Stand wo Plant Stand Improved Foad Recovery Efficiency Plant Stand Improved Food Recovery Efficiency Plant Stand Improved Food Recovery Efficiency t Need to submit items 0 70000 Düfectant Valve BACK Energy- saving lamp LEVEL UP Insulating T ape on
+
+=== OCR WORDS (43 total, sorted by Y then X) ===
+  y=  233 x=  747 w= 192 h= 50  "UPGRADE"
+  y=  253 x=  567 w= 168 h= 48  "FACILITY"
+  y=  537 x= 1202 w=  83 h= 30  "Stand"
+  y=  546 x= 1118 w=  74 h= 27  "Plant"
+  y=  586 x= 1120 w=  45 h= 23  "wo"
+  y=  659 x= 1208 w=  70 h= 24  "Stand"
+  y=  664 x= 1139 w=  61 h= 23  "Plant"
+  y=  691 x= 1377 w=  98 h= 20  "Efficiency"
+  y=  698 x= 1231 w=  47 h= 19  "Foad"
+  y=  699 x= 1285 w=  85 h= 17  "Recovery"
+  y=  701 x= 1140 w=  86 h= 23  "Improved"
+  y=  762 x= 1214 w=  69 h= 25  "Stand"
+  y=  767 x= 1144 w=  62 h= 23  "Plant"
+  y=  798 x= 1384 w= 100 h= 21  "Efficiency"
+  y=  803 x= 1237 w=  47 h= 20  "Food"
+  y=  804 x= 1005 w=  42 h= 23  "0/3"
+  y=  804 x= 1291 w=  87 h= 18  "Recovery"
+  y=  805 x= 1145 w=  87 h= 23  "Improved"
+  y=  868 x= 1220 w=  70 h= 25  "Stand"
+  y=  872 x= 1150 w=  62 h= 23  "Plant"
+  y=  906 x= 1391 w= 101 h= 23  "Efficiency"
+  y=  910 x= 1243 w=  48 h= 19  "Food"
+  y=  910 x= 1297 w=  88 h= 21  "Recovery"
+  y=  911 x= 1150 w=  88 h= 24  "Improved"
+  y=  975 x= 1594 w=  91 h= 26  "submit"
+  y=  975 x= 1691 w=  74 h= 25  "items"
+  y=  976 x= 1443 w=  26 h= 34  "t"
+  y=  977 x= 1486 w=  66 h= 26  "Need"
+  y=  979 x= 1559 w=  27 h= 23  "to"
+  y= 1019 x= 1540 w=  32 h= 31  "0"
+  y= 1024 x= 1586 w=  74 h= 20  "70000"
+  y= 1078 x= 1979 w= 118 h= 24  "Insulating"
+  y= 1081 x= 1222 w= 123 h= 20  "Düfectant"
+  y= 1081 x= 1713 w=  83 h= 22  "Energy-"
+  y= 1095 x= 1461 w=  58 h= 20  "Valve"
+  y= 1111 x= 1717 w=  70 h= 24  "saving"
+  y= 1111 x= 1793 w=  52 h= 24  "lamp"
+  y= 1112 x= 1983 w=  14 h= 20  "T"
+  y= 1117 x= 2001 w=  39 h= 18  "ape"
+  y= 1148 x= 1993 w=  36 h= 17  "on"
+  y= 1286 x= 1329 w=  74 h= 24  "BACK"
+  y= 1294 x= 1833 w=  86 h= 26  "LEVEL"
+  y= 1296 x= 1928 w=  40 h= 24  "UP"
+
+=== CELLS (4) ===
+
+-- Cell 0: Disinfectant wipes (misc_b_disinfectingwipes) needed=2 --
+  strip rect:  x=1212 y=1175 w=174 h=60
+  raw components (8):
+    x=156 y=  0 w= 18 h=  5
+    x= 37 y= 11 w=  6 h=  9
+    x= 59 y= 11 w=  5 h=  7
+    x= 47 y= 12 w=  6 h=  8
+    x= 55 y= 12 w=  2 h=  9
+    x= 64 y= 14 w=  1 h=  2
+    x= 64 y= 17 w=  1 h=  1
+    x= 59 y= 18 w=  5 h=  3
+  kept after filter + row-cluster (3):
+    x= 37 y= 11 w=  6 h=  9   '4'=0.587  '2'=0.556  '3'=0.548
+    x= 47 y= 12 w=  6 h=  8   '1'=0.696  '4'=0.654  '/'=0.614
+    x= 55 y= 12 w=  2 h=  9   '8'=0.738  '6'=0.670  '3'=0.583
+  recognised:   "418"
+  parsed owned: NONE  (split_progress failed — existing count preserved)
+
+-- Cell 1: Valve (misc_b_valve) needed=1 --
+  strip rect:  x=1429 y=1175 w=174 h=60
+  raw components (15):
+    x=  0 y=  3 w=174 h=  8
+    x= 25 y= 17 w=  5 h=  9
+    x= 31 y= 17 w=  8 h= 10
+    x= 41 y= 18 w=  5 h=  4
+    x= 46 y= 18 w=  6 h=  9
+    x= 55 y= 18 w=  3 h=  9
+    x= 63 y= 18 w=  6 h= 10
+    x= 73 y= 19 w=  7 h=  9
+    x= 82 y= 19 w=  2 h=  9
+    x= 86 y= 19 w=  4 h=  5
+    x= 90 y= 20 w=  2 h=  4
+    x= 53 y= 23 w=  2 h=  4
+    x= 41 y= 24 w=  5 h=  3
+    x= 92 y= 24 w=  1 h=  1
+    x= 86 y= 25 w=  6 h=  4
+  kept after filter + row-cluster (1):
+    x=  0 y=  3 w=174 h=  8   '5'=0.677  '4'=0.548  '1'=0.500
+  recognised:   "5"
+  parsed owned: NONE  (split_progress failed — existing count preserved)
+
+-- Cell 2: Energy-saving lamp (misc_b_lightbulb) needed=2 --
+  strip rect:  x=1646 y=1175 w=174 h=60
+  raw components (14):
+    x= 81 y=  0 w=  8 h=  2
+    x= 92 y=  0 w=  2 h=  2
+    x=101 y=  0 w=  8 h=  2
+    x= 61 y= 25 w=  6 h=  9
+    x= 68 y= 25 w=  8 h= 10
+    x= 81 y= 25 w=  1 h=  1
+    x= 78 y= 26 w=  3 h=  7
+    x= 82 y= 26 w=  2 h=  2
+    x= 80 y= 26 w= 11 h=  9
+    x= 91 y= 26 w=  6 h=  9
+    x=102 y= 26 w=  6 h= 10
+    x=112 y= 27 w=  7 h=  9
+    x=121 y= 27 w=  3 h=  9
+    x=126 y= 27 w=  7 h= 10
+  kept after filter + row-cluster (8):
+    x= 61 y= 25 w=  6 h=  9   '/'=0.568  '2'=0.528  '1'=0.518
+    x= 68 y= 25 w=  8 h= 10   '8'=0.667  '6'=0.626  '2'=0.602
+    x= 80 y= 26 w= 11 h=  9   '4'=0.702  '3'=0.667  '1'=0.625
+    x= 91 y= 26 w=  6 h=  9   '4'=0.750  '1'=0.661  '3'=0.595
+    x=102 y= 26 w=  6 h= 10   '6'=0.615  '8'=0.595  '2'=0.556
+    x=112 y= 27 w=  7 h=  9   '4'=0.702  '1'=0.679  '/'=0.568
+    x=121 y= 27 w=  3 h=  9   '5'=0.606  '1'=0.589  '3'=0.512
+    x=126 y= 27 w=  7 h= 10   '6'=0.747  '0'=0.701  '8'=0.690
+  recognised:   "/8446456"
+  parsed owned: NONE  (split_progress failed — existing count preserved)
+
+-- Cell 3: Insulating Tape (misc_b_insulatingtape) needed=1 --
+  strip rect:  x=1863 y=1175 w=174 h=60
+  raw components (9):
+    x=131 y=  0 w= 11 h=  9
+    x=145 y=  0 w=  4 h=  9
+    x=155 y=  0 w=  8 h= 10
+    x=112 y= 33 w=  5 h=  9
+    x=119 y= 33 w=  9 h= 11
+    x=129 y= 34 w= 10 h= 10
+    x=138 y= 34 w= 11 h= 10
+    x=154 y= 34 w=  8 h= 10
+    x=166 y= 35 w=  7 h=  9
+  kept after filter + row-cluster (6):
+    x=112 y= 33 w=  5 h=  9   '6'=0.615  '/'=0.591  '2'=0.574
+    x=119 y= 33 w=  9 h= 11   '8'=0.631  '5'=0.626  '6'=0.615
+    x=129 y= 34 w= 10 h= 10   '0'=0.584  '6'=0.571  '8'=0.536
+    x=138 y= 34 w= 11 h= 10   '4'=0.529  '2'=0.528  '5'=0.525
+    x=154 y= 34 w=  8 h= 10   '4'=0.587  '6'=0.549  '8'=0.524
+    x=166 y= 35 w=  7 h=  9   '1'=0.696  '/'=0.636  '4'=0.587
+  recognised:   "680441"
+  parsed owned: NONE  (split_progress failed — existing count preserved)

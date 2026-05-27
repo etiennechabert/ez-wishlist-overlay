@@ -1,0 +1,158 @@
+=== OCR DEBUG DUMP ===
+Source: C:\Users\etien\Desktop\ez-wishlist-overlay\crates\app\../../hideout_screenshots\QualityLv1.jpg
+Image:  2300×2300
+
+=== ANCHOR ("Need to submit items") ===
+  x=1229 y=941 w=214 h=21
+
+=== RESOLUTION ===
+  upgrade_id:     QualityLv1
+  module name:    Procurement Quality
+  upgrade level:  1
+  current level:  0 (parsed from LV<n>)
+
+=== OCR PANEL TEXT (whitespace-joined) ===
+  Arm Wiz efhfuOOf FACILITY UPGRADE Stoff' Eh LIT RIAL Arm Leg Quality LVO Procurement Quality Higher quality Procurement Quality Higher quality Procurement Quality Higher quality Recorder t Need to submit items O teoooa BACK LEVEL UP
+
+=== OCR WORDS (36 total, sorted by Y then X) ===
+  y=    3 x=  997 w=  25 h= 13  "Eh"
+  y=    6 x=  956 w=  40 h= 12  "Stoff'"
+  y=   79 x= 1680 w=  66 h= 29  "RIAL"
+  y=   85 x= 1616 w=  39 h= 27  "LIT"
+  y=  109 x= 1002 w=  30 h= 11  "Arm"
+  y=  126 x=  709 w=  31 h= 11  "Arm"
+  y=  184 x=  468 w=  47 h= 22  "Wiz"
+  y=  211 x=  489 w=  85 h= 21  "efhfuOOf"
+  y=  225 x= 1014 w=  26 h= 12  "Leg"
+  y=  315 x=  636 w= 166 h= 37  "UPGRADE"
+  y=  325 x=  477 w= 148 h= 35  "FACILITY"
+  y=  586 x=  946 w=  84 h= 28  "Quality"
+  y=  622 x=  946 w=  37 h= 17  "LVO"
+  y=  682 x= 1090 w=  70 h= 22  "Quality"
+  y=  685 x=  961 w= 123 h= 19  "Procurement"
+  y=  716 x= 1014 w=  55 h= 18  "quality"
+  y=  718 x=  961 w=  50 h= 17  "Higher"
+  y=  767 x= 1093 w=  70 h= 24  "Quality"
+  y=  770 x=  963 w= 123 h= 19  "Procurement"
+  y=  801 x= 1016 w=  55 h= 18  "quality"
+  y=  802 x=  962 w=  51 h= 18  "Higher"
+  y=  853 x= 1095 w=  71 h= 24  "Quality"
+  y=  856 x=  965 w= 124 h= 18  "Procurement"
+  y=  887 x= 1019 w=  54 h= 19  "quality"
+  y=  888 x=  964 w=  51 h= 19  "Higher"
+  y=  940 x= 1197 w=  19 h= 28  "t"
+  y=  941 x= 1313 w=  69 h= 20  "submit"
+  y=  941 x= 1388 w=  55 h= 20  "items"
+  y=  942 x= 1229 w=  51 h= 20  "Need"
+  y=  944 x= 1286 w=  20 h= 18  "to"
+  y=  975 x= 1266 w=  24 h= 25  "O"
+  y=  979 x= 1300 w=  66 h= 16  "teoooa"
+  y= 1035 x= 1018 w=  69 h= 16  "Recorder"
+  y= 1184 x= 1098 w=  58 h= 18  "BACK"
+  y= 1186 x= 1483 w=  62 h= 18  "LEVEL"
+  y= 1187 x= 1553 w=  29 h= 18  "UP"
+
+=== CELLS (4) ===
+
+-- Cell 0: Recorder (misc_b_recorder) needed=2 --
+  strip rect:  x=1019 y=1059 w=133 h=48
+  raw components (15):
+    x=  0 y=  0 w=107 h= 37
+    x=  5 y= 17 w=  6 h= 10
+    x= 19 y= 17 w=  7 h= 10
+    x= 13 y= 18 w=  4 h=  9
+    x= 20 y= 45 w=  2 h=  3
+    x=  6 y= 46 w=  1 h=  1
+    x=  7 y= 46 w=  4 h=  2
+    x= 14 y= 46 w=  2 h=  2
+    x= 23 y= 46 w=  1 h=  2
+    x= 28 y= 46 w=  3 h=  2
+    x= 34 y= 46 w=  1 h=  2
+    x= 37 y= 46 w=  2 h=  1
+    x= 40 y= 46 w=  1 h=  2
+    x=  0 y= 47 w=  1 h=  1
+    x=  3 y= 47 w=  1 h=  1
+  kept after filter + row-cluster (3):
+    x=  5 y= 17 w=  6 h= 10   '2'=0.704  '3'=0.571  '/'=0.545
+    x= 13 y= 18 w=  4 h=  9   '/'=0.818  '1'=0.589  '4'=0.519
+    x= 19 y= 17 w=  7 h= 10   '2'=0.722  '0'=0.571  '8'=0.560
+  recognised:   "2/2"
+  parsed owned: 2  (applied to AppState)
+
+-- Cell 1: Power Bank (misc_b_powerbank) needed=2 --
+  strip rect:  x=1185 y=1059 w=133 h=48
+  raw components (16):
+    x= 29 y= 17 w=  6 h= 10
+    x= 38 y= 17 w=  3 h= 10
+    x= 43 y= 17 w=  7 h= 10
+    x= 14 y= 45 w=  2 h=  3
+    x= 19 y= 45 w=  3 h=  3
+    x= 44 y= 45 w=  3 h=  3
+    x= 62 y= 45 w=  3 h=  3
+    x= 23 y= 46 w=  2 h=  2
+    x= 28 y= 46 w=  1 h=  1
+    x= 30 y= 46 w=  1 h=  1
+    x= 31 y= 46 w=  4 h=  2
+    x= 38 y= 46 w=  2 h=  2
+    x= 47 y= 46 w=  2 h=  2
+    x= 53 y= 46 w=  2 h=  2
+    x= 58 y= 46 w=  2 h=  2
+    x= 65 y= 46 w=  1 h=  2
+  kept after filter + row-cluster (3):
+    x= 29 y= 17 w=  6 h= 10   '1'=0.696  '3'=0.500  '4'=0.500
+    x= 38 y= 17 w=  3 h= 10   '/'=0.818  '2'=0.583  '4'=0.558
+    x= 43 y= 17 w=  7 h= 10   '2'=0.870  '8'=0.702  '0'=0.675
+  recognised:   "1/2"
+  parsed owned: 1  (applied to AppState)
+
+-- Cell 2: RAM (misc_b_ram) needed=2 --
+  strip rect:  x=1351 y=1059 w=133 h=48
+  raw components (15):
+    x= 28 y=  0 w=  6 h=  3
+    x= 58 y= 17 w=  6 h= 10
+    x= 66 y= 17 w=  5 h= 10
+    x= 73 y= 17 w=  6 h= 10
+    x= 42 y= 45 w=  4 h=  3
+    x= 48 y= 45 w=  2 h=  3
+    x= 51 y= 45 w=  2 h=  3
+    x= 73 y= 45 w=  5 h=  3
+    x= 88 y= 45 w=  1 h=  3
+    x= 91 y= 45 w=  3 h=  3
+    x= 56 y= 46 w=  1 h=  2
+    x= 59 y= 46 w=  5 h=  2
+    x= 67 y= 46 w=  2 h=  2
+    x= 82 y= 46 w=  3 h=  2
+    x= 95 y= 47 w=  1 h=  1
+  kept after filter + row-cluster (3):
+    x= 58 y= 17 w=  6 h= 10   '1'=0.732  '5'=0.525  '3'=0.500
+    x= 66 y= 17 w=  5 h= 10   '1'=0.661  '/'=0.636  '4'=0.606
+    x= 73 y= 17 w=  6 h= 10   '2'=0.935  '8'=0.702  '3'=0.643
+  recognised:   "112"
+  parsed owned: NONE  (split_progress failed — existing count preserved)
+
+-- Cell 3: Tape (misc_b_tape) needed=8 --
+  strip rect:  x=1517 y=1059 w=133 h=48
+  raw components (17):
+    x=101 y= 12 w=  4 h= 10
+    x= 91 y= 14 w=  7 h=  8
+    x=108 y= 14 w=  6 h=  9
+    x= 76 y= 45 w=  3 h=  3
+    x= 81 y= 45 w=  4 h=  3
+    x= 91 y= 45 w=  1 h=  1
+    x= 96 y= 45 w=  2 h=  3
+    x=107 y= 45 w=  5 h=  3
+    x=126 y= 45 w=  2 h=  3
+    x= 85 y= 46 w=  2 h=  2
+    x= 90 y= 46 w=  1 h=  1
+    x= 92 y= 46 w=  1 h=  1
+    x=101 y= 46 w=  2 h=  2
+    x=116 y= 46 w=  3 h=  2
+    x=122 y= 46 w=  2 h=  2
+    x=129 y= 46 w=  1 h=  2
+    x= 93 y= 47 w=  2 h=  1
+  kept after filter + row-cluster (3):
+    x= 91 y= 14 w=  7 h=  8   '4'=0.827  '/'=0.591  '3'=0.548
+    x=101 y= 12 w=  4 h= 10   '/'=0.773  '3'=0.571  '2'=0.565
+    x=108 y= 14 w=  6 h=  9   '8'=0.845  '6'=0.802  '0'=0.714
+  recognised:   "4/8"
+  parsed owned: 4  (applied to AppState)

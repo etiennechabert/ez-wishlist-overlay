@@ -1,0 +1,171 @@
+=== OCR DEBUG DUMP ===
+Source: C:\Users\etien\Desktop\ez-wishlist-overlay\crates\app\../../hideout_screenshots\StorageZoneLock1Lv1.jpg
+Image:  2300×2300
+
+=== ANCHOR ("Need to submit items") ===
+  x=1129 y=927 w=212 h=20
+
+=== RESOLUTION ===
+  upgrade_id:     StorageZoneLock1Lv1
+  module name:    Storage Room A
+  upgrade level:  1
+  current level:  0 (parsed from LV<n>)
+
+=== OCR PANEL TEXT (whitespace-joined) ===
+  MARKETA "m Wiz UlO:xxbjwefhfuOOf FACILITY UPGRADE SW"Eh Arm 0/1 Storage Room A LVO Storage Room A Access to storage room A TUT t Need to submit items 0 80000 Boxed Batts RIAL on JOHNNY' SHOP eax•d BACK Large gas can LEVEL UP
+
+=== OCR WORDS (42 total, sorted by Y then X) ===
+  y=   15 x= 1292 w= 214 h= 54  "MARKETA"
+  y=   63 x=  972 w=  66 h= 13  "SW\"Eh"
+  y=  165 x= 1681 w=  65 h= 25  "RIAL"
+  y=  166 x= 1013 w=  31 h= 12  "Arm"
+  y=  167 x= 1599 w=  58 h= 26  "TUT"
+  y=  172 x=  722 w=  31 h= 11  "\"m"
+  y=  221 x=  478 w=  48 h= 21  "Wiz"
+  y=  250 x=  400 w= 183 h= 23  "UlO:xxbjwefhfuOOf"
+  y=  374 x=  544 w= 171 h= 32  "UPGRADE"
+  y=  378 x=  377 w= 156 h= 31  "FACILITY"
+  y=  649 x= 1093 w=  35 h= 18  "0/1"
+  y=  655 x= 2165 w= 133 h= 26  "JOHNNY'"
+  y=  736 x= 1029 w=  17 h= 21  "A"
+  y=  737 x=  954 w=  66 h= 21  "Room"
+  y=  738 x=  852 w=  92 h= 26  "Storage"
+  y=  773 x=  851 w=  38 h= 18  "LVO"
+  y=  839 x= 1008 w=  16 h= 17  "A"
+  y=  840 x=  864 w=  76 h= 22  "Storage"
+  y=  840 x=  948 w=  55 h= 17  "Room"
+  y=  872 x= 1054 w=  12 h= 14  "A"
+  y=  873 x=  862 w=  55 h= 15  "Access"
+  y=  874 x=  923 w=  16 h= 13  "to"
+  y=  874 x=  945 w=  60 h= 15  "storage"
+  y=  876 x= 1010 w=  39 h= 11  "room"
+  y=  925 x= 1096 w=  19 h= 29  "t"
+  y=  927 x= 1212 w=  69 h= 20  "submit"
+  y=  927 x= 1286 w=  55 h= 19  "items"
+  y=  928 x= 1129 w=  51 h= 19  "Need"
+  y=  930 x= 1185 w=  21 h= 17  "to"
+  y=  962 x= 1170 w=  23 h= 24  "0"
+  y=  966 x= 1204 w=  55 h= 15  "80000"
+  y=  975 x= 2207 w=  93 h= 28  "SHOP"
+  y= 1009 x= 1493 w=  44 h= 17  "Large"
+  y= 1011 x= 1542 w=  27 h= 15  "gas"
+  y= 1020 x=  913 w=  48 h= 15  "eax•d"
+  y= 1021 x= 1158 w=  42 h= 17  "Batts"
+  y= 1022 x= 1105 w=  48 h= 16  "Boxed"
+  y= 1036 x= 1494 w=  28 h= 12  "can"
+  y= 1175 x= 1377 w=  60 h= 18  "LEVEL"
+  y= 1175 x= 1446 w=  28 h= 18  "UP"
+  y= 1176 x=  990 w=  58 h= 18  "BACK"
+  y= 1301 x= 1714 w=  38 h= 20  "on"
+
+=== CELLS (4) ===
+
+-- Cell 0: Nails (misc_b_nail) needed=3 --
+  strip rect:  x=921 y=1056 w=132 h=48
+  raw components (11):
+    x=115 y=  0 w= 17 h=  5
+    x=  3 y=  5 w=  4 h= 10
+    x= 10 y=  6 w=  5 h=  9
+    x=  0 y=  8 w=  1 h=  2
+    x=  3 y= 43 w=  2 h=  5
+    x= 10 y= 43 w=  4 h=  5
+    x= 18 y= 43 w=  3 h=  5
+    x= 24 y= 43 w=  1 h=  5
+    x= 27 y= 43 w=  4 h=  3
+    x=  0 y= 45 w=  1 h=  3
+    x= 31 y= 46 w=  1 h=  1
+  kept after filter + row-cluster (2):
+    x=  3 y=  5 w=  4 h= 10   '/'=0.818  '1'=0.571  '4'=0.538
+    x= 10 y=  6 w=  5 h=  9   '3'=0.655  '5'=0.646  '0'=0.636
+  recognised:   "/3"
+  parsed owned: NONE  (split_progress failed — existing count preserved)
+
+-- Cell 1: Bolts (misc_b_screw) needed=3 --
+  strip rect:  x=1085 y=1056 w=132 h=48
+  raw components (20):
+    x=  0 y=  0 w=  9 h=  4
+    x= 23 y=  8 w=  7 h= 12
+    x= 32 y=  8 w=  3 h= 11
+    x= 37 y=  8 w=  8 h= 11
+    x= 56 y= 37 w=  3 h=  3
+    x= 23 y= 38 w=  1 h=  1
+    x= 25 y= 38 w= 10 h=  7
+    x= 39 y= 38 w=  4 h=  7
+    x= 46 y= 38 w=  5 h=  7
+    x= 53 y= 38 w=  1 h=  7
+    x= 59 y= 38 w=  1 h=  1
+    x=  9 y= 39 w=  2 h=  1
+    x= 14 y= 39 w=  5 h=  7
+    x= 22 y= 39 w=  1 h=  1
+    x= 24 y= 39 w=  1 h=  1
+    x= 60 y= 39 w=  1 h=  5
+    x=  8 y= 40 w=  3 h=  5
+    x= 21 y= 41 w=  1 h=  3
+    x= 56 y= 41 w=  4 h=  4
+    x= 22 y= 44 w=  3 h=  2
+  kept after filter + row-cluster (3):
+    x= 23 y=  8 w=  7 h= 12   '2'=0.741  '3'=0.690  '6'=0.659
+    x= 32 y=  8 w=  3 h= 11   '/'=0.705  '1'=0.625  '2'=0.611
+    x= 37 y=  8 w=  8 h= 11   '3'=0.798  '0'=0.740  '8'=0.714
+  recognised:   "2/3"
+  parsed owned: 2  (applied to AppState)
+
+-- Cell 2: Disinfectant wipes (misc_b_disinfectingwipes) needed=3 --
+  strip rect:  x=1249 y=1056 w=132 h=48
+  raw components (17):
+    x= 67 y=  2 w=  8 h= 12
+    x= 54 y=  3 w=  6 h= 11
+    x= 62 y=  3 w=  4 h= 10
+    x= 77 y= 32 w=  5 h=  8
+    x= 84 y= 32 w=  1 h=  8
+    x= 87 y= 32 w=  3 h=  2
+    x= 39 y= 33 w=  3 h=  7
+    x= 44 y= 33 w=  6 h=  8
+    x= 51 y= 33 w=  4 h=  5
+    x= 56 y= 33 w=  9 h=  7
+    x= 69 y= 33 w=  5 h=  7
+    x= 55 y= 34 w=  1 h=  1
+    x= 91 y= 34 w=  1 h=  5
+    x= 87 y= 35 w=  2 h=  2
+    x= 87 y= 38 w=  3 h=  2
+    x= 53 y= 39 w=  1 h=  1
+    x= 55 y= 39 w=  1 h=  1
+  kept after filter + row-cluster (3):
+    x= 54 y=  3 w=  6 h= 11   '1'=0.750  '5'=0.566  '3'=0.536
+    x= 62 y=  3 w=  4 h= 10   '/'=0.773  '4'=0.596  '3'=0.548
+    x= 67 y=  2 w=  8 h= 12   '3'=0.750  '0'=0.675  '8'=0.643
+  recognised:   "1/3"
+  parsed owned: 1  (applied to AppState)
+
+-- Cell 3: Large gas can (misc_b_gastank_large) needed=3 --
+  strip rect:  x=1413 y=1056 w=132 h=48
+  raw components (25):
+    x=  1 y=  0 w= 17 h= 20
+    x= 86 y=  0 w=  6 h=  9
+    x= 94 y=  0 w=  4 h=  8
+    x=101 y=  0 w=  6 h=  8
+    x=111 y= 16 w= 17 h=  1
+    x= 75 y= 17 w= 14 h=  1
+    x= 39 y= 18 w= 17 h=  1
+    x= 95 y= 27 w=  3 h=  8
+    x=102 y= 27 w=  4 h=  7
+    x=110 y= 27 w=  5 h=  7
+    x=116 y= 27 w=  2 h=  7
+    x=120 y= 27 w=  2 h=  1
+    x=123 y= 27 w=  1 h=  3
+    x= 71 y= 28 w=  3 h=  7
+    x= 76 y= 28 w=  6 h=  7
+    x= 85 y= 28 w=  1 h=  1
+    x= 87 y= 28 w=  1 h=  1
+    x= 88 y= 28 w=  7 h=  7
+    x=120 y= 30 w=  1 h=  1
+    x=124 y= 31 w=  1 h=  1
+    x= 84 y= 32 w=  1 h=  1
+    x=120 y= 32 w=  2 h=  2
+    x=123 y= 32 w=  1 h=  2
+    x= 85 y= 33 w=  3 h=  2
+    x=106 y= 33 w=  1 h=  1
+  kept after filter + row-cluster (1):
+    x= 95 y= 27 w=  3 h=  8   '4'=0.596  '5'=0.576  '3'=0.536
+  recognised:   "4"
+  parsed owned: NONE  (split_progress failed — existing count preserved)

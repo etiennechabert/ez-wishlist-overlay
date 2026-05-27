@@ -1,0 +1,150 @@
+=== OCR DEBUG DUMP ===
+Source: C:\Users\etien\Desktop\ez-wishlist-overlay\crates\app\../../hideout_screenshots\StoragevaluableLv1.jpg
+Image:  2300×2300
+
+=== ANCHOR ("Need to submit items") ===
+  x=1228 y=982 w=214 h=28
+
+=== RESOLUTION ===
+  upgrade_id:     StoragevaluableLv1
+  module name:    Storage
+  upgrade level:  1
+  current level:  0 (parsed from LV<n>)
+
+=== OCR PANEL TEXT (whitespace-joined) ===
+  Arm Wiz UIO:xxbjwefhfuOOf FACILITY UPGRADE Stü"Eh Arm Storagevaluable LVO Storage Expand Junk Box Capacity Storage Expand Junk Box Capacity Storage Expand Junk Box Capacity BACK TUT Tape player RIAL t Need to submit items O aeesoa Ft •sh light Ion Battery LEVEL up
+
+=== OCR WORDS (43 total, sorted by Y then X) ===
+  y=   28 x= 1082 w=  66 h= 13  "Stü\"Eh"
+  y=  132 x= 1120 w=  31 h= 11  "Arm"
+  y=  133 x=  833 w=  30 h= 11  "Arm"
+  y=  143 x= 1718 w=  62 h= 27  "TUT"
+  y=  143 x= 1804 w=  68 h= 26  "RIAL"
+  y=  178 x=  597 w=  45 h= 20  "Wiz"
+  y=  208 x=  521 w= 175 h= 21  "UIO:xxbjwefhfuOOf"
+  y=  328 x=  511 w= 150 h= 29  "FACILITY"
+  y=  329 x=  670 w= 166 h= 29  "UPGRADE"
+  y=  610 x=  964 w= 191 h= 28  "Storagevaluable"
+  y=  644 x=  963 w=  37 h= 17  "LVO"
+  y=  709 x=  974 w=  75 h= 22  "Storage"
+  y=  741 x=  971 w=  55 h= 18  "Expand"
+  y=  743 x= 1031 w=  38 h= 14  "Junk"
+  y=  744 x= 1073 w=  28 h= 14  "Box"
+  y=  745 x= 1106 w=  68 h= 19  "Capacity"
+  y=  794 x=  970 w=  76 h= 24  "Storage"
+  y=  826 x=  968 w=  55 h= 18  "Expand"
+  y=  829 x= 1028 w=  39 h= 15  "Junk"
+  y=  831 x= 1071 w=  28 h= 14  "Box"
+  y=  831 x= 1104 w=  69 h= 19  "Capacity"
+  y=  880 x=  967 w=  76 h= 24  "Storage"
+  y=  912 x=  965 w=  56 h= 19  "Expand"
+  y=  915 x= 1026 w=  38 h= 16  "Junk"
+  y=  917 x= 1068 w=  28 h= 15  "Box"
+  y=  918 x= 1101 w=  69 h= 21  "Capacity"
+  y=  977 x= 1195 w=  20 h= 29  "t"
+  y=  982 x= 1228 w=  51 h= 21  "Need"
+  y=  985 x= 1285 w=  20 h= 19  "to"
+  y=  985 x= 1312 w=  69 h= 22  "submit"
+  y=  988 x= 1387 w=  55 h= 22  "items"
+  y= 1016 x= 1263 w=  25 h= 25  "O"
+  y= 1022 x= 1298 w=  66 h= 18  "aeesoa"
+  y= 1073 x= 1201 w=  14 h= 16  "Ft"
+  y= 1074 x= 1217 w=  27 h= 16  "•sh"
+  y= 1075 x= 1249 w=  38 h= 20  "light"
+  y= 1083 x= 1397 w=  24 h= 16  "Ion"
+  y= 1085 x= 1426 w=  62 h= 21  "Battery"
+  y= 1093 x= 1596 w=  41 h= 20  "Tape"
+  y= 1095 x= 1642 w=  52 h= 21  "player"
+  y= 1219 x= 1083 w=  57 h= 21  "BACK"
+  y= 1241 x= 1470 w=  62 h= 22  "LEVEL"
+  y= 1246 x= 1541 w=  29 h= 18  "up"
+
+=== CELLS (4) ===
+
+-- Cell 0: Waste Chip (misc_wastechip) needed=2 --
+  strip rect:  x=1018 y=1126 w=133 h=60
+  raw components (7):
+    x=104 y=  0 w= 29 h=  7
+    x=  0 y= 15 w=  5 h=  7
+    x=  9 y= 15 w=  5 h=  7
+    x= 17 y= 15 w=  5 h=  7
+    x= 23 y= 15 w=  2 h=  7
+    x= 27 y= 15 w=  2 h=  2
+    x= 27 y= 16 w=  4 h=  6
+  kept after filter + row-cluster (0):
+  recognised:   ""
+  parsed owned: NONE  (split_progress failed — existing count preserved)
+
+-- Cell 1: Flash light (misc_b_flashlight) needed=2 --
+  strip rect:  x=1184 y=1126 w=133 h=60
+  raw components (19):
+    x=  0 y=  0 w=125 h=  7
+    x=132 y=  0 w=  1 h=  7
+    x=  5 y= 15 w=  4 h=  7
+    x= 10 y= 15 w=  6 h=  8
+    x= 20 y= 15 w=  1 h=  1
+    x= 22 y= 15 w=  5 h=  7
+    x= 27 y= 15 w=  4 h=  7
+    x= 35 y= 15 w=  5 h=  7
+    x= 49 y= 15 w=  2 h=  8
+    x= 53 y= 15 w=  3 h=  8
+    x= 18 y= 16 w=  2 h=  1
+    x= 21 y= 16 w=  1 h=  1
+    x= 43 y= 16 w=  5 h=  6
+    x= 56 y= 16 w=  1 h=  2
+    x= 57 y= 19 w=  1 h=  1
+    x= 18 y= 20 w=  2 h=  2
+    x= 21 y= 21 w=  1 h=  1
+    x= 56 y= 21 w=  1 h=  1
+    x= 20 y= 22 w=  1 h=  1
+  kept after filter + row-cluster (3):
+    x= 10 y= 15 w=  6 h=  8   '8'=0.679  '6'=0.670  '2'=0.639
+    x= 49 y= 15 w=  2 h=  8   '4'=0.692  '5'=0.586  '3'=0.583
+    x= 53 y= 15 w=  3 h=  8   '/'=0.636  '6'=0.615  '2'=0.574
+  recognised:   "84/"
+  parsed owned: NONE  (split_progress failed — existing count preserved)
+
+-- Cell 2: Ion Battery (misc_b_ionbattery) needed=2 --
+  strip rect:  x=1350 y=1126 w=133 h=60
+  raw components (14):
+    x=  0 y=  5 w=133 h=  3
+    x= 35 y= 16 w=  2 h=  6
+    x= 40 y= 16 w=  6 h=  7
+    x= 49 y= 16 w=  3 h=  2
+    x= 51 y= 16 w= 10 h=  7
+    x= 66 y= 16 w=  5 h=  7
+    x= 73 y= 16 w=  5 h=  7
+    x= 80 y= 16 w=  2 h=  7
+    x= 84 y= 16 w=  4 h=  7
+    x= 47 y= 17 w=  2 h=  4
+    x= 88 y= 20 w=  1 h=  2
+    x= 48 y= 21 w=  1 h=  1
+    x= 49 y= 22 w=  1 h=  1
+    x= 87 y= 22 w=  1 h=  1
+  kept after filter + row-cluster (0):
+  recognised:   ""
+  parsed owned: NONE  (split_progress failed — existing count preserved)
+
+-- Cell 3: Tape player (misc_b_tapeplayer) needed=1 --
+  strip rect:  x=1516 y=1126 w=133 h=60
+  raw components (15):
+    x=  0 y=  3 w=133 h=  5
+    x= 69 y= 16 w=  3 h=  7
+    x= 75 y= 16 w=  6 h=  8
+    x= 85 y= 16 w= 11 h=  8
+    x=101 y= 16 w=  4 h=  7
+    x=116 y= 16 w=  1 h=  8
+    x=119 y= 16 w=  4 h=  3
+    x= 82 y= 17 w=  2 h=  4
+    x=109 y= 17 w=  5 h=  7
+    x=123 y= 18 w=  1 h=  2
+    x=119 y= 19 w=  5 h=  5
+    x=124 y= 20 w=  1 h=  1
+    x= 83 y= 22 w=  1 h=  1
+    x= 84 y= 22 w=  3 h=  2
+    x=105 y= 23 w=  1 h=  1
+  kept after filter + row-cluster (2):
+    x= 75 y= 16 w=  6 h=  8   '8'=0.643  '6'=0.604  '5'=0.596
+    x= 85 y= 16 w= 11 h=  8   '/'=0.636  '4'=0.558  '1'=0.554
+  recognised:   "8/"
+  parsed owned: NONE  (split_progress failed — existing count preserved)

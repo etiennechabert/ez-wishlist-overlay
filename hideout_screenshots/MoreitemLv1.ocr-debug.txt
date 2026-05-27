@@ -1,0 +1,130 @@
+=== OCR DEBUG DUMP ===
+Source: C:\Users\etien\Desktop\ez-wishlist-overlay\crates\app\../../hideout_screenshots\MoreitemLv1.jpg
+Image:  2300×2300
+
+=== ANCHOR ("Need to submit items") ===
+  x=1192 y=918 w=213 h=23
+
+=== RESOLUTION ===
+  upgrade_id:     MoreitemLv1
+  module name:    Procurement System
+  upgrade level:  1
+  current level:  0 (parsed from LV<n>)
+
+=== OCR PANEL TEXT (whitespace-joined) ===
+  •arn Wiz UlO:xxbiwefhfuOOf FACILITY UPGRADE Arm Moreitem LVO Procurement System More goods Procurement System More goads t Need to submit items O teaooo Size O Recorder batterye BACK LEVEL up TLIT RIAL JO
+
+=== OCR WORDS (33 total, sorted by Y then X) ===
+  y=  115 x= 1052 w=  30 h= 12  "Arm"
+  y=  119 x=  759 w=  31 h= 11  "•arn"
+  y=  120 x= 1729 w=  66 h= 26  "RIAL"
+  y=  121 x= 1645 w=  60 h= 33  "TLIT"
+  y=  166 x=  517 w=  46 h= 21  "Wiz"
+  y=  197 x=  439 w= 182 h= 21  "UlO:xxbiwefhfuOOf"
+  y=  314 x=  618 w= 169 h= 30  "UPGRADE"
+  y=  316 x=  455 w= 153 h= 30  "FACILITY"
+  y=  625 x= 2259 w=  39 h= 24  "JO"
+  y=  638 x=  920 w= 115 h= 21  "Moreitem"
+  y=  672 x=  919 w=  38 h= 17  "LVO"
+  y=  737 x=  932 w= 123 h= 19  "Procurement"
+  y=  739 x= 1062 w=  73 h= 22  "System"
+  y=  770 x=  930 w=  40 h= 14  "More"
+  y=  770 x=  973 w=  48 h= 18  "goods"
+  y=  823 x=  930 w= 125 h= 20  "Procurement"
+  y=  825 x= 1061 w=  73 h= 22  "System"
+  y=  856 x=  928 w=  40 h= 14  "More"
+  y=  857 x=  972 w=  48 h= 17  "goads"
+  y=  914 x= 1159 w=  20 h= 29  "t"
+  y=  918 x= 1192 w=  51 h= 19  "Need"
+  y=  920 x= 1276 w=  68 h= 19  "submit"
+  y=  921 x= 1249 w=  20 h= 17  "to"
+  y=  921 x= 1350 w=  55 h= 20  "items"
+  y=  952 x= 1227 w=  24 h= 23  "O"
+  y=  956 x= 1262 w=  65 h= 16  "teaooo"
+  y= 1003 x= 1458 w=  33 h= 17  "Size"
+  y= 1005 x= 1496 w=  11 h= 15  "O"
+  y= 1012 x= 1263 w=  71 h= 16  "Recorder"
+  y= 1028 x= 1458 w=  72 h= 21  "batterye"
+  y= 1156 x= 1051 w=  57 h= 20  "BACK"
+  y= 1167 x= 1435 w=  62 h= 21  "LEVEL"
+  y= 1169 x= 1505 w=  28 h= 20  "up"
+
+=== CELLS (3) ===
+
+-- Cell 0: Hammer (misc_hammer) needed=2 --
+  strip rect:  x=988 y=1057 w=177 h=51
+  raw components (24):
+    x=  3 y=  0 w= 20 h= 15
+    x= 84 y=  0 w=  6 h=  5
+    x= 92 y=  0 w=  2 h=  5
+    x= 98 y=  0 w=  7 h=  5
+    x=131 y= 12 w= 33 h=  1
+    x= 63 y= 13 w= 31 h=  1
+    x= 95 y= 13 w=  1 h=  1
+    x= 97 y= 13 w=  1 h=  1
+    x= 99 y= 13 w=  1 h=  1
+    x= 74 y= 23 w=  6 h=  8
+    x= 85 y= 23 w= 10 h=  7
+    x= 99 y= 23 w=  4 h=  7
+    x=106 y= 23 w=  5 h=  7
+    x=113 y= 23 w=  2 h=  7
+    x=116 y= 23 w=  4 h=  2
+    x= 69 y= 24 w=  3 h=  7
+    x= 82 y= 24 w=  2 h=  2
+    x=120 y= 24 w=  1 h=  5
+    x=116 y= 26 w=  2 h=  2
+    x= 81 y= 27 w=  1 h=  1
+    x=116 y= 28 w=  4 h=  2
+    x= 83 y= 29 w=  1 h=  1
+    x= 85 y= 29 w=  1 h=  1
+    x= 84 y= 30 w=  1 h=  1
+  kept after filter + row-cluster (1):
+    x= 74 y= 23 w=  6 h=  8   '2'=0.602  '6'=0.593  '0'=0.558
+  recognised:   "2"
+  parsed owned: NONE  (split_progress failed — existing count preserved)
+
+-- Cell 1: Recorder (misc_b_recorder) needed=3 --
+  strip rect:  x=1209 y=1057 w=177 h=51
+  raw components (16):
+    x= 55 y=  0 w=  7 h=  2
+    x= 64 y=  0 w=  1 h=  2
+    x= 69 y=  0 w=  7 h=  2
+    x= 71 y= 20 w=  4 h=  7
+    x= 85 y= 20 w=  2 h=  7
+    x= 88 y= 20 w=  3 h=  5
+    x= 40 y= 21 w=  3 h=  7
+    x= 46 y= 21 w=  5 h=  7
+    x= 54 y= 21 w=  3 h=  1
+    x= 57 y= 21 w=  7 h=  7
+    x= 64 y= 21 w=  3 h=  6
+    x= 78 y= 21 w=  5 h=  6
+    x= 92 y= 21 w=  1 h=  6
+    x= 53 y= 23 w=  1 h=  3
+    x= 54 y= 26 w=  3 h=  2
+    x= 89 y= 26 w=  2 h=  2
+  kept after filter + row-cluster (0):
+  recognised:   ""
+  parsed owned: NONE  (split_progress failed — existing count preserved)
+
+-- Cell 2: Size D battery (misc_b_1battery) needed=5 --
+  strip rect:  x=1430 y=1057 w=177 h=51
+  raw components (15):
+    x= 64 y= 17 w=  2 h=  3
+    x= 15 y= 18 w=  3 h=  7
+    x= 20 y= 18 w=  6 h=  8
+    x= 28 y= 18 w= 11 h=  7
+    x= 39 y= 18 w=  3 h=  7
+    x= 46 y= 18 w=  4 h=  7
+    x= 54 y= 18 w=  4 h=  7
+    x= 60 y= 18 w=  2 h=  7
+    x= 67 y= 18 w=  1 h=  2
+    x= 68 y= 20 w=  1 h=  3
+    x= 64 y= 21 w=  1 h=  1
+    x= 64 y= 23 w=  4 h=  2
+    x= 29 y= 24 w=  1 h=  1
+    x= 31 y= 24 w=  1 h=  1
+    x= 50 y= 24 w=  1 h=  1
+  kept after filter + row-cluster (1):
+    x= 20 y= 18 w=  6 h=  8   '8'=0.643  '0'=0.636  '2'=0.630
+  recognised:   "8"
+  parsed owned: NONE  (split_progress failed — existing count preserved)

@@ -105,15 +105,86 @@ pub fn process_screenshot(path: &Path, data: &GameData) -> Result<Option<OcrOutc
     // Binarize the full image once; cell strips are cropped from it.
     let prepped = prep::keep_white_invert(&img);
     let templates = &*templates::EMBEDDED;
-    let mut items: Vec<(String, u32)> = Vec::with_capacity(upgrade.requirements.len());
-    for (cell, req) in cells.iter().zip(upgrade.requirements.iter()) {
+    // **Safety contract**: only include cells where `split_progress`
+    // successfully parsed an `X/Y` shape. Cells we couldn't read get
+    // SKIPPED here, so the worker doesn't call `set_collected` and the
+    // user's existing count for that item survives. The previous
+    // behaviour ("fallback to owned=0 on parse failure") destroyed
+    // real progress whenever the strip Y misaligned and the template
+    // matcher chewed on FROM RAID letters — turning "I have 8 bolts"
+    // into "I have 0 bolts" silently on every bad capture.
+    let mut items: Vec<(String, Option<u32>)> = Vec::with_capacity(upgrade.requirements.len());
+    // Per-cell intermediate state for the debug dump (debug builds only).
+    #[cfg(debug_assertions)]
+    let mut debug_cells: Vec<crate::ocr::debug_dump::CellDebug<'_>> = Vec::new();
+    for (i, (cell, req)) in cells.iter().zip(upgrade.requirements.iter()).enumerate() {
         let strip = prepped.crop_imm(cell.x, cell.y, cell.w, cell.h);
         let gray = strip.to_luma8();
-        let recognised = templates::recognize(&gray, templates);
-        let owned = templates::split_progress(&recognised)
-            .map(|(a, _)| a)
-            .unwrap_or(0);
-        items.push((req.item_id.clone(), owned));
+        let recog = templates::recognize_with_debug(&gray, templates);
+        let parsed = templates::split_progress(&recog.recognised);
+        let owned_opt = parsed.map(|(o, _)| o);
+        items.push((req.item_id.clone(), owned_opt));
+        if owned_opt.is_none() {
+            tracing::warn!(
+                item_id = %req.item_id,
+                recognised = %recog.recognised,
+                "OCR: failed to parse owned count for cell — leaving existing collected value untouched",
+            );
+        }
+        #[cfg(debug_assertions)]
+        {
+            let item_name = data
+                .items
+                .iter()
+                .find(|it| it.id == req.item_id)
+                .map(|it| it.name.as_str())
+                .unwrap_or(req.item_id.as_str());
+            debug_cells.push(crate::ocr::debug_dump::CellDebug {
+                index: i,
+                item_id: req.item_id.as_str(),
+                item_name,
+                needed: req.quantity,
+                strip: *cell,
+                raw_components: recog.raw_components,
+                kept_components: recog.kept_components,
+                recognised: recog.recognised,
+                parsed_owned: owned_opt,
+            });
+        }
+        // Silence unused warnings in release builds where debug_cells
+        // doesn't exist.
+        #[cfg(not(debug_assertions))]
+        let _ = i;
+    }
+
+    // In debug builds, dump everything the pipeline saw to a sibling
+    // file next to the screenshot. The user can open this to see why
+    // a specific capture read counts the way it did (or didn't).
+    #[cfg(debug_assertions)]
+    {
+        use crate::ocr::debug_dump::{self, OcrDebugDump, Resolution};
+        let dump = OcrDebugDump {
+            source_path: path,
+            img_w,
+            img_h,
+            anchor: layout.anchor,
+            words: &full_words,
+            current_level,
+            panel_text: &panel_text,
+            resolution: Resolution::Resolved {
+                upgrade_id: upgrade.id.as_str(),
+                module_name: module.name.as_str(),
+                upgrade_level: upgrade.level,
+            },
+            cells: debug_cells,
+        };
+        let out = debug_dump::debug_path_for(path);
+        match debug_dump::write_text(&dump, &out) {
+            Ok(()) => tracing::info!(path = %out.display(), "OCR debug dump written"),
+            Err(e) => {
+                tracing::warn!(error = %e, path = %out.display(), "OCR debug dump write failed")
+            }
+        }
     }
 
     Ok(Some(OcrOutcome {
@@ -736,7 +807,12 @@ mod fixture_tests {
                             .and_then(|u| u.requirements.get(i))
                             .map(|r| r.quantity)
                             .unwrap_or(0);
-                        eprintln!("       cell {i}: {item_id} = {owned}/{need}");
+                        match owned {
+                            Some(o) => eprintln!("       cell {i}: {item_id} = {o}/{need}"),
+                            None => eprintln!(
+                                "       cell {i}: {item_id} = UNREAD/{need} (cell unreadable)"
+                            ),
+                        }
                     }
                 }
                 Ok(None) => eprintln!("NONE  {stem}: pipeline returned None"),

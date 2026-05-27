@@ -1,0 +1,85 @@
+=== OCR DEBUG DUMP ===
+Source: C:\Users\etien\Desktop\ez-wishlist-overlay\crates\app\../../hideout_screenshots\MedDeskLv1.jpg
+Image:  2300×2300
+
+=== ANCHOR ("Need to submit items") ===
+  x=1422 y=990 w=275 h=27
+
+=== RESOLUTION ===
+  upgrade_id:     MedDeskLv1
+  module name:    Med Desk
+  upgrade level:  1
+  current level:  0 (parsed from LV<n>)
+
+=== OCR PANEL TEXT (whitespace-joined) ===
+  FACILITY UPGRADE 013 MedLDeik LVO Med Desk Improved Hydration Recovery Efficiency Med Desk Improved Hydration Recovery Efficiency Med Desk Improved Hydration Recovery Efficiency t Need to submit items 0 70000 Bottled glucose mæRAID BACK Valve Socket LEVEL up
+
+=== OCR WORDS (38 total, sorted by Y then X) ===
+  y=  216 x=  701 w= 197 h= 44  "UPGRADE"
+  y=  229 x=  514 w= 175 h= 42  "FACILITY"
+  y=  534 x= 1069 w= 143 h= 35  "MedLDeik"
+  y=  585 x= 1069 w=  45 h= 21  "LVO"
+  y=  662 x= 1144 w=  58 h= 23  "Desk"
+  y=  663 x= 1087 w=  49 h= 22  "Med"
+  y=  698 x= 1371 w= 100 h= 22  "Efficiency"
+  y=  701 x= 1178 w=  93 h= 22  "Hydration"
+  y=  702 x= 1086 w=  86 h= 22  "Improved"
+  y=  702 x= 1278 w=  88 h= 19  "Recovery"
+  y=  767 x= 1088 w=  49 h= 23  "Med"
+  y=  767 x= 1145 w=  59 h= 23  "Desk"
+  y=  801 x=  945 w=  42 h= 23  "013"
+  y=  806 x= 1375 w= 100 h= 22  "Efficiency"
+  y=  807 x= 1087 w=  87 h= 23  "Improved"
+  y=  807 x= 1180 w=  94 h= 22  "Hydration"
+  y=  808 x= 1281 w=  89 h= 21  "Recovery"
+  y=  873 x= 1089 w=  50 h= 23  "Med"
+  y=  873 x= 1147 w=  59 h= 23  "Desk"
+  y=  914 x= 1088 w=  88 h= 24  "Improved"
+  y=  914 x= 1182 w=  95 h= 24  "Hydration"
+  y=  915 x= 1379 w= 101 h= 25  "Efficiency"
+  y=  916 x= 1284 w=  90 h= 23  "Recovery"
+  y=  986 x= 1381 w=  24 h= 35  "t"
+  y=  990 x= 1422 w=  65 h= 25  "Need"
+  y=  990 x= 1530 w=  88 h= 26  "submit"
+  y=  991 x= 1625 w=  72 h= 26  "items"
+  y=  992 x= 1494 w=  27 h= 23  "to"
+  y= 1032 x= 1474 w=  32 h= 31  "0"
+  y= 1038 x= 1520 w=  73 h= 21  "70000"
+  y= 1088 x= 1154 w=  73 h= 20  "Bottled"
+  y= 1111 x= 1644 w=  60 h= 21  "Valve"
+  y= 1116 x= 1906 w=  76 h= 22  "Socket"
+  y= 1118 x= 1155 w=  77 h= 23  "glucose"
+  y= 1195 x= 1382 w=  71 h= 14  "mæRAID"
+  y= 1296 x= 1254 w=  74 h= 25  "BACK"
+  y= 1313 x= 1754 w=  83 h= 26  "LEVEL"
+  y= 1316 x= 1847 w=  38 h= 25  "up"
+
+=== CELLS (4) ===
+
+-- Cell 0: Bottled glucose (misc_b_bottledglucose) needed=1 --
+  strip rect:  x=1152 y=1219 w=171 h=63
+  raw components (0):
+  kept after filter + row-cluster (0):
+  recognised:   ""
+  parsed owned: NONE  (split_progress failed — existing count preserved)
+
+-- Cell 1: Aspirin (misc_b_aspire) needed=1 --
+  strip rect:  x=1365 y=1219 w=171 h=63
+  raw components (0):
+  kept after filter + row-cluster (0):
+  recognised:   ""
+  parsed owned: NONE  (split_progress failed — existing count preserved)
+
+-- Cell 2: Valve (misc_b_valve) needed=1 --
+  strip rect:  x=1578 y=1219 w=171 h=63
+  raw components (0):
+  kept after filter + row-cluster (0):
+  recognised:   ""
+  parsed owned: NONE  (split_progress failed — existing count preserved)
+
+-- Cell 3: Socket (misc_b_socket) needed=2 --
+  strip rect:  x=1791 y=1219 w=171 h=63
+  raw components (0):
+  kept after filter + row-cluster (0):
+  recognised:   ""
+  parsed owned: NONE  (split_progress failed — existing count preserved)

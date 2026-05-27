@@ -267,8 +267,15 @@ fn spawn_ocr_worker(
                         let (version, feedback) = {
                             let mut w = state.write();
                             let mut feedback = gui::OcrFeedback::done(&outcome, &w);
+                            // Only apply cells the pipeline could
+                            // actually read. `None` means we saw the
+                            // cell but couldn't parse an X/Y count —
+                            // leave the user's existing collected
+                            // value alone instead of resetting to 0.
                             for (item_id, owned) in &outcome.items {
-                                w.set_collected(item_id, *owned);
+                                if let Some(value) = owned {
+                                    w.set_collected(item_id, *value);
+                                }
                             }
                             let progression = w.apply_ocr_progression(&outcome.upgrade_id);
                             feedback.attach_progression(&w, progression);

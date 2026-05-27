@@ -1,0 +1,98 @@
+=== OCR DEBUG DUMP ===
+Source: C:\Users\etien\Desktop\ez-wishlist-overlay\crates\app\../../hideout_screenshots\RestRoomLv1.jpg
+Image:  2300×2300
+
+=== ANCHOR ("Need to submit items") ===
+  x=1397 y=923 w=219 h=39
+
+=== RESOLUTION ===
+  upgrade_id:     RestRoomLv1
+  module name:    Toilet
+  upgrade level:  1
+  current level:  0 (parsed from LV<n>)
+
+=== OCR PANEL TEXT (whitespace-joined) ===
+  RIAL Wiz IO:xxbjwefhfuOOf FACILITY UPGRADE TUT Toilet LVO Toilet Increased EXP Gain Toilet Increased EXP Gain Toilet Increased EXP Gain t Need to submit items O teaooo Toilet Paper Pesticide Rust cleaner 1.11 BACK LEVEL up
+
+=== OCR WORDS (36 total, sorted by Y then X) ===
+  y=   86 x= 1821 w=  63 h= 28  "TUT"
+  y=   86 x= 1909 w=  73 h= 27  "RIAL"
+  y=  119 x=  685 w=  44 h= 20  "Wiz"
+  y=  150 x=  626 w= 157 h= 20  "IO:xxbjwefhfuOOf"
+  y=  257 x=  708 w= 143 h= 30  "FACILITY"
+  y=  260 x=  860 w= 162 h= 31  "UPGRADE"
+  y=  544 x= 1142 w=  68 h= 24  "Toilet"
+  y=  578 x= 1140 w=  37 h= 18  "LVO"
+  y=  642 x= 1149 w=  55 h= 21  "Toilet"
+  y=  675 x= 1147 w=  73 h= 17  "Increased"
+  y=  680 x= 1224 w=  29 h= 14  "EXP"
+  y=  682 x= 1257 w=  34 h= 15  "Gain"
+  y=  726 x= 1144 w=  55 h= 22  "Toilet"
+  y=  758 x= 1142 w=  73 h= 20  "Increased"
+  y=  765 x= 1219 w=  29 h= 15  "EXP"
+  y=  767 x= 1253 w=  33 h= 17  "Gain"
+  y=  810 x= 1139 w=  56 h= 22  "Toilet"
+  y=  842 x= 1137 w=  74 h= 20  "Increased"
+  y=  849 x= 1215 w=  29 h= 16  "EXP"
+  y=  852 x= 1249 w=  33 h= 17  "Gain"
+  y=  917 x= 1363 w=  20 h= 28  "t"
+  y=  923 x= 1397 w=  52 h= 23  "Need"
+  y=  930 x= 1455 w=  20 h= 19  "to"
+  y=  932 x= 1482 w=  71 h= 24  "submit"
+  y=  937 x= 1558 w=  58 h= 25  "items"
+  y=  959 x= 1431 w=  24 h= 25  "O"
+  y=  967 x= 1466 w=  67 h= 21  "teaooo"
+  y=  992 x= 1180 w=  46 h= 19  "Toilet"
+  y=  997 x= 1230 w=  44 h= 20  "Paper"
+  y= 1033 x= 1565 w=  77 h= 22  "Pesticide"
+  y= 1055 x= 1772 w=  40 h= 19  "Rust"
+  y= 1059 x= 1818 w=  66 h= 22  "cleaner"
+  y= 1074 x= 1568 w=  23 h= 14  "1.11"
+  y= 1145 x= 1246 w=  57 h= 24  "BACK"
+  y= 1193 x= 1635 w=  64 h= 26  "LEVEL"
+  y= 1203 x= 1709 w=  29 h= 20  "up"
+
+=== CELLS (4) ===
+
+-- Cell 0: Toilet Paper (misc_b_toiletpaper) needed=2 --
+  strip rect:  x=1182 y=1099 w=136 h=66
+  raw components (4):
+    x= 65 y= 38 w= 10 h= 15
+    x= 78 y= 39 w= 12 h= 15
+    x= 94 y= 39 w= 11 h= 15
+    x=108 y= 39 w= 12 h= 16
+  kept after filter + row-cluster (4):
+    x= 65 y= 38 w= 10 h= 15   '6'=0.802  '8'=0.798  '2'=0.750
+    x= 78 y= 39 w= 12 h= 15   '4'=0.673  '/'=0.636  '1'=0.571
+    x= 94 y= 39 w= 11 h= 15   '0'=0.766  '2'=0.750  '8'=0.726
+    x=108 y= 39 w= 12 h= 16   '5'=0.576  '/'=0.568  '4'=0.567
+  recognised:   "6405"
+  parsed owned: NONE  (split_progress failed — existing count preserved)
+
+-- Cell 1: Hammer (misc_hammer) needed=1 --
+  strip rect:  x=1352 y=1099 w=136 h=66
+  raw components (0):
+  kept after filter + row-cluster (0):
+  recognised:   ""
+  parsed owned: NONE  (split_progress failed — existing count preserved)
+
+-- Cell 2: Pesticide (misc_b_pesticide) needed=1 --
+  strip rect:  x=1522 y=1099 w=136 h=66
+  raw components (2):
+    x=117 y= 49 w=  9 h= 16
+    x=129 y= 49 w=  7 h= 16
+  kept after filter + row-cluster (2):
+    x=117 y= 49 w=  9 h= 16   '5'=0.626  '6'=0.571  '1'=0.536
+    x=129 y= 49 w=  7 h= 16   '6'=0.681  '8'=0.595  '5'=0.576
+  recognised:   "56"
+  parsed owned: 5  (applied to AppState)
+
+-- Cell 3: Rust cleaner (misc_b_rustedcleaner) needed=1 --
+  strip rect:  x=1692 y=1099 w=136 h=66
+  raw components (3):
+    x=  1 y= 50 w=  9 h= 16
+    x= 21 y= 51 w= 12 h= 15
+    x= 37 y= 51 w= 12 h= 15
+  kept after filter + row-cluster (0):
+  recognised:   ""
+  parsed owned: NONE  (split_progress failed — existing count preserved)

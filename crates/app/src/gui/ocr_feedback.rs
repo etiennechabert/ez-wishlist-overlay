@@ -64,7 +64,12 @@ pub enum OcrFeedbackKind {
 pub struct OcrItemDelta {
     pub item_name: String,
     pub before: u32,
-    pub after: u32,
+    /// `Some(after)` when the OCR pipeline successfully read the
+    /// cell's owned count. `None` when the cell was unreadable
+    /// (binarised strip didn't yield a parseable X/Y); the existing
+    /// `before` count was preserved instead of being overwritten with
+    /// a false 0.
+    pub after: Option<u32>,
     pub needed: u32,
 }
 
@@ -106,7 +111,7 @@ impl OcrFeedback {
             })
             .unwrap_or_default();
 
-        let items = outcome
+        let items: Vec<OcrItemDelta> = outcome
             .items
             .iter()
             .map(|(item_id, after)| {
@@ -182,20 +187,31 @@ impl OcrFeedback {
                 items,
                 progression_notes,
             } => {
+                let applied = items.iter().filter(|i| i.after.is_some()).count();
+                let unread = items.len() - applied;
                 tracing::info!(
                     upgrade = %upgrade_name,
                     level = level,
-                    "OCR overlay: done — applied counts to {} item(s)",
-                    items.len(),
+                    applied = applied,
+                    unread = unread,
+                    "OCR overlay: done"
                 );
                 for item in items {
-                    tracing::info!(
-                        "  {}: {} → {} / {}",
-                        item.item_name,
-                        item.before,
-                        item.after,
-                        item.needed,
-                    );
+                    match item.after {
+                        Some(after) => tracing::info!(
+                            "  {}: {} → {} / {}",
+                            item.item_name,
+                            item.before,
+                            after,
+                            item.needed,
+                        ),
+                        None => tracing::warn!(
+                            "  {}: kept {} / {} (cell unreadable — see .ocr-debug.txt)",
+                            item.item_name,
+                            item.before,
+                            item.needed,
+                        ),
+                    }
                 }
                 for note in progression_notes {
                     tracing::info!("  {note}");

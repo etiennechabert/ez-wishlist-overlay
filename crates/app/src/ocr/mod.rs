@@ -20,6 +20,8 @@
 // when the only caller is the Windows-gated pipeline.
 #[cfg(target_os = "windows")]
 pub mod anchor;
+#[cfg(all(target_os = "windows", debug_assertions))]
+pub mod debug_dump;
 #[cfg(target_os = "windows")]
 pub mod engine;
 #[cfg(target_os = "windows")]
@@ -61,7 +63,14 @@ pub struct OcrWord {
 pub struct OcrOutcome {
     pub upgrade_id: String,
     pub upgrade_name: String,
-    /// `(item_id, owned_count)` pairs in data.json requirement order. The
-    /// caller is expected to write every entry to `AppState.collected`.
-    pub items: Vec<(String, u32)>,
+    /// One entry per `data.json` requirement, in declared order.
+    ///
+    /// `Some(owned)` — pipeline successfully read the cell's count;
+    /// caller writes it to `AppState.collected`.
+    ///
+    /// `None` — pipeline saw the cell but `split_progress` couldn't
+    /// parse an `X/Y` shape. Caller must leave the existing collected
+    /// value untouched (overwriting with 0 silently destroyed real
+    /// progress when the strip Y misaligned).
+    pub items: Vec<(String, Option<u32>)>,
 }
