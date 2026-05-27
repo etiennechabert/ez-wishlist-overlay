@@ -110,7 +110,7 @@ fn main() -> Result<()> {
     // the VR thread because a full OCR pass can take 100-500 ms and the
     // 90 Hz render loop must not block.
     let (ocr_path_tx, ocr_path_rx) = crossbeam_channel::bounded::<std::path::PathBuf>(4);
-    let last_ocr: Arc<RwLock<Option<ocr::OcrOutcome>>> = Arc::new(RwLock::new(None));
+    let last_ocr: Arc<RwLock<Option<gui::OcrFeedback>>> = Arc::new(RwLock::new(None));
     let _ocr_handle = spawn_ocr_worker(
         shared_state.clone(),
         settings.clone(),
@@ -214,7 +214,7 @@ fn spawn_ocr_worker(
     state: Arc<RwLock<state::AppState>>,
     settings: Arc<RwLock<settings::Settings>>,
     save_tx: crossbeam_channel::Sender<gui::SaveTick>,
-    last_ocr: Arc<RwLock<Option<ocr::OcrOutcome>>>,
+    last_ocr: Arc<RwLock<Option<gui::OcrFeedback>>>,
     ocr_path_rx: crossbeam_channel::Receiver<std::path::PathBuf>,
 ) -> std::thread::JoinHandle<()> {
     std::thread::Builder::new()
@@ -252,14 +252,17 @@ fn spawn_ocr_worker(
                     }
                 };
 
-                // Apply the per-item owned counts. One write-lock, all
-                // items in a batch, single bump → one SaveTick.
-                let version = {
+                // Snapshot pre-update state inside the same write lock that
+                // applies the new counts. Reading `collected` first and the
+                // upgrade index from the same `AppState` reference gives the
+                // GUI overlay a coherent before/after view without re-locking.
+                let (version, feedback) = {
                     let mut w = state.write();
+                    let feedback = gui::OcrFeedback::from_outcome(&outcome, &w);
                     for (item_id, owned) in &outcome.items {
                         w.set_collected(item_id, *owned);
                     }
-                    w.version
+                    (w.version, feedback)
                 };
                 tracing::info!(
                     upgrade_id = %outcome.upgrade_id,
@@ -268,7 +271,7 @@ fn spawn_ocr_worker(
                     "OCR: applied owned counts",
                 );
                 let _ = save_tx.try_send(gui::SaveTick { version });
-                *last_ocr.write() = Some(outcome);
+                *last_ocr.write() = Some(feedback);
             }
             tracing::info!("OCR worker: channel closed, thread exiting");
         })

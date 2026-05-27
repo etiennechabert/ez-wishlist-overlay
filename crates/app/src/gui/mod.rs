@@ -4,11 +4,14 @@ mod about_dialog;
 mod debug_dialog;
 mod hideout_pane;
 mod icon_cache;
+mod ocr_feedback;
 mod overrides_export;
 mod preview_pane;
 mod settings_dialog;
 mod tasks_pane;
 pub mod theme;
+
+pub use ocr_feedback::OcrFeedback;
 
 use crate::data::GameData;
 use crate::persist::PersistPaths;
@@ -83,12 +86,10 @@ pub struct App {
     capture_toast_shown_at: Option<Instant>,
     /// Shared slot the OCR worker thread writes to on each successful
     /// pipeline run. Drained on each update tick into `last_ocr`.
-    last_ocr_shared: Arc<RwLock<Option<crate::ocr::OcrOutcome>>>,
-    /// Last successful OCR result. Drives the green "Updated N items from
-    /// X" toast and survives the toast's fade so future debug UIs can read it.
-    last_ocr: Option<crate::ocr::OcrOutcome>,
-    /// When the OCR toast first appeared. Same shape as `capture_toast_shown_at`.
-    ocr_toast_shown_at: Option<Instant>,
+    last_ocr_shared: Arc<RwLock<Option<OcrFeedback>>>,
+    /// Currently-displayed OCR feedback card. `None` once the overlay
+    /// fades out (release builds) or the user clicks Close (debug builds).
+    last_ocr: Option<OcrFeedback>,
 }
 
 impl App {
@@ -104,7 +105,7 @@ impl App {
         settings: Arc<RwLock<crate::settings::Settings>>,
         log_buf: crate::log_buffer::LogBuffer,
         update_rx: Option<Receiver<CheckStatus>>,
-        last_ocr_shared: Arc<RwLock<Option<crate::ocr::OcrOutcome>>>,
+        last_ocr_shared: Arc<RwLock<Option<OcrFeedback>>>,
     ) -> Self {
         // Extend egui's default Proportional fallback chain with Hack.
         // Ubuntu-Light (the proportional primary) doesn't cover most of the
@@ -156,7 +157,6 @@ impl App {
             capture_toast_shown_at: None,
             last_ocr_shared,
             last_ocr: None,
-            ocr_toast_shown_at: None,
         }
     }
 
@@ -207,15 +207,18 @@ impl eframe::App for App {
         }
         self.render_capture_toast(ctx);
 
-        // Drain the OCR worker's latest outcome once per frame and show a
-        // toast. The OCR thread writes a `Some(_)` into `last_ocr_shared`
-        // every time it successfully matches an upgrade panel; we `take()`
-        // here so each result raises exactly one toast.
-        if let Some(outcome) = self.last_ocr_shared.write().take() {
-            self.last_ocr = Some(outcome);
-            self.ocr_toast_shown_at = Some(Instant::now());
+        // Drain the OCR worker's latest feedback once per frame. A new
+        // capture replaces any older card that's still on screen so the
+        // user always sees the most-recent reading.
+        if let Some(feedback) = self.last_ocr_shared.write().take() {
+            self.last_ocr = Some(feedback);
         }
-        self.render_ocr_toast(ctx);
+        if let Some(feedback) = self.last_ocr.as_ref() {
+            let dismiss = ocr_feedback::render(ctx, feedback, &mut self.icons);
+            if dismiss {
+                self.last_ocr = None;
+            }
+        }
 
         let desired_theme = self.settings.read().theme;
         if self.applied_theme != Some(desired_theme) {
@@ -581,87 +584,6 @@ impl App {
                         1.5,
                         scale(accent, alpha),
                     ))
-                    .rounding(egui::Rounding::same(10.0))
-                    .inner_margin(egui::Margin::symmetric(24.0, 16.0))
-                    .show(ui, |ui| {
-                        ui.vertical_centered(|ui| {
-                            ui.label(
-                                egui::RichText::new(title)
-                                    .strong()
-                                    .size(18.0)
-                                    .color(scale(accent, alpha)),
-                            );
-                            ui.add_space(4.0);
-                            ui.label(
-                                egui::RichText::new(body)
-                                    .monospace()
-                                    .size(13.0)
-                                    .color(scale(egui::Color32::from_gray(230), alpha)),
-                            );
-                        });
-                    });
-            });
-    }
-
-    /// Centred transient toast confirming an OCR pipeline result. Mirrors
-    /// `render_capture_toast` but lives below centre and uses a blue accent
-    /// so the two can coexist briefly when capture + OCR finish close
-    /// together. Shows "Updated N items from <Upgrade>" so the user can
-    /// confirm the right panel was read.
-    fn render_ocr_toast(&mut self, ctx: &egui::Context) {
-        use std::time::Duration;
-        const TOAST_DURATION: Duration = Duration::from_secs(3);
-        const FADE_TAIL: Duration = Duration::from_millis(600);
-
-        let Some(shown_at) = self.ocr_toast_shown_at else {
-            return;
-        };
-        let age = shown_at.elapsed();
-        if age >= TOAST_DURATION {
-            self.ocr_toast_shown_at = None;
-            return;
-        }
-        ctx.request_repaint_after(Duration::from_millis(33));
-
-        let alpha = if TOAST_DURATION.saturating_sub(age) < FADE_TAIL {
-            let remaining = TOAST_DURATION.saturating_sub(age).as_secs_f32();
-            (remaining / FADE_TAIL.as_secs_f32()).clamp(0.0, 1.0)
-        } else {
-            1.0
-        };
-
-        let outcome = match self.last_ocr.as_ref() {
-            Some(o) => o,
-            None => return,
-        };
-        let accent = egui::Color32::from_rgb(90, 150, 220);
-        let title = "Owned counts updated";
-        let body = format!(
-            "{} item{} from {}",
-            outcome.items.len(),
-            if outcome.items.len() == 1 { "" } else { "s" },
-            outcome.upgrade_name,
-        );
-
-        let scale = |c: egui::Color32, a: f32| {
-            egui::Color32::from_rgba_unmultiplied(
-                c.r(),
-                c.g(),
-                c.b(),
-                (c.a() as f32 * a) as u8,
-            )
-        };
-
-        egui::Area::new(egui::Id::new("vr_ocr_toast"))
-            // Anchor below the capture toast so both can be visible at
-            // once when OCR finishes during the capture toast's tail.
-            .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::new(0.0, 80.0))
-            .interactable(false)
-            .order(egui::Order::Tooltip)
-            .show(ctx, |ui| {
-                egui::Frame::default()
-                    .fill(scale(egui::Color32::from_rgb(28, 28, 32), alpha))
-                    .stroke(egui::Stroke::new(1.5, scale(accent, alpha)))
                     .rounding(egui::Rounding::same(10.0))
                     .inner_margin(egui::Margin::symmetric(24.0, 16.0))
                     .show(ui, |ui| {
