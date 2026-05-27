@@ -236,9 +236,17 @@ fn spawn_ocr_worker(
         .spawn(move || {
             while let Ok(path) = ocr_path_rx.recv() {
                 if !settings.read().ocr_enabled {
-                    tracing::debug!(
+                    // Surface this at info — users only see the
+                    // info+warn levels and we want them to know why no
+                    // overlay popped up after a capture. Enable in
+                    // Settings → "Auto-extract counts from VR
+                    // screenshots".
+                    tracing::info!(
                         path = %path.display(),
-                        "OCR disabled in settings — skipping",
+                        "OCR disabled in Settings → \
+                         'Auto-extract counts from VR screenshots' — \
+                         skipping. Toggle it on to see the in-headset \
+                         feedback overlay.",
                     );
                     continue;
                 }
