@@ -39,7 +39,15 @@ const PLACEHOLDER_HEIGHT: u32 = 120;
 
 pub struct CellHit {
     pub item_id: String,
+    /// Where to draw the hover-highlight border. Tight to the visible icon
+    /// so the yellow box always traces the icon's outline — never bleeds
+    /// into the name band above or the progress chip below.
     pub rect: Rect,
+    /// Where the click/hover detection fires. Extends past the icon into
+    /// the name band and chip area so users don't fall into a 68px dead
+    /// zone between vertically-stacked rows. The 8px CELL_PADDING between
+    /// cells is the only true gap.
+    pub hit_rect: Rect,
     /// Target quantity at render time. Cached here so the click handler
     /// doesn't have to re-derive it from `AppState::active_items()` —
     /// any staleness between render and click is bounded by the debounce
@@ -89,13 +97,28 @@ where
         let x = CELL_PADDING + col * (CELL_PX + CELL_PADDING);
         let y = CELL_PADDING + row * (CELL_PX + CELL_PADDING);
 
-        let Some(rect) = Rect::from_xywh(x as f32, y as f32, CELL_PX as f32, CELL_PX as f32) else {
+        let Some(cell_rect) = Rect::from_xywh(x as f32, y as f32, CELL_PX as f32, CELL_PX as f32)
+        else {
             continue;
         };
-        draw_cell(&mut pixmap, item, rect, &mut resolve_icon);
+        draw_cell(&mut pixmap, item, cell_rect, &mut resolve_icon);
+        // Visual highlight rect: traces the visible icon band only. Must
+        // stay in sync with `draw_cell`'s `icon_rect`.
+        let Some(visual_rect) = Rect::from_xywh(
+            x as f32,
+            y as f32 + NAME_BAND_H,
+            CELL_PX as f32,
+            CELL_PX as f32 - NAME_BAND_H - 12.0 - 26.0,
+        ) else {
+            continue;
+        };
         hits.push(CellHit {
             item_id: item.item_id.clone(),
-            rect,
+            rect: visual_rect,
+            // Collision rect = full cell. The 8px CELL_PADDING gap between
+            // cells stays as the only "miss" zone, so sweeping the laser
+            // from row N to row N+1 doesn't fall through ~68px of nothing.
+            hit_rect: cell_rect,
             needed: item.needed,
         });
     }
@@ -105,6 +128,30 @@ where
     }
 
     (pixmap, hits)
+}
+
+/// Paint a bright hover border on top of an already-rendered pixmap. Cheap
+/// — just one stroked rectangle — so we can apply it per frame without
+/// re-rendering the whole grid (icon decoding is the slow path).
+pub fn apply_hover_highlight(pixmap: &mut Pixmap, hits: &[CellHit], hover_id: &str) {
+    let Some(hit) = hits.iter().find(|h| h.item_id == hover_id) else {
+        return;
+    };
+    let mut pb = PathBuilder::new();
+    pb.push_rect(hit.rect);
+    let Some(path) = pb.finish() else { return };
+    let mut paint = Paint::default();
+    paint.set_color(Color::from_rgba8(255, 220, 60, 255));
+    pixmap.stroke_path(
+        &path,
+        &paint,
+        &Stroke {
+            width: 4.0,
+            ..Stroke::default()
+        },
+        Transform::identity(),
+        None,
+    );
 }
 
 fn draw_cell<F>(pixmap: &mut Pixmap, item: &ActiveItem, rect: Rect, resolve_icon: &mut F)
@@ -456,16 +503,19 @@ mod tests {
             .collect();
         let (_pm, hits) = render(&items, 6, |_| None);
         assert_eq!(hits.len(), 7);
-        // First cell at (8, 8), 160x160.
+        // Hit rect is the icon band only: y starts NAME_BAND_H below the
+        // cell top so it doesn't catch rays pointed at the name above the
+        // icon. First cell at (8, 8 + NAME_BAND_H).
         let h0 = &hits[0];
         assert_eq!(h0.item_id, "i0");
         assert!((h0.rect.x() - 8.0).abs() < 0.5);
-        assert!((h0.rect.y() - 8.0).abs() < 0.5);
+        assert!((h0.rect.y() - (8.0 + NAME_BAND_H)).abs() < 0.5);
         // 7th cell wraps to row 2 (idx 6 → col 0, row 1) at the default 6 cols.
         let h6 = &hits[6];
         assert_eq!(h6.item_id, "i6");
         assert!((h6.rect.x() - 8.0).abs() < 0.5);
-        assert!((h6.rect.y() - (8.0 + CELL_PX as f32 + CELL_PADDING as f32)).abs() < 0.5);
+        let expected_y6 = 8.0 + CELL_PX as f32 + CELL_PADDING as f32 + NAME_BAND_H;
+        assert!((h6.rect.y() - expected_y6).abs() < 0.5);
     }
 
     #[test]
@@ -477,7 +527,7 @@ mod tests {
         let (pm, hits) = render(&items, 3, |_| None);
         assert_eq!(hits.len(), 7);
         let last = &hits[6];
-        let row_2_y = (CELL_PADDING + 2 * (CELL_PX + CELL_PADDING)) as f32;
+        let row_2_y = (CELL_PADDING + 2 * (CELL_PX + CELL_PADDING)) as f32 + NAME_BAND_H;
         assert!((last.rect.y() - row_2_y).abs() < 0.5);
         // Canvas height matches exactly the rows we rendered.
         let expected_h = CELL_PADDING + 3 * (CELL_PX + CELL_PADDING);

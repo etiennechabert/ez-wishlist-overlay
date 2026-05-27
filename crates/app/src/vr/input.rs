@@ -73,13 +73,15 @@ pub fn texcoord_to_pixel(tex_x: f32, tex_y: f32, canvas_w: u32, canvas_h: u32) -
     (tex_x * canvas_w as f32, (1.0 - tex_y) * canvas_h as f32)
 }
 
-/// Find the [`CellHit`] (if any) that contains the pixel point.
+/// Find the [`CellHit`] (if any) whose collision rect contains the pixel
+/// point. Note this uses `hit_rect` (full cell), not `rect` (icon-only
+/// visual) — see [`CellHit`] for the rationale.
 pub fn hit_test(hits: &[CellHit], pixel_x: f32, pixel_y: f32) -> Option<&CellHit> {
     hits.iter().find(|h| {
-        pixel_x >= h.rect.x()
-            && pixel_x <= h.rect.right()
-            && pixel_y >= h.rect.y()
-            && pixel_y <= h.rect.bottom()
+        pixel_x >= h.hit_rect.x()
+            && pixel_x <= h.hit_rect.right()
+            && pixel_y >= h.hit_rect.y()
+            && pixel_y <= h.hit_rect.bottom()
     })
 }
 
@@ -119,9 +121,11 @@ mod tests {
     use tiny_skia::Rect;
 
     fn hit(id: &str, x: f32, y: f32, w: f32, h: f32, needed: u32) -> CellHit {
+        let r = Rect::from_xywh(x, y, w, h).unwrap();
         CellHit {
             item_id: id.to_string(),
-            rect: Rect::from_xywh(x, y, w, h).unwrap(),
+            rect: r,
+            hit_rect: r,
             needed,
         }
     }

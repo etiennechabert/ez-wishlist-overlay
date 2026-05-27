@@ -1,6 +1,6 @@
 [package]
 name = "ez-wishlist-overlay"
-version = "0.0.9"
+version = "0.0.10"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
@@ -48,8 +48,14 @@ ureq = { version = "2.12", default-features = false, features = ["tls", "json"] 
 #
 # Building on Windows requires a C++ toolchain, cmake, and libclang on PATH
 # (openvr_sys builds the bundled OpenVR SDK + bindgen). See README.
+#
+# `openvr_sys` is pulled in directly because the safe wrapper doesn't expose
+# `SetOverlayInputMethod` / `SetOverlayFlag`, which we need to make the
+# controller laser actually intersect our overlay. Version pinned to the
+# same revision the safe wrapper uses transitively.
 [target.'cfg(target_os = "windows")'.dependencies]
 openvr = "0.9.0"
+openvr_sys = "2.1.4"
 
 [features]
 default = []
