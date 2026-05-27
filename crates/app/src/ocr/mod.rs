@@ -14,20 +14,29 @@
 //!
 //! Returns an [`OcrOutcome`] the caller can apply to `AppState`.
 
+// All OCR helpers compile only on Windows. The pipeline's `Ok(None)`
+// stub on other targets means none of these are reachable there, and
+// clippy on Linux gets unhappy about every `pub fn` looking unused
+// when the only caller is the Windows-gated pipeline.
+#[cfg(target_os = "windows")]
+pub mod anchor;
 #[cfg(target_os = "windows")]
 pub mod engine;
-
-pub mod anchor;
+#[cfg(target_os = "windows")]
 pub mod match_upgrade;
 pub mod pipeline;
+#[cfg(target_os = "windows")]
 pub mod prep;
+#[cfg(target_os = "windows")]
 pub mod templates;
 
 pub use pipeline::process_screenshot;
 
 /// Pixel-space bounding box from the OCR engine. Float coordinates because
 /// Windows.Media.Ocr can report sub-pixel boxes; `anchor` rounds to integer
-/// pixel space at the boundary.
+/// pixel space at the boundary. Windows-only — only the engine /
+/// anchor / pipeline consume it.
+#[cfg(target_os = "windows")]
 #[derive(Clone, Copy, Debug)]
 pub struct OcrRect {
     pub x: f32,
@@ -37,6 +46,7 @@ pub struct OcrRect {
 }
 
 /// One word recognized by the OCR engine.
+#[cfg(target_os = "windows")]
 #[derive(Clone, Debug)]
 pub struct OcrWord {
     pub text: String,
