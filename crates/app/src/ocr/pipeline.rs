@@ -105,6 +105,21 @@ pub fn process_screenshot(path: &Path, data: &GameData) -> Result<Option<OcrOutc
     // Binarize the full image once; cell strips are cropped from it.
     let prepped = prep::keep_white_invert(&img);
     let templates = &*templates::EMBEDDED;
+
+    // Multi-Y candidate selection. The strip-Y heuristic in
+    // `positional_cells` works for the "vertical card" layout (digits
+    // below item names) but fails for the "compact" layout (digits
+    // above item names, e.g. Kitchen Area, Water Collector). Strong
+    // validation signal: a cell that template-matches `X/Y` with Y
+    // equal to the **known** requirement quantity from `data.json` is
+    // almost certainly the real digit row at the right offset.
+    //
+    // We hold the cell **X** positions (from FROM RAID / positional
+    // layout, both reliable) and only sweep **Y** across the plausible
+    // band. Whichever Y maximises the count of cells with `parsed.Y ==
+    // req.quantity` wins. Tie-broken by larger Y (vertical-layout
+    // preference — historically the original heuristic).
+    let cells = pick_best_strip_y(&cells, &layout, &upgrade.requirements, &prepped, templates);
     // **Safety contract**: only include cells where `split_progress`
     // successfully parsed an `X/Y` shape. Cells we couldn't read get
     // SKIPPED here, so the worker doesn't call `set_collected` and the
@@ -122,7 +137,16 @@ pub fn process_screenshot(path: &Path, data: &GameData) -> Result<Option<OcrOutc
         let gray = strip.to_luma8();
         let recog = templates::recognize_with_known_needed(&gray, templates, req.quantity);
         let parsed = templates::split_progress(&recog.recognised);
-        let owned_opt = parsed.map(|(o, _)| o);
+        // Reject the parse unless Y matches the known required quantity.
+        // The template matcher CAN return an "X/Y" shape with the wrong
+        // Y (slash-forcing only fixes the slash position, not the Y
+        // digit's template match), and that's a sign the read is
+        // standing on icon noise rather than the digit row. Treating
+        // those as UNREAD preserves the user's existing count instead
+        // of overwriting it with a confidently-wrong X value (e.g.
+        // IntelligentLv2 cell 0 parsing "84/6" when needed=4 — X=84
+        // would otherwise land in AppState.collected).
+        let owned_opt = parsed.and_then(|(o, y)| (y == req.quantity).then_some(o));
         items.push((req.item_id.clone(), owned_opt));
         if owned_opt.is_none() {
             tracing::warn!(
@@ -167,6 +191,7 @@ pub fn process_screenshot(path: &Path, data: &GameData) -> Result<Option<OcrOutc
     {
         use crate::ocr::debug_dump::{self, OcrDebugDump, Resolution};
         debug_dump::purge_prior_dumps(path);
+        let labels = debug_dump::load_labels(path);
         let dump = OcrDebugDump {
             source_path: path,
             img_w,
@@ -181,6 +206,7 @@ pub fn process_screenshot(path: &Path, data: &GameData) -> Result<Option<OcrOutc
                 upgrade_level: upgrade.level,
             },
             cells: debug_cells,
+            labels,
         };
         let out = debug_dump::debug_path_for(path);
         match debug_dump::write_text(&dump, &out) {
@@ -196,6 +222,144 @@ pub fn process_screenshot(path: &Path, data: &GameData) -> Result<Option<OcrOutc
         upgrade_name: module.name.clone(),
         items,
     }))
+}
+
+/// Sweep candidate strip-Y positions across the plausible digit-row
+/// band and return whichever set of cells produces the most
+/// "trustworthy" parses, where trustworthy means the parsed `Y` side
+/// of the `X/Y` token equals the known requirement quantity from
+/// `data.json`. Falls back to the input cells when no candidate beats
+/// them (or ties them) on score.
+///
+/// Why this exists: `positional_cells` infers strip-Y by walking
+/// down from item-name positions, but the panel UI uses **two
+/// distinct cell card layouts** — vertical (digits below item names)
+/// and compact horizontal (digits above item names). One heuristic
+/// can't hit both. Scoring candidates against the known Y values
+/// from `data.json` lets us auto-pick the right layout without
+/// having to detect it up front.
+#[cfg(target_os = "windows")]
+fn pick_best_strip_y(
+    base_cells: &[crate::ocr::anchor::BBox],
+    layout: &crate::ocr::anchor::PanelLayout,
+    requirements: &[crate::data::Requirement],
+    prepped: &image::DynamicImage,
+    templates: &[crate::ocr::templates::Template],
+) -> Vec<crate::ocr::anchor::BBox> {
+    use crate::ocr::anchor::BBox;
+    use crate::ocr::templates;
+
+    let anchor = layout.anchor;
+    let img_h = layout.img_h;
+    let img_w = layout.img_w;
+
+    // Strip height stays roughly one chunky-font text-row tall. Anchor
+    // height is the most reliable scale signal across captures (it
+    // tracks panel zoom / head distance directly).
+    let strip_h = anchor.h.max(20);
+
+    // Per-cell X-pad variants — extend the strip leftward to recover
+    // leading digits that the positional layout clips at the cell-left
+    // edge (Quality cell 0 reading "/2" instead of "2/2"). Right-pad
+    // covers the rarer trailing-digit clip.
+    let x_pad_candidates: [(u32, u32); 4] = [
+        (0, 0),
+        (anchor.h / 2, 0),
+        (anchor.h, 0),
+        (anchor.h / 2, anchor.h / 2),
+    ];
+
+    // Candidate top-Y values. Numerators come from empirical layouts:
+    //   - compact horizontal (Kitchen Area, Water Collector): digits
+    //     ~1.5 anchor heights below the "Need to submit items" line.
+    //   - vertical card (Bookcase, Storage Room A): digits ~5-7
+    //     anchor heights below.
+    // Step density of 1/2 anchor.h covers off-scale panels.
+    let mut candidate_y_tops: Vec<u32> = Vec::new();
+    for half_h in 2..=14u32 {
+        let y = anchor.y + anchor.h * half_h / 2;
+        if y + strip_h < img_h {
+            candidate_y_tops.push(y);
+        }
+    }
+
+    // Per-cell independent search: a cell wins its best (Y, x-pad) only
+    // when the parse confirms Y == known requirement quantity. Cells
+    // that never confirm fall back to the input geometry — the
+    // pipeline's per-cell parser will record an UNREAD for those, the
+    // safe outcome (existing collected count preserved).
+    //
+    // Per-cell independence handles tilted captures and panels where
+    // the digit row Y differs by a few pixels across cells: each cell
+    // anchors to its own correct row instead of a uniform-but-wrong
+    // compromise.
+    let mut best_cells: Vec<BBox> = base_cells.to_vec();
+    let mut confirmed: Vec<bool> = vec![false; base_cells.len()];
+
+    // Confidence of a candidate parse, higher is better. `None` means
+    // the parse failed (no `X/Y` shape, or Y didn't match the known
+    // requirement quantity — that's the hard validation gate).
+    //
+    // The u32 tier (instead of a bool) prefers 1-digit X reads over
+    // 2-digit ones when both pass validation. Game inventories sit in
+    // 0-9 ~95% of the time, and the 2-digit case is overwhelmingly
+    // noise that happened to template-match (MoreitemLv1 cell 0
+    // reading "88/2" — Y matched needed but X was inflated by an
+    // icon-edge component).
+    let score_variant = |x: u32, y: u32, w: u32, h: u32, req_q: u32| -> Option<u32> {
+        if w == 0 || h == 0 {
+            return None;
+        }
+        let strip = prepped.crop_imm(x, y, w, h);
+        let gray = strip.to_luma8();
+        let recog = templates::recognize_with_known_needed(&gray, templates, req_q);
+        let (parsed_x, parsed_y) = templates::split_progress(&recog.recognised)?;
+        if parsed_y != req_q {
+            return None;
+        }
+        // Higher tier for 1-digit X (the common case); a positive base
+        // ensures any confirmed variant outranks an unconfirmed one.
+        Some(if parsed_x < 10 { 100 } else { 50 })
+    };
+
+    let mut best_scores: Vec<u32> = vec![0; base_cells.len()];
+
+    // First: score the base geometry.
+    for (i, (cell, req)) in base_cells.iter().zip(requirements.iter()).enumerate() {
+        if let Some(s) = score_variant(cell.x, cell.y, cell.w, cell.h, req.quantity) {
+            best_scores[i] = s;
+            confirmed[i] = true;
+        }
+    }
+
+    // Then sweep (Y, x-pad) variants. Upgrade a cell when the variant
+    // STRICTLY beats the current best score — never replace a confirmed
+    // variant with one of equal score (preserves original geometry on
+    // ties; the base/earlier candidate ran first by design).
+    for (i, (cell, req)) in base_cells.iter().zip(requirements.iter()).enumerate() {
+        for y_top in &candidate_y_tops {
+            for (pad_l, pad_r) in &x_pad_candidates {
+                let new_x = cell.x.saturating_sub(*pad_l);
+                let new_w = (cell.w + pad_l + pad_r).min(img_w.saturating_sub(new_x));
+                let new_h = strip_h.min(img_h.saturating_sub(*y_top));
+                if let Some(s) = score_variant(new_x, *y_top, new_w, new_h, req.quantity) {
+                    if s > best_scores[i] {
+                        best_scores[i] = s;
+                        best_cells[i] = BBox {
+                            x: new_x,
+                            y: *y_top,
+                            w: new_w,
+                            h: new_h,
+                        };
+                        confirmed[i] = true;
+                    }
+                }
+            }
+        }
+    }
+
+    let _ = confirmed; // Confirmed bits are an analysis aid, not consumed downstream.
+    best_cells
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -322,6 +486,203 @@ mod fixture_tests {
             up.save(&out).expect("save wide crop");
             eprintln!("saved {}", out.display());
         }
+    }
+
+    /// Extract X-digit templates from native PNGs using the
+    /// hand-labelled ground truth (`<UpgradeId>.label.txt`). The
+    /// bootstrap `extract_digit_templates_from_native_pngs` pulls
+    /// templates from the **Y** position (right of the slash), where
+    /// the game UI renders digits at h≈8 — too short for the X
+    /// position's full-size digits (h≈11) which is what most
+    /// real-world reads actually template-match against. Mixing those
+    /// height regimes makes the matcher pick wrong digits at the X
+    /// position (BookcaseLv1 cell 0 reading "0" instead of "1").
+    ///
+    /// This walks every fixture, runs the full pipeline to get
+    /// refined cell strips, then for each cell where the label's X is
+    /// a single digit AND the cell's recognised string parses with Y
+    /// matching the known requirement, it saves the FIRST component
+    /// (the X digit) as `<X>.png`. Existing templates are skipped
+    /// (first-encounter wins), so to regen a specific digit, delete
+    /// its `.png` first.
+    ///
+    /// Run with:
+    /// `cargo test -p ez-wishlist-overlay ocr::pipeline::fixture_tests::extract_x_digit_templates -- --ignored --nocapture`
+    #[test]
+    #[ignore = "one-shot — extracts X-digit templates from labelled fixtures"]
+    fn extract_x_digit_templates() {
+        use crate::ocr::debug_dump;
+        use crate::ocr::{anchor, engine, prep, templates};
+        use image::GenericImageView;
+
+        let data = load_data();
+        let in_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../hideout_screenshots_native");
+        let out_dir =
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/assets/ocr_templates");
+
+        let mut entries: Vec<_> = std::fs::read_dir(&in_dir)
+            .unwrap_or_else(|e| panic!("read_dir {}: {e}", in_dir.display()))
+            .filter_map(|e| e.ok())
+            .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("png"))
+            .collect();
+        entries.sort_by_key(|e| e.file_name());
+
+        let mut saved: std::collections::BTreeMap<char, String> = std::collections::BTreeMap::new();
+
+        for entry in &entries {
+            let path = entry.path();
+            let stem = path.file_stem().unwrap().to_string_lossy().into_owned();
+
+            let labels = match debug_dump::load_labels(&path) {
+                Some(l) => l,
+                None => {
+                    eprintln!("SKIP {stem}: no label file");
+                    continue;
+                }
+            };
+
+            let img = match image::open(&path) {
+                Ok(i) => i,
+                Err(_) => continue,
+            };
+            let (img_w, img_h) = img.dimensions();
+            let upgrade = match data
+                .modules
+                .iter()
+                .flat_map(|m| &m.upgrades)
+                .find(|u| u.id == stem)
+            {
+                Some(u) => u,
+                None => continue,
+            };
+            let words = match engine::recognize_image(&img) {
+                Ok(w) => w,
+                Err(_) => continue,
+            };
+            let layout = match anchor::detect_panel(&words, img_w, img_h) {
+                Some(l) => l,
+                None => continue,
+            };
+            let base_cells = if layout.cells.len() == upgrade.requirements.len() {
+                layout.cells.clone()
+            } else {
+                anchor::positional_cells(&layout, &words, upgrade.requirements.len())
+            };
+            let prepped = prep::keep_white_invert(&img);
+            let cells = super::pick_best_strip_y(
+                &base_cells,
+                &layout,
+                &upgrade.requirements,
+                &prepped,
+                &templates::EMBEDDED,
+            );
+
+            for (cell, req) in cells.iter().zip(upgrade.requirements.iter()) {
+                let Some(label) = labels.iter().find(|l| l.item_id == req.item_id) else {
+                    continue;
+                };
+                if label.owned >= 10 {
+                    continue; // multi-digit X — skip
+                }
+                let strip = prepped.crop_imm(cell.x, cell.y, cell.w, cell.h);
+                let gray = strip.to_luma8();
+                let recog = templates::recognize_with_known_needed(
+                    &gray,
+                    &templates::EMBEDDED,
+                    req.quantity,
+                );
+                let Some((_, parsed_y)) = templates::split_progress(&recog.recognised) else {
+                    continue;
+                };
+                if parsed_y != req.quantity {
+                    continue;
+                }
+                // Cells with multi-digit Y need >1 X component to parse;
+                // single-digit X is at index 0.
+                let y_n = req.quantity.to_string().chars().count();
+                let total = recog.kept_components.len();
+                if total != y_n + 1 + 1 {
+                    continue; // expect exactly 1 X + slash + y_n Y digits
+                }
+                let x_comp = &recog.kept_components[0];
+                let digit_char = char::from_digit(label.owned, 10).unwrap();
+                let filename = format!("{}.png", digit_char);
+                let target = out_dir.join(&filename);
+                if target.exists() {
+                    continue;
+                }
+                // Reconstruct the component mask by cropping the binarised
+                // strip at the component's bounding box. The mask in
+                // KeptComponent isn't preserved across the recognize_*
+                // helpers, but the BBox is — re-crop is straightforward.
+                let comp_img = gray.view(x_comp.x, x_comp.y, x_comp.w, x_comp.h).to_image();
+                match comp_img.save(&target) {
+                    Ok(()) => {
+                        saved.insert(digit_char, format!("{stem} cell{}", req.item_id));
+                        eprintln!(
+                            "  saved {filename} ({}×{}) from {stem} ({})",
+                            x_comp.w, x_comp.h, req.item_id
+                        );
+                    }
+                    Err(e) => eprintln!("  FAILED to save {filename}: {e}"),
+                }
+            }
+        }
+
+        eprintln!("\n=== X-digit extraction summary ===");
+        for digit in "0123456789".chars() {
+            match saved.get(&digit) {
+                Some(src) => eprintln!("  {digit}: ✓ from {src}"),
+                None => {
+                    eprintln!("  {digit}: skipped (template already present, or no clean fixture)")
+                }
+            }
+        }
+    }
+
+    /// One-shot regen for the "1" digit template. The bootstrap
+    /// extraction in `extract_digit_templates_from_native_pngs` saved
+    /// a 7×8 fragment as `1.png` — far shorter than real "1" glyphs
+    /// in the chunky game font (h≈11-12). That undersized template
+    /// scored worse than the closed-loop digits even against narrow
+    /// vertical-bar components, so leading "1" reads in `1/5`-style
+    /// cells lost to "0" or "/" template matches and propagated as
+    /// wrong X values (BookcaseLv1 cell 0, StorageZoneLock3 cell 0).
+    ///
+    /// This regen writes a 5×11 tall vertical-bar "1" with the
+    /// canonical top serif + bottom foot of the game font. Run with:
+    /// `cargo test -p ez-wishlist-overlay ocr::pipeline::fixture_tests::regen_one_template -- --ignored --nocapture`
+    #[test]
+    #[ignore = "one-shot — regenerates assets/ocr_templates/1.png"]
+    fn regen_one_template() {
+        let glyph = [
+            ". # # # .",
+            "# # # # .",
+            ". # # # .",
+            ". # # # .",
+            ". # # # .",
+            ". # # # .",
+            ". # # # .",
+            ". # # # .",
+            ". # # # .",
+            ". # # # .",
+            "# # # # #",
+        ];
+        let h = glyph.len() as u32;
+        let w = glyph[0].split_whitespace().count() as u32;
+        let mut img = image::GrayImage::from_pixel(w, h, image::Luma([255]));
+        for (y, row) in glyph.iter().enumerate() {
+            for (x, cell) in row.split_whitespace().enumerate() {
+                if cell == "#" {
+                    img.put_pixel(x as u32, y as u32, image::Luma([0]));
+                }
+            }
+        }
+        let out = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("src/assets/ocr_templates/1.png");
+        img.save(&out).expect("write 1.png");
+        eprintln!("wrote {} ({w}×{h})", out.display());
     }
 
     /// One-shot regen for the "0" digit template. The bootstrap
@@ -988,6 +1349,94 @@ mod fixture_tests {
         assert_eq!(
             pass, total,
             "all native PNG fixtures must pass identification + cell ordering; failed: {fail:?}",
+        );
+    }
+
+    /// Owned-count accuracy regression. For each native PNG fixture
+    /// paired with a `<UpgradeId>.label.txt`, count cells where the
+    /// pipeline reads the same `owned/needed` pair the user hand-
+    /// labelled. Asserts a minimum floor so future strip-Y, X-pad, or
+    /// template changes can't silently undo the closed-loop gains
+    /// (baseline at 40/59 after iter 5; gate at 35 leaves headroom
+    /// for incidental UI noise on real-world captures).
+    ///
+    /// Wrong reads count against accuracy; UNREAD cells count as
+    /// "no opinion" and are excluded from the labelled total — they
+    /// preserve the user's existing collected value at runtime, so
+    /// they're data-safe even when they don't match.
+    #[test]
+    fn owned_count_accuracy_floor_on_native_pngs() {
+        use crate::ocr::debug_dump;
+        let data = load_data();
+        let dir = fixture_dir();
+        let entries: Vec<_> = std::fs::read_dir(&dir)
+            .unwrap_or_else(|e| panic!("read_dir {}: {e}", dir.display()))
+            .filter_map(|e| e.ok())
+            .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("png"))
+            .collect();
+
+        let mut correct = 0usize;
+        let mut labelled = 0usize;
+        let mut wrong_writes = 0usize;
+        let mut per_fixture: Vec<(String, usize, usize)> = Vec::new();
+        for entry in &entries {
+            let path = entry.path();
+            let stem = path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("")
+                .to_string();
+            let labels = match debug_dump::load_labels(&path) {
+                Some(l) => l,
+                None => continue,
+            };
+            let outcome = match ocr::process_screenshot(&path, &data) {
+                Ok(Some(o)) => o,
+                _ => continue,
+            };
+            let upgrade = data
+                .modules
+                .iter()
+                .flat_map(|m| &m.upgrades)
+                .find(|u| u.id == outcome.upgrade_id);
+            let mut fixture_correct = 0usize;
+            let mut fixture_labelled = 0usize;
+            for (i, (item_id, owned)) in outcome.items.iter().enumerate() {
+                let Some(label) = labels.iter().find(|l| l.item_id == *item_id) else {
+                    continue;
+                };
+                let need = upgrade
+                    .and_then(|u| u.requirements.get(i))
+                    .map(|r| r.quantity)
+                    .unwrap_or(0);
+                fixture_labelled += 1;
+                if need != label.needed {
+                    continue;
+                }
+                match owned {
+                    Some(o) if *o == label.owned => fixture_correct += 1,
+                    Some(_) => wrong_writes += 1,
+                    None => {}
+                }
+            }
+            correct += fixture_correct;
+            labelled += fixture_labelled;
+            per_fixture.push((stem, fixture_correct, fixture_labelled));
+        }
+        per_fixture.sort_by(|a, b| a.0.cmp(&b.0));
+        eprintln!("\nOwned-count accuracy per fixture (correct/labelled):");
+        for (stem, c, t) in &per_fixture {
+            eprintln!("  {c}/{t}  {stem}");
+        }
+        eprintln!("Total: {correct}/{labelled} correct, {wrong_writes} wrong writes");
+
+        // Floor below baseline of 40/59 so incidental fluctuations
+        // (e.g. one fixture flickering by 1 cell on a different
+        // build environment) don't block CI; large regressions still
+        // trip the gate.
+        assert!(
+            correct >= 35,
+            "owned-count accuracy regressed below floor: {correct}/{labelled} (want ≥ 35)"
         );
     }
 }

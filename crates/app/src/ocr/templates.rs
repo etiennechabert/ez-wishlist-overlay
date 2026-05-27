@@ -271,7 +271,19 @@ pub fn recognize_with_debug(strip: &GrayImage, templates: &[Template]) -> Recogn
     // silently dropped every leading "1" and turned "1/5" reads into
     // "/5", which split_progress then fell back to (0, 5). The slash
     // is similarly narrow.
-    comps.retain(|c| c.w >= 2 && c.h >= 8 && c.y > 0 && c.y + c.h < img_h);
+    // Digit shape gate. Width/height bounds + a w<=1.5*h aspect cap:
+    //   - w >= 2 keeps narrow "1" / "/" glyphs (a w>=4 cap silently
+    //     dropped every leading "1" in 1/5 reads).
+    //   - h >= 8 drops single-pixel scratches.
+    //   - y/img_h edge guard drops separator lines hugging the strip
+    //     top or bottom.
+    //   - w <= 1.5 * h drops horizontal lines (cell-border artifacts
+    //     spanning ~150 px wide that survived the edge guard at strip
+    //     mid-Y — KitchenArea cell 2 had a 149×17 border that turned
+    //     "1/1" into "11/1" by inflating the kept-component count).
+    comps.retain(|c| {
+        c.w >= 2 && c.h >= 8 && c.y > 0 && c.y + c.h < img_h && (c.w as u64) <= (c.h as u64) * 3 / 2
+    });
     // Y-row clustering: keep only the topmost row. The digits live above
     // the FROM RAID label; clustering by min_y + (tallest component's
     // height) gives a tight bound around the digit row.

@@ -17,6 +17,18 @@ use crate::ocr::OcrWord;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+/// One row of `<UpgradeId>.label.txt` ground truth. Parsed from the
+/// hand-labelled sibling file the user maintains for every fixture in
+/// `hideout_screenshots_native/`. Each label line is
+/// `<item_id>  <owned>/<needed>` (whitespace-separated; `#` comments
+/// and blank lines ignored).
+#[derive(Debug, Clone)]
+pub struct LabelEntry {
+    pub item_id: String,
+    pub owned: u32,
+    pub needed: u32,
+}
+
 /// Snapshot of everything the pipeline saw on one run. Built up
 /// incrementally as the pipeline walks the screenshot.
 pub struct OcrDebugDump<'a> {
@@ -29,6 +41,10 @@ pub struct OcrDebugDump<'a> {
     pub panel_text: &'a str,
     pub resolution: Resolution<'a>,
     pub cells: Vec<CellDebug<'a>>,
+    /// Optional hand-labelled ground truth from
+    /// `<source_stem>.label.txt`. When present, the SUMMARY block
+    /// prints per-cell expected vs read and an aggregate accuracy.
+    pub labels: Option<Vec<LabelEntry>>,
 }
 
 pub enum Resolution<'a> {
@@ -86,6 +102,73 @@ pub fn debug_path_for(source: &Path) -> PathBuf {
     path
 }
 
+/// Load `<source_stem>.label.txt` next to the source PNG if it
+/// exists. The format (per the hand-curated files under
+/// `hideout_screenshots_native/`) is:
+///
+/// ```text
+/// # ModuleNameLvN — ground truth (owned / needed)
+/// item_id_a          0/5
+/// item_id_b          3/6
+/// ```
+///
+/// Lines starting with `#` and blank lines are ignored. Malformed
+/// rows are skipped (logged via `tracing::warn`) — we'd rather drop a
+/// row than poison the whole dump's accuracy count.
+///
+/// Returns `None` when the file is missing so debug dumps for
+/// ad-hoc captures (no paired label) still render cleanly without
+/// the "ground truth" section.
+pub fn load_labels(source: &Path) -> Option<Vec<LabelEntry>> {
+    let mut p = source.to_path_buf();
+    let stem = p.file_stem()?.to_string_lossy().into_owned();
+    p.set_file_name(format!("{stem}.label.txt"));
+    let text = std::fs::read_to_string(&p).ok()?;
+    let mut out = Vec::new();
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        let mut tokens = trimmed.split_whitespace();
+        let item_id = match tokens.next() {
+            Some(s) => s.to_string(),
+            None => continue,
+        };
+        let xy = match tokens.next() {
+            Some(s) => s,
+            None => {
+                tracing::warn!(file = %p.display(), line = %trimmed, "label line missing X/Y");
+                continue;
+            }
+        };
+        let Some((owned_s, needed_s)) = xy.split_once('/') else {
+            tracing::warn!(file = %p.display(), line = %trimmed, "label line missing slash");
+            continue;
+        };
+        let owned: u32 = match owned_s.parse() {
+            Ok(n) => n,
+            Err(_) => {
+                tracing::warn!(file = %p.display(), line = %trimmed, "label owned not numeric");
+                continue;
+            }
+        };
+        let needed: u32 = match needed_s.parse() {
+            Ok(n) => n,
+            Err(_) => {
+                tracing::warn!(file = %p.display(), line = %trimmed, "label needed not numeric");
+                continue;
+            }
+        };
+        out.push(LabelEntry {
+            item_id,
+            owned,
+            needed,
+        });
+    }
+    Some(out)
+}
+
 /// Remove any prior `<stem>.ocr-debug.*.txt` files next to the source
 /// PNG. Each pipeline run produces a freshly-timestamped sibling
 /// dump; without this sweep, fixture-test reruns would leave a trail
@@ -112,6 +195,13 @@ pub fn purge_prior_dumps(source: &Path) {
             let _ = std::fs::remove_file(entry.path());
         }
     }
+}
+
+/// Look up a label entry by `item_id`. Item-IDs are unique within an
+/// upgrade's requirement list (each item appears at most once per
+/// panel), so an exact-match lookup is enough.
+fn find_label<'a>(labels: &'a [LabelEntry], item_id: &str) -> Option<&'a LabelEntry> {
+    labels.iter().find(|l| l.item_id == item_id)
 }
 
 pub fn write_text(dump: &OcrDebugDump<'_>, path: &Path) -> std::io::Result<()> {
@@ -153,18 +243,57 @@ pub fn write_text(dump: &OcrDebugDump<'_>, path: &Path) -> std::io::Result<()> {
         "  cells:    {applied}/{total} read, {} unread (existing counts preserved)",
         total - applied,
     )?;
+    // OCR-vs-ground-truth accuracy. We compare against the hand
+    // labels for both `owned` AND `needed` (a wrong slash position
+    // shows up as both being off, so it's worth checking both). A
+    // cell is correct only when both numbers match the label.
+    if let Some(labels) = dump.labels.as_deref() {
+        let mut correct = 0usize;
+        let mut labelled = 0usize;
+        for cell in &dump.cells {
+            if let Some(label) = find_label(labels, cell.item_id) {
+                labelled += 1;
+                if cell.parsed_owned == Some(label.owned) && cell.needed == label.needed {
+                    correct += 1;
+                }
+            }
+        }
+        writeln!(
+            f,
+            "  accuracy: {correct}/{labelled} cells match ground truth",
+        )?;
+    }
     for cell in &dump.cells {
-        match cell.parsed_owned {
-            Some(owned) => writeln!(
+        let label_str = match dump.labels.as_deref() {
+            Some(labels) => find_label(labels, cell.item_id)
+                .map(|l| format!("{}/{}", l.owned, l.needed))
+                .unwrap_or_else(|| "—".into()),
+            None => "—".into(),
+        };
+        let read_str = match cell.parsed_owned {
+            Some(owned) => format!("{owned}/{}", cell.needed),
+            None => format!("UNREAD/{}", cell.needed),
+        };
+        let mark = match (cell.parsed_owned, dump.labels.as_deref()) {
+            (Some(owned), Some(labels)) => match find_label(labels, cell.item_id) {
+                Some(l) if l.owned == owned && l.needed == cell.needed => "✓",
+                Some(_) => "✗",
+                None => " ",
+            },
+            _ => " ",
+        };
+        if cell.parsed_owned.is_none() {
+            writeln!(
                 f,
-                "    [{}] {} ({})  =  {owned} / {}",
-                cell.index, cell.item_name, cell.item_id, cell.needed,
-            )?,
-            None => writeln!(
+                "    {mark} [{}] {} ({})  read={read_str}  label={label_str}  recognised={:?}",
+                cell.index, cell.item_name, cell.item_id, cell.recognised,
+            )?;
+        } else {
+            writeln!(
                 f,
-                "    [{}] {} ({})  =  UNREAD / {}   recognised={:?}",
-                cell.index, cell.item_name, cell.item_id, cell.needed, cell.recognised,
-            )?,
+                "    {mark} [{}] {} ({})  read={read_str}  label={label_str}",
+                cell.index, cell.item_name, cell.item_id,
+            )?;
         }
     }
     writeln!(f)?;
