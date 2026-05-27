@@ -184,6 +184,192 @@ mod fixture_tests {
     /// `data.json` (verified by grep), so this pass cannot produce
     /// `7.png` / `9.png`. Capture a panel where you've collected 7 or 9
     /// of an item and follow up with manual extraction.
+    /// One-shot regen for the "0" digit template. The bootstrap
+    /// extractor in `extract_digit_templates_from_native_pngs` pulls
+    /// "0" from `/10` cells, but those only exist in StorageZoneLock3
+    /// captures and the "0" glyph there fragments into two
+    /// disconnected arcs at that panel's small scale — the resulting
+    /// 0.png is an L-shaped half-glyph that scores misleadingly high
+    /// against narrow vertical-bar components (the real "1"s),
+    /// turning "1/5" reads into "0/5".
+    ///
+    /// This regen writes a known-good 7×11 closed-loop "0" matching
+    /// the game's chunky pixel font. Run with:
+    /// `cargo test -p ez-wishlist-overlay ocr::pipeline::fixture_tests::regen_zero_template -- --ignored --nocapture`
+    #[test]
+    #[ignore = "one-shot — regenerates assets/ocr_templates/0.png"]
+    fn regen_zero_template() {
+        let glyph = [
+            ". # # # # # .",
+            "# # . . . # #",
+            "# # . . . # #",
+            "# # . . . # #",
+            "# # . . . # #",
+            "# # . . . # #",
+            "# # . . . # #",
+            "# # . . . # #",
+            "# # . . . # #",
+            "# # . . . # #",
+            ". # # # # # .",
+        ];
+        let h = glyph.len() as u32;
+        let w = glyph[0].split_whitespace().count() as u32;
+        let mut img = image::GrayImage::from_pixel(w, h, image::Luma([255]));
+        for (y, row) in glyph.iter().enumerate() {
+            for (x, cell) in row.split_whitespace().enumerate() {
+                if cell == "#" {
+                    img.put_pixel(x as u32, y as u32, image::Luma([0]));
+                }
+            }
+        }
+        let out = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("src/assets/ocr_templates/0.png");
+        img.save(&out).expect("write 0.png");
+        eprintln!("wrote {} ({w}×{h})", out.display());
+    }
+
+    /// Save an upscaled BookcaseLv1 cell 0 binarized strip so we can
+    /// tell at a glance whether the leftmost glyph is genuinely "1"
+    /// or "0".
+    #[test]
+    #[ignore = "diagnostic — run with --ignored"]
+    fn upscale_bookcase_cell0() {
+        use crate::ocr::{anchor, engine, prep};
+        use image::GenericImageView;
+        let data = load_data();
+        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../hideout_screenshots_native/BookcaseLv1.png");
+        let img = image::open(&path).expect("open");
+        let (img_w, img_h) = img.dimensions();
+        let words = engine::recognize_image(&img).expect("OCR");
+        let layout = anchor::detect_panel(&words, img_w, img_h).expect("anchor");
+        let upgrade = data
+            .modules
+            .iter()
+            .flat_map(|m| &m.upgrades)
+            .find(|u| u.id == "BookcaseLv1")
+            .unwrap();
+        let cells = if layout.cells.len() == upgrade.requirements.len() {
+            layout.cells.clone()
+        } else {
+            anchor::positional_cells(&layout, &words, upgrade.requirements.len())
+        };
+        let prepped = prep::keep_white_invert(&img);
+        for (i, cell) in cells.iter().enumerate() {
+            let strip = prepped.crop_imm(cell.x, cell.y, cell.w, cell.h);
+            let up = image::imageops::resize(
+                &strip.to_rgba8(),
+                strip.width() * 4,
+                strip.height() * 4,
+                image::imageops::FilterType::Nearest,
+            );
+            let out = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join(format!("../../target/ocr_cells/BookcaseLv1_cell{i}_4x.png"));
+            up.save(&out).expect("save");
+            eprintln!("saved {}", out.display());
+        }
+    }
+
+    /// Print the per-template scores for each component in
+    /// BookcaseLv1 cell 0's count strip. Helps explain template
+    /// confusions like "1" → "0".
+    #[test]
+    #[ignore = "diagnostic — run with --ignored"]
+    fn dump_template_scores_bookcase_cell0() {
+        use crate::ocr::{anchor, engine, prep, templates};
+        use image::GenericImageView;
+        let data = load_data();
+        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../hideout_screenshots_native/BookcaseLv1.png");
+        let img = image::open(&path).expect("open");
+        let (img_w, img_h) = img.dimensions();
+        let words = engine::recognize_image(&img).expect("OCR");
+        let layout = anchor::detect_panel(&words, img_w, img_h).expect("anchor");
+        let upgrade = data
+            .modules
+            .iter()
+            .flat_map(|m| &m.upgrades)
+            .find(|u| u.id == "BookcaseLv1")
+            .unwrap();
+        let cells = if layout.cells.len() == upgrade.requirements.len() {
+            layout.cells.clone()
+        } else {
+            anchor::positional_cells(&layout, &words, upgrade.requirements.len())
+        };
+        let prepped = prep::keep_white_invert(&img);
+        let cell = &cells[0];
+        let strip = prepped.crop_imm(cell.x, cell.y, cell.w, cell.h);
+        let gray = strip.to_luma8();
+        let img_h = gray.height();
+        let mut comps = templates::find_components(&gray);
+        comps.retain(|c| c.w >= 2 && c.h >= 8 && c.y > 0 && c.y + c.h < img_h);
+        if !comps.is_empty() {
+            let min_y = comps.iter().map(|c| c.y).min().unwrap();
+            let max_h = comps.iter().map(|c| c.h).max().unwrap();
+            let row_cutoff = min_y + max_h;
+            comps.retain(|c| c.y <= row_cutoff);
+        }
+        comps.sort_by_key(|c| c.x);
+        for (i, c) in comps.iter().enumerate() {
+            eprintln!("comp {i}: x={} y={} w={} h={}", c.x, c.y, c.w, c.h);
+            let mut scores: Vec<(char, f32)> = templates::EMBEDDED
+                .iter()
+                .map(|t| (t.label, templates::score(c, t)))
+                .collect();
+            scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+            for (label, s) in &scores {
+                eprintln!("   {:?} = {:.3}", label, s);
+            }
+        }
+    }
+
+    /// One-shot: list the connected components find_components produces
+    /// for BookcaseLv1's first cell strip, so we can see why the
+    /// leading "1" digit isn't reaching the template matcher.
+    #[test]
+    #[ignore = "diagnostic — run with --ignored"]
+    fn dump_components_bookcase_cell0() {
+        use crate::ocr::{anchor, engine, prep, templates};
+        use image::GenericImageView;
+        let data = load_data();
+        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../hideout_screenshots_native/BookcaseLv1.png");
+        let img = image::open(&path).expect("open Bookcase");
+        let (img_w, img_h) = img.dimensions();
+        let words = engine::recognize_image(&img).expect("OCR");
+        let layout = anchor::detect_panel(&words, img_w, img_h).expect("anchor");
+        let upgrade = data
+            .modules
+            .iter()
+            .flat_map(|m| &m.upgrades)
+            .find(|u| u.id == "BookcaseLv1")
+            .unwrap();
+        let cells = if layout.cells.len() == upgrade.requirements.len() {
+            layout.cells.clone()
+        } else {
+            anchor::positional_cells(&layout, &words, upgrade.requirements.len())
+        };
+        let prepped = prep::keep_white_invert(&img);
+        for (idx, cell) in cells.iter().enumerate() {
+            let strip = prepped.crop_imm(cell.x, cell.y, cell.w, cell.h);
+            let gray = strip.to_luma8();
+            let comps = templates::find_components(&gray);
+            eprintln!(
+                "cell {idx}: rect {}×{} @ ({},{}); {} comps before filter:",
+                cell.w,
+                cell.h,
+                cell.x,
+                cell.y,
+                comps.len(),
+            );
+            for c in &comps {
+                eprintln!("  x={:>3} y={:>3} w={:>3} h={:>3}", c.x, c.y, c.w, c.h);
+            }
+            let recognised = templates::recognize(&gray, &templates::EMBEDDED);
+            eprintln!("  → recognised: {:?}", recognised);
+        }
+    }
+
     /// Dump each fixture's per-cell count strip as a standalone PNG
     /// under `/tmp/ocr_cells/` so a human can read the X/Y ground
     /// truth at sane resolution. The full 3K-per-eye PNGs scale down
@@ -198,8 +384,8 @@ mod fixture_tests {
         let data = load_data();
         let in_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../../hideout_screenshots_native");
-        let out_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../target/ocr_cells");
+        let out_dir =
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/ocr_cells");
         std::fs::create_dir_all(&out_dir).expect("create output dir");
 
         let mut entries: Vec<_> = std::fs::read_dir(&in_dir)
@@ -290,8 +476,7 @@ mod fixture_tests {
             let prepped = prep::keep_white_invert(&img);
             for (idx, cell) in cells.iter().enumerate() {
                 let strip = prepped.crop_imm(cell.x, cell.y, cell.w, cell.h);
-                let out_path =
-                    out_dir.join(format!("{stem}_cell{idx}_binarized.png"));
+                let out_path = out_dir.join(format!("{stem}_cell{idx}_binarized.png"));
                 let _ = strip.save(&out_path);
             }
             let _ = panel_path;

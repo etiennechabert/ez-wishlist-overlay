@@ -150,53 +150,89 @@ pub fn positional_cells(layout: &PanelLayout, words: &[OcrWord], n: usize) -> Ve
     let panel_right = (anchor_cx + panel_w_est / 2).min(img_w);
     let panel_w = panel_right.saturating_sub(panel_left);
 
-    // Find the item-name row. Item-name words sit between the cost line
-    // (~2 anchor heights below the anchor) and the buttons (~10 anchor
-    // heights below). Filter by Y range, by X inside the panel, and
-    // drop button text we know about.
-    let name_band_top = anchor.y + anchor.h * 2;
-    let name_band_bottom = anchor.y + anchor.h * 12;
-    let names: Vec<&OcrWord> = words
+    // Y range for the digit row.
+    //
+    // The digit row sits one text-row above FROM RAID and one
+    // text-row below the item-name row. We anchor against FROM RAID
+    // first (most reliable feature — its bounding box is detected
+    // cleanly on every native fixture; item-name OCR drops words at
+    // different sizes depending on tilt / distance, which historically
+    // pushed the strip off the digits onto the FROM RAID row itself).
+    //
+    // Strategy:
+    //   1. If any FROM/RAID word lands inside the panel below the
+    //      anchor, derive count_bottom from `min(from_raid.y) - gap`
+    //      and count_top from `count_bottom - 1.4 * from_h`. Bounds
+    //      the strip on BOTH sides, so head tilt / panel scale can't
+    //      shift it off the digits.
+    //   2. Otherwise fall back to the historical heuristic of "below
+    //      the item-name row", capped by `anchor.h * 8` below anchor
+    //      so we never overshoot into the buttons.
+    let from_y_band: Vec<u32> = words
         .iter()
         .filter(|w| {
             let wy = w.rect.y as u32;
             let wx = w.rect.x as u32;
-            wy > name_band_top && wy < name_band_bottom && wx >= panel_left && wx <= panel_right
+            // FROM RAID sits well below the "Need to submit items" anchor.
+            wy > anchor.y + anchor.h
+                && wy < anchor.y + anchor.h * 12
+                && wx >= panel_left
+                && wx <= panel_right
         })
         .filter(|w| {
             let up = w.text.to_ascii_uppercase();
-            !matches!(up.as_str(), "BACK" | "LEVEL" | "UP" | "FROM" | "RAID")
+            matches!(up.as_str(), "FROM" | "RAID")
         })
+        .map(|w| w.rect.y as u32)
         .collect();
 
-    let (count_top, count_bottom) = if !names.is_empty() {
-        // count strip top = MAX bottom of item-name words + half a
-        // text-row gap. Using the MAX (not median) handles multi-line
-        // item names like "Energy-saving lamp" — OCR splits them
-        // into two Y rows and the second row's bottom is the true
-        // bottom of the name region.
-        //
-        // Strip is 3 text-rows tall so it spans the count digits even
-        // when the panel is captured at a tilt (head not perfectly
-        // aligned, ≤ one text-row of vertical drift between leftmost
-        // and rightmost cells). The pipeline does connected-components
-        // on this, so the wider strip is fine — digit row sits well
-        // above the FROM RAID label and well below the name row.
-        let max_bottom = names
-            .iter()
-            .map(|w| (w.rect.y + w.rect.height) as u32)
-            .max()
-            .unwrap();
-        let mut heights: Vec<u32> = names.iter().map(|w| w.rect.height as u32).collect();
-        heights.sort_unstable();
-        let median_h = heights[heights.len() / 2].max(8);
-        let top = (max_bottom + median_h / 2).min(img_h);
-        let bottom = (top + median_h * 3).min(img_h);
+    let (count_top, count_bottom) = if !from_y_band.is_empty() {
+        let from_y_min = *from_y_band.iter().min().unwrap();
+        // FROM RAID glyphs are ~the same height as the count digits in
+        // every fixture. Use a fixed fraction of anchor.h as the per-
+        // glyph reference and span ~1.5 of those above the FROM line.
+        let glyph_h = anchor.h.max(8);
+        let gap = glyph_h / 3;
+        let bottom = from_y_min.saturating_sub(gap).min(img_h);
+        let top = bottom.saturating_sub(glyph_h * 3 / 2).min(img_h);
         (top, bottom)
     } else {
-        let top = (anchor.y + anchor.h * 11 / 2).min(img_h);
-        let bottom = (anchor.y + anchor.h * 15 / 2).min(img_h);
-        (top, bottom)
+        // Item-name fallback. Item-name words sit between the cost line
+        // (~2 anchor heights below the anchor) and the buttons (~10
+        // anchor heights below). Filter by Y range, by X inside the
+        // panel, and drop button text we know about.
+        let name_band_top = anchor.y + anchor.h * 2;
+        let name_band_bottom = anchor.y + anchor.h * 12;
+        let names: Vec<&OcrWord> = words
+            .iter()
+            .filter(|w| {
+                let wy = w.rect.y as u32;
+                let wx = w.rect.x as u32;
+                wy > name_band_top && wy < name_band_bottom && wx >= panel_left && wx <= panel_right
+            })
+            .filter(|w| {
+                let up = w.text.to_ascii_uppercase();
+                !matches!(up.as_str(), "BACK" | "LEVEL" | "UP" | "FROM" | "RAID")
+            })
+            .collect();
+
+        if !names.is_empty() {
+            let max_bottom = names
+                .iter()
+                .map(|w| (w.rect.y + w.rect.height) as u32)
+                .max()
+                .unwrap();
+            let mut heights: Vec<u32> = names.iter().map(|w| w.rect.height as u32).collect();
+            heights.sort_unstable();
+            let median_h = heights[heights.len() / 2].max(8);
+            let top = (max_bottom + median_h / 2).min(img_h);
+            let bottom = (top + median_h * 3).min(img_h);
+            (top, bottom)
+        } else {
+            let top = (anchor.y + anchor.h * 11 / 2).min(img_h);
+            let bottom = (anchor.y + anchor.h * 15 / 2).min(img_h);
+            (top, bottom)
+        }
     };
 
     let mut out = Vec::with_capacity(n);
@@ -356,12 +392,28 @@ fn locate_cells_via_from_raid(words: &[Word], pw: u32, ph: u32) -> Vec<BBox> {
     cells
 }
 
-/// Narrow a cell rect to just the owned/needed counter strip (~55-88%
-/// down the cell height). Matches `read_progress_via_templates` from the
-/// ocr_lab pipeline.
+/// Narrow a cell rect to just the owned/needed counter strip.
+///
+/// The cell rect from [`locate_cells_via_from_raid`] is built as
+/// `cell.y = from.y - 5*from.h` and `cell.h = 6*from.h`, so the
+/// bottom of the cell aligns with the bottom of the FROM RAID label.
+/// The digit row sits exactly one text-row above FROM RAID,
+/// regardless of how compact the panel is in a given capture — the
+/// game UI layout itself is fixed; only the panel's pixel scale
+/// varies with head distance.
+///
+/// Anchoring the strip to FROM RAID (via `from_h`) instead of
+/// percentages of cell.h means the strip lands on the digit row
+/// across every fixture. The earlier 55-88% range extended past
+/// `cell.y + cell.h - from_h` into the FROM RAID glyphs, which fed
+/// "F R O M  R A I D" letters into the template matcher and made
+/// many fixtures silently read every count as 0.
 fn count_strip_within_cell(cell: &BBox) -> BBox {
-    let strip_top = cell.y + cell.h * 55 / 100;
-    let strip_bottom = cell.y + cell.h * 88 / 100;
+    let from_h = (cell.h / 6).max(8);
+    let gap = from_h / 4;
+    let from_top = (cell.y + cell.h).saturating_sub(from_h);
+    let strip_bottom = from_top.saturating_sub(gap);
+    let strip_top = strip_bottom.saturating_sub(from_h * 14 / 10);
     BBox {
         x: cell.x,
         y: strip_top,

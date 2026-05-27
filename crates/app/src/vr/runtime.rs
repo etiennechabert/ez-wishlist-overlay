@@ -340,6 +340,20 @@ fn render_loop(
                     // silently — VR render loop must not block.
                     let _ = ocr_tx.try_send(path.clone());
                     super::capture::play_capture_done_beep(true);
+                    // Immediately retire any prior OCR card. The worker
+                    // will publish a fresh Processing state for the new
+                    // capture in a few ms; we want zero overlap so the
+                    // user never reads "Closing soon…" content from the
+                    // previous run while the new one is in flight.
+                    if ocr_state.is_some() {
+                        if let Err(e) = session.set_ocr_alpha(0.0) {
+                            tracing::warn!(error = %e, "OCR overlay: clear-alpha failed");
+                        }
+                        if let Err(e) = session.set_ocr_visible(false) {
+                            tracing::warn!(error = %e, "OCR overlay: clear-visible failed");
+                        }
+                        ocr_state = None;
+                    }
                     CaptureResult::Ok(path)
                 }
                 Err(e) => {

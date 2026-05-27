@@ -170,9 +170,12 @@ pub fn recognize(strip: &GrayImage, templates: &[Template]) -> String {
     let img_h = strip.height();
     let mut comps = find_components(strip);
     // Drop tiny noise AND components touching the top/bottom edges (cell
-    // row separator lines / strip artefacts). The digit glyphs are
-    // roughly square and tall — anything under 4×8 is noise.
-    comps.retain(|c| c.w >= 4 && c.h >= 8 && c.y > 0 && c.y + c.h < img_h);
+    // row separator lines / strip artefacts). The "1" glyph in this
+    // pixel-art font is a 2-px-wide vertical bar — using c.w >= 4 here
+    // silently dropped every leading "1" and turned "1/5" reads into
+    // "/5", which split_progress then fell back to (0, 5). The slash
+    // is similarly narrow.
+    comps.retain(|c| c.w >= 2 && c.h >= 8 && c.y > 0 && c.y + c.h < img_h);
     // Y-row clustering: keep only the topmost row. The digits live above
     // the FROM RAID label; clustering by min_y + (tallest component's
     // height) gives a tight bound around the digit row.
