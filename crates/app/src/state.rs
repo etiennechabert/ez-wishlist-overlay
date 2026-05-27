@@ -5,8 +5,8 @@
 //! duration of the mutation.
 
 use crate::data::{
-    base_slots, DataIndex, GameData, ItemId, RecipeOverride, Requirement, TaskId, UpgradeId,
-    RECIPE_SLOTS,
+    base_slots, DataIndex, GameData, ItemId, ModuleId, RecipeOverride, Requirement, TaskId,
+    UpgradeId, RECIPE_SLOTS,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -23,6 +23,10 @@ pub struct AppState {
     pub tracked_tasks: HashSet<TaskId>,
     pub completed_tasks: HashSet<TaskId>,
     pub collected: HashMap<ItemId, u32>,
+    /// Modules the user has marked as unavailable (e.g. quest-locked). Their
+    /// tracked upgrades stay tracked but don't contribute to `active_items`,
+    /// so the wishlist hides items the user can't act on yet.
+    pub disabled_modules: HashSet<ModuleId>,
     /// User-supplied recipe corrections, keyed by upgrade id. Present entries
     /// fully replace the bundled recipe; absence falls through to `data.json`.
     pub overrides: HashMap<UpgradeId, RecipeOverride>,
@@ -45,6 +49,7 @@ impl AppState {
             tracked_tasks: HashSet::new(),
             completed_tasks: HashSet::new(),
             collected: HashMap::new(),
+            disabled_modules: HashSet::new(),
             overrides: HashMap::new(),
             version: 0,
             load_warning: None,
@@ -116,10 +121,46 @@ impl AppState {
         if on {
             self.completed_upgrades.insert(id.clone());
             self.tracked_upgrades.remove(id);
+            // Natural progression: completing level N pulls the same module's
+            // next level into the tracked set, so the user always has a live
+            // target without having to remember to manually advance. We don't
+            // touch already-completed or already-tracked entries (lets the
+            // user skip a tier manually without us re-adding it).
+            if let Some(next_id) = self.next_level_upgrade(id) {
+                if !self.completed_upgrades.contains(&next_id)
+                    && !self.tracked_upgrades.contains(&next_id)
+                {
+                    self.tracked_upgrades.insert(next_id);
+                }
+            }
         } else {
             self.completed_upgrades.remove(id);
         }
         self.bump();
+    }
+
+    /// Look up the next-higher-level upgrade in the same module (e.g. given
+    /// `GeneratorLv1`, return `GeneratorLv2`'s id if it exists).
+    fn next_level_upgrade(&self, id: &UpgradeId) -> Option<UpgradeId> {
+        let uref = self.index.upgrades_by_id.get(id)?;
+        let next_level = uref.upgrade.level + 1;
+        let module = self.data.modules.iter().find(|m| m.id == uref.module_id)?;
+        module
+            .upgrades
+            .iter()
+            .find(|u| u.level == next_level)
+            .map(|u| u.id.clone())
+    }
+
+    pub fn set_module_disabled(&mut self, id: &ModuleId, on: bool) {
+        let changed = if on {
+            self.disabled_modules.insert(id.clone())
+        } else {
+            self.disabled_modules.remove(id)
+        };
+        if changed {
+            self.bump();
+        }
     }
 
     pub fn set_tracked_task(&mut self, id: &TaskId, on: bool) {
@@ -182,6 +223,7 @@ impl AppState {
         self.tracked_tasks.clear();
         self.completed_tasks.clear();
         self.collected.clear();
+        self.disabled_modules.clear();
         self.bump();
     }
 
@@ -194,6 +236,9 @@ impl AppState {
             let Some(uref) = self.index.upgrades_by_id.get(id) else {
                 continue;
             };
+            if self.disabled_modules.contains(&uref.module_id) {
+                continue;
+            }
             let label = if uref.upgrade.name == uref.module_name {
                 format!("{} L{}", uref.module_name, uref.upgrade.level)
             } else {
@@ -287,6 +332,8 @@ pub struct PersistedState {
     pub completed_tasks: HashSet<TaskId>,
     #[serde(default)]
     pub collected: HashMap<ItemId, u32>,
+    #[serde(default)]
+    pub disabled_modules: HashSet<ModuleId>,
 }
 
 impl PersistedState {
@@ -299,6 +346,7 @@ impl PersistedState {
             tracked_tasks: state.tracked_tasks.clone(),
             completed_tasks: state.completed_tasks.clone(),
             collected: state.collected.clone(),
+            disabled_modules: state.disabled_modules.clone(),
         }
     }
 
@@ -343,6 +391,14 @@ impl PersistedState {
         state.completed_upgrades = kept_done_upgrades;
         state.tracked_tasks = kept_tasks;
         state.completed_tasks = kept_done_tasks;
+        // Drop disabled-module entries that no longer match any module — keeps
+        // the set tidy across data-version bumps that rename modules.
+        let known_modules: HashSet<&ModuleId> = state.data.modules.iter().map(|m| &m.id).collect();
+        state.disabled_modules = self
+            .disabled_modules
+            .into_iter()
+            .filter(|id| known_modules.contains(id))
+            .collect();
         // Keep collected counts as-is — items rarely get renamed and we don't
         // want a wipe to nuke the user's effort.
         state.collected = self.collected;
@@ -495,10 +551,55 @@ mod tests {
 
     #[test]
     fn completed_upgrade_drops_from_view() {
+        // Use the module's top level so completion has no next level to
+        // auto-promote to — verifies the bare "completed → out of view"
+        // path independent of natural-progression auto-tracking.
+        let mut s = AppState::new(fixture());
+        s.set_tracked_upgrade(&"workbench_lv2".to_string(), true);
+        s.set_completed_upgrade(&"workbench_lv2".to_string(), true);
+        assert!(s.active_items().is_empty());
+    }
+
+    #[test]
+    fn completing_a_level_auto_tracks_next_level() {
+        // Natural progression: when level N is marked done, level N+1 in the
+        // same module should be auto-tracked so the user always has a live
+        // target without manually advancing tier-by-tier.
         let mut s = AppState::new(fixture());
         s.set_tracked_upgrade(&"workbench_lv1".to_string(), true);
         s.set_completed_upgrade(&"workbench_lv1".to_string(), true);
-        assert!(s.active_items().is_empty());
+        assert!(
+            s.tracked_upgrades.contains("workbench_lv2"),
+            "lv2 should be auto-tracked once lv1 is done"
+        );
+    }
+
+    #[test]
+    fn completing_top_level_does_not_panic_or_re_add() {
+        // Top-level completion has no level+1 to promote — make sure that
+        // doesn't accidentally re-track the upgrade we just completed.
+        let mut s = AppState::new(fixture());
+        s.set_tracked_upgrade(&"workbench_lv2".to_string(), true);
+        s.set_completed_upgrade(&"workbench_lv2".to_string(), true);
+        assert!(!s.tracked_upgrades.contains("workbench_lv2"));
+        assert!(s.completed_upgrades.contains("workbench_lv2"));
+    }
+
+    #[test]
+    fn disabled_module_hides_from_active_items() {
+        let mut s = AppState::new(fixture());
+        s.set_tracked_upgrade(&"workbench_lv1".to_string(), true);
+        assert!(!s.active_items().is_empty());
+        s.set_module_disabled(&"workbench".to_string(), true);
+        assert!(
+            s.active_items().is_empty(),
+            "disabling the module should hide its tracked requirements"
+        );
+        s.set_module_disabled(&"workbench".to_string(), false);
+        assert!(
+            !s.active_items().is_empty(),
+            "re-enabling restores the tracked requirements"
+        );
     }
 
     #[test]
@@ -675,6 +776,7 @@ mod tests {
             tracked_tasks: HashSet::new(),
             completed_tasks: HashSet::new(),
             collected: HashMap::from([("bolts".to_string(), 7)]),
+            disabled_modules: HashSet::new(),
         };
         let warn = persisted.merge_into(&mut s).expect("should warn");
         assert!(warn.contains("Game data updated"));

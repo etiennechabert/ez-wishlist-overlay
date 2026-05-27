@@ -14,7 +14,7 @@ const SELECTED_ID: &str = "hideout-selected-upgrade";
 const REQ_ICON_SIZE: f32 = 48.0;
 const REQ_TILE_WIDTH: f32 = 170.0;
 const REQ_GRID_COLS: usize = RECIPE_SLOTS;
-const MODULE_NAME_W: f32 = 160.0;
+const MODULE_NAME_W: f32 = 190.0;
 const CELL_W: f32 = 210.0;
 const ROW_H: f32 = 24.0;
 const PICKER_TILE_W: f32 = 110.0;
@@ -33,6 +33,7 @@ pub fn ui(
     let data = state.read().data.clone();
 
     starter_preset_row(ui, state, save_tx);
+    natural_progression_row(ui, state, save_tx);
     header_row(ui);
     ui.separator();
 
@@ -46,6 +47,46 @@ pub fn ui(
             editable_recipe_panel(ui, state, save_tx, icons, &module.name, upgrade);
         }
     }
+}
+
+/// Compact "is this module available right now?" toggle that sits at the left
+/// edge of each module row. Disabling a quest-locked module keeps the user's
+/// track/done picks intact (toggle back on and they resurface) but excludes
+/// its requirements from the wishlist aggregation, so the right pane stops
+/// nagging about items the user literally can't act on yet.
+fn module_toggle(
+    ui: &mut egui::Ui,
+    state: &Arc<RwLock<AppState>>,
+    save_tx: &Sender<SaveTick>,
+    module_id: &str,
+    disabled: bool,
+) {
+    let (glyph, tooltip) = if disabled {
+        (
+            "✕",
+            "Module locked — its requirements are hidden from the wishlist. \
+             Click to re-enable.",
+        )
+    } else {
+        (
+            "✓",
+            "Module available — click to mark as locked (quest-gated, etc). \
+             Its requirements will drop out of the wishlist until re-enabled.",
+        )
+    };
+    let resp = ui
+        .add(
+            egui::Button::new(egui::RichText::new(glyph).strong())
+                .min_size(egui::vec2(22.0, 22.0)),
+        )
+        .on_hover_text(tooltip);
+    if resp.clicked() {
+        state
+            .write()
+            .set_module_disabled(&module_id.to_string(), !disabled);
+        notify(state, save_tx);
+    }
+    ui.add_space(4.0);
 }
 
 fn header_row(ui: &mut egui::Ui) {
@@ -138,6 +179,80 @@ fn starter_preset_row(
     });
 }
 
+/// "Natural progression" preset: every module's Level 1 upgrade. The set is
+/// computed from the loaded `GameData` rather than a hand-curated list so it
+/// stays correct when modules are added/renamed upstream.
+fn natural_progression_row(
+    ui: &mut egui::Ui,
+    state: &Arc<RwLock<AppState>>,
+    save_tx: &Sender<SaveTick>,
+) {
+    let lv1_ids: Vec<String> = {
+        let s = state.read();
+        s.data
+            .modules
+            .iter()
+            .filter_map(|m| m.upgrades.iter().find(|u| u.level == 1).map(|u| u.id.clone()))
+            .collect()
+    };
+
+    let (missing, to_untrack): (Vec<String>, Vec<String>) = {
+        let s = state.read();
+        let missing = lv1_ids
+            .iter()
+            .filter(|id| !s.tracked_upgrades.contains(*id) && !s.completed_upgrades.contains(*id))
+            .cloned()
+            .collect();
+        let to_untrack = lv1_ids
+            .iter()
+            .filter(|id| s.tracked_upgrades.contains(*id))
+            .cloned()
+            .collect();
+        (missing, to_untrack)
+    };
+
+    let total = lv1_ids.len();
+    let covered = total - missing.len();
+    let fully_covered = missing.is_empty();
+    let undo_available = fully_covered && !to_untrack.is_empty();
+
+    let (label, action_apply, enabled) = if !fully_covered {
+        ("Apply natural progression", true, true)
+    } else if undo_available {
+        ("Undo natural progression", false, true)
+    } else {
+        ("Natural progression applied", false, false)
+    };
+    let tooltip = "Bootstraps natural progression: tracks the Level 1 upgrade \
+        of every hideout module. As you mark each level Done, the next level \
+        in the same module is auto-tracked, so the wishlist always shows your \
+        current target. Apply tracks the missing Lv1s; Undo untracks them \
+        again (completed upgrades stay completed).";
+
+    ui.horizontal(|ui| {
+        let resp = ui
+            .add_enabled(enabled, egui::Button::new(label))
+            .on_hover_text(tooltip)
+            .on_disabled_hover_text(tooltip);
+        if resp.clicked() && enabled {
+            let mut s = state.write();
+            let ids = if action_apply { &missing } else { &to_untrack };
+            for id in ids {
+                s.set_tracked_upgrade(id, action_apply);
+            }
+            drop(s);
+            notify(state, save_tx);
+        }
+        ui.add_space(8.0);
+        let weak = ui.visuals().weak_text_color();
+        ui.label(
+            egui::RichText::new(format!("{covered}/{total} Level 1 upgrades tracked"))
+                .small()
+                .color(weak),
+        );
+    });
+}
+
 fn module_row(
     ui: &mut egui::Ui,
     state: &Arc<RwLock<AppState>>,
@@ -147,13 +262,25 @@ fn module_row(
 ) {
     let dark = ui.visuals().dark_mode;
     let strong = ui.visuals().strong_text_color();
+    let weak = ui.visuals().weak_text_color();
+    let disabled = state.read().disabled_modules.contains(&module.id);
+    let name_color = if disabled { weak } else { strong };
     let bg_idx = ui.painter().add(egui::Shape::Noop);
 
     let inner = ui.horizontal(|ui| {
         ui.set_min_height(ROW_H);
-        ui.add_sized(
-            [MODULE_NAME_W, ROW_H],
-            egui::Label::new(egui::RichText::new(&module.name).strong().color(strong)).truncate(),
+        ui.allocate_ui_with_layout(
+            egui::vec2(MODULE_NAME_W, ROW_H),
+            egui::Layout::left_to_right(egui::Align::Center),
+            |ui| {
+                ui.set_min_size(egui::vec2(MODULE_NAME_W, ROW_H));
+                module_toggle(ui, state, save_tx, &module.id, disabled);
+                let mut name_text = egui::RichText::new(&module.name).strong().color(name_color);
+                if disabled {
+                    name_text = name_text.strikethrough();
+                }
+                ui.add(egui::Label::new(name_text).truncate());
+            },
         );
         for slot in 0..MAX_LEVELS {
             ui.allocate_ui_with_layout(
@@ -165,7 +292,9 @@ fn module_row(
                     // every row's columns aligned with the headers.
                     ui.set_min_size(egui::vec2(CELL_W, ROW_H));
                     if let Some(upgrade) = module.upgrades.get(slot) {
-                        upgrade_cell(ui, state, save_tx, upgrade);
+                        ui.add_enabled_ui(!disabled, |ui| {
+                            upgrade_cell(ui, state, save_tx, upgrade);
+                        });
                     }
                 },
             );
