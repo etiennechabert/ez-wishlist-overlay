@@ -77,7 +77,7 @@ impl App {
     // args into a builder/config struct is its own refactor.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        _cc: &eframe::CreationContext<'_>,
+        cc: &eframe::CreationContext<'_>,
         state: Arc<RwLock<AppState>>,
         paths: Arc<PersistPaths>,
         save_tx: Sender<SaveTick>,
@@ -86,6 +86,21 @@ impl App {
         log_buf: crate::log_buffer::LogBuffer,
         update_rx: Option<Receiver<CheckStatus>>,
     ) -> Self {
+        // Extend egui's default Proportional fallback chain with Hack.
+        // Ubuntu-Light (the proportional primary) doesn't cover most of the
+        // U+21xx arrows block — including ↳ used in the preview pane source
+        // list — and neither do the NotoEmoji or emoji-icon-font fallbacks,
+        // so those characters render as missing-glyph tofu. Hack DOES carry
+        // the full arrows block (it's already the Monospace primary, just
+        // not wired into Proportional by default); appending it last means
+        // text still picks Ubuntu-Light first for the body characters and
+        // only falls back to Hack for the few glyphs nothing else provides.
+        let mut fonts = egui::FontDefinitions::default();
+        if let Some(prop) = fonts.families.get_mut(&egui::FontFamily::Proportional) {
+            prop.push("Hack".to_owned());
+        }
+        cc.egui_ctx.set_fonts(fonts);
+
         let icons = IconCache::new();
         // Pull any initial warning surfaced by persist::load.
         let banner = state.read().load_warning.clone();
