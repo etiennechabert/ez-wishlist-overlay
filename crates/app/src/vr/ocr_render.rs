@@ -313,27 +313,23 @@ fn draw_item_row(pix: &mut Pixmap, item: &OcrItemDelta, y_top: f32) {
 }
 
 fn draw_footer(pix: &mut Pixmap, feedback: &OcrFeedback, baseline_y: f32) {
+    // The card renders exactly once per feedback (see
+    // `vr::runtime::drive_ocr_overlay`), so a live countdown would
+    // freeze on the first-second value and look broken. Static text
+    // describing the lifecycle mode instead.
     let manual_dismiss = cfg!(debug_assertions);
-    let processing = matches!(feedback.kind, OcrFeedbackKind::Processing);
-    let age = feedback.shown_at.elapsed();
-    let footer = if processing {
-        "Working… replaced when pipeline finishes.".to_string()
-    } else if manual_dismiss {
-        "Debug build — overlay persists until a new capture replaces it.".to_string()
-    } else {
-        let remaining = crate::gui::ocr_feedback::AUTO_DISMISS
-            .saturating_sub(age)
-            .as_secs_f32();
-        format!("Closing in {:.1}s", remaining.max(0.0))
+    let footer = match (&feedback.kind, manual_dismiss) {
+        (OcrFeedbackKind::Processing, _) => "Working… replaced when the pipeline finishes.",
+        (_, true) => "Debug build — stays until the next OCR run replaces it.",
+        (_, false) => "Fades out in a few seconds.",
     };
-    text::draw_text(pix, &footer, PAD_X, baseline_y, SMALL_PX, weak());
+    text::draw_text(pix, footer, PAD_X, baseline_y, SMALL_PX, weak());
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::gui::{OcrFeedback, OcrFeedbackKind, OcrItemDelta};
-    use std::time::Instant;
 
     fn done_feedback() -> OcrFeedback {
         OcrFeedback {
@@ -359,7 +355,6 @@ mod tests {
                     "Now tracking Bitcoin Mine Lv 2".into(),
                 ],
             },
-            shown_at: Instant::now(),
         }
     }
 

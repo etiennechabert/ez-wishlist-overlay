@@ -22,7 +22,7 @@
 
 use crate::ocr::OcrOutcome;
 use crate::state::{AppState, OcrProgression};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 /// How long terminal overlay states stay before fading in release builds.
 pub const AUTO_DISMISS: Duration = Duration::from_secs(3);
@@ -30,7 +30,6 @@ pub const AUTO_DISMISS: Duration = Duration::from_secs(3);
 #[derive(Clone, Debug)]
 pub struct OcrFeedback {
     pub kind: OcrFeedbackKind,
-    pub shown_at: Instant,
 }
 
 #[derive(Clone, Debug)]
@@ -69,21 +68,18 @@ impl OcrFeedback {
     pub fn processing() -> Self {
         Self {
             kind: OcrFeedbackKind::Processing,
-            shown_at: Instant::now(),
         }
     }
 
     pub fn not_a_panel() -> Self {
         Self {
             kind: OcrFeedbackKind::NotAPanel,
-            shown_at: Instant::now(),
         }
     }
 
     pub fn failed(message: impl Into<String>) -> Self {
         Self {
             kind: OcrFeedbackKind::Failed(message.into()),
-            shown_at: Instant::now(),
         }
     }
 
@@ -134,7 +130,6 @@ impl OcrFeedback {
                 items,
                 progression_notes: Vec::new(),
             },
-            shown_at: Instant::now(),
         }
     }
 

@@ -388,7 +388,7 @@ fn render_loop(
             apply_fade_in(session, &mut fade_start, frame_start)?;
         }
 
-        drive_ocr_overlay(session, ocr_feedback_rx, &mut ocr_state, frame_start)?;
+        drive_ocr_overlay(session, ocr_feedback_rx, &mut ocr_state, frame_start);
 
         // Liveness probe — fails when SteamVR disappears.
         session.heartbeat()?;
@@ -741,6 +741,16 @@ struct OcrOverlayState {
     /// Refreshed every time the worker publishes a new feedback so
     /// fade-out timing resets correctly across rapid successive runs.
     visible_since: std::time::Instant,
+    /// True when the texture has been pushed to the overlay at least
+    /// once for this feedback. We render → submit exactly once per
+    /// state transition; per-frame fades go through `set_ocr_alpha`
+    /// only. Re-submitting an unchanged pixmap at 90 Hz was both
+    /// wasteful and (more importantly) visibly flickered the card.
+    submitted: bool,
+    /// Current alpha last pushed to SteamVR. Tracked alongside the
+    /// overlay session's own cache so we can compare against the
+    /// computed fade target without rounding noise.
+    last_alpha: f32,
 }
 
 /// Drain pending feedback messages and drive the OCR overlay's
@@ -752,16 +762,23 @@ struct OcrOverlayState {
 /// the next OCR run replaces it, so the developer has time to read
 /// every per-item line.
 ///
-/// The `Processing` variant intentionally never auto-dismisses: the
-/// worker always emits a terminal kind to replace it, and a
-/// safety-net timeout would just race that.
+/// We render the pixmap **exactly once** per state transition, then
+/// only touch `set_ocr_alpha` per frame. Re-submitting the same
+/// texture at 90 Hz caused visible flicker (SteamVR seemed to swap
+/// in partial uploads) and was wasted work besides.
+///
+/// Overlay-submit / visibility / alpha failures are logged but never
+/// propagated up: the OCR overlay is a developer-aid surface, not
+/// load-bearing, and one bad `SetOverlayRaw` should not kill the
+/// VR session and tear down the wishlist grid the user is actively
+/// looking at.
 #[cfg(target_os = "windows")]
 fn drive_ocr_overlay(
     session: &mut super::overlay::OverlaySession,
     feedback_rx: &Receiver<crate::gui::OcrFeedback>,
     state: &mut Option<OcrOverlayState>,
     frame_start: std::time::Instant,
-) -> anyhow::Result<()> {
+) {
     use crate::gui::ocr_feedback::AUTO_DISMISS;
     use crate::gui::OcrFeedbackKind;
 
@@ -773,57 +790,65 @@ fn drive_ocr_overlay(
         latest = Some(fb);
     }
     if let Some(fb) = latest {
-        let pixmap = super::ocr_render::render(&fb);
-        session.submit_ocr_rgba(pixmap.data(), pixmap.width(), pixmap.height())?;
-        session.set_ocr_visible(true)?;
-        session.set_ocr_alpha(1.0)?;
         *state = Some(OcrOverlayState {
             feedback: fb,
             visible_since: frame_start,
+            submitted: false,
+            last_alpha: 0.0,
         });
-        return Ok(());
     }
 
-    let Some(current) = state.as_ref() else {
-        // Nothing showing, nothing to update.
-        return Ok(());
+    let Some(current) = state.as_mut() else {
+        return;
     };
 
     let manual_dismiss = cfg!(debug_assertions);
     let processing = matches!(current.feedback.kind, OcrFeedbackKind::Processing);
-
-    if processing || manual_dismiss {
-        // Both modes hold the card indefinitely. Re-render to refresh
-        // the countdown / footer text — cheap (~few ms), runs once per
-        // frame, only when something is on screen.
-        let pixmap = super::ocr_render::render(&current.feedback);
-        session.submit_ocr_rgba(pixmap.data(), pixmap.width(), pixmap.height())?;
-        return Ok(());
-    }
-
-    // Release auto-fade for terminal kinds.
     let age = frame_start.duration_since(current.visible_since);
-    if age >= AUTO_DISMISS {
-        session.set_ocr_alpha(0.0)?;
-        session.set_ocr_visible(false)?;
-        *state = None;
-        return Ok(());
+
+    // First submit for this feedback: render once and push.
+    if !current.submitted {
+        let pixmap = super::ocr_render::render(&current.feedback);
+        if let Err(e) = session.submit_ocr_rgba(pixmap.data(), pixmap.width(), pixmap.height()) {
+            tracing::warn!(error = %e, "OCR overlay: submit failed (continuing)");
+        }
+        if let Err(e) = session.set_ocr_visible(true) {
+            tracing::warn!(error = %e, "OCR overlay: set_visible failed");
+        }
+        current.submitted = true;
     }
-    let fade_tail = Duration::from_millis(600);
-    let remaining = AUTO_DISMISS.saturating_sub(age);
-    let alpha = if remaining < fade_tail {
-        (remaining.as_secs_f32() / fade_tail.as_secs_f32()).clamp(0.0, 1.0)
-    } else {
+
+    // Auto-dismiss only for terminal kinds in release builds.
+    if !processing && !manual_dismiss && age >= AUTO_DISMISS {
+        if let Err(e) = session.set_ocr_alpha(0.0) {
+            tracing::warn!(error = %e, "OCR overlay: set_alpha(0) failed");
+        }
+        if let Err(e) = session.set_ocr_visible(false) {
+            tracing::warn!(error = %e, "OCR overlay: hide failed");
+        }
+        *state = None;
+        return;
+    }
+
+    // Per-frame alpha for release-build fade-out. Processing and
+    // debug builds stay at 1.0.
+    let target_alpha = if processing || manual_dismiss {
         1.0
+    } else {
+        let fade_tail = Duration::from_millis(600);
+        let remaining = AUTO_DISMISS.saturating_sub(age);
+        if remaining < fade_tail {
+            (remaining.as_secs_f32() / fade_tail.as_secs_f32()).clamp(0.0, 1.0)
+        } else {
+            1.0
+        }
     };
-    session.set_ocr_alpha(alpha)?;
-    // Re-render every frame while visible so the countdown footer
-    // updates. We could cache + redraw only the footer band, but a
-    // 720×<800 pixmap finishes in a few ms and the loop has plenty of
-    // slack against the 11 ms tick budget.
-    let pixmap = super::ocr_render::render(&current.feedback);
-    session.submit_ocr_rgba(pixmap.data(), pixmap.width(), pixmap.height())?;
-    Ok(())
+    if (target_alpha - current.last_alpha).abs() > 1.0 / 256.0 {
+        if let Err(e) = session.set_ocr_alpha(target_alpha) {
+            tracing::warn!(error = %e, "OCR overlay: set_alpha failed");
+        }
+        current.last_alpha = target_alpha;
+    }
 }
 
 /// Per-tick hover detection: ray-cast from each controller, find whichever
