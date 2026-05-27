@@ -32,13 +32,13 @@ pub fn process_screenshot(path: &Path, data: &GameData) -> Result<Option<OcrOutc
     // detection. Run on the raw RGB image — Windows.Media.Ocr handles the
     // mixed white-on-dark text natively; preprocessing helps Tesseract but
     // not WinRT.
-    let full = engine::recognize_image(&img).context("first-pass OCR")?;
-    let layout = match anchor::detect_panel(&full.words, img_w, img_h) {
+    let full_words = engine::recognize_image(&img).context("first-pass OCR")?;
+    let layout = match anchor::detect_panel(&full_words, img_w, img_h) {
         Some(l) => l,
         None => {
             tracing::debug!(
                 path = %path.display(),
-                words = full.words.len(),
+                words = full_words.len(),
                 "OCR pipeline: not an upgrade menu (no submit anchor)",
             );
             return Ok(None);
@@ -54,9 +54,8 @@ pub fn process_screenshot(path: &Path, data: &GameData) -> Result<Option<OcrOutc
         layout.row_label.w,
         layout.row_label.h,
     );
-    let row_ocr = engine::recognize_image(&row_crop).context("row-label OCR")?;
-    let row_text: String = row_ocr
-        .words
+    let row_words = engine::recognize_image(&row_crop).context("row-label OCR")?;
+    let row_text: String = row_words
         .iter()
         .map(|w| w.text.as_str())
         .collect::<Vec<_>>()
@@ -69,9 +68,8 @@ pub fn process_screenshot(path: &Path, data: &GameData) -> Result<Option<OcrOutc
         layout.header.w,
         layout.header.h,
     );
-    let header_ocr = engine::recognize_image(&header_crop).context("header OCR")?;
-    let current_level = header_ocr
-        .words
+    let header_words = engine::recognize_image(&header_crop).context("header OCR")?;
+    let current_level = header_words
         .iter()
         .find_map(|w| anchor::parse_level_token(&w.text))
         .unwrap_or(0);

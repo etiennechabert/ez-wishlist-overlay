@@ -27,10 +27,6 @@ pub struct BBox {
 
 #[derive(Clone, Debug)]
 pub struct PanelLayout {
-    /// Panel rect — bounds the upgrade panel itself (excluding the world
-    /// behind it). Used only for sanity bounds; downstream cropping reads
-    /// the named rects below directly.
-    pub panel: BBox,
     /// Header block crop — has `<short name>` + `LV<digit>`. The pipeline
     /// reads only the `LV<digit>` token from this rect.
     pub header: BBox,
@@ -58,8 +54,9 @@ pub fn detect_panel(words: &[OcrWord], img_w: u32, img_h: u32) -> Option<PanelLa
     // `read_progress_via_templates` in the ocr_lab pipeline.
     let count_strips: Vec<BBox> = cells.iter().map(count_strip_within_cell).collect();
 
-    // Panel: encloses everything we'll touch. Top of panel is the title
-    // band (extrapolated above the anchor), bottom is the FROM RAID row.
+    // Panel bounds — used internally to derive header/row_label rects
+    // anchored relative to the panel corners. Not exposed because
+    // downstream pipeline reads only the three named rects below.
     let panel_top = anchor.y.saturating_sub(anchor.h * 18);
     let panel_bottom = cells
         .iter()
@@ -69,37 +66,32 @@ pub fn detect_panel(words: &[OcrWord], img_w: u32, img_h: u32) -> Option<PanelLa
         .min(img_h);
     let panel_left = anchor.x.saturating_sub(anchor.h * 10).min(img_w);
     let panel_right = (anchor.x + anchor.w + anchor.h * 10).min(img_w);
-    let panel = BBox {
-        x: panel_left,
-        y: panel_top,
-        w: panel_right.saturating_sub(panel_left),
-        h: panel_bottom.saturating_sub(panel_top),
-    };
+    let panel_w = panel_right.saturating_sub(panel_left);
+    let panel_h = panel_bottom.saturating_sub(panel_top);
 
     // Header rect: top-left corner of panel, two text rows tall (name +
     // LV<digit>). Width ~33% of panel — enough to fit the name + LV.
     // Constants calibrated empirically from `hideout_screenshots/`; tune
     // against native-PNG fixtures once those exist.
-    let header_h = (panel.h * 18 / 100).max(anchor.h * 3);
+    let header_h = (panel_h * 18 / 100).max(anchor.h * 3);
     let header = BBox {
-        x: panel.x + panel.w / 40,
-        y: panel.y,
-        w: panel.w * 35 / 100,
+        x: panel_left + panel_w / 40,
+        y: panel_top,
+        w: panel_w * 35 / 100,
         h: header_h,
     };
 
-    // Row-label rect: starts just below the header, one row tall. The
-    // first upgrade row's name text lives here — and (Phase 0) it
+    // Row-label rect: starts just below the header, two text-rows tall.
+    // The first upgrade row's name text lives here — and (Phase 0) it
     // strictly equals `module.name`.
     let row_label = BBox {
-        x: panel.x + panel.w / 25,
-        y: panel.y + header.h,
-        w: panel.w * 45 / 100,
+        x: panel_left + panel_w / 25,
+        y: panel_top + header.h,
+        w: panel_w * 45 / 100,
         h: anchor.h * 2,
     };
 
     Some(PanelLayout {
-        panel,
         header,
         row_label,
         cells: count_strips,

@@ -43,15 +43,6 @@ pub struct OcrWord {
     pub rect: OcrRect,
 }
 
-/// Full OCR result for a single image.
-#[derive(Clone, Debug)]
-pub struct OcrResult {
-    pub image_width: u32,
-    pub image_height: u32,
-    pub text: String,
-    pub words: Vec<OcrWord>,
-}
-
 /// Successful OCR outcome — what the pipeline returns when it both identifies
 /// an upgrade panel and reads its owned-count cells. The caller applies this
 /// to `AppState.collected` via repeated `set_collected` calls (snapshot is

@@ -40,9 +40,20 @@ pub struct Settings {
     /// nagware, but newer versions still surface.
     #[serde(default)]
     pub dismissed_update_version: Option<String>,
+    /// When true (default), the OCR worker auto-extracts owned counts
+    /// from every VR mirror-texture screenshot and overwrites
+    /// `AppState.collected` for the matched upgrade. Disable to keep the
+    /// screenshot trigger but skip the recognition pass (the worker
+    /// still drains the channel; nothing else happens).
+    #[serde(default = "default_ocr_enabled")]
+    pub ocr_enabled: bool,
 }
 
 fn default_check_for_updates() -> bool {
+    true
+}
+
+fn default_ocr_enabled() -> bool {
     true
 }
 
@@ -54,6 +65,7 @@ impl Default for Settings {
             theme: Theme::default(),
             check_for_updates: default_check_for_updates(),
             dismissed_update_version: None,
+            ocr_enabled: default_ocr_enabled(),
         }
     }
 }

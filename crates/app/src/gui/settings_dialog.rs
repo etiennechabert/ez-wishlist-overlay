@@ -34,6 +34,9 @@ pub fn show(
             vr_section(ui, &mut working.vr);
 
             ui.add_space(12.0);
+            ocr_section(ui, &mut working.ocr_enabled);
+
+            ui.add_space(12.0);
             storage_section(ui, data_dir);
 
             ui.add_space(12.0);
@@ -79,6 +82,18 @@ fn appearance_section(ui: &mut egui::Ui, theme: &mut Theme) {
         ui.selectable_value(theme, Theme::Light, "Light");
         ui.selectable_value(theme, Theme::System, "System");
     });
+}
+
+fn ocr_section(ui: &mut egui::Ui, ocr_enabled: &mut bool) {
+    ui.heading("Screenshot OCR");
+    ui.add_space(4.0);
+    ui.checkbox(ocr_enabled, "Auto-extract counts from VR screenshots")
+        .on_hover_text(
+            "When you press the screenshot hotkey on the Facility Upgrade \
+             panel, the saved image is OCR'd and the owned counts for that \
+             upgrade's required items are written to your wishlist. \
+             Disable to keep the screenshot trigger but skip the OCR pass.",
+        );
 }
 
 fn updates_section(ui: &mut egui::Ui, check_for_updates: &mut bool) {

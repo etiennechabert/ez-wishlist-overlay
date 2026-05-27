@@ -8,24 +8,17 @@
 //! wants the file as a `StorageFile` (sandboxed) or an `IRandomAccessStream`
 //! we'd have to materialize. In-process decoding is simpler.
 
-use crate::ocr::{OcrRect, OcrResult, OcrWord};
+use crate::ocr::{OcrRect, OcrWord};
 use anyhow::{Context, Result};
 use image::DynamicImage;
-use std::path::Path;
 use windows::Graphics::Imaging::{BitmapPixelFormat, SoftwareBitmap};
 use windows::Media::Ocr::OcrEngine;
 use windows::Storage::Streams::DataWriter;
 
-/// Decode the image at `path` and OCR it. Kept for callers that want the
-/// file-path interface; most paths go through [`recognize_image`].
-#[allow(dead_code)]
-pub fn recognize_file(path: &Path) -> Result<OcrResult> {
-    let img = image::open(path).with_context(|| format!("opening {}", path.display()))?;
-    recognize_image(&img)
-}
-
-/// Run Windows.Media.Ocr on an already-decoded image.
-pub fn recognize_image(img: &DynamicImage) -> Result<OcrResult> {
+/// Run Windows.Media.Ocr on an already-decoded image. Returns the
+/// word-level boxes in pixel coordinates (downstream code only uses
+/// these — the full `Text` and image dimensions are dropped).
+pub fn recognize_image(img: &DynamicImage) -> Result<Vec<OcrWord>> {
     let rgba = img.to_rgba8();
     let (width, height) = rgba.dimensions();
     if width == 0 || height == 0 {
@@ -53,9 +46,7 @@ pub fn recognize_image(img: &DynamicImage) -> Result<OcrResult> {
         .get()
         .context("await OCR result")?;
 
-    let text = result.Text().context("OCR Text")?.to_string_lossy();
     let mut words = Vec::new();
-
     for line in result.Lines().context("OCR Lines")? {
         for word in line.Words().context("OCR Words")? {
             let rect = word.BoundingRect().context("OCR BoundingRect")?;
@@ -71,20 +62,8 @@ pub fn recognize_image(img: &DynamicImage) -> Result<OcrResult> {
         }
     }
 
-    tracing::debug!(
-        width,
-        height,
-        words = words.len(),
-        chars = text.len(),
-        "OCR finished",
-    );
-
-    Ok(OcrResult {
-        image_width: width,
-        image_height: height,
-        text,
-        words,
-    })
+    tracing::debug!(width, height, words = words.len(), "OCR finished");
+    Ok(words)
 }
 
 /// Materialize a BGRA8 `SoftwareBitmap` from raw pixels. Allocates a WinRT

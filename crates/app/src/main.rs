@@ -113,6 +113,7 @@ fn main() -> Result<()> {
     let last_ocr: Arc<RwLock<Option<ocr::OcrOutcome>>> = Arc::new(RwLock::new(None));
     let _ocr_handle = spawn_ocr_worker(
         shared_state.clone(),
+        settings.clone(),
         save_tx.clone(),
         last_ocr.clone(),
         ocr_path_rx,
@@ -155,6 +156,7 @@ fn main() -> Result<()> {
                 settings,
                 log_buf,
                 update_rx,
+                last_ocr,
             )))
         }),
     )
@@ -210,6 +212,7 @@ fn init_logging(buf: log_buffer::LogBuffer) {
 /// just triggers another screenshot.
 fn spawn_ocr_worker(
     state: Arc<RwLock<state::AppState>>,
+    settings: Arc<RwLock<settings::Settings>>,
     save_tx: crossbeam_channel::Sender<gui::SaveTick>,
     last_ocr: Arc<RwLock<Option<ocr::OcrOutcome>>>,
     ocr_path_rx: crossbeam_channel::Receiver<std::path::PathBuf>,
@@ -218,6 +221,13 @@ fn spawn_ocr_worker(
         .name("ez-wishlist-ocr".into())
         .spawn(move || {
             while let Ok(path) = ocr_path_rx.recv() {
+                if !settings.read().ocr_enabled {
+                    tracing::debug!(
+                        path = %path.display(),
+                        "OCR disabled in settings — skipping",
+                    );
+                    continue;
+                }
                 // Pull a snapshot of the game data — cheap (Arc<GameData>
                 // clone). Reading it here keeps the OCR thread's `state`
                 // read scoped tightly, so the GUI / VR / save threads
@@ -251,6 +261,12 @@ fn spawn_ocr_worker(
                     }
                     w.version
                 };
+                tracing::info!(
+                    upgrade_id = %outcome.upgrade_id,
+                    upgrade_name = %outcome.upgrade_name,
+                    items = outcome.items.len(),
+                    "OCR: applied owned counts",
+                );
                 let _ = save_tx.try_send(gui::SaveTick { version });
                 *last_ocr.write() = Some(outcome);
             }
