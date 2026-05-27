@@ -390,6 +390,60 @@ mod fixture_tests {
         }
     }
 
+    /// Diagnostic: run the full pipeline against every native PNG and
+    /// print the resolved upgrade + per-cell `(item_id, owned)` it
+    /// produces. Validates whether the 9 committed templates (0-6, 8,
+    /// slash; missing 7 and 9) produce sensible owned counts in
+    /// practice. Run with:
+    /// `cargo test -p ez-wishlist-overlay ocr::pipeline::fixture_tests::read_native_pngs -- --ignored --nocapture`
+    #[test]
+    #[ignore = "diagnostic — run with --ignored"]
+    fn read_native_pngs() {
+        let data = load_data();
+        let in_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../hideout_screenshots_native");
+        let mut entries: Vec<_> = std::fs::read_dir(&in_dir)
+            .unwrap_or_else(|e| panic!("read_dir {}: {e}", in_dir.display()))
+            .filter_map(|e| e.ok())
+            .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("png"))
+            .collect();
+        entries.sort_by_key(|e| e.file_name());
+        assert!(!entries.is_empty(), "no native PNGs to test against");
+
+        eprintln!("templates loaded: {}", crate::ocr::templates::EMBEDDED.len());
+        eprintln!();
+
+        for entry in &entries {
+            let path = entry.path();
+            let stem = path.file_stem().unwrap().to_string_lossy().into_owned();
+            match ocr::process_screenshot(&path, &data) {
+                Ok(Some(outcome)) => {
+                    let upgrade = data
+                        .modules
+                        .iter()
+                        .flat_map(|m| &m.upgrades)
+                        .find(|u| u.id == outcome.upgrade_id);
+                    let id_ok = outcome.upgrade_id == stem;
+                    eprintln!(
+                        "{} {stem} -> {} ({})",
+                        if id_ok { "OK  " } else { "MISS" },
+                        outcome.upgrade_id,
+                        outcome.upgrade_name,
+                    );
+                    for (i, (item_id, owned)) in outcome.items.iter().enumerate() {
+                        let need = upgrade
+                            .and_then(|u| u.requirements.get(i))
+                            .map(|r| r.quantity)
+                            .unwrap_or(0);
+                        eprintln!("       cell {i}: {item_id} = {owned}/{need}");
+                    }
+                }
+                Ok(None) => eprintln!("NONE  {stem}: pipeline returned None"),
+                Err(e) => eprintln!("ERR   {stem}: {e:#}"),
+            }
+        }
+    }
+
     /// Diagnostic: run the pipeline against one fixture and print the
     /// row-label OCR + match score regardless of outcome. Helps localise
     /// failures that show up only as `pipeline returned None`.

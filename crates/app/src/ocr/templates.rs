@@ -163,6 +163,11 @@ pub fn score(comp: &Component, t: &Template) -> f32 {
 
 /// Match every component in the binary strip against the templates and
 /// return the recognised characters, sorted left-to-right.
+///
+/// The cell strip is intentionally tall (about 3 text-rows) so head tilt
+/// can't shift the digits out of frame — but that means the strip can
+/// also contain the "FROM RAID" label sitting below the count. We
+/// cluster by Y and keep only the topmost row (where the digits are).
 pub fn recognize(strip: &GrayImage, templates: &[Template]) -> String {
     if templates.is_empty() {
         return String::new();
@@ -170,8 +175,18 @@ pub fn recognize(strip: &GrayImage, templates: &[Template]) -> String {
     let img_h = strip.height();
     let mut comps = find_components(strip);
     // Drop tiny noise AND components touching the top/bottom edges (cell
-    // row separator lines).
-    comps.retain(|c| c.w * c.h >= 4 && c.y > 0 && c.y + c.h < img_h);
+    // row separator lines / strip artefacts). The digit glyphs are
+    // roughly square and tall — anything under 4×8 is noise.
+    comps.retain(|c| c.w >= 4 && c.h >= 8 && c.y > 0 && c.y + c.h < img_h);
+    // Y-row clustering: keep only the topmost row. The digits live above
+    // the FROM RAID label; clustering by min_y + (tallest component's
+    // height) gives a tight bound around the digit row.
+    if !comps.is_empty() {
+        let min_y = comps.iter().map(|c| c.y).min().unwrap();
+        let max_h = comps.iter().map(|c| c.h).max().unwrap();
+        let row_cutoff = min_y + max_h;
+        comps.retain(|c| c.y <= row_cutoff);
+    }
     comps.sort_by_key(|c| c.x);
     let mut out = String::new();
     for c in &comps {
