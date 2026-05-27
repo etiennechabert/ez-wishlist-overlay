@@ -21,6 +21,18 @@ pub const HAPTIC_INCREMENT_US: u16 = 1_500;
 /// SPEC §7.4 asks for a "distinct pattern"; the alternative of two
 /// quick pulses needs cross-tick scheduling, this one tick suffices.
 pub const HAPTIC_RESET_US: u16 = 3_500;
+/// Short pulse on a decrement click — same length as increment so the two
+/// directions feel symmetrical.
+pub const HAPTIC_DECREMENT_US: u16 = 1_500;
+
+/// Which direction a click should move the counter. Right-side input
+/// (right mouse button, right controller) increments; left-side input
+/// decrements.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ClickAction {
+    Increment,
+    Decrement,
+}
 
 /// What the runtime should do as a result of a click. The runtime owns
 /// the [`OverlaySession`] handle for haptics, so this layer just tells
@@ -32,6 +44,9 @@ pub enum ClickOutcome {
     /// Click landed on `item_id` while it was already at target; counter
     /// reset to 0.
     Reset { item_id: ItemId },
+    /// Click landed on `item_id`; counter went down to `new_value` (or
+    /// stayed at 0 if it was already there).
+    Decremented { item_id: ItemId, new_value: u32 },
     /// Click landed in an empty area, or the same cell was clicked again
     /// inside the debounce window.
     Ignored,
@@ -86,7 +101,10 @@ pub fn hit_test(hits: &[CellHit], pixel_x: f32, pixel_y: f32) -> Option<&CellHit
 }
 
 /// Apply a click on `(pixel_x, pixel_y)` to the current state. Returns
-/// the [`ClickOutcome`] so the runtime can decide haptics.
+/// the [`ClickOutcome`] so the runtime can decide haptics. `action`
+/// chooses the direction: `Increment` cycles (mirrors the original
+/// trigger semantics — +1, then back to 0 at target); `Decrement`
+/// subtracts 1 and saturates at 0.
 pub fn handle_click(
     state: &Arc<RwLock<AppState>>,
     hits: &[CellHit],
@@ -94,6 +112,7 @@ pub fn handle_click(
     pixel_y: f32,
     debounce: &mut Debouncer,
     now: Instant,
+    action: ClickAction,
 ) -> ClickOutcome {
     let Some(hit) = hit_test(hits, pixel_x, pixel_y) else {
         return ClickOutcome::Ignored;
@@ -102,15 +121,27 @@ pub fn handle_click(
         return ClickOutcome::Ignored;
     }
     let mut w = state.write();
-    let (new_value, was_reset) = w.cycle_collected(&hit.item_id, hit.needed);
-    if was_reset {
-        ClickOutcome::Reset {
-            item_id: hit.item_id.clone(),
+    match action {
+        ClickAction::Increment => {
+            let (new_value, was_reset) = w.cycle_collected(&hit.item_id, hit.needed);
+            if was_reset {
+                ClickOutcome::Reset {
+                    item_id: hit.item_id.clone(),
+                }
+            } else {
+                ClickOutcome::Incremented {
+                    item_id: hit.item_id.clone(),
+                    new_value,
+                }
+            }
         }
-    } else {
-        ClickOutcome::Incremented {
-            item_id: hit.item_id.clone(),
-            new_value,
+        ClickAction::Decrement => {
+            w.adjust_collected(&hit.item_id, -1);
+            let new_value = *w.collected.get(&hit.item_id).unwrap_or(&0);
+            ClickOutcome::Decremented {
+                item_id: hit.item_id.clone(),
+                new_value,
+            }
         }
     }
 }
@@ -224,7 +255,15 @@ mod tests {
         let mut deb = Debouncer::new();
         let t0 = Instant::now();
 
-        let out = handle_click(&state, &hits, 50.0, 50.0, &mut deb, t0);
+        let out = handle_click(
+            &state,
+            &hits,
+            50.0,
+            50.0,
+            &mut deb,
+            t0,
+            ClickAction::Increment,
+        );
         assert!(matches!(
             out,
             ClickOutcome::Incremented { new_value: 1, .. }
@@ -232,7 +271,15 @@ mod tests {
         assert_eq!(state.read().collected.get("bolts").copied().unwrap_or(0), 1);
 
         // Repeat inside the debounce window: ignored.
-        let out = handle_click(&state, &hits, 50.0, 50.0, &mut deb, t0);
+        let out = handle_click(
+            &state,
+            &hits,
+            50.0,
+            50.0,
+            &mut deb,
+            t0,
+            ClickAction::Increment,
+        );
         assert_eq!(out, ClickOutcome::Ignored);
         assert_eq!(state.read().collected.get("bolts").copied().unwrap_or(0), 1);
     }
@@ -246,8 +293,68 @@ mod tests {
         let mut deb = Debouncer::new();
         let t0 = Instant::now();
 
-        let out = handle_click(&state, &hits, 50.0, 50.0, &mut deb, t0);
+        let out = handle_click(
+            &state,
+            &hits,
+            50.0,
+            50.0,
+            &mut deb,
+            t0,
+            ClickAction::Increment,
+        );
         assert!(matches!(out, ClickOutcome::Reset { .. }));
         assert_eq!(state.read().collected.get("wire").copied().unwrap_or(0), 0);
+    }
+
+    #[test]
+    fn handle_click_decrements_and_saturates_at_zero() {
+        let state = one_item_state("bolts", 5);
+        state.write().set_collected(&"bolts".to_string(), 2);
+        let hits = vec![hit("bolts", 0.0, 0.0, 100.0, 100.0, 5)];
+        let mut deb = Debouncer::new();
+        let t0 = Instant::now();
+
+        let out = handle_click(
+            &state,
+            &hits,
+            50.0,
+            50.0,
+            &mut deb,
+            t0,
+            ClickAction::Decrement,
+        );
+        assert!(matches!(
+            out,
+            ClickOutcome::Decremented { new_value: 1, .. }
+        ));
+        assert_eq!(state.read().collected.get("bolts").copied().unwrap_or(0), 1);
+
+        // Outside the debounce window, two more clicks take us to 0 and the
+        // third clamps there rather than wrapping around.
+        let t1 = t0 + Duration::from_millis(DEBOUNCE_MS + 10);
+        handle_click(
+            &state,
+            &hits,
+            50.0,
+            50.0,
+            &mut deb,
+            t1,
+            ClickAction::Decrement,
+        );
+        let t2 = t1 + Duration::from_millis(DEBOUNCE_MS + 10);
+        let out = handle_click(
+            &state,
+            &hits,
+            50.0,
+            50.0,
+            &mut deb,
+            t2,
+            ClickAction::Decrement,
+        );
+        assert!(matches!(
+            out,
+            ClickOutcome::Decremented { new_value: 0, .. }
+        ));
+        assert_eq!(state.read().collected.get("bolts").copied().unwrap_or(0), 0);
     }
 }

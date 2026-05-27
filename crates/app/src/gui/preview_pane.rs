@@ -147,12 +147,22 @@ fn row_controls(
         state.write().adjust_collected(&item.item_id, 1);
         notify(state, save_tx);
     }
+    // One button that flips between "Done" (jump to the target so the row
+    // reads as ready) and "Reset" (drop back to 0). Saves a button slot —
+    // once you've hit the target the only meaningful next action is reset.
+    let done = item.needed > 0 && item.collected >= item.needed;
+    let (label, tooltip) = if done {
+        ("Reset", "Reset progress to 0")
+    } else {
+        ("Done", "Mark fully collected (sets to target)")
+    };
     if ui
-        .add(round_button("Reset", 64.0))
-        .on_hover_text("Reset progress to 0")
+        .add(round_button(label, 64.0))
+        .on_hover_text(tooltip)
         .clicked()
     {
-        state.write().set_collected(&item.item_id, 0);
+        let new_value = if done { 0 } else { item.needed };
+        state.write().set_collected(&item.item_id, new_value);
         notify(state, save_tx);
     }
 }

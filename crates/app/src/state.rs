@@ -163,6 +163,41 @@ impl AppState {
         }
     }
 
+    /// True if `module_id` is either directly disabled OR its in-game parent
+    /// area (host module like Kitchen Area, or a synthetic category like
+    /// Storage Zone) is disabled. Used by the wishlist aggregation so that
+    /// disabling a parent cascades through every child — and so that
+    /// re-enabling a parent restores the children to their individual state
+    /// rather than forcing all of them on.
+    /// True if this upgrade is tracked, not yet completed, and the user has
+    /// collected enough of every required item to claim it. Ignores whether
+    /// the collected counts are also needed for sibling upgrades — the goal
+    /// here is to surface "you've got the materials for this one" cues in
+    /// the desktop UI, not gate aggregation. An empty requirements list
+    /// (free upgrade) counts as ready — there's nothing left to gather.
+    pub fn is_upgrade_ready(&self, upgrade_id: &UpgradeId) -> bool {
+        if !self.tracked_upgrades.contains(upgrade_id)
+            || self.completed_upgrades.contains(upgrade_id)
+        {
+            return false;
+        }
+        self.effective_requirements(upgrade_id)
+            .iter()
+            .all(|r| *self.collected.get(&r.item_id).unwrap_or(&0) >= r.quantity)
+    }
+
+    pub fn is_module_effectively_disabled(&self, module_id: &str) -> bool {
+        if self.disabled_modules.contains(module_id) {
+            return true;
+        }
+        if let Some(parent) = crate::hierarchy::parent_disable_id(module_id) {
+            if self.disabled_modules.contains(&parent) {
+                return true;
+            }
+        }
+        false
+    }
+
     pub fn set_tracked_task(&mut self, id: &TaskId, on: bool) {
         if on {
             self.tracked_tasks.insert(id.clone());
@@ -236,7 +271,7 @@ impl AppState {
             let Some(uref) = self.index.upgrades_by_id.get(id) else {
                 continue;
             };
-            if self.disabled_modules.contains(&uref.module_id) {
+            if self.is_module_effectively_disabled(&uref.module_id) {
                 continue;
             }
             let label = if uref.upgrade.name == uref.module_name {

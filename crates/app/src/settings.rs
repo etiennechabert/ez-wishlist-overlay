@@ -86,6 +86,11 @@ pub struct VrSettings {
     /// overlays keep their position until they hide and reappear.
     #[serde(default = "default_height_offset_m")]
     pub height_offset_m: f32,
+    /// When true, the overlay stays visible at its current world anchor and
+    /// the pitch-driven show/hide FSM is bypassed. Toggled from the desktop
+    /// header so the user can pin the panel for hands-free reference.
+    #[serde(default)]
+    pub locked: bool,
 }
 
 fn default_grid_cols() -> u32 {
@@ -107,6 +112,7 @@ impl Default for VrSettings {
             hide_pitch_deg: crate::vr::pose::HIDE_PITCH_DEG,
             grid_cols: default_grid_cols(),
             height_offset_m: default_height_offset_m(),
+            locked: false,
         }
     }
 }
@@ -188,6 +194,7 @@ mod tests {
             hide_pitch_deg: 50.0,
             grid_cols: 6,
             height_offset_m: 0.6,
+            locked: false,
         };
         vr.sanitize();
         assert!(
@@ -204,6 +211,7 @@ mod tests {
             hide_pitch_deg: -10.0,
             grid_cols: 99,
             height_offset_m: 99.0,
+            locked: false,
         };
         vr.sanitize();
         assert_eq!(vr.width_meters, 2.0);

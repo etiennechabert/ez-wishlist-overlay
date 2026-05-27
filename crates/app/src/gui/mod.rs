@@ -282,6 +282,8 @@ impl App {
                 self.confirm_reset = true;
             }
 
+            self.lock_overlay_button(ui);
+
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui.button("Settings").clicked() {
                     self.show_settings = true;
@@ -295,6 +297,27 @@ impl App {
                 self.export_corrections_button(ui);
             });
         });
+    }
+
+    /// Toggle in the header strip that pins the VR overlay at its current
+    /// world anchor (and forces it visible) so the user can reference it
+    /// hands-free, regardless of head pitch. Persists via settings.json.
+    fn lock_overlay_button(&mut self, ui: &mut egui::Ui) {
+        let locked = self.settings.read().vr.locked;
+        let label = if locked {
+            "Overlay: locked"
+        } else {
+            "Overlay: unlocked"
+        };
+        let tooltip = if locked {
+            "Click to unlock — overlay returns to look-up-to-summon behavior."
+        } else {
+            "Pin the overlay at its current position and keep it visible until unlocked."
+        };
+        if ui.button(label).on_hover_text(tooltip).clicked() {
+            self.settings.write().vr.locked = !locked;
+            self.persist_settings();
+        }
     }
 
     /// "Export corrections" pops up a modal with the user's per-recipe edits
