@@ -133,6 +133,14 @@ fn row_controls(
         state.write().adjust_collected(&item.item_id, 1);
         notify(state, save_tx);
     }
+    if ui
+        .small_button("Reset")
+        .on_hover_text("Reset progress to 0")
+        .clicked()
+    {
+        state.write().set_collected(&item.item_id, 0);
+        notify(state, save_tx);
+    }
 }
 
 fn row_sources(ui: &mut egui::Ui, sources: &[String], dark: bool) {
