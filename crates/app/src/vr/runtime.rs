@@ -171,6 +171,7 @@ fn render_loop(
     let mut last_canvas: (u32, u32) = (0, 0);
     let mut fade_start: Option<Instant> = None;
     let mut was_visible = false;
+    let mut was_locked = false;
     let mut debouncer = Debouncer::new();
     let mut event_buf: Vec<EventInfo> = Vec::with_capacity(8);
     let mut current_hover: Option<String> = None;
@@ -190,6 +191,22 @@ fn render_loop(
         );
         let visible_now = vr.locked || pitch_visible;
 
+        // If the lock flag flipped this tick, force a re-anchor by pretending
+        // the overlay was hidden — the visibility-transition branch below
+        // will then re-capture an anchor with the correct height for the new
+        // mode (low + close to eye-line when locking, default summon height
+        // when unlocking and the pitch FSM later shows it).
+        if vr.locked != was_locked {
+            was_visible = false;
+            was_locked = vr.locked;
+        }
+
+        let active_height_offset_m = if vr.locked {
+            vr.locked_height_offset_m
+        } else {
+            vr.height_offset_m
+        };
+
         handle_visibility_transition(
             session,
             state,
@@ -198,7 +215,7 @@ fn render_loop(
                 pitch,
                 frame_start,
                 grid_cols: vr.grid_cols,
-                height_offset_m: vr.height_offset_m,
+                height_offset_m: active_height_offset_m,
             },
             &mut was_visible,
             &mut fade_start,

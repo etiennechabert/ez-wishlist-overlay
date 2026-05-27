@@ -22,6 +22,11 @@ pub mod bounds {
     /// 0 sits the panel at eye level (looking forward sees its lower edge);
     /// the upper end pushes it well above so you have to crane up to see it.
     pub const HEIGHT_OFFSET_M: std::ops::RangeInclusive<f32> = 0.0..=1.5;
+    /// Vertical offset used when the overlay is locked. Capped well below
+    /// `HEIGHT_OFFSET_M`'s max because the whole point of locked mode is
+    /// "panel sits just above natural eye-line" — values close to 1.5 m
+    /// would defeat the feature.
+    pub const LOCKED_HEIGHT_OFFSET_M: std::ops::RangeInclusive<f32> = 0.0..=0.6;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -91,6 +96,12 @@ pub struct VrSettings {
     /// header so the user can pin the panel for hands-free reference.
     #[serde(default)]
     pub locked: bool,
+    /// Vertical offset above the HMD used when the overlay is locked.
+    /// Separate from `height_offset_m` so locked mode can sit close to
+    /// natural eye-line (no craning required) while the unlocked summon
+    /// mode keeps its higher "look up to see" placement.
+    #[serde(default = "default_locked_height_offset_m")]
+    pub locked_height_offset_m: f32,
 }
 
 fn default_grid_cols() -> u32 {
@@ -103,6 +114,15 @@ fn default_height_offset_m() -> f32 {
     crate::vr::anchor::HEIGHT_M
 }
 
+fn default_locked_height_offset_m() -> f32 {
+    // Lock mode targets "just above natural forward gaze" so the user can
+    // glance at the panel without craning. 0.15 m above the HMD puts the
+    // panel's lower edge roughly at brow-level for a typical sitting pose
+    // — visible without effort but out of the way of the actual hideout
+    // workbench view.
+    0.15
+}
+
 impl Default for VrSettings {
     fn default() -> Self {
         // Defaults track the SPEC.md §7.2 baselines documented in vr/pose.rs.
@@ -113,6 +133,7 @@ impl Default for VrSettings {
             grid_cols: default_grid_cols(),
             height_offset_m: default_height_offset_m(),
             locked: false,
+            locked_height_offset_m: default_locked_height_offset_m(),
         }
     }
 }
@@ -132,6 +153,8 @@ impl VrSettings {
         self.grid_cols = self.grid_cols.clamp(*g.start(), *g.end());
         let h = bounds::HEIGHT_OFFSET_M;
         self.height_offset_m = self.height_offset_m.clamp(*h.start(), *h.end());
+        let lh = bounds::LOCKED_HEIGHT_OFFSET_M;
+        self.locked_height_offset_m = self.locked_height_offset_m.clamp(*lh.start(), *lh.end());
     }
 }
 
@@ -195,6 +218,7 @@ mod tests {
             grid_cols: 6,
             height_offset_m: 0.6,
             locked: false,
+            locked_height_offset_m: 0.15,
         };
         vr.sanitize();
         assert!(
@@ -212,6 +236,7 @@ mod tests {
             grid_cols: 99,
             height_offset_m: 99.0,
             locked: false,
+            locked_height_offset_m: 99.0,
         };
         vr.sanitize();
         assert_eq!(vr.width_meters, 2.0);
@@ -219,6 +244,10 @@ mod tests {
         assert_eq!(vr.hide_pitch_deg, 0.0);
         assert_eq!(vr.grid_cols, *bounds::GRID_COLS.end());
         assert_eq!(vr.height_offset_m, *bounds::HEIGHT_OFFSET_M.end());
+        assert_eq!(
+            vr.locked_height_offset_m,
+            *bounds::LOCKED_HEIGHT_OFFSET_M.end()
+        );
     }
 
     #[test]

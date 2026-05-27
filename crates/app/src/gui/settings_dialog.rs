@@ -156,6 +156,22 @@ fn vr_section(ui: &mut egui::Ui, vr: &mut VrSettings) {
                 " m",
             );
             ui.end_row();
+
+            ui.label("Locked height (m)").on_hover_text(
+                "Vertical offset above the HMD used when the overlay is locked. \
+                 Smaller than the summon-height above on purpose — locked mode \
+                 sits the panel just above natural forward gaze so you can \
+                 glance at it without craning. Takes effect on the next lock \
+                 toggle or visibility transition.",
+            );
+            stepper_slider_f32(
+                ui,
+                &mut vr.locked_height_offset_m,
+                bounds::LOCKED_HEIGHT_OFFSET_M,
+                0.05,
+                " m",
+            );
+            ui.end_row();
         });
 
     ui.add_space(4.0);
