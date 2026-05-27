@@ -201,10 +201,10 @@ fn render_loop(
             was_locked = vr.locked;
         }
 
-        let active_height_offset_m = if vr.locked {
-            vr.locked_height_offset_m
+        let (active_height_offset_m, active_tilt_deg) = if vr.locked {
+            (vr.locked_height_offset_m, vr.locked_tilt_deg)
         } else {
-            vr.height_offset_m
+            (vr.height_offset_m, super::anchor::TILT_DEG)
         };
 
         handle_visibility_transition(
@@ -216,6 +216,7 @@ fn render_loop(
                 frame_start,
                 grid_cols: vr.grid_cols,
                 height_offset_m: active_height_offset_m,
+                tilt_deg: active_tilt_deg,
             },
             &mut was_visible,
             &mut fade_start,
@@ -302,6 +303,7 @@ struct VisibilityTransition {
     frame_start: std::time::Instant,
     grid_cols: u32,
     height_offset_m: f32,
+    tilt_deg: f32,
 }
 
 #[cfg(target_os = "windows")]
@@ -319,7 +321,7 @@ fn handle_visibility_transition(
     current_hover: &mut Option<String>,
 ) -> anyhow::Result<()> {
     if t.visible_now && !*was_visible {
-        if session.anchor_at_current_hmd(t.height_offset_m)? {
+        if session.anchor_at_current_hmd(t.height_offset_m, t.tilt_deg)? {
             render_data(
                 state,
                 t.grid_cols,

@@ -172,6 +172,22 @@ fn vr_section(ui: &mut egui::Ui, vr: &mut VrSettings) {
                 " m",
             );
             ui.end_row();
+
+            ui.label("Locked tilt (°)").on_hover_text(
+                "Tilt of the panel when locked. 0° is flat (billboard facing \
+                 you head-on); higher values lean the top edge backward. \
+                 Default is flat — the summon mode keeps its baked-in steeper \
+                 tilt. Takes effect on the next lock toggle or visibility \
+                 transition.",
+            );
+            stepper_slider_f32(
+                ui,
+                &mut vr.locked_tilt_deg,
+                bounds::LOCKED_TILT_DEG,
+                1.0,
+                "°",
+            );
+            ui.end_row();
         });
 
     ui.add_space(4.0);

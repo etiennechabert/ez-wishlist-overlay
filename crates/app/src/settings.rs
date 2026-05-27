@@ -27,6 +27,12 @@ pub mod bounds {
     /// "panel sits just above natural eye-line" — values close to 1.5 m
     /// would defeat the feature.
     pub const LOCKED_HEIGHT_OFFSET_M: std::ops::RangeInclusive<f32> = 0.0..=0.6;
+    /// Tilt (degrees) of the locked overlay around its local X axis. 0 = flat
+    /// (panel faces the user head-on, like a billboard); higher values lean
+    /// the top edge backward so the panel feels like a tilted-up surface.
+    /// Capped at the canonical summon tilt — locked mode is the "HUD" mode
+    /// and a steeper tilt undermines the glance-able UX.
+    pub const LOCKED_TILT_DEG: std::ops::RangeInclusive<f32> = 0.0..=35.0;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -102,6 +108,11 @@ pub struct VrSettings {
     /// mode keeps its higher "look up to see" placement.
     #[serde(default = "default_locked_height_offset_m")]
     pub locked_height_offset_m: f32,
+    /// Tilt (degrees) of the panel when locked. Defaults to 0 (flat) so the
+    /// HUD reads head-on; the unlocked summon mode keeps the steeper
+    /// `anchor::TILT_DEG` baked-in tilt.
+    #[serde(default = "default_locked_tilt_deg")]
+    pub locked_tilt_deg: f32,
 }
 
 fn default_grid_cols() -> u32 {
@@ -123,6 +134,14 @@ fn default_locked_height_offset_m() -> f32 {
     0.15
 }
 
+fn default_locked_tilt_deg() -> f32 {
+    // Flat by default — the HUD reads head-on so the user doesn't have to
+    // angle their head down to look at a tilted-up surface. The summon-mode
+    // tilt (anchor::TILT_DEG) only makes sense when you trigger the panel
+    // by looking up.
+    0.0
+}
+
 impl Default for VrSettings {
     fn default() -> Self {
         // Defaults track the SPEC.md §7.2 baselines documented in vr/pose.rs.
@@ -134,6 +153,7 @@ impl Default for VrSettings {
             height_offset_m: default_height_offset_m(),
             locked: false,
             locked_height_offset_m: default_locked_height_offset_m(),
+            locked_tilt_deg: default_locked_tilt_deg(),
         }
     }
 }
@@ -155,6 +175,8 @@ impl VrSettings {
         self.height_offset_m = self.height_offset_m.clamp(*h.start(), *h.end());
         let lh = bounds::LOCKED_HEIGHT_OFFSET_M;
         self.locked_height_offset_m = self.locked_height_offset_m.clamp(*lh.start(), *lh.end());
+        let lt = bounds::LOCKED_TILT_DEG;
+        self.locked_tilt_deg = self.locked_tilt_deg.clamp(*lt.start(), *lt.end());
     }
 }
 
@@ -219,6 +241,7 @@ mod tests {
             height_offset_m: 0.6,
             locked: false,
             locked_height_offset_m: 0.15,
+            locked_tilt_deg: 0.0,
         };
         vr.sanitize();
         assert!(
@@ -237,6 +260,7 @@ mod tests {
             height_offset_m: 99.0,
             locked: false,
             locked_height_offset_m: 99.0,
+            locked_tilt_deg: 999.0,
         };
         vr.sanitize();
         assert_eq!(vr.width_meters, 2.0);
@@ -248,6 +272,7 @@ mod tests {
             vr.locked_height_offset_m,
             *bounds::LOCKED_HEIGHT_OFFSET_M.end()
         );
+        assert_eq!(vr.locked_tilt_deg, *bounds::LOCKED_TILT_DEG.end());
     }
 
     #[test]

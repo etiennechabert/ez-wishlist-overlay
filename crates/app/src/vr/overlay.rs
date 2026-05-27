@@ -169,10 +169,12 @@ impl OverlaySession {
     /// roll are dropped so the overlay sits in front of the user at the
     /// moment of trigger, not above their face where their gaze was
     /// pointing. `height_offset_m` controls how far above the HMD the panel
-    /// floats (see [`super::anchor::HEIGHT_M`] for the historical default).
+    /// floats (see [`super::anchor::HEIGHT_M`] for the historical default);
+    /// `tilt_deg` controls how far the top edge leans backward, with 0
+    /// meaning "flat / billboard-facing the user."
     /// Returns `Ok(false)` if the HMD pose is invalid this frame (caller
     /// should retry on the next tick).
-    pub fn anchor_at_current_hmd(&mut self, height_offset_m: f32) -> Result<bool> {
+    pub fn anchor_at_current_hmd(&mut self, height_offset_m: f32, tilt_deg: f32) -> Result<bool> {
         let system = self
             .ctx
             .system()
@@ -187,7 +189,7 @@ impl OverlaySession {
             hmd.device_to_absolute_tracking(),
             super::anchor::DISTANCE_M,
             height_offset_m,
-            super::anchor::TILT_DEG,
+            tilt_deg,
         );
         let matrix = openvr::pose::Matrix3x4(m);
         let mut overlay = self
