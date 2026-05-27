@@ -26,3 +26,10 @@ state.json
 dev.log
 vr-fntable.txt
 ocr_data/
+
+# Native VR captures used for digit-template extraction and future OCR
+# regression. Each PNG is ~10 MB lossless; we keep them locally as
+# ground-truth references but don't commit by default. To commit a
+# specific fixture (e.g. for the integration test), `git add -f
+# hideout_screenshots_native/<UpgradeId>.png`.
+hideout_screenshots_native/*.png
