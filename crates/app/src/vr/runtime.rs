@@ -332,6 +332,21 @@ fn render_loop(
         // render loop — the overlay should keep working even if a screenshot
         // fails. On success, hand the path to the OCR worker via `ocr_tx`.
         while capture_rx.try_recv().is_ok() {
+            // Retire any prior OCR card BEFORE grabbing the compositor
+            // mirror. The OCR overlay is a real SteamVR overlay
+            // composited into the eye buffers, so a still-visible
+            // previous card would otherwise be baked into the new
+            // screenshot and the next OCR pass would see itself over
+            // the Facility Upgrade panel.
+            if ocr_state.is_some() {
+                if let Err(e) = session.set_ocr_alpha(0.0) {
+                    tracing::warn!(error = %e, "OCR overlay: pre-capture clear-alpha failed");
+                }
+                if let Err(e) = session.set_ocr_visible(false) {
+                    tracing::warn!(error = %e, "OCR overlay: pre-capture hide failed");
+                }
+                ocr_state = None;
+            }
             let path = next_screenshot_path(paths);
             let result = match session.capture_screenshot(&path) {
                 Ok(()) => {
@@ -340,20 +355,6 @@ fn render_loop(
                     // silently — VR render loop must not block.
                     let _ = ocr_tx.try_send(path.clone());
                     super::capture::play_capture_done_beep(true);
-                    // Immediately retire any prior OCR card. The worker
-                    // will publish a fresh Processing state for the new
-                    // capture in a few ms; we want zero overlap so the
-                    // user never reads "Closing soon…" content from the
-                    // previous run while the new one is in flight.
-                    if ocr_state.is_some() {
-                        if let Err(e) = session.set_ocr_alpha(0.0) {
-                            tracing::warn!(error = %e, "OCR overlay: clear-alpha failed");
-                        }
-                        if let Err(e) = session.set_ocr_visible(false) {
-                            tracing::warn!(error = %e, "OCR overlay: clear-visible failed");
-                        }
-                        ocr_state = None;
-                    }
                     CaptureResult::Ok(path)
                 }
                 Err(e) => {
