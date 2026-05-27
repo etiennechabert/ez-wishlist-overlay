@@ -176,16 +176,30 @@ pub fn recognize(strip: &GrayImage, templates: &[Template]) -> String {
 /// the debug-dump writer can show exactly what the matcher saw, what
 /// it kept after filtering, and which templates each kept component
 /// scored against. The pipeline's [`recognize`] wrapper drops this.
+///
+/// `raw_components` is only consumed by the debug-dump writer, which
+/// is `#[cfg(debug_assertions)]`-gated — release builds never touch
+/// it, hence the `dead_code` opt-out so `-D warnings` doesn't fail
+/// the MSI job.
 pub struct RecognizeDebug {
     pub recognised: String,
+    #[allow(dead_code)]
     pub raw_components: Vec<(u32, u32, u32, u32)>,
     pub kept_components: Vec<KeptComponent>,
 }
 
 pub struct KeptComponent {
+    // x/y/w/h are read only by the debug-dump writer (debug builds);
+    // release builds never observe these, hence the opt-out. Keeping
+    // them as plain `pub` fields keeps the dump construction site
+    // identical across cfgs.
+    #[allow(dead_code)]
     pub x: u32,
+    #[allow(dead_code)]
     pub y: u32,
+    #[allow(dead_code)]
     pub w: u32,
+    #[allow(dead_code)]
     pub h: u32,
     /// All template scores, sorted desc by score. First entry is the
     /// winner that ended up in the recognised string.
