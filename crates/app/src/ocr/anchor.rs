@@ -79,8 +79,8 @@ pub fn detect_panel(words: &[OcrWord], img_w: u32, img_h: u32) -> Option<PanelLa
     // panel width — so panel_w ≈ anchor.w * 10 / 3 — and the panel
     // extends ~18 anchor heights upward (title + 3-4 upgrade rows +
     // cost) and ~6 anchor heights downward (cost + cells + buttons).
-    // Both ratios were measured against `hideout_screenshots/` JPGs;
-    // re-calibrate on native PNGs once a batch exists.
+    // Both ratios were measured against the native PNGs in
+    // `hideout_screenshots_native/`.
     let anchor_cx = anchor.x + anchor.w / 2;
     let panel_w_est = anchor.w * 10 / 3;
     let panel_left = anchor_cx.saturating_sub(panel_w_est / 2).min(img_w);

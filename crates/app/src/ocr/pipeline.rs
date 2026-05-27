@@ -202,18 +202,19 @@ pub fn process_screenshot(_path: &Path, _data: &GameData) -> Result<Option<OcrOu
 
 #[cfg(all(test, target_os = "windows"))]
 mod fixture_tests {
-    //! Integration-style coverage driven by the JPEG fixtures in
-    //! `hideout_screenshots/`. Each fixture's filename is the
-    //! `Upgrade.id` ground truth (Phase 0 convention — see
-    //! `hideout_screenshots/CLAUDE.md`). We check three things per
-    //! fixture: (a) the pipeline returns `Some(outcome)`, (b)
-    //! `outcome.upgrade_id` equals the filename stem, and (c)
-    //! `outcome.items` enumerates the matching upgrade's requirements
-    //! in `data.json` order. We do NOT assert owned counts — the JPGs
-    //! are not representative of digit-template accuracy on the
-    //! lossless native PNGs the runtime sees, and the embedded
-    //! `ocr_templates/` directory ships empty so digit recognition
-    //! reads everything as 0 until a native batch is captured.
+    //! Integration-style coverage driven by the **native-resolution
+    //! PNG fixtures** in `hideout_screenshots_native/`. Each fixture's
+    //! filename is the `Upgrade.id` ground truth (e.g.
+    //! `BookcaseLv1.png` ↔ `Upgrade.id = "BookcaseLv1"`). We assert
+    //! identification + cell ordering match `data.json` here; per-cell
+    //! owned-count accuracy is tracked via the `read_native_pngs`
+    //! diagnostic (run with `--ignored`) and the sibling
+    //! `.ocr-debug.txt` dumps.
+    //!
+    //! The old `hideout_screenshots/` Steam-F12 JPGs are no longer
+    //! part of the test suite — their lossy compression destroyed
+    //! the chunky pixel-art digit font and made digit-OCR results
+    //! unrepresentative of what the runtime sees on real captures.
 
     use crate::ocr;
     use std::path::PathBuf;
@@ -224,8 +225,8 @@ mod fixture_tests {
     }
 
     fn fixture_dir() -> PathBuf {
-        // CARGO_MANIFEST_DIR is `crates/app`; fixtures live at repo root.
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../hideout_screenshots")
+        // CARGO_MANIFEST_DIR is `crates/app`; native PNGs live at repo root.
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../hideout_screenshots_native")
     }
 
     /// Sweep every JPG fixture, report a per-image pass/fail line, and
@@ -821,85 +822,16 @@ mod fixture_tests {
         }
     }
 
-    /// Diagnostic: run the pipeline against one fixture and print the
-    /// row-label OCR + match score regardless of outcome. Helps localise
-    /// failures that show up only as `pipeline returned None`.
-    #[test]
-    #[ignore = "diagnostic — run with --ignored"]
-    fn trace_pipeline_for_first_fixture() {
-        use crate::ocr::{anchor, engine, match_upgrade};
-        let data = load_data();
-        let dir = fixture_dir();
-        let path = std::fs::read_dir(&dir)
-            .unwrap()
-            .filter_map(|e| e.ok())
-            .find(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jpg"))
-            .expect("at least one fixture")
-            .path();
-        let img = image::open(&path).expect("decode fixture");
-        let (img_w, img_h) = {
-            use image::GenericImageView;
-            img.dimensions()
-        };
-        let full = engine::recognize_image(&img).expect("first OCR");
-        let layout = anchor::detect_panel(&full, img_w, img_h)
-            .expect("anchor 'Need to submit items' should be present");
-        eprintln!(
-            "panel:    header={:?}  row_label={:?}",
-            layout.header, layout.row_label
-        );
-        eprintln!("cells:    {} from FROM RAID anchors", layout.cells.len());
-
-        let row_crop = img.crop_imm(
-            layout.row_label.x,
-            layout.row_label.y,
-            layout.row_label.w,
-            layout.row_label.h,
-        );
-        let row_words = engine::recognize_image(&row_crop).expect("row OCR");
-        let row_text: String = row_words
-            .iter()
-            .map(|w| w.text.as_str())
-            .collect::<Vec<_>>()
-            .join(" ");
-        eprintln!("row OCR:  {:?}", row_text);
-
-        let header_crop = img.crop_imm(
-            layout.header.x,
-            layout.header.y,
-            layout.header.w,
-            layout.header.h,
-        );
-        let header_words = engine::recognize_image(&header_crop).expect("header OCR");
-        eprintln!(
-            "header:   {:?}",
-            header_words
-                .iter()
-                .map(|w| w.text.as_str())
-                .collect::<Vec<_>>(),
-        );
-        let current_level = header_words
-            .iter()
-            .find_map(|w| anchor::parse_level_token(&w.text))
-            .unwrap_or(0);
-        eprintln!("LV:       {current_level}");
-
-        match match_upgrade::resolve(&data, &row_text, current_level) {
-            Some(id) => eprintln!("RESOLVED: {id}"),
-            None => eprintln!("UNRESOLVED"),
-        }
-    }
-
     /// Diagnostic: dump every OCR'd word for one native PNG, with
     /// focus on the area below the anchor (where FROM RAID labels +
     /// counts live).
     #[test]
     #[ignore = "diagnostic — run with --ignored"]
     fn dump_native_png_words() {
-        use crate::ocr::{anchor, engine};
+        use crate::ocr::engine;
         let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../../hideout_screenshots_native/CryptoMiningLv2.png");
-        let img = image::open(&path).expect("open BookcaseLv1.png");
+        let img = image::open(&path).expect("open native PNG");
         let words = engine::recognize_image(&img).expect("OCR");
         eprintln!("{} words total:", words.len());
         let mut sorted: Vec<_> = words.iter().collect();
@@ -910,47 +842,33 @@ mod fixture_tests {
                 w.rect.y, w.rect.x, w.rect.height, w.text,
             );
         }
-        // Anchor info for cross-reference
-        if let Some(layout) = anchor::detect_panel(&words, img.width(), img.height()) {
-            eprintln!("anchor y={} h={}", layout.anchor.y, layout.anchor.h);
-        }
     }
 
-    /// Diagnostic: dump every OCR'd word for one fixture.
+    /// Identification + cell-ordering regression. For every native PNG
+    /// in `hideout_screenshots_native/`:
+    ///   - pipeline must return `Some(outcome)`,
+    ///   - `outcome.upgrade_id` must equal the filename stem (the
+    ///     ground-truth Upgrade.id),
+    ///   - `outcome.items` must list every requirement of that upgrade
+    ///     in `data.json` declaration order.
+    ///
+    /// Per-cell `Option<u32>` accuracy isn't asserted here — that's
+    /// tracked via the `read_native_pngs` diagnostic and the sibling
+    /// `.ocr-debug.txt` dumps. We require 100% pass on the native set
+    /// (it's the runtime's real input — any regression here breaks
+    /// production OCR).
     #[test]
-    #[ignore = "diagnostic — run with --ignored"]
-    fn dump_ocr_words_for_first_fixture() {
-        use crate::ocr::engine;
-        let dir = fixture_dir();
-        let path = std::fs::read_dir(&dir)
-            .unwrap()
-            .filter_map(|e| e.ok())
-            .find(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jpg"))
-            .expect("at least one fixture")
-            .path();
-        let img = image::open(&path).expect("decode fixture");
-        let words = engine::recognize_image(&img).expect("OCR fixture");
-        eprintln!("OCR'd {} words for {}:", words.len(), path.display());
-        for w in &words {
-            eprintln!(
-                "  {:?}  @ ({:.0},{:.0}) {}×{}",
-                w.text, w.rect.x, w.rect.y, w.rect.width, w.rect.height,
-            );
-        }
-    }
-
-    #[test]
-    fn upgrade_identification_across_jpg_fixtures() {
+    fn identification_and_cell_ordering_on_native_pngs() {
         let data = load_data();
         let dir = fixture_dir();
         let entries: Vec<_> = std::fs::read_dir(&dir)
             .unwrap_or_else(|e| panic!("read_dir {}: {e}", dir.display()))
             .filter_map(|e| e.ok())
-            .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jpg"))
+            .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("png"))
             .collect();
         assert!(
             !entries.is_empty(),
-            "no fixtures found under {}",
+            "no native PNG fixtures under {}",
             dir.display(),
         );
 
@@ -998,15 +916,10 @@ mod fixture_tests {
         }
 
         let total = entries.len();
-        eprintln!("\nFixture pass rate: {pass} / {total}");
-        // Loose threshold — these are JPEGs and anchor detection on
-        // Steam's F12-style compression is less reliable than the
-        // native PNGs the runtime sees. Tighten once native fixtures
-        // exist alongside.
-        let min_required = (total * 9 / 10).max(1); // 90%, round up
-        assert!(
-            pass >= min_required,
-            "only {pass}/{total} fixtures passed (need ≥ {min_required}); failed: {fail:?}",
+        eprintln!("\nNative-PNG fixture pass rate: {pass} / {total}");
+        assert_eq!(
+            pass, total,
+            "all native PNG fixtures must pass identification + cell ordering; failed: {fail:?}",
         );
     }
 }

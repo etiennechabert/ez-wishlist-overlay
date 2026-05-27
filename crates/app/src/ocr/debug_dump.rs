@@ -82,6 +82,54 @@ pub fn write_text(dump: &OcrDebugDump<'_>, path: &Path) -> std::io::Result<()> {
     writeln!(f, "Image:  {}×{}", dump.img_w, dump.img_h)?;
     writeln!(f)?;
 
+    // Headline summary up front so the user sees the verdict without
+    // scrolling. The detailed sections below stay as before.
+    writeln!(f, "=== SUMMARY ===")?;
+    match &dump.resolution {
+        Resolution::Resolved {
+            upgrade_id,
+            module_name,
+            upgrade_level,
+        } => {
+            writeln!(
+                f,
+                "  upgrade:  {module_name} Lv {upgrade_level}  (id={upgrade_id})"
+            )?;
+        }
+        Resolution::Unresolved => {
+            writeln!(
+                f,
+                "  upgrade:  UNRESOLVED (no module.name passed strict-match)"
+            )?;
+        }
+    }
+    let total = dump.cells.len();
+    let applied = dump
+        .cells
+        .iter()
+        .filter(|c| c.parsed_owned.is_some())
+        .count();
+    writeln!(
+        f,
+        "  cells:    {applied}/{total} read, {} unread (existing counts preserved)",
+        total - applied,
+    )?;
+    for cell in &dump.cells {
+        match cell.parsed_owned {
+            Some(owned) => writeln!(
+                f,
+                "    [{}] {} ({})  =  {owned} / {}",
+                cell.index, cell.item_name, cell.item_id, cell.needed,
+            )?,
+            None => writeln!(
+                f,
+                "    [{}] {} ({})  =  UNREAD / {}   recognised={:?}",
+                cell.index, cell.item_name, cell.item_id, cell.needed, cell.recognised,
+            )?,
+        }
+    }
+    writeln!(f)?;
+
     writeln!(f, "=== ANCHOR (\"Need to submit items\") ===")?;
     writeln!(
         f,
