@@ -73,8 +73,7 @@ pub struct CellDebug<'a> {
 /// previous run and you couldn't tell if a file on disk reflects the
 /// latest pipeline behaviour or a stale build's.
 pub fn debug_path_for(source: &Path) -> PathBuf {
-    let now = time::OffsetDateTime::now_local()
-        .unwrap_or_else(|_| time::OffsetDateTime::now_utc());
+    let now = time::OffsetDateTime::now_local().unwrap_or_else(|_| time::OffsetDateTime::now_utc());
     let hhmmss = now
         .format(time::macros::format_description!("[hour][minute][second]"))
         .unwrap_or_else(|_| "000000".into());
@@ -85,6 +84,34 @@ pub fn debug_path_for(source: &Path) -> PathBuf {
         .unwrap_or_else(|| "screenshot".into());
     path.set_file_name(format!("{stem}.ocr-debug.{hhmmss}.txt"));
     path
+}
+
+/// Remove any prior `<stem>.ocr-debug.*.txt` files next to the source
+/// PNG. Each pipeline run produces a freshly-timestamped sibling
+/// dump; without this sweep, fixture-test reruns would leave a trail
+/// of files that quickly clutters the directory (the user can't tell
+/// at a glance which one reflects the current build).
+pub fn purge_prior_dumps(source: &Path) {
+    let Some(dir) = source.parent() else {
+        return;
+    };
+    let stem = match source.file_stem().and_then(|s| s.to_str()) {
+        Some(s) => s,
+        None => return,
+    };
+    let prefix = format!("{stem}.ocr-debug.");
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let name = entry.file_name();
+        let Some(name_str) = name.to_str() else {
+            continue;
+        };
+        if name_str.starts_with(&prefix) && name_str.ends_with(".txt") {
+            let _ = std::fs::remove_file(entry.path());
+        }
+    }
 }
 
 pub fn write_text(dump: &OcrDebugDump<'_>, path: &Path) -> std::io::Result<()> {

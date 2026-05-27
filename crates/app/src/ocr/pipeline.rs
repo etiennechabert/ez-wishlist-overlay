@@ -120,7 +120,7 @@ pub fn process_screenshot(path: &Path, data: &GameData) -> Result<Option<OcrOutc
     for (i, (cell, req)) in cells.iter().zip(upgrade.requirements.iter()).enumerate() {
         let strip = prepped.crop_imm(cell.x, cell.y, cell.w, cell.h);
         let gray = strip.to_luma8();
-        let recog = templates::recognize_with_debug(&gray, templates);
+        let recog = templates::recognize_with_known_needed(&gray, templates, req.quantity);
         let parsed = templates::split_progress(&recog.recognised);
         let owned_opt = parsed.map(|(o, _)| o);
         items.push((req.item_id.clone(), owned_opt));
@@ -159,10 +159,14 @@ pub fn process_screenshot(path: &Path, data: &GameData) -> Result<Option<OcrOutc
 
     // In debug builds, dump everything the pipeline saw to a sibling
     // file next to the screenshot. The user can open this to see why
-    // a specific capture read counts the way it did (or didn't).
+    // a specific capture read counts the way it did (or didn't). We
+    // sweep any prior `<stem>.ocr-debug.*.txt` first so there's
+    // always at most one dump per source — successive runs (the
+    // fixture test in particular) used to accumulate noise.
     #[cfg(debug_assertions)]
     {
         use crate::ocr::debug_dump::{self, OcrDebugDump, Resolution};
+        debug_dump::purge_prior_dumps(path);
         let dump = OcrDebugDump {
             source_path: path,
             img_w,

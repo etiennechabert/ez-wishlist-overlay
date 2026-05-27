@@ -192,6 +192,67 @@ pub struct KeptComponent {
     pub scores: Vec<(char, f32)>,
 }
 
+/// Variant of [`recognize_with_debug`] that uses the **known Y** value
+/// from `data.json` to disambiguate the layout. The cell always shows
+/// `X/Y` in left-to-right order: `x_n` X-digit components, then exactly
+/// one `/`, then `y_n` Y-digit components, where `y_n = len(str(Y))`.
+///
+/// The blind template matcher routinely confuses the `/` glyph with
+/// `1` (both are narrow vertical bars at this font size), turning a
+/// real `2/6` into recognised `"216"` — which then fails
+/// `split_progress` and silently drops the read. Knowing where the
+/// slash MUST sit lets us force-assign it, then template-match the
+/// other positions against digits only.
+///
+/// Falls back to the unconstrained read when the kept-component count
+/// is too small to fit even `/<Y>` — that's a sign the strip is on the
+/// wrong row or the panel layout differs from what we expect, and
+/// forcing structure would just produce nonsense.
+pub fn recognize_with_known_needed(
+    strip: &GrayImage,
+    templates: &[Template],
+    needed: u32,
+) -> RecognizeDebug {
+    /// Cap on how many digits the X (owned-count) part is allowed to
+    /// have. Real-world hideout inventories sit in 0–99; a 3+ digit
+    /// X read is overwhelmingly noise — extra components that
+    /// survived row clustering (FROM RAID letter fragments, icon
+    /// edges, etc.). Reject those rather than emit garbage like
+    /// "844/1" or "58161/6".
+    const MAX_X_DIGITS: usize = 2;
+    let mut base = recognize_with_debug(strip, templates);
+    let total = base.kept_components.len();
+    let y_n = needed.to_string().chars().count();
+    if total < y_n + 1 {
+        return base;
+    }
+    let x_n = total - y_n - 1;
+    if x_n > MAX_X_DIGITS {
+        return base;
+    }
+    let slash_idx = x_n;
+    let mut out = String::with_capacity(total);
+    for (i, k) in base.kept_components.iter().enumerate() {
+        if i == slash_idx {
+            out.push('/');
+        } else {
+            // Best NON-slash label from the pre-computed scores. If
+            // every score is for '/' (impossible with the bundled
+            // templates) we'd emit '?', which split_progress rejects
+            // — fine, the existing collected value survives.
+            let best_digit = k
+                .scores
+                .iter()
+                .find(|(c, _)| *c != '/')
+                .map(|(c, _)| *c)
+                .unwrap_or('?');
+            out.push(best_digit);
+        }
+    }
+    base.recognised = out;
+    base
+}
+
 pub fn recognize_with_debug(strip: &GrayImage, templates: &[Template]) -> RecognizeDebug {
     if templates.is_empty() {
         return RecognizeDebug {
