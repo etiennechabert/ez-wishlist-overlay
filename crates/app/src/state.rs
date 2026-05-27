@@ -244,20 +244,19 @@ impl AppState {
         // Order:
         //   1. Active items first; completed items last so the user's eye
         //      lands on stuff they still need to gather.
-        //   2. Within the active group, sort by descending REMAINING
-        //      (`needed - collected`) so the most outstanding work ends up
-        //      top-left of the overlay grid, items close to completion drift
-        //      toward bottom-right.
-        //   3. Tiebreak alphabetically by name for a stable view across
-        //      ticks where two items have identical remaining counts.
+        //   2. Within the active group, sort by descending NEEDED quantity
+        //      so the biggest grinds sit top-left. We deliberately key on
+        //      `needed` rather than `needed - collected` — sorting on the
+        //      remaining count makes the grid reshuffle on every click in
+        //      the VR overlay, which is disorienting.
+        //   3. Tiebreak alphabetically by name for stability when two
+        //      items have the same target quantity.
         out.sort_by(|a, b| {
             let a_done = a.collected >= a.needed;
             let b_done = b.collected >= b.needed;
-            let a_remaining = a.needed.saturating_sub(a.collected);
-            let b_remaining = b.needed.saturating_sub(b.collected);
             a_done
                 .cmp(&b_done)
-                .then_with(|| b_remaining.cmp(&a_remaining)) // descending
+                .then_with(|| b.needed.cmp(&a.needed)) // descending
                 .then_with(|| a.name.cmp(&b.name))
         });
         out
@@ -503,27 +502,29 @@ mod tests {
     }
 
     #[test]
-    fn active_items_sorted_by_remaining_descending() {
+    fn active_items_sorted_by_needed_descending() {
         // Both upgrades tracked → bolts needs 12, screws needs 4.
-        // Collecting 11 bolts pushes its remaining to 1, less than screws'
-        // remaining of 4 — so screws should sort BEFORE bolts now.
+        // Order must be stable across collection progress: keying on
+        // `needed` (target) rather than `needed - collected` keeps the
+        // VR grid from reshuffling on every click.
         let mut s = AppState::new(fixture());
         s.set_tracked_upgrade(&"workbench_lv1".to_string(), true);
         s.set_tracked_upgrade(&"workbench_lv2".to_string(), true);
 
-        // Baseline (no collection yet): bolts (needed 12) > screws (needed 4).
+        // Baseline: bolts (needed 12) > screws (needed 4).
         let active = s.active_items();
         assert_eq!(active[0].item_id, "bolts");
         assert_eq!(active[1].item_id, "screws");
 
-        // After collecting 11 bolts, screws (remaining 4) > bolts (remaining 1).
+        // After collecting 11 bolts, order is unchanged — sort key is
+        // `needed`, not `remaining`.
         s.set_collected(&"bolts".to_string(), 11);
         let active = s.active_items();
         assert_eq!(
-            active[0].item_id, "screws",
-            "screws should lead once bolts is nearly done"
+            active[0].item_id, "bolts",
+            "bolts stays first — sort key is `needed`, not `remaining`"
         );
-        assert_eq!(active[1].item_id, "bolts");
+        assert_eq!(active[1].item_id, "screws");
     }
 
     #[test]
