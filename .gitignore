@@ -35,4 +35,6 @@ ocr_data/
 hideout_screenshots_native/*.png
 
 # OCR debug dumps generated next to captured screenshots in debug builds.
-*.ocr-debug.txt
+# Filenames are `<stem>.ocr-debug.<HHMMSS>.txt` (HHMMSS = when the dump
+# was written, so successive regenerations don't silently overwrite).
+*.ocr-debug.*.txt
