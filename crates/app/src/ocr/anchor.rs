@@ -153,32 +153,54 @@ pub fn positional_cells(layout: &PanelLayout, words: &[OcrWord], n: usize) -> Ve
     // Y range for the digit row.
     //
     // The digit row sits one text-row above FROM RAID and one
-    // text-row below the item-name row. We anchor against FROM RAID
-    // first (most reliable feature — its bounding box is detected
-    // cleanly on every native fixture; item-name OCR drops words at
-    // different sizes depending on tilt / distance, which historically
-    // pushed the strip off the digits onto the FROM RAID row itself).
+    // text-row below the item-name row. We try three signals in
+    // descending order of reliability:
     //
-    // Strategy:
-    //   1. If any FROM/RAID word lands inside the panel below the
-    //      anchor, derive count_bottom from `min(from_raid.y) - gap`
-    //      and count_top from `count_bottom - 1.4 * from_h`. Bounds
-    //      the strip on BOTH sides, so head tilt / panel scale can't
-    //      shift it off the digits.
-    //   2. Otherwise fall back to the historical heuristic of "below
-    //      the item-name row", capped by `anchor.h * 8` below anchor
-    //      so we never overshoot into the buttons.
+    //   1. **N/M tokens**. The OCR engine *sometimes* recognises one
+    //      of the count cells as "4/3" / "0/3" / etc. — even one
+    //      such token is gold: its Y *is* the digit row's Y, no
+    //      heuristics needed. Drives all four cells off that.
+    //   2. **FROM/RAID labels**. Detected reliably on native captures
+    //      at typical panel scales. Digit row sits ~1 text-row above.
+    //   3. **Item-name max-bottom + median text height**. Last resort
+    //      when neither of the above land — historically what we used.
+    //      We now also exclude any N/M-looking token from the
+    //      item-name set, otherwise it poisons `max_bottom` and the
+    //      strip lands a row below where it should.
+    let in_panel_band = |w: &&OcrWord| {
+        let wy = w.rect.y as u32;
+        let wx = w.rect.x as u32;
+        wy > anchor.y + anchor.h
+            && wy < anchor.y + anchor.h * 12
+            && wx >= panel_left
+            && wx <= panel_right
+    };
+    let looks_like_count = |w: &&OcrWord| {
+        // Match "N/M" shape (after stripping non-digit non-slash chars
+        // to absorb OCR noise like "/5" being tagged as "I5" with a
+        // bar mistaken for a slash, etc.). At least one digit either
+        // side of the slash.
+        let cleaned: String = w
+            .text
+            .chars()
+            .filter(|c| c.is_ascii_digit() || *c == '/')
+            .collect();
+        if let Some((a, b)) = cleaned.split_once('/') {
+            !a.is_empty() && !b.is_empty()
+        } else {
+            false
+        }
+    };
+
+    let count_tokens: Vec<&OcrWord> = words
+        .iter()
+        .filter(in_panel_band)
+        .filter(looks_like_count)
+        .collect();
+
     let from_y_band: Vec<u32> = words
         .iter()
-        .filter(|w| {
-            let wy = w.rect.y as u32;
-            let wx = w.rect.x as u32;
-            // FROM RAID sits well below the "Need to submit items" anchor.
-            wy > anchor.y + anchor.h
-                && wy < anchor.y + anchor.h * 12
-                && wx >= panel_left
-                && wx <= panel_right
-        })
+        .filter(in_panel_band)
         .filter(|w| {
             let up = w.text.to_ascii_uppercase();
             matches!(up.as_str(), "FROM" | "RAID")
@@ -186,7 +208,26 @@ pub fn positional_cells(layout: &PanelLayout, words: &[OcrWord], n: usize) -> Ve
         .map(|w| w.rect.y as u32)
         .collect();
 
-    let (count_top, count_bottom) = if !from_y_band.is_empty() {
+    let (count_top, count_bottom) = if !count_tokens.is_empty() {
+        let top = count_tokens
+            .iter()
+            .map(|w| w.rect.y as u32)
+            .min()
+            .unwrap_or(0);
+        let bot = count_tokens
+            .iter()
+            .map(|w| (w.rect.y + w.rect.height) as u32)
+            .max()
+            .unwrap_or(top);
+        let max_h = count_tokens
+            .iter()
+            .map(|w| w.rect.height as u32)
+            .max()
+            .unwrap_or(20);
+        // Small pad above/below so we don't clip the glyphs themselves.
+        let pad = (max_h / 4).max(2);
+        (top.saturating_sub(pad), bot.saturating_add(pad).min(img_h))
+    } else if !from_y_band.is_empty() {
         let from_y_min = *from_y_band.iter().min().unwrap();
         // FROM RAID glyphs are ~the same height as the count digits in
         // every fixture. Use a fixed fraction of anchor.h as the per-
@@ -200,7 +241,7 @@ pub fn positional_cells(layout: &PanelLayout, words: &[OcrWord], n: usize) -> Ve
         // Item-name fallback. Item-name words sit between the cost line
         // (~2 anchor heights below the anchor) and the buttons (~10
         // anchor heights below). Filter by Y range, by X inside the
-        // panel, and drop button text we know about.
+        // panel, drop button + count tokens.
         let name_band_top = anchor.y + anchor.h * 2;
         let name_band_bottom = anchor.y + anchor.h * 12;
         let names: Vec<&OcrWord> = words
@@ -214,6 +255,7 @@ pub fn positional_cells(layout: &PanelLayout, words: &[OcrWord], n: usize) -> Ve
                 let up = w.text.to_ascii_uppercase();
                 !matches!(up.as_str(), "BACK" | "LEVEL" | "UP" | "FROM" | "RAID")
             })
+            .filter(|w| !looks_like_count(w))
             .collect();
 
         if !names.is_empty() {
