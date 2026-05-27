@@ -5,7 +5,7 @@
 //! per-pixel luminance + green-channel margin keeps the text and drops
 //! everything else.
 
-use image::{DynamicImage, GenericImageView, GrayImage, Luma};
+use image::{DynamicImage, GrayImage, Luma};
 
 #[derive(Debug, Clone, Copy)]
 pub struct PrepParams {

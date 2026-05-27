@@ -102,10 +102,27 @@ fn main() -> Result<()> {
 
     let settings = Arc::new(RwLock::new(settings::load(&paths.settings_file)));
     tracing::info!(settings = ?&*settings.read(), "settings loaded");
+
+    // OCR worker thread. The VR render thread pushes captured PNG paths
+    // into `ocr_path_tx` after each successful screenshot; this worker
+    // drains them, runs the OCR pipeline, and applies the results to
+    // `AppState.collected` via `set_collected` + a `SaveTick`. Kept off
+    // the VR thread because a full OCR pass can take 100-500 ms and the
+    // 90 Hz render loop must not block.
+    let (ocr_path_tx, ocr_path_rx) = crossbeam_channel::bounded::<std::path::PathBuf>(4);
+    let last_ocr: Arc<RwLock<Option<ocr::OcrOutcome>>> = Arc::new(RwLock::new(None));
+    let _ocr_handle = spawn_ocr_worker(
+        shared_state.clone(),
+        save_tx.clone(),
+        last_ocr.clone(),
+        ocr_path_rx,
+    );
+
     let vr_runtime = Arc::new(vr::Runtime::spawn(
         shared_state.clone(),
         settings.clone(),
         paths.clone(),
+        ocr_path_tx,
     ));
 
     let update_rx = if settings.read().check_for_updates {
@@ -183,4 +200,61 @@ fn init_logging(buf: log_buffer::LogBuffer) {
         .with(fmt_layer)
         .with(buffer_layer)
         .init();
+}
+
+/// Spawn the OCR worker thread. Receives screenshot paths from the VR
+/// thread, runs the OCR pipeline, applies the resulting per-item owned
+/// counts to `AppState.collected` (snapshot is truth — overwrite, never
+/// merge), and sends a `SaveTick` so the new state hits disk via the
+/// debounced save loop. Errors are logged; nothing is retried — the user
+/// just triggers another screenshot.
+fn spawn_ocr_worker(
+    state: Arc<RwLock<state::AppState>>,
+    save_tx: crossbeam_channel::Sender<gui::SaveTick>,
+    last_ocr: Arc<RwLock<Option<ocr::OcrOutcome>>>,
+    ocr_path_rx: crossbeam_channel::Receiver<std::path::PathBuf>,
+) -> std::thread::JoinHandle<()> {
+    std::thread::Builder::new()
+        .name("ez-wishlist-ocr".into())
+        .spawn(move || {
+            while let Ok(path) = ocr_path_rx.recv() {
+                // Pull a snapshot of the game data — cheap (Arc<GameData>
+                // clone). Reading it here keeps the OCR thread's `state`
+                // read scoped tightly, so the GUI / VR / save threads
+                // don't see lock contention.
+                let data = state.read().data.clone();
+                let outcome = match ocr::process_screenshot(&path, &data) {
+                    Ok(Some(o)) => o,
+                    Ok(None) => {
+                        tracing::debug!(
+                            path = %path.display(),
+                            "OCR: not an upgrade panel — dropping",
+                        );
+                        continue;
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            error = %e,
+                            path = %path.display(),
+                            "OCR pipeline failed",
+                        );
+                        continue;
+                    }
+                };
+
+                // Apply the per-item owned counts. One write-lock, all
+                // items in a batch, single bump → one SaveTick.
+                let version = {
+                    let mut w = state.write();
+                    for (item_id, owned) in &outcome.items {
+                        w.set_collected(item_id, *owned);
+                    }
+                    w.version
+                };
+                let _ = save_tx.try_send(gui::SaveTick { version });
+                *last_ocr.write() = Some(outcome);
+            }
+            tracing::info!("OCR worker: channel closed, thread exiting");
+        })
+        .expect("spawn OCR worker thread")
 }

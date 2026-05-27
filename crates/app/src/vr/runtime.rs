@@ -88,10 +88,18 @@ pub enum CaptureResult {
 }
 
 impl Runtime {
+    /// Spawn the VR worker thread.
+    ///
+    /// `ocr_tx` receives the path of every successfully-saved mirror-texture
+    /// PNG. The downstream OCR worker thread (in `main.rs`) reads from the
+    /// matching receiver and reflects parsed counts back into `AppState`.
+    /// Bounded + `try_send` so a busy OCR worker can't backpressure the VR
+    /// render loop; excess captures are silently dropped on the OCR side.
     pub fn spawn(
         state: Arc<RwLock<AppState>>,
         settings: Arc<RwLock<Settings>>,
         paths: Arc<PersistPaths>,
+        ocr_tx: Sender<PathBuf>,
     ) -> Self {
         let initial = if cfg!(target_os = "windows") {
             VrStatus::Connecting
@@ -117,6 +125,7 @@ impl Runtime {
                     status_writer,
                     capture_rx,
                     last_capture_writer,
+                    ocr_tx,
                 )
             })
             .expect("spawn VR thread");
@@ -154,6 +163,7 @@ fn run(
     status: Arc<RwLock<VrStatus>>,
     _capture_rx: Receiver<()>,
     _last_capture: Arc<RwLock<Option<CaptureResult>>>,
+    _ocr_tx: Sender<PathBuf>,
 ) {
     // Status is already Unsupported. Nothing else to do — park the thread.
     *status.write() = VrStatus::Unsupported;
@@ -168,6 +178,7 @@ fn run(
     status: Arc<RwLock<VrStatus>>,
     capture_rx: Receiver<()>,
     last_capture: Arc<RwLock<Option<CaptureResult>>>,
+    ocr_tx: Sender<PathBuf>,
 ) {
     use super::overlay::OverlaySession;
 
@@ -190,7 +201,15 @@ fn run(
                 tracing::info!("VR overlay initialized");
                 // Anchor is captured on each show transition, not at init —
                 // see render_loop / OverlaySession::anchor_at_current_hmd.
-                let lost = render_loop(&mut session, &state, &settings, &paths, &capture_rx, &last_capture);
+                let lost = render_loop(
+                    &mut session,
+                    &state,
+                    &settings,
+                    &paths,
+                    &capture_rx,
+                    &last_capture,
+                    &ocr_tx,
+                );
                 if let Err(e) = lost {
                     tracing::warn!(error = %e, "VR session lost");
                 }
@@ -217,6 +236,7 @@ fn render_loop(
     paths: &Arc<PersistPaths>,
     capture_rx: &Receiver<()>,
     last_capture: &Arc<RwLock<Option<CaptureResult>>>,
+    ocr_tx: &Sender<PathBuf>,
 ) -> anyhow::Result<()> {
     use super::input::Debouncer;
     use super::pose::{Visibility, VisibilityFsm};
@@ -295,17 +315,24 @@ fn render_loop(
         // one PNG written under `<data_dir>/vr_screenshots/`. Errors are
         // surfaced to the GUI via `last_capture` rather than aborting the
         // render loop — the overlay should keep working even if a screenshot
-        // fails.
+        // fails. On success, hand the path to the OCR worker via `ocr_tx`.
         while capture_rx.try_recv().is_ok() {
             let path = next_screenshot_path(paths);
-            let (result, success) = match session.capture_screenshot(&path) {
-                Ok(()) => (CaptureResult::Ok(path), true),
+            let result = match session.capture_screenshot(&path) {
+                Ok(()) => {
+                    // Best-effort forward to OCR. If the channel is full
+                    // (worker busy on a previous shot) we drop this one
+                    // silently — VR render loop must not block.
+                    let _ = ocr_tx.try_send(path.clone());
+                    super::capture::play_capture_done_beep(true);
+                    CaptureResult::Ok(path)
+                }
                 Err(e) => {
                     tracing::warn!(error = %e, "compositor mirror capture failed");
-                    (CaptureResult::Err(format!("{e:#}")), false)
+                    super::capture::play_capture_done_beep(false);
+                    CaptureResult::Err(format!("{e:#}"))
                 }
             };
-            super::capture::play_capture_done_beep(success);
             *last_capture.write() = Some(result);
         }
 

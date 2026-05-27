@@ -10,7 +10,7 @@
 
 use crate::assets;
 use anyhow::{Context, Result};
-use image::{GenericImageView, GrayImage};
+use image::GrayImage;
 use once_cell::sync::Lazy;
 
 #[derive(Clone)]
