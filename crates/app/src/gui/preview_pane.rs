@@ -140,7 +140,7 @@ fn row_sources(ui: &mut egui::Ui, sources: &[String], dark: bool) {
         return;
     }
     ui.label(
-        egui::RichText::new(format!("→ {}", sources.join(" • ")))
+        egui::RichText::new(format!("↳ {}", sources.join(" • ")))
             .small()
             .color(theme::source_text(dark)),
     );
