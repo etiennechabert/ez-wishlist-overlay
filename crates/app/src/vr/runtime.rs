@@ -100,6 +100,7 @@ impl Runtime {
         settings: Arc<RwLock<Settings>>,
         paths: Arc<PersistPaths>,
         ocr_tx: Sender<PathBuf>,
+        ocr_feedback_rx: Receiver<crate::gui::OcrFeedback>,
     ) -> Self {
         let initial = if cfg!(target_os = "windows") {
             VrStatus::Connecting
@@ -126,6 +127,7 @@ impl Runtime {
                     capture_rx,
                     last_capture_writer,
                     ocr_tx,
+                    ocr_feedback_rx,
                 )
             })
             .expect("spawn VR thread");
@@ -156,6 +158,7 @@ impl Runtime {
 }
 
 #[cfg(not(target_os = "windows"))]
+#[allow(clippy::too_many_arguments)]
 fn run(
     _state: Arc<RwLock<AppState>>,
     _settings: Arc<RwLock<Settings>>,
@@ -164,6 +167,7 @@ fn run(
     _capture_rx: Receiver<()>,
     _last_capture: Arc<RwLock<Option<CaptureResult>>>,
     _ocr_tx: Sender<PathBuf>,
+    _ocr_feedback_rx: Receiver<crate::gui::OcrFeedback>,
 ) {
     // Status is already Unsupported. Nothing else to do — park the thread.
     *status.write() = VrStatus::Unsupported;
@@ -171,6 +175,7 @@ fn run(
 }
 
 #[cfg(target_os = "windows")]
+#[allow(clippy::too_many_arguments)]
 fn run(
     state: Arc<RwLock<AppState>>,
     settings: Arc<RwLock<Settings>>,
@@ -179,6 +184,7 @@ fn run(
     capture_rx: Receiver<()>,
     last_capture: Arc<RwLock<Option<CaptureResult>>>,
     ocr_tx: Sender<PathBuf>,
+    ocr_feedback_rx: Receiver<crate::gui::OcrFeedback>,
 ) {
     use super::overlay::OverlaySession;
 
@@ -209,6 +215,7 @@ fn run(
                     &capture_rx,
                     &last_capture,
                     &ocr_tx,
+                    &ocr_feedback_rx,
                 );
                 if let Err(e) = lost {
                     tracing::warn!(error = %e, "VR session lost");
@@ -229,6 +236,7 @@ fn run(
 /// ~90Hz inner loop. Returns `Err` when SteamVR appears to have gone away
 /// (any OpenVR call returning an error), prompting the outer loop to retry.
 #[cfg(target_os = "windows")]
+#[allow(clippy::too_many_arguments)]
 fn render_loop(
     session: &mut super::overlay::OverlaySession,
     state: &Arc<RwLock<AppState>>,
@@ -237,6 +245,7 @@ fn render_loop(
     capture_rx: &Receiver<()>,
     last_capture: &Arc<RwLock<Option<CaptureResult>>>,
     ocr_tx: &Sender<PathBuf>,
+    ocr_feedback_rx: &Receiver<crate::gui::OcrFeedback>,
 ) -> anyhow::Result<()> {
     use super::input::Debouncer;
     use super::pose::{Visibility, VisibilityFsm};
@@ -259,6 +268,12 @@ fn render_loop(
     let mut debouncer = Debouncer::new();
     let mut event_buf: Vec<EventInfo> = Vec::with_capacity(8);
     let mut current_hover: Option<String> = None;
+    // Lifecycle of the head-locked OCR feedback card. The worker
+    // produces an `OcrFeedback` for every state transition; this loop
+    // owns the on-screen lifetime (auto-fade in release, hold-until-
+    // replaced in debug). `ocr_state` is `None` when nothing is
+    // showing, `Some(_)` while a card is up.
+    let mut ocr_state: Option<OcrOverlayState> = None;
 
     loop {
         let frame_start = Instant::now();
@@ -372,6 +387,8 @@ fn render_loop(
             }
             apply_fade_in(session, &mut fade_start, frame_start)?;
         }
+
+        drive_ocr_overlay(session, ocr_feedback_rx, &mut ocr_state, frame_start)?;
 
         // Liveness probe — fails when SteamVR disappears.
         session.heartbeat()?;
@@ -710,6 +727,102 @@ fn submit_with_hover(
         super::render::apply_hover_highlight(&mut frame, hits, id);
     }
     session.submit_rgba(frame.data(), frame.width(), frame.height())?;
+    Ok(())
+}
+
+/// Render state for the head-locked OCR feedback overlay. Carries the
+/// most recently published [`crate::gui::OcrFeedback`] plus the moment
+/// the card became visible — together they drive auto-fade in release
+/// builds and replace-on-new in debug builds.
+#[cfg(target_os = "windows")]
+struct OcrOverlayState {
+    feedback: crate::gui::OcrFeedback,
+    /// When this particular feedback card showed up on the overlay.
+    /// Refreshed every time the worker publishes a new feedback so
+    /// fade-out timing resets correctly across rapid successive runs.
+    visible_since: std::time::Instant,
+}
+
+/// Drain pending feedback messages and drive the OCR overlay's
+/// show / hide / fade lifecycle.
+///
+/// Replace semantics: any new feedback supersedes the current one
+/// (timer resets, pixmap re-renders). Auto-dismiss only fires in
+/// release builds — debug builds keep the latest card on screen until
+/// the next OCR run replaces it, so the developer has time to read
+/// every per-item line.
+///
+/// The `Processing` variant intentionally never auto-dismisses: the
+/// worker always emits a terminal kind to replace it, and a
+/// safety-net timeout would just race that.
+#[cfg(target_os = "windows")]
+fn drive_ocr_overlay(
+    session: &mut super::overlay::OverlaySession,
+    feedback_rx: &Receiver<crate::gui::OcrFeedback>,
+    state: &mut Option<OcrOverlayState>,
+    frame_start: std::time::Instant,
+) -> anyhow::Result<()> {
+    use crate::gui::ocr_feedback::AUTO_DISMISS;
+    use crate::gui::OcrFeedbackKind;
+
+    // Drain everything queued so we don't lag if multiple transitions
+    // arrived between frames. Only the most recent feedback matters
+    // for the display.
+    let mut latest = None;
+    while let Ok(fb) = feedback_rx.try_recv() {
+        latest = Some(fb);
+    }
+    if let Some(fb) = latest {
+        let pixmap = super::ocr_render::render(&fb);
+        session.submit_ocr_rgba(pixmap.data(), pixmap.width(), pixmap.height())?;
+        session.set_ocr_visible(true)?;
+        session.set_ocr_alpha(1.0)?;
+        *state = Some(OcrOverlayState {
+            feedback: fb,
+            visible_since: frame_start,
+        });
+        return Ok(());
+    }
+
+    let Some(current) = state.as_ref() else {
+        // Nothing showing, nothing to update.
+        return Ok(());
+    };
+
+    let manual_dismiss = cfg!(debug_assertions);
+    let processing = matches!(current.feedback.kind, OcrFeedbackKind::Processing);
+
+    if processing || manual_dismiss {
+        // Both modes hold the card indefinitely. Re-render to refresh
+        // the countdown / footer text — cheap (~few ms), runs once per
+        // frame, only when something is on screen.
+        let pixmap = super::ocr_render::render(&current.feedback);
+        session.submit_ocr_rgba(pixmap.data(), pixmap.width(), pixmap.height())?;
+        return Ok(());
+    }
+
+    // Release auto-fade for terminal kinds.
+    let age = frame_start.duration_since(current.visible_since);
+    if age >= AUTO_DISMISS {
+        session.set_ocr_alpha(0.0)?;
+        session.set_ocr_visible(false)?;
+        *state = None;
+        return Ok(());
+    }
+    let fade_tail = Duration::from_millis(600);
+    let remaining = AUTO_DISMISS.saturating_sub(age);
+    let alpha = if remaining < fade_tail {
+        (remaining.as_secs_f32() / fade_tail.as_secs_f32()).clamp(0.0, 1.0)
+    } else {
+        1.0
+    };
+    session.set_ocr_alpha(alpha)?;
+    // Re-render every frame while visible so the countdown footer
+    // updates. We could cache + redraw only the footer band, but a
+    // 720×<800 pixmap finishes in a few ms and the loop has plenty of
+    // slack against the 11 ms tick budget.
+    let pixmap = super::ocr_render::render(&current.feedback);
+    session.submit_ocr_rgba(pixmap.data(), pixmap.width(), pixmap.height())?;
     Ok(())
 }
 

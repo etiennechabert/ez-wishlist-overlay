@@ -19,10 +19,32 @@ use openvr::{
 const OVERLAY_KEY: &str = "com.etienneb.ez-wishlist-overlay.main\0";
 const OVERLAY_NAME: &str = "EZ Wishlist Overlay\0";
 
+const OCR_OVERLAY_KEY: &str = "com.etienneb.ez-wishlist-overlay.ocr\0";
+const OCR_OVERLAY_NAME: &str = "EZ Wishlist OCR Feedback\0";
+/// Metric width of the head-locked OCR feedback card. The height in
+/// metres follows from the submitted pixmap's aspect ratio, which
+/// [`super::ocr_render`] grows up to ~720 px tall — at 0.45 m wide that
+/// caps the card at ~0.36 m, comfortably below eye-line so it informs
+/// without dominating the view.
+const OCR_OVERLAY_WIDTH_M: f32 = 0.45;
+/// Head-locked OCR card offsets, in the HMD's local frame.
+/// **OpenVR convention**: right-handed, Y-up, -Z forward, so an overlay
+/// placed at z=-1.5 sits 1.5 m in front of the user. Y is slightly
+/// negative to drop the card below the centre of the gaze so the user
+/// can still see the upgrade panel underneath while reading it.
+const OCR_OFFSET_X_M: f32 = 0.0;
+const OCR_OFFSET_Y_M: f32 = -0.18;
+const OCR_OFFSET_Z_M: f32 = -1.2;
+
 /// Owns the OpenVR runtime + a single overlay handle for the program's
 /// lifetime. Drop runs `VR_Shutdown` via `Context::drop`.
 pub struct OverlaySession {
     handle: openvr::overlay::OverlayHandle,
+    /// Second overlay used as the head-locked OCR feedback card. Lives
+    /// alongside the wishlist grid in the same OpenVR session so they
+    /// share fn-table acquisition + cleanup, but is positioned and
+    /// shown independently.
+    ocr_handle: openvr::overlay::OverlayHandle,
     ctx: Context,
     /// Last width we pushed via SetOverlayWidthInMeters. Used by
     /// `apply_settings` to skip redundant calls.
@@ -30,6 +52,10 @@ pub struct OverlaySession {
     /// Last alpha pushed via SetOverlayAlpha. Skips redundant calls
     /// inside the fade loop.
     last_alpha: f32,
+    /// Same skip-redundant logic for the OCR overlay's alpha — its
+    /// fade in/out runs in parallel with the wishlist's so we track it
+    /// separately.
+    last_ocr_alpha: f32,
     /// IVRInput state for click detection. None if the action manifest
     /// failed to load — the rest of the overlay still works, just no
     /// trigger detection.
@@ -83,6 +109,46 @@ impl OverlaySession {
             .map_err(|e| anyhow::anyhow!("{e:?}"))
             .context("SetOverlayAlpha")?;
 
+        // Second overlay for the OCR feedback card. Head-locked to the
+        // HMD via SetOverlayTransformTrackedDeviceRelative so it tracks
+        // the user's gaze rather than sitting in world space — the user
+        // glances around the room while OCR runs and the card needs to
+        // stay readable wherever they look.
+        let ocr_handle = overlay
+            .create_overlay(OCR_OVERLAY_KEY, OCR_OVERLAY_NAME)
+            .map_err(|e| anyhow::anyhow!("{e:?}"))
+            .context("CreateOverlay(ocr)")?;
+        overlay
+            .set_width(ocr_handle, OCR_OVERLAY_WIDTH_M)
+            .map_err(|e| anyhow::anyhow!("{e:?}"))
+            .context("SetOverlayWidthInMeters(ocr)")?;
+        overlay
+            .set_visibility(ocr_handle, false)
+            .map_err(|e| anyhow::anyhow!("{e:?}"))
+            .context("HideOverlay(ocr)")?;
+        overlay
+            .set_opacity(ocr_handle, 0.0)
+            .map_err(|e| anyhow::anyhow!("{e:?}"))
+            .context("SetOverlayAlpha(ocr)")?;
+        // Head-lock the OCR overlay to the HMD's local frame at a
+        // fixed offset (slightly below + 1.2 m in front). Identity
+        // rotation keeps the card facing the user. Same trick the
+        // wishlist uses, but tracked-device-relative instead of
+        // world-absolute.
+        let hmd_relative = openvr::pose::Matrix3x4([
+            [1.0, 0.0, 0.0, OCR_OFFSET_X_M],
+            [0.0, 1.0, 0.0, OCR_OFFSET_Y_M],
+            [0.0, 0.0, 1.0, OCR_OFFSET_Z_M],
+        ]);
+        overlay
+            .set_transform_tracked_device_relative(
+                ocr_handle,
+                tracked_device_index::HMD,
+                &hmd_relative,
+            )
+            .map_err(|e| anyhow::anyhow!("{e:?}"))
+            .context("SetOverlayTransformTrackedDeviceRelative(ocr → HMD)")?;
+
         // Mark the overlay interactive so the controller laser intersects it
         // and SteamVR emits MouseButtonDown events on trigger pulls. The
         // `openvr` 0.9.0 safe wrapper omits `SetOverlayInputMethod` and
@@ -108,11 +174,58 @@ impl OverlaySession {
 
         Ok(Self {
             handle,
+            ocr_handle,
             ctx,
             last_width: width_meters,
             last_alpha: 0.0,
+            last_ocr_alpha: 0.0,
             input,
         })
+    }
+
+    /// Push an RGBA8 frame to the OCR feedback overlay.
+    pub fn submit_ocr_rgba(&mut self, bytes: &[u8], width: u32, height: u32) -> Result<()> {
+        debug_assert_eq!(bytes.len(), (width * height * 4) as usize);
+        let mut overlay = self
+            .ctx
+            .overlay()
+            .map_err(|e| anyhow::anyhow!("{e:?}"))
+            .context("IVROverlay interface")?;
+        overlay
+            .set_raw_data(self.ocr_handle, bytes, width as usize, height as usize, 4)
+            .map_err(|e| anyhow::anyhow!("{e:?}"))
+            .context("SetOverlayRaw(ocr)")
+    }
+
+    /// Show/hide the OCR feedback overlay independently of the wishlist.
+    pub fn set_ocr_visible(&mut self, visible: bool) -> Result<()> {
+        let mut overlay = self
+            .ctx
+            .overlay()
+            .map_err(|e| anyhow::anyhow!("{e:?}"))
+            .context("IVROverlay interface")?;
+        overlay
+            .set_visibility(self.ocr_handle, visible)
+            .map_err(|e| anyhow::anyhow!("{e:?}"))
+            .context("Show/HideOverlay(ocr)")
+    }
+
+    pub fn set_ocr_alpha(&mut self, alpha: f32) -> Result<()> {
+        let a = alpha.clamp(0.0, 1.0);
+        if (a - self.last_ocr_alpha).abs() < 1.0 / 256.0 {
+            return Ok(());
+        }
+        let mut overlay = self
+            .ctx
+            .overlay()
+            .map_err(|e| anyhow::anyhow!("{e:?}"))
+            .context("IVROverlay interface")?;
+        overlay
+            .set_opacity(self.ocr_handle, a)
+            .map_err(|e| anyhow::anyhow!("{e:?}"))
+            .context("SetOverlayAlpha(ocr)")?;
+        self.last_ocr_alpha = a;
+        Ok(())
     }
 
     /// Cheap probe used by the runtime loop to detect that SteamVR vanished.

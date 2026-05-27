@@ -19,7 +19,7 @@ mod vr;
 
 use anyhow::{Context, Result};
 use parking_lot::RwLock;
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::EnvFilter;
@@ -110,19 +110,17 @@ fn main() -> Result<()> {
     // the VR thread because a full OCR pass can take 100-500 ms and the
     // 90 Hz render loop must not block.
     let (ocr_path_tx, ocr_path_rx) = crossbeam_channel::bounded::<std::path::PathBuf>(4);
-    let last_ocr: Arc<RwLock<Option<gui::OcrFeedback>>> = Arc::new(RwLock::new(None));
-    // Cross-thread wake-up channel for the OCR worker. The worker writes
-    // to `last_ocr` between paints, so without an explicit
-    // `request_repaint()` the GUI might sleep on its 1 s heartbeat before
-    // noticing. `App::new` populates this once the egui Context exists.
-    let ui_ctx: Arc<OnceLock<egui::Context>> = Arc::new(OnceLock::new());
+    // The OCR feedback now lives entirely in VR (see vr::ocr_render +
+    // OverlaySession's head-locked second overlay). The worker writes
+    // OcrFeedback messages here; the VR render loop drains them and
+    // manages show/hide + auto-fade on its own.
+    let (ocr_feedback_tx, ocr_feedback_rx) = crossbeam_channel::bounded::<gui::OcrFeedback>(4);
     let _ocr_handle = spawn_ocr_worker(
         shared_state.clone(),
         settings.clone(),
         save_tx.clone(),
-        last_ocr.clone(),
+        ocr_feedback_tx,
         ocr_path_rx,
-        ui_ctx.clone(),
     );
 
     let vr_runtime = Arc::new(vr::Runtime::spawn(
@@ -130,6 +128,7 @@ fn main() -> Result<()> {
         settings.clone(),
         paths.clone(),
         ocr_path_tx.clone(),
+        ocr_feedback_rx,
     ));
 
     let update_rx = if settings.read().check_for_updates {
@@ -153,11 +152,6 @@ fn main() -> Result<()> {
         "EZ Wishlist Overlay",
         native_options,
         Box::new(move |cc| {
-            // Publish the egui Context so the OCR worker can wake the UI
-            // thread the moment it writes a new feedback state. `set`
-            // returns Err if the slot was already populated — impossible
-            // here since `eframe::run_native` only calls this closure once.
-            let _ = ui_ctx.set(cc.egui_ctx.clone());
             Ok(Box::new(gui::App::new(
                 cc,
                 shared_state,
@@ -167,7 +161,6 @@ fn main() -> Result<()> {
                 settings,
                 log_buf,
                 update_rx,
-                last_ocr,
                 ocr_path_tx,
             )))
         }),
@@ -226,21 +219,16 @@ fn spawn_ocr_worker(
     state: Arc<RwLock<state::AppState>>,
     settings: Arc<RwLock<settings::Settings>>,
     save_tx: crossbeam_channel::Sender<gui::SaveTick>,
-    last_ocr: Arc<RwLock<Option<gui::OcrFeedback>>>,
+    ocr_feedback_tx: crossbeam_channel::Sender<gui::OcrFeedback>,
     ocr_path_rx: crossbeam_channel::Receiver<std::path::PathBuf>,
-    ui_ctx: Arc<OnceLock<egui::Context>>,
 ) -> std::thread::JoinHandle<()> {
-    // Publish a new feedback state AND wake the UI thread immediately.
-    // The worker writes between paints; without an explicit
-    // `request_repaint()` the GUI might sleep on its 1 s heartbeat.
-    let publish = move |slot: &Arc<RwLock<Option<gui::OcrFeedback>>>,
-                        wake: &Arc<OnceLock<egui::Context>>,
+    // Log + forward a feedback record to the VR overlay. The render loop
+    // owns the lifecycle (fade timers, show/hide); the worker just
+    // emits state transitions.
+    let publish = move |tx: &crossbeam_channel::Sender<gui::OcrFeedback>,
                         feedback: gui::OcrFeedback| {
         feedback.log();
-        *slot.write() = Some(feedback);
-        if let Some(c) = wake.get() {
-            c.request_repaint();
-        }
+        let _ = tx.try_send(feedback);
     };
 
     std::thread::Builder::new()
@@ -255,10 +243,10 @@ fn spawn_ocr_worker(
                     continue;
                 }
 
-                // Show the user something within ~1 frame of capture so
-                // they know OCR kicked off, before the 100-500 ms pipeline
-                // pass.
-                publish(&last_ocr, &ui_ctx, gui::OcrFeedback::processing());
+                // Surface "we're working" within ~1 frame of capture so
+                // the in-headset card pops up before the 100-500 ms
+                // pipeline finishes.
+                publish(&ocr_feedback_tx, gui::OcrFeedback::processing());
 
                 let data = state.read().data.clone();
                 let terminal = match ocr::process_screenshot(&path, &data) {
@@ -266,9 +254,8 @@ fn spawn_ocr_worker(
                         // Single write lock: snapshot pre-update counts
                         // (for the overlay's before/after), apply new
                         // owned counts, then apply OCR-driven progression
-                        // (auto-track + auto-complete priors). The
-                        // version we send with the SaveTick covers all
-                        // three mutations.
+                        // (auto-track + auto-complete priors). One
+                        // SaveTick covers all three mutations.
                         let (version, feedback) = {
                             let mut w = state.write();
                             let mut feedback = gui::OcrFeedback::done(&outcome, &w);
@@ -285,7 +272,7 @@ fn spawn_ocr_worker(
                     Ok(None) => gui::OcrFeedback::not_a_panel(),
                     Err(e) => gui::OcrFeedback::failed(format!("{e:#}")),
                 };
-                publish(&last_ocr, &ui_ctx, terminal);
+                publish(&ocr_feedback_tx, terminal);
             }
             tracing::info!("OCR worker: channel closed, thread exiting");
         })

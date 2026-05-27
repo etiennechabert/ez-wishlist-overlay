@@ -4,14 +4,14 @@ mod about_dialog;
 mod debug_dialog;
 mod hideout_pane;
 mod icon_cache;
-mod ocr_feedback;
+pub mod ocr_feedback;
 mod overrides_export;
 mod preview_pane;
 mod settings_dialog;
 mod tasks_pane;
 pub mod theme;
 
-pub use ocr_feedback::OcrFeedback;
+pub use ocr_feedback::{OcrFeedback, OcrFeedbackKind, OcrItemDelta};
 
 use crate::data::GameData;
 use crate::persist::PersistPaths;
@@ -84,15 +84,9 @@ pub struct App {
     /// means no toast is showing right now. Reset to `Some(now)` every time
     /// `last_capture` is replaced.
     capture_toast_shown_at: Option<Instant>,
-    /// Shared slot the OCR worker thread writes to on each successful
-    /// pipeline run. Drained on each update tick into `last_ocr`.
-    last_ocr_shared: Arc<RwLock<Option<OcrFeedback>>>,
-    /// Currently-displayed OCR feedback card. `None` once the overlay
-    /// fades out (release builds) or the user clicks Close (debug builds).
-    last_ocr: Option<OcrFeedback>,
     /// Clone of the channel that feeds the OCR worker. Used by the
     /// debug-build "Run OCR on fixture" button so we can exercise the
-    /// pipeline + overlay without a SteamVR session.
+    /// pipeline + in-headset overlay without a SteamVR session.
     ocr_path_tx: Sender<std::path::PathBuf>,
 }
 
@@ -109,7 +103,6 @@ impl App {
         settings: Arc<RwLock<crate::settings::Settings>>,
         log_buf: crate::log_buffer::LogBuffer,
         update_rx: Option<Receiver<CheckStatus>>,
-        last_ocr_shared: Arc<RwLock<Option<OcrFeedback>>>,
         ocr_path_tx: Sender<std::path::PathBuf>,
     ) -> Self {
         // Extend egui's default Proportional fallback chain with Hack.
@@ -160,8 +153,6 @@ impl App {
             export_copy_feedback: None,
             last_capture: None,
             capture_toast_shown_at: None,
-            last_ocr_shared,
-            last_ocr: None,
             ocr_path_tx,
         }
     }
@@ -213,18 +204,10 @@ impl eframe::App for App {
         }
         self.render_capture_toast(ctx);
 
-        // Drain the OCR worker's latest feedback once per frame. A new
-        // capture replaces any older card that's still on screen so the
-        // user always sees the most-recent reading.
-        if let Some(feedback) = self.last_ocr_shared.write().take() {
-            self.last_ocr = Some(feedback);
-        }
-        if let Some(feedback) = self.last_ocr.as_ref() {
-            let dismiss = ocr_feedback::render(ctx, feedback, &mut self.icons);
-            if dismiss {
-                self.last_ocr = None;
-            }
-        }
+        // OCR feedback now renders in the headset via the second
+        // SteamVR overlay (see vr::ocr_render + vr::runtime). The
+        // worker sends OcrFeedback messages to the VR thread; nothing
+        // surfaces on the desktop except the tracing logs.
 
         let desired_theme = self.settings.read().theme;
         if self.applied_theme != Some(desired_theme) {

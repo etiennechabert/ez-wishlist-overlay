@@ -18,6 +18,7 @@
 
 pub mod anchor;
 pub mod input;
+pub mod ocr_render;
 pub mod pose;
 pub mod render;
 pub mod runtime;
