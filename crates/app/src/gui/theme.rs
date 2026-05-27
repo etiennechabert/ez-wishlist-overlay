@@ -83,6 +83,18 @@ pub fn done_frame_fill(dark: bool) -> Color32 {
     }
 }
 
+/// Warm yellow tint for "ready to claim" tracked upgrades — every required
+/// item has been collected, so the user can claim it in-game. Picked to
+/// read clearly against both dark and light backgrounds without blowing
+/// out the row text.
+pub fn ready_fill(dark: bool) -> Color32 {
+    if dark {
+        Color32::from_rgb(110, 90, 25)
+    } else {
+        Color32::from_rgb(248, 225, 130)
+    }
+}
+
 pub fn source_text(dark: bool) -> Color32 {
     if dark {
         Color32::from_gray(160)

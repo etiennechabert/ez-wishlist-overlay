@@ -5,6 +5,7 @@
 mod assets;
 mod data;
 mod gui;
+mod hierarchy;
 mod log_buffer;
 mod persist;
 mod platform;

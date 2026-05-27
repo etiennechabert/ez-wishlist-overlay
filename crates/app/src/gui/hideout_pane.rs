@@ -4,6 +4,7 @@ use crate::data::{
     HideoutModule, Item, ItemId, RecipeOverride, Requirement, Upgrade, UpgradeId, RECIPE_SLOTS,
 };
 use crate::gui::{icon_cache::IconCache, theme, SaveTick};
+use crate::hierarchy::{category_virtual_id, module_category};
 use crate::state::AppState;
 use crossbeam_channel::Sender;
 use parking_lot::RwLock;
@@ -14,9 +15,63 @@ const SELECTED_ID: &str = "hideout-selected-upgrade";
 const REQ_ICON_SIZE: f32 = 48.0;
 const REQ_TILE_WIDTH: f32 = 170.0;
 const REQ_GRID_COLS: usize = RECIPE_SLOTS;
-const MODULE_NAME_W: f32 = 160.0;
+const MODULE_NAME_W: f32 = 190.0;
 const CELL_W: f32 = 210.0;
 const ROW_H: f32 = 24.0;
+/// Visual left-indent applied to child rows so the hierarchy is unambiguous
+/// at a glance. ~one toggle-width — child toggle column aligns with the
+/// parent's name column.
+const CHILD_INDENT: f32 = 22.0;
+
+enum HideoutRow<'a> {
+    /// Non-interactive header for a category that has no matching buildable
+    /// module (e.g. "Storage Zone", "Lounge"). Sub-modules render below it
+    /// with `is_child=true`.
+    SyntheticHeader(&'static str),
+    Module {
+        module: &'a HideoutModule,
+        is_child: bool,
+    },
+}
+
+fn build_hideout_rows(modules: &[HideoutModule]) -> Vec<HideoutRow<'_>> {
+    let mut emitted: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut rows: Vec<HideoutRow<'_>> = Vec::with_capacity(modules.len() + 5);
+
+    for m in modules {
+        if emitted.contains(&m.id) {
+            continue;
+        }
+        match module_category(&m.id) {
+            None => {
+                rows.push(HideoutRow::Module {
+                    module: m,
+                    is_child: false,
+                });
+                emitted.insert(m.id.clone());
+            }
+            Some(cat) => {
+                // Every category renders as a synthetic header; even modules
+                // whose own name matches the category label (KitchenArea →
+                // "Kitchen Area", MedicalArea → "Medical Area") become
+                // children. Lets the user master-toggle the whole area from
+                // the header row.
+                rows.push(HideoutRow::SyntheticHeader(cat));
+                for sib in modules
+                    .iter()
+                    .filter(|x| module_category(&x.id) == Some(cat))
+                {
+                    rows.push(HideoutRow::Module {
+                        module: sib,
+                        is_child: true,
+                    });
+                    emitted.insert(sib.id.clone());
+                }
+            }
+        }
+    }
+    rows
+}
 const PICKER_TILE_W: f32 = 110.0;
 const PICKER_TILE_H: f32 = 92.0;
 const PICKER_TILE_ICON: f32 = 40.0;
@@ -33,11 +88,18 @@ pub fn ui(
     let data = state.read().data.clone();
 
     starter_preset_row(ui, state, save_tx);
+    natural_progression_row(ui, state, save_tx);
     header_row(ui);
     ui.separator();
 
-    for (idx, module) in data.modules.iter().enumerate() {
-        module_row(ui, state, save_tx, idx, module);
+    let rows = build_hideout_rows(&data.modules);
+    for (idx, row) in rows.iter().enumerate() {
+        match row {
+            HideoutRow::SyntheticHeader(name) => synthetic_header_row(ui, state, save_tx, name),
+            HideoutRow::Module { module, is_child } => {
+                module_row(ui, state, save_tx, idx, module, *is_child);
+            }
+        }
     }
 
     if let Some(sel) = selected(ui.ctx()) {
@@ -46,6 +108,49 @@ pub fn ui(
             editable_recipe_panel(ui, state, save_tx, icons, &module.name, upgrade);
         }
     }
+}
+
+/// Compact "is this module available right now?" toggle that sits at the left
+/// edge of each module row. Disabling a quest-locked module keeps the user's
+/// track/done picks intact (toggle back on and they resurface) but excludes
+/// its requirements from the wishlist aggregation, so the right pane stops
+/// nagging about items the user literally can't act on yet.
+fn module_toggle(
+    ui: &mut egui::Ui,
+    state: &Arc<RwLock<AppState>>,
+    save_tx: &Sender<SaveTick>,
+    module_id: &str,
+    disabled: bool,
+) {
+    // ●/○ live in Geometric Shapes (U+25A0–25FF), which Hack covers — so
+    // they render through the proportional→Hack fallback wired in gui/mod.rs.
+    // Earlier ✓/✕ glyphs sit in Dingbats (U+27xx), which neither Ubuntu-Light
+    // nor Hack carry, so they came through as missing-glyph tofu.
+    let (glyph, tooltip) = if disabled {
+        (
+            "○",
+            "Module locked — its requirements are hidden from the wishlist. \
+             Click to re-enable.",
+        )
+    } else {
+        (
+            "●",
+            "Module available — click to mark as locked (quest-gated, etc). \
+             Its requirements will drop out of the wishlist until re-enabled.",
+        )
+    };
+    let resp = ui
+        .add(
+            egui::Button::new(egui::RichText::new(glyph).strong()).min_size(egui::vec2(22.0, 22.0)),
+        )
+        .on_hover_text(tooltip);
+    if resp.clicked() {
+        state
+            .write()
+            .set_module_disabled(&module_id.to_string(), !disabled);
+        notify(state, save_tx);
+    }
+    ui.add_space(4.0);
 }
 
 fn header_row(ui: &mut egui::Ui) {
@@ -138,22 +243,161 @@ fn starter_preset_row(
     });
 }
 
+/// "Natural progression" preset: every module's Level 1 upgrade. The set is
+/// computed from the loaded `GameData` rather than a hand-curated list so it
+/// stays correct when modules are added/renamed upstream.
+fn natural_progression_row(
+    ui: &mut egui::Ui,
+    state: &Arc<RwLock<AppState>>,
+    save_tx: &Sender<SaveTick>,
+) {
+    let lv1_ids: Vec<String> = {
+        let s = state.read();
+        s.data
+            .modules
+            .iter()
+            .filter_map(|m| {
+                m.upgrades
+                    .iter()
+                    .find(|u| u.level == 1)
+                    .map(|u| u.id.clone())
+            })
+            .collect()
+    };
+
+    let (missing, to_untrack): (Vec<String>, Vec<String>) = {
+        let s = state.read();
+        let missing = lv1_ids
+            .iter()
+            .filter(|id| !s.tracked_upgrades.contains(*id) && !s.completed_upgrades.contains(*id))
+            .cloned()
+            .collect();
+        let to_untrack = lv1_ids
+            .iter()
+            .filter(|id| s.tracked_upgrades.contains(*id))
+            .cloned()
+            .collect();
+        (missing, to_untrack)
+    };
+
+    let total = lv1_ids.len();
+    let covered = total - missing.len();
+    let fully_covered = missing.is_empty();
+    let undo_available = fully_covered && !to_untrack.is_empty();
+
+    let (label, action_apply, enabled) = if !fully_covered {
+        ("Apply natural progression", true, true)
+    } else if undo_available {
+        ("Undo natural progression", false, true)
+    } else {
+        ("Natural progression applied", false, false)
+    };
+    let tooltip = "Bootstraps natural progression: tracks the Level 1 upgrade \
+        of every hideout module. As you mark each level Done, the next level \
+        in the same module is auto-tracked, so the wishlist always shows your \
+        current target. Apply tracks the missing Lv1s; Undo untracks them \
+        again (completed upgrades stay completed).";
+
+    ui.horizontal(|ui| {
+        let resp = ui
+            .add_enabled(enabled, egui::Button::new(label))
+            .on_hover_text(tooltip)
+            .on_disabled_hover_text(tooltip);
+        if resp.clicked() && enabled {
+            let mut s = state.write();
+            let ids = if action_apply { &missing } else { &to_untrack };
+            for id in ids {
+                s.set_tracked_upgrade(id, action_apply);
+            }
+            drop(s);
+            notify(state, save_tx);
+        }
+        ui.add_space(8.0);
+        let weak = ui.visuals().weak_text_color();
+        ui.label(
+            egui::RichText::new(format!("{covered}/{total} Level 1 upgrades tracked"))
+                .small()
+                .color(weak),
+        );
+    });
+}
+
+/// Master-toggle header row for a category. Carries the same ●/○ toggle as
+/// individual modules — clicking it disables every child below until
+/// re-enabled. Disable state is stored under a virtual `@cat:Name` id in
+/// `disabled_modules` so it persists across runs alongside per-module state.
+fn synthetic_header_row(
+    ui: &mut egui::Ui,
+    state: &Arc<RwLock<AppState>>,
+    save_tx: &Sender<SaveTick>,
+    name: &str,
+) {
+    let virtual_id = category_virtual_id(name);
+    let disabled = state.read().disabled_modules.contains(&virtual_id);
+    let strong = ui.visuals().strong_text_color();
+    let weak = ui.visuals().weak_text_color();
+    let name_color = if disabled { weak } else { strong };
+
+    ui.horizontal(|ui| {
+        ui.set_min_height(ROW_H);
+        module_toggle(ui, state, save_tx, &virtual_id, disabled);
+        let mut text = egui::RichText::new(name).strong().color(name_color);
+        if disabled {
+            text = text.strikethrough();
+        }
+        ui.label(text);
+    });
+}
+
 fn module_row(
     ui: &mut egui::Ui,
     state: &Arc<RwLock<AppState>>,
     save_tx: &Sender<SaveTick>,
     row_idx: usize,
     module: &HideoutModule,
+    is_child: bool,
 ) {
     let dark = ui.visuals().dark_mode;
     let strong = ui.visuals().strong_text_color();
+    let weak = ui.visuals().weak_text_color();
+    // Direct vs effective disable are tracked separately so the toggle still
+    // reflects this module's own state (lets the user pre-stage individual
+    // picks under a disabled parent), but the row's visuals + cell-disabled
+    // state follow the cascade.
+    let (own_disabled, effective_disabled) = {
+        let s = state.read();
+        (
+            s.disabled_modules.contains(&module.id),
+            s.is_module_effectively_disabled(&module.id),
+        )
+    };
+    let name_color = if effective_disabled { weak } else { strong };
     let bg_idx = ui.painter().add(egui::Shape::Noop);
 
     let inner = ui.horizontal(|ui| {
         ui.set_min_height(ROW_H);
-        ui.add_sized(
-            [MODULE_NAME_W, ROW_H],
-            egui::Label::new(egui::RichText::new(&module.name).strong().color(strong)).truncate(),
+        ui.allocate_ui_with_layout(
+            egui::vec2(MODULE_NAME_W, ROW_H),
+            egui::Layout::left_to_right(egui::Align::Center),
+            |ui| {
+                ui.set_min_size(egui::vec2(MODULE_NAME_W, ROW_H));
+                if is_child {
+                    ui.add_space(CHILD_INDENT);
+                }
+                // Greying the toggle when only the parent is disabled signals
+                // "the parent overrides me right now" — click still works so
+                // the user can pre-set individual children, but the row stays
+                // visually off until the parent is re-enabled.
+                let parent_locked = effective_disabled && !own_disabled;
+                ui.add_enabled_ui(!parent_locked, |ui| {
+                    module_toggle(ui, state, save_tx, &module.id, own_disabled);
+                });
+                let mut name_text = egui::RichText::new(&module.name).strong().color(name_color);
+                if effective_disabled {
+                    name_text = name_text.strikethrough();
+                }
+                ui.add(egui::Label::new(name_text).truncate());
+            },
         );
         for slot in 0..MAX_LEVELS {
             ui.allocate_ui_with_layout(
@@ -165,7 +409,9 @@ fn module_row(
                     // every row's columns aligned with the headers.
                     ui.set_min_size(egui::vec2(CELL_W, ROW_H));
                     if let Some(upgrade) = module.upgrades.get(slot) {
-                        upgrade_cell(ui, state, save_tx, upgrade);
+                        ui.add_enabled_ui(!effective_disabled, |ui| {
+                            upgrade_cell(ui, state, save_tx, upgrade);
+                        });
                     }
                 },
             );
@@ -194,12 +440,13 @@ fn upgrade_cell(
     save_tx: &Sender<SaveTick>,
     upgrade: &Upgrade,
 ) {
-    let (mut tracked, mut done, overridden) = {
+    let (mut tracked, mut done, overridden, ready) = {
         let s = state.read();
         (
             s.tracked_upgrades.contains(&upgrade.id),
             s.completed_upgrades.contains(&upgrade.id),
             s.is_overridden(&upgrade.id),
+            s.is_upgrade_ready(&upgrade.id),
         )
     };
     let original_tracked = tracked;
@@ -208,6 +455,8 @@ fn upgrade_cell(
     let dark = ui.visuals().dark_mode;
     let fill = if done {
         theme::done_fill(dark)
+    } else if ready {
+        theme::ready_fill(dark)
     } else if tracked {
         theme::tracked_fill(dark)
     } else {
@@ -452,6 +701,7 @@ fn slot_editor(
                 // Quantity row: [-] big number [+], spread across the slot's
                 // full width so the count is the dominant element.
                 if let Some(req) = slot.as_mut() {
+                    let collected = *state.read().collected.get(&req.item_id).unwrap_or(&0);
                     ui.horizontal(|ui| {
                         let dec_enabled = req.quantity > 1;
                         if ui
@@ -466,18 +716,40 @@ fn slot_editor(
                             req.quantity = req.quantity.saturating_sub(1).max(1);
                         }
 
-                        // Center the number in whatever's left after the two
-                        // 28px buttons + spacing.
+                        // Center the stock/required pair in whatever's left
+                        // after the two 28px buttons + spacing. Stock is the
+                        // user's global collected count for this item; it'll
+                        // exceed `req.quantity` if other tracked upgrades also
+                        // need it and the user has gathered enough for them
+                        // too, which is fine — the display caps at the target.
                         let center_w = (ui.available_width() - 32.0).max(0.0);
+                        let satisfied = collected >= req.quantity;
+                        let stock_color = if satisfied {
+                            ui.visuals().strong_text_color()
+                        } else {
+                            ui.visuals().weak_text_color()
+                        };
                         ui.allocate_ui_with_layout(
                             egui::vec2(center_w, 26.0),
                             egui::Layout::centered_and_justified(egui::Direction::LeftToRight),
                             |ui| {
-                                ui.label(
-                                    egui::RichText::new(format!("{}", req.quantity))
+                                ui.horizontal(|ui| {
+                                    ui.label(
+                                        egui::RichText::new(format!(
+                                            "{}",
+                                            collected.min(req.quantity)
+                                        ))
+                                        .color(stock_color)
                                         .strong()
                                         .size(18.0),
-                                );
+                                    );
+                                    ui.label(egui::RichText::new("/").color(weak).size(16.0));
+                                    ui.label(
+                                        egui::RichText::new(format!("{}", req.quantity))
+                                            .strong()
+                                            .size(18.0),
+                                    );
+                                });
                             },
                         );
 

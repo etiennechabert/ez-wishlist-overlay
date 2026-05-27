@@ -6,7 +6,14 @@ use crossbeam_channel::Sender;
 use parking_lot::RwLock;
 use std::sync::Arc;
 
-const ICON_SIZE: f32 = 32.0;
+const ICON_SIZE: f32 = 48.0;
+/// Hit-target size for VR controller pointers. The wrist tremor on Quest/Index
+/// controllers easily exceeds 1° of arc; sub-30px targets at typical overlay
+/// distance translate to "click the wrong row" mistakes. 32px tall with
+/// rounded corners keeps the buttons close to the row's icon height so the
+/// overall row doesn't grow much beyond its previous height.
+const BTN_H: f32 = 32.0;
+const BTN_RADIUS: f32 = 16.0;
 
 pub fn ui(
     ui: &mut egui::Ui,
@@ -67,6 +74,11 @@ fn row(
             ui.horizontal(|ui| {
                 row_icon(ui, icons, &item.icon_path, dark);
                 ui.vertical(|ui| {
+                    // Tighten inter-element spacing so the name + controls +
+                    // sources stack stays within the bigger icon's height.
+                    // Without this the chunky VR-sized controls would push the
+                    // row taller than the previous compact layout.
+                    ui.spacing_mut().item_spacing.y = 1.0;
                     row_name(ui, &item.name, done, dark);
                     ui.horizontal(|ui| row_controls(ui, state, save_tx, item));
                     row_sources(ui, &item.sources, dark);
@@ -107,32 +119,61 @@ fn row_controls(
     } else {
         (item.collected as f32 / item.needed as f32).clamp(0.0, 1.0)
     };
-    ui.add(
-        egui::ProgressBar::new(progress)
-            .desired_width(160.0)
-            .text(format!(
-                "{} / {}",
-                item.collected.min(item.needed),
-                item.needed
-            )),
+    ui.add_sized(
+        egui::vec2(160.0, BTN_H),
+        egui::ProgressBar::new(progress).text(format!(
+            "{} / {}",
+            item.collected.min(item.needed),
+            item.needed
+        )),
     );
 
-    if ui.small_button("-").clicked() {
+    if ui.add(round_button("−", 36.0)).clicked() {
         state.write().adjust_collected(&item.item_id, -1);
         notify(state, save_tx);
     }
     let mut value = item.collected;
     if ui
-        .add(egui::DragValue::new(&mut value).range(0..=9999).speed(0.05))
+        .add_sized(
+            egui::vec2(56.0, BTN_H),
+            egui::DragValue::new(&mut value).range(0..=9999).speed(0.05),
+        )
         .changed()
     {
         state.write().set_collected(&item.item_id, value);
         notify(state, save_tx);
     }
-    if ui.small_button("+").clicked() {
+    if ui.add(round_button("+", 36.0)).clicked() {
         state.write().adjust_collected(&item.item_id, 1);
         notify(state, save_tx);
     }
+    // One button that flips between "Done" (jump to the target so the row
+    // reads as ready) and "Reset" (drop back to 0). Saves a button slot —
+    // once you've hit the target the only meaningful next action is reset.
+    let done = item.needed > 0 && item.collected >= item.needed;
+    let (label, tooltip) = if done {
+        ("Reset", "Reset progress to 0")
+    } else {
+        ("Done", "Mark fully collected (sets to target)")
+    };
+    if ui
+        .add(round_button(label, 64.0))
+        .on_hover_text(tooltip)
+        .clicked()
+    {
+        let new_value = if done { 0 } else { item.needed };
+        state.write().set_collected(&item.item_id, new_value);
+        notify(state, save_tx);
+    }
+}
+
+/// Pill-shaped button sized for VR-pointer accuracy: tall enough that wrist
+/// tremor stays inside the hit-box, with a large corner radius so the visual
+/// affordance matches the bigger hit-area.
+fn round_button(label: &str, width: f32) -> egui::Button<'_> {
+    egui::Button::new(egui::RichText::new(label).strong())
+        .min_size(egui::vec2(width, BTN_H))
+        .rounding(BTN_RADIUS)
 }
 
 fn row_sources(ui: &mut egui::Ui, sources: &[String], dark: bool) {
