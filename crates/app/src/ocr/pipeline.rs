@@ -184,6 +184,120 @@ mod fixture_tests {
     /// `data.json` (verified by grep), so this pass cannot produce
     /// `7.png` / `9.png`. Capture a panel where you've collected 7 or 9
     /// of an item and follow up with manual extraction.
+    /// Dump each fixture's per-cell count strip as a standalone PNG
+    /// under `/tmp/ocr_cells/` so a human can read the X/Y ground
+    /// truth at sane resolution. The full 3K-per-eye PNGs scale down
+    /// past readability in any preview, but a ~400×60 strip stays
+    /// legible. Output filenames: `<UpgradeId>_cell<N>.png`.
+    #[test]
+    #[ignore = "diagnostic — run with --ignored to dump labelled cell strips"]
+    fn dump_native_count_strips() {
+        use crate::ocr::{anchor, engine, prep};
+        use image::GenericImageView;
+
+        let data = load_data();
+        let in_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../hideout_screenshots_native");
+        let out_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../target/ocr_cells");
+        std::fs::create_dir_all(&out_dir).expect("create output dir");
+
+        let mut entries: Vec<_> = std::fs::read_dir(&in_dir)
+            .unwrap_or_else(|e| panic!("read_dir {}: {e}", in_dir.display()))
+            .filter_map(|e| e.ok())
+            .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("png"))
+            .collect();
+        entries.sort_by_key(|e| e.file_name());
+
+        for entry in &entries {
+            let path = entry.path();
+            let stem = path.file_stem().unwrap().to_string_lossy().into_owned();
+            let img = match image::open(&path) {
+                Ok(i) => i,
+                Err(e) => {
+                    eprintln!("SKIP {stem}: open failed: {e}");
+                    continue;
+                }
+            };
+            let (img_w, img_h) = img.dimensions();
+            let upgrade = data
+                .modules
+                .iter()
+                .flat_map(|m| &m.upgrades)
+                .find(|u| u.id == stem);
+            let words = match engine::recognize_image(&img) {
+                Ok(w) => w,
+                Err(e) => {
+                    eprintln!("SKIP {stem}: OCR failed: {e}");
+                    continue;
+                }
+            };
+            let layout = match anchor::detect_panel(&words, img_w, img_h) {
+                Some(l) => l,
+                None => {
+                    eprintln!("SKIP {stem}: panel anchor not found");
+                    continue;
+                }
+            };
+            let cells = if let Some(u) = upgrade {
+                if layout.cells.len() == u.requirements.len() {
+                    layout.cells.clone()
+                } else {
+                    anchor::positional_cells(&layout, &words, u.requirements.len())
+                }
+            } else {
+                layout.cells.clone()
+            };
+            for (idx, cell) in cells.iter().enumerate() {
+                let strip = img.crop_imm(cell.x, cell.y, cell.w, cell.h);
+                let out_path = out_dir.join(format!("{stem}_cell{idx}.png"));
+                if let Err(e) = strip.save(&out_path) {
+                    eprintln!("SKIP {stem} cell{idx}: save failed: {e}");
+                    continue;
+                }
+                let req_label = upgrade
+                    .and_then(|u| u.requirements.get(idx))
+                    .map(|r| format!("{} needed={}", r.item_id, r.quantity))
+                    .unwrap_or_else(|| "(no requirement metadata)".into());
+                eprintln!("saved {} ({req_label})", out_path.display());
+            }
+
+            // Also dump a contextual crop showing the full panel (header
+            // + cell strip) for orientation. Useful when the cell strip
+            // is too cropped to identify which item it belongs to.
+            let panel_crop = {
+                let cell_top = cells.iter().map(|c| c.y).min().unwrap_or(layout.anchor.y);
+                let cell_bot = cells
+                    .iter()
+                    .map(|c| c.y + c.h)
+                    .max()
+                    .unwrap_or(layout.anchor.y + layout.anchor.h);
+                let cell_left = cells.iter().map(|c| c.x).min().unwrap_or(0);
+                let cell_right = cells.iter().map(|c| c.x + c.w).max().unwrap_or(img_w);
+                let pad_y = 12u32;
+                let pad_x = 12u32;
+                let cx = cell_left.saturating_sub(pad_x);
+                let cy = cell_top.saturating_sub(pad_y);
+                let cw = (cell_right + pad_x).min(img_w) - cx;
+                let ch = (cell_bot + pad_y).min(img_h) - cy;
+                img.crop_imm(cx, cy, cw, ch)
+            };
+            let panel_path = out_dir.join(format!("{stem}_panel.png"));
+            let _ = panel_crop.save(&panel_path);
+            // Drop a stable suppression of prep::keep_white_invert too
+            // — useful for inspecting the binarization the pipeline
+            // actually feeds the template matcher.
+            let prepped = prep::keep_white_invert(&img);
+            for (idx, cell) in cells.iter().enumerate() {
+                let strip = prepped.crop_imm(cell.x, cell.y, cell.w, cell.h);
+                let out_path =
+                    out_dir.join(format!("{stem}_cell{idx}_binarized.png"));
+                let _ = strip.save(&out_path);
+            }
+            let _ = panel_path;
+        }
+    }
+
     #[test]
     #[ignore = "bootstrap — run with --ignored after populating hideout_screenshots_native/"]
     fn extract_digit_templates_from_native_pngs() {
