@@ -19,33 +19,72 @@ use strsim::normalized_levenshtein;
 /// fuzziness we permit here is genuine OCR character error.
 const MIN_SCORE: f64 = 0.80;
 
-/// Resolve `(title_text, current_level)` to an `Upgrade.id`.
+/// Resolve `(panel_text, current_level)` to an `Upgrade.id`.
 ///
-/// `title_text` is the OCR'd row-label text. `current_level` is the
-/// integer from the header's `LV<digit>` token; the target upgrade is
-/// `level == current_level + 1`. Returns `None` if no module matches
-/// strictly, or if the matched module has no upgrade at the target
-/// level (i.e. already maxed out).
-pub fn resolve(data: &GameData, title_text: &str, current_level: u32) -> Option<String> {
-    let normalized_input = normalize(title_text);
-    if normalized_input.is_empty() {
-        tracing::debug!("match_upgrade: empty OCR title");
+/// `panel_text` is whitespace-separated OCR tokens from anywhere on the
+/// panel — usually the entire first-pass OCR output joined together. The
+/// resolver slides a window the width of each candidate `module.name`
+/// across the tokens, scoring each window with normalized Levenshtein,
+/// and picks the best match across all modules. This is more robust than
+/// cropping a precise "row label" rectangle (which would require pixel-
+/// accurate panel bounds we can't easily derive from anchors alone) and
+/// still respects the Phase 0 invariant: the only fuzziness is OCR
+/// character noise within a window, not dataset drift.
+///
+/// `current_level` is the integer from the header's `LV<digit>` token;
+/// the target upgrade is `level == current_level + 1`. Returns `None`
+/// if no module matches strictly, or if the matched module has no
+/// upgrade at the target level (i.e. already maxed out).
+pub fn resolve(data: &GameData, panel_text: &str, current_level: u32) -> Option<String> {
+    let tokens: Vec<String> = panel_text
+        .split_whitespace()
+        .map(|t| normalize(t))
+        .filter(|t| !t.is_empty())
+        .collect();
+    if tokens.is_empty() {
+        tracing::debug!("match_upgrade: empty OCR input");
         return None;
     }
 
     let target_level = current_level + 1;
-    let mut best: Option<(&str, f64)> = None;
+    // Best is `(module_id, score, target_word_count)`. Tiebreak on
+    // ties (or near-ties): prefer the LONGER module.name. Reason:
+    // when the OCR'd panel contains both a short and a long module
+    // name that match perfectly, the long match is more specific and
+    // almost always the intended one — for example, the panel for
+    // "Starter's Storage Expansion" also contains the word "Storage"
+    // (which scores 1.0 against the short module.name "Storage"); we
+    // want the 3-word match, not the 1-word one.
+    let mut best: Option<(&str, f64, usize)> = None;
     for module in &data.modules {
-        let score = normalized_levenshtein(&normalized_input, &normalize(&module.name));
-        if score >= MIN_SCORE && best.map(|(_, s)| score > s).unwrap_or(true) {
-            best = Some((module.id.as_str(), score));
+        let target = normalize(&module.name);
+        let n = target.split_whitespace().count();
+        if n == 0 || n > tokens.len() {
+            continue;
+        }
+        for start in 0..=tokens.len() - n {
+            let window = tokens[start..start + n].join(" ");
+            let score = normalized_levenshtein(&window, &target);
+            if score < MIN_SCORE {
+                continue;
+            }
+            let replace = match best {
+                None => true,
+                Some((_, prev_score, prev_n)) => {
+                    score > prev_score + 1e-9
+                        || (score >= prev_score - 1e-9 && n > prev_n)
+                }
+            };
+            if replace {
+                best = Some((module.id.as_str(), score, n));
+            }
         }
     }
-    let (module_id, score) = match best {
+    let (module_id, score, _) = match best {
         Some(b) => b,
         None => {
             tracing::debug!(
-                ocr_title = title_text,
+                tokens = ?tokens,
                 "match_upgrade: no module name matched (min_score = {MIN_SCORE})",
             );
             return None;
@@ -57,7 +96,7 @@ pub fn resolve(data: &GameData, title_text: &str, current_level: u32) -> Option<
     match upgrade {
         Some(u) => {
             tracing::debug!(
-                ocr_title = title_text,
+                ocr_input = panel_text,
                 module = %module.name,
                 score = score,
                 target_level,
@@ -68,7 +107,7 @@ pub fn resolve(data: &GameData, title_text: &str, current_level: u32) -> Option<
         }
         None => {
             tracing::debug!(
-                ocr_title = title_text,
+                ocr_input = panel_text,
                 module = %module.name,
                 target_level,
                 "match_upgrade: module matched but no upgrade at target level (maxed out?)",

@@ -34,45 +34,68 @@ pub struct PanelLayout {
     pub row_label: BBox,
     /// One rect per cell, left-to-right. Each rect spans the cell's
     /// owned/needed counter region (`~55-88%` down the cell height).
+    /// Empty when FROM RAID couldn't be located; the pipeline then
+    /// derives cells positionally via [`positional_cells`] once it
+    /// knows `n` from the resolved upgrade.
     pub cells: Vec<BBox>,
+    /// "Need to submit items" anchor box (the source of every other
+    /// rect on this layout). Kept around so [`positional_cells`] can
+    /// derive a fallback cell row when FROM RAID isn't readable.
+    pub anchor: BBox,
+    pub img_w: u32,
+    pub img_h: u32,
 }
 
 /// Detect the panel. Returns `None` if the "Need to submit items" anchor
 /// isn't found (i.e. the screenshot isn't an upgrade panel).
+///
+/// `cells` is populated from `FROM RAID` anchors when those are readable;
+/// otherwise it's left empty and the pipeline derives positional cells
+/// later, once `requirements.len()` is known from the matched upgrade
+/// ([`positional_cells`]). Low-res screenshots (the JPG fixtures, and
+/// any future captures where the FROM RAID labels render too small) go
+/// through the positional path; native-resolution captures use FROM RAID.
 pub fn detect_panel(words: &[OcrWord], img_w: u32, img_h: u32) -> Option<PanelLayout> {
     let words: Vec<Word> = words.iter().map(Word::from).collect();
 
     let anchor = anchor_by_submit_phrase(img_w, img_h, &words)?;
-    let cells = locate_cells_via_from_raid(&words, img_w, img_h);
-    if cells.is_empty() {
-        tracing::debug!("anchor: 'Need to submit items' found but no FROM/RAID cells located");
-        return None;
+    let cells_full = locate_cells_via_from_raid(&words, img_w, img_h);
+    let count_strips: Vec<BBox> = cells_full
+        .iter()
+        .map(count_strip_within_cell)
+        .collect();
+    if cells_full.is_empty() {
+        tracing::debug!(
+            "anchor: FROM/RAID not detected; pipeline will derive positional cells once \
+             the upgrade is identified",
+        );
     }
 
-    // Cells span [icon + name + X/Y]; the owned-count strip is in the
-    // bottom ~third. Trim each cell rect to just that strip — matches
-    // `read_progress_via_templates` in the ocr_lab pipeline.
-    let count_strips: Vec<BBox> = cells.iter().map(count_strip_within_cell).collect();
-
-    // Panel bounds — used internally to derive header/row_label rects
-    // anchored relative to the panel corners. Not exposed because
-    // downstream pipeline reads only the three named rects below.
+    // Panel bounds. The "Need to submit items" phrase sits centred
+    // horizontally inside the panel and takes up roughly 30% of the
+    // panel width — so panel_w ≈ anchor.w * 10 / 3 — and the panel
+    // extends ~18 anchor heights upward (title + 3-4 upgrade rows +
+    // cost) and ~6 anchor heights downward (cost + cells + buttons).
+    // Both ratios were measured against `hideout_screenshots/` JPGs;
+    // re-calibrate on native PNGs once a batch exists.
+    let anchor_cx = anchor.x + anchor.w / 2;
+    let panel_w_est = anchor.w * 10 / 3;
+    let panel_left = anchor_cx.saturating_sub(panel_w_est / 2).min(img_w);
+    let panel_right = (anchor_cx + panel_w_est / 2).min(img_w);
     let panel_top = anchor.y.saturating_sub(anchor.h * 18);
-    let panel_bottom = cells
+    let panel_bottom = cells_full
         .iter()
         .map(|c| c.y + c.h)
         .max()
-        .unwrap_or(img_h.saturating_sub(1))
+        // No FROM RAID: assume the cell strip extends down ~6 anchor
+        // heights from the "Need to submit items" line.
+        .unwrap_or(anchor.y + anchor.h * 6)
         .min(img_h);
-    let panel_left = anchor.x.saturating_sub(anchor.h * 10).min(img_w);
-    let panel_right = (anchor.x + anchor.w + anchor.h * 10).min(img_w);
     let panel_w = panel_right.saturating_sub(panel_left);
     let panel_h = panel_bottom.saturating_sub(panel_top);
 
     // Header rect: top-left corner of panel, two text rows tall (name +
     // LV<digit>). Width ~33% of panel — enough to fit the name + LV.
-    // Constants calibrated empirically from `hideout_screenshots/`; tune
-    // against native-PNG fixtures once those exist.
     let header_h = (panel_h * 18 / 100).max(anchor.h * 3);
     let header = BBox {
         x: panel_left + panel_w / 40,
@@ -95,7 +118,57 @@ pub fn detect_panel(words: &[OcrWord], img_w: u32, img_h: u32) -> Option<PanelLa
         header,
         row_label,
         cells: count_strips,
+        anchor,
+        img_w,
+        img_h,
     })
+}
+
+/// Fallback when FROM RAID couldn't be located: lay out N equal-width
+/// cell strips across the panel, positioned just above the BACK/LEVEL UP
+/// button row. Used by [`pipeline::process_screenshot`] only after the
+/// upgrade has been identified (so `n` is the authoritative
+/// `requirements.len()` from `data.json`).
+pub fn positional_cells(layout: &PanelLayout, n: usize) -> Vec<BBox> {
+    let anchor = layout.anchor;
+    let img_w = layout.img_w;
+    let img_h = layout.img_h;
+
+    // Panel left/right derived the same way as detect_panel.
+    let anchor_cx = anchor.x + anchor.w / 2;
+    let panel_w_est = anchor.w * 10 / 3;
+    let panel_left = anchor_cx.saturating_sub(panel_w_est / 2).min(img_w);
+    let panel_right = (anchor_cx + panel_w_est / 2).min(img_w);
+    let panel_w = panel_right.saturating_sub(panel_left);
+
+    // Cell strip Y: starts ~2 anchor heights below the "Need to submit
+    // items" row (skipping the cost line) and runs for ~4 anchor heights
+    // (icon + name + counter). The count strip is the bottom third.
+    let cells_top = (anchor.y + anchor.h * 2).min(img_h);
+    let cells_bottom = (anchor.y + anchor.h * 6).min(img_h);
+    let cells_h = cells_bottom.saturating_sub(cells_top);
+    let count_top = cells_top + cells_h * 55 / 100;
+    let count_bottom = cells_top + cells_h * 88 / 100;
+
+    let mut out = Vec::with_capacity(n);
+    if n == 0 || panel_w == 0 {
+        return out;
+    }
+    // Inset slightly from the panel edges to skip the rounded frame.
+    let usable_left = panel_left + panel_w / 30;
+    let usable_w = panel_w - panel_w * 2 / 30;
+    let pitch = usable_w / n as u32;
+    for i in 0..n {
+        let left = usable_left + pitch * i as u32 + pitch / 10;
+        let width = pitch.saturating_sub(pitch / 5);
+        out.push(BBox {
+            x: left,
+            y: count_top,
+            w: width,
+            h: count_bottom.saturating_sub(count_top),
+        });
+    }
+    out
 }
 
 /// Word with integer-pixel coordinates — a more convenient view of
