@@ -181,14 +181,10 @@ fn render_loop(
         session.apply_settings(&vr)?;
 
         let pitch = session.hmd_pitch_deg().unwrap_or(0.0);
-        // Tick the FSM unconditionally so its internal state tracks the user's
-        // pitch even while locked — that way unlocking at low pitch hides
-        // immediately instead of leaving a stale Visible carry-over.
-        let pitch_visible = matches!(
+        let visible_now = matches!(
             fsm.tick_with(pitch, vr.show_pitch_deg, vr.hide_pitch_deg),
             Visibility::Visible
         );
-        let visible_now = vr.locked || pitch_visible;
 
         handle_visibility_transition(
             session,
