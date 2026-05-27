@@ -7,6 +7,7 @@ mod data;
 mod gui;
 mod hierarchy;
 mod log_buffer;
+mod ocr;
 mod persist;
 mod platform;
 mod presets;
