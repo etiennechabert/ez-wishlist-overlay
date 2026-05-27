@@ -573,22 +573,23 @@
           "name": "Med Desk",
           "level": 1,
           "description": "Drink recovery +10%.",
+          "cost": 70000,
           "requirements": [
             {
               "item_id": "misc_b_bottledglucose",
-              "quantity": 3
+              "quantity": 1
             },
             {
-              "item_id": "misc_b_disinfectingwipes",
-              "quantity": 3
+              "item_id": "misc_b_aspire",
+              "quantity": 1
             },
             {
-              "item_id": "misc_b_medicalkit",
+              "item_id": "misc_b_valve",
+              "quantity": 1
+            },
+            {
+              "item_id": "misc_b_socket",
               "quantity": 2
-            },
-            {
-              "item_id": "misc_b_uvlight",
-              "quantity": 3
             }
           ]
         },
@@ -864,22 +865,23 @@
           "name": "Plant Stand",
           "level": 1,
           "description": "Food recovery +10%.",
+          "cost": 70000,
           "requirements": [
             {
-              "item_id": "misc_b_lightbulb",
-              "quantity": 5
+              "item_id": "misc_b_disinfectingwipes",
+              "quantity": 2
             },
             {
-              "item_id": "misc_b_rat_poison",
+              "item_id": "misc_b_valve",
               "quantity": 1
             },
             {
-              "item_id": "misc_b_smallshovel",
+              "item_id": "misc_b_lightbulb",
               "quantity": 2
             },
             {
-              "item_id": "misc_b_socket",
-              "quantity": 2
+              "item_id": "misc_b_insulatingtape",
+              "quantity": 1
             }
           ]
         },
@@ -1348,6 +1350,31 @@
             },
             {
               "item_id": "misc_b_tapeplayer",
+              "quantity": 1
+            }
+          ]
+        },
+        {
+          "id": "StoragevaluableLv2",
+          "name": "Storage",
+          "level": 2,
+          "description": "Expand Junk Box Capacity",
+          "cost": 807000,
+          "requirements": [
+            {
+              "item_id": "misc_b_wirecutting",
+              "quantity": 4
+            },
+            {
+              "item_id": "misc_wastechip",
+              "quantity": 3
+            },
+            {
+              "item_id": "misc_screwdriver",
+              "quantity": 3
+            },
+            {
+              "item_id": "misc_b_storagebattery",
               "quantity": 1
             }
           ]
