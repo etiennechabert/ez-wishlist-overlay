@@ -61,12 +61,7 @@ fn load_embedded() -> Result<Vec<Template>> {
             .to_luma8();
         let (w, h) = gray.dimensions();
         let mask: Vec<bool> = gray.pixels().map(|p| p.0[0] < 128).collect();
-        templates.push(Template {
-            label,
-            mask,
-            w,
-            h,
-        });
+        templates.push(Template { label, mask, w, h });
     }
     Ok(templates)
 }
@@ -205,7 +200,10 @@ pub fn recognize(strip: &GrayImage, templates: &[Template]) -> String {
 /// Handles missing slash by halving the digit run (e.g. "28" → (2, 8))
 /// when exactly two digits were recognised.
 pub fn split_progress(s: &str) -> Option<(u32, u32)> {
-    let cleaned: String = s.chars().filter(|c| c.is_ascii_digit() || *c == '/').collect();
+    let cleaned: String = s
+        .chars()
+        .filter(|c| c.is_ascii_digit() || *c == '/')
+        .collect();
     if let Some((a, b)) = cleaned.split_once('/') {
         let a: u32 = a.parse().ok()?;
         let b: u32 = b.parse().ok()?;

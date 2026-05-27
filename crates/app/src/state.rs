@@ -139,6 +139,70 @@ impl AppState {
         self.bump();
     }
 
+    /// Promote an upgrade based on an OCR sighting of its panel: tracking
+    /// the upgrade itself (if not already completed) and marking every
+    /// lower-level upgrade in the same module as completed (if not
+    /// already). The game only displays the Facility Upgrade panel for an
+    /// upgrade once every prior level has been claimed, so seeing Lv N
+    /// on screen is proof that Lv (N-1) is done — even if the user
+    /// forgot to tick the box in the app.
+    ///
+    /// Returns a per-change record so callers can surface what changed
+    /// (the OCR overlay shows it, the worker logs it). Caller is
+    /// responsible for issuing a single `SaveTick` after — the underlying
+    /// `set_*` helpers already bump `version` once each.
+    pub fn apply_ocr_progression(&mut self, upgrade_id: &UpgradeId) -> OcrProgression {
+        let mut out = OcrProgression::default();
+        let Some(uref) = self.index.upgrades_by_id.get(upgrade_id).cloned() else {
+            return out;
+        };
+        let module_id = uref.module_id.clone();
+        let current_level = uref.upgrade.level;
+
+        // Snapshot membership before we touch anything. `tracked_self`
+        // wants "did the OCR'd upgrade transition into the tracked set
+        // because of this call?" — and `set_completed_upgrade`'s built-in
+        // next-level auto-track means a Lv N→tracked transition can
+        // happen as a side effect of completing Lv (N-1). Either path
+        // counts.
+        let was_tracked = self.tracked_upgrades.contains(upgrade_id);
+        let was_completed = self.completed_upgrades.contains(upgrade_id);
+
+        // Prior-level completions. Collect the ids first so we don't hold
+        // a borrow into `data` across the mutating loop.
+        let prior_ids: Vec<UpgradeId> = self
+            .data
+            .modules
+            .iter()
+            .find(|m| m.id == module_id)
+            .map(|m| {
+                m.upgrades
+                    .iter()
+                    .filter(|u| u.level < current_level)
+                    .map(|u| u.id.clone())
+                    .collect()
+            })
+            .unwrap_or_default();
+        for prior_id in &prior_ids {
+            if !self.completed_upgrades.contains(prior_id) {
+                self.set_completed_upgrade(prior_id, true);
+                out.completed_priors.push(prior_id.clone());
+            }
+        }
+
+        // Track the OCR'd upgrade unless the user already marked it
+        // completed — re-opening the panel of a completed upgrade
+        // shouldn't un-complete it.
+        if !self.completed_upgrades.contains(upgrade_id)
+            && !self.tracked_upgrades.contains(upgrade_id)
+        {
+            self.set_tracked_upgrade(upgrade_id, true);
+        }
+        let is_tracked = self.tracked_upgrades.contains(upgrade_id);
+        out.tracked_self = !was_tracked && !was_completed && is_tracked;
+        out
+    }
+
     /// Look up the next-higher-level upgrade in the same module (e.g. given
     /// `GeneratorLv1`, return `GeneratorLv2`'s id if it exists).
     fn next_level_upgrade(&self, id: &UpgradeId) -> Option<UpgradeId> {
@@ -351,6 +415,18 @@ pub struct ActiveItem {
     pub needed: u32,
     pub collected: u32,
     pub sources: Vec<String>,
+}
+
+/// What [`AppState::apply_ocr_progression`] actually changed. Surfaces
+/// the auto-complete + auto-track behavior in the OCR overlay so the
+/// user sees exactly what was promoted, and feeds the tracing logs.
+#[derive(Debug, Clone, Default)]
+pub struct OcrProgression {
+    /// Prior-level upgrade ids that were freshly marked completed.
+    pub completed_priors: Vec<UpgradeId>,
+    /// `true` when the OCR'd upgrade got newly added to the tracked set
+    /// (it wasn't already tracked or completed).
+    pub tracked_self: bool,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -798,6 +874,49 @@ mod tests {
         assert!(warn.contains("Dropped 1 recipe override"));
         assert!(s.overrides.contains_key("workbench_lv1"));
         assert!(!s.overrides.contains_key("ghost_upgrade"));
+    }
+
+    #[test]
+    fn apply_ocr_progression_marks_priors_completed_and_tracks_self() {
+        // User starts with nothing tracked. OCR sees workbench Lv2 →
+        // every prior level (Lv1) gets completed and Lv2 enters the
+        // tracked set.
+        let mut s = AppState::new(fixture());
+        let prog = s.apply_ocr_progression(&"workbench_lv2".to_string());
+        assert_eq!(prog.completed_priors, vec!["workbench_lv1".to_string()]);
+        assert!(prog.tracked_self);
+        assert!(s.completed_upgrades.contains("workbench_lv1"));
+        assert!(s.tracked_upgrades.contains("workbench_lv2"));
+    }
+
+    #[test]
+    fn apply_ocr_progression_is_idempotent() {
+        let mut s = AppState::new(fixture());
+        s.apply_ocr_progression(&"workbench_lv2".to_string());
+        let second = s.apply_ocr_progression(&"workbench_lv2".to_string());
+        // Already done + already tracked → second pass changes nothing.
+        assert!(second.completed_priors.is_empty());
+        assert!(!second.tracked_self);
+    }
+
+    #[test]
+    fn apply_ocr_progression_lv1_only_tracks_self() {
+        let mut s = AppState::new(fixture());
+        let prog = s.apply_ocr_progression(&"workbench_lv1".to_string());
+        assert!(prog.completed_priors.is_empty(), "no priors below Lv 1");
+        assert!(prog.tracked_self);
+        assert!(s.tracked_upgrades.contains("workbench_lv1"));
+    }
+
+    #[test]
+    fn apply_ocr_progression_skips_when_already_completed() {
+        // Re-OCRing a maxed-out panel shouldn't un-complete it.
+        let mut s = AppState::new(fixture());
+        s.set_completed_upgrade(&"workbench_lv2".to_string(), true);
+        let prog = s.apply_ocr_progression(&"workbench_lv2".to_string());
+        assert!(!prog.tracked_self, "completed upgrades stay completed");
+        assert!(s.completed_upgrades.contains("workbench_lv2"));
+        assert!(!s.tracked_upgrades.contains("workbench_lv2"));
     }
 
     #[test]

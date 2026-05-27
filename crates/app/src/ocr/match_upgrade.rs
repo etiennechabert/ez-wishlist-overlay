@@ -38,7 +38,7 @@ const MIN_SCORE: f64 = 0.80;
 pub fn resolve(data: &GameData, panel_text: &str, current_level: u32) -> Option<String> {
     let tokens: Vec<String> = panel_text
         .split_whitespace()
-        .map(|t| normalize(t))
+        .map(normalize)
         .filter(|t| !t.is_empty())
         .collect();
     if tokens.is_empty() {
@@ -71,8 +71,7 @@ pub fn resolve(data: &GameData, panel_text: &str, current_level: u32) -> Option<
             let replace = match best {
                 None => true,
                 Some((_, prev_score, prev_n)) => {
-                    score > prev_score + 1e-9
-                        || (score >= prev_score - 1e-9 && n > prev_n)
+                    score > prev_score + 1e-9 || (score >= prev_score - 1e-9 && n > prev_n)
                 }
             };
             if replace {

@@ -27,10 +27,16 @@ pub struct BBox {
 
 #[derive(Clone, Debug)]
 pub struct PanelLayout {
-    /// Header block crop — has `<short name>` + `LV<digit>`. The pipeline
-    /// reads only the `LV<digit>` token from this rect.
+    /// Header block crop — has `<short name>` + `LV<digit>`. Currently
+    /// only consumed by the ignored diagnostic tests in `pipeline.rs`;
+    /// runtime parses the `LV<digit>` token directly from the full-image
+    /// OCR words.
+    #[allow(dead_code)]
     pub header: BBox,
-    /// First row's label area — has the canonical `module.name`.
+    /// First row's label area — has the canonical `module.name`. Same
+    /// story as `header`: kept around for diagnostics; runtime now does
+    /// a windowed match against the whole panel's OCR words instead.
+    #[allow(dead_code)]
     pub row_label: BBox,
     /// One rect per cell, left-to-right. Each rect spans the cell's
     /// owned/needed counter region (`~55-88%` down the cell height).
@@ -60,10 +66,7 @@ pub fn detect_panel(words: &[OcrWord], img_w: u32, img_h: u32) -> Option<PanelLa
 
     let anchor = anchor_by_submit_phrase(img_w, img_h, &words)?;
     let cells_full = locate_cells_via_from_raid(&words, img_w, img_h);
-    let count_strips: Vec<BBox> = cells_full
-        .iter()
-        .map(count_strip_within_cell)
-        .collect();
+    let count_strips: Vec<BBox> = cells_full.iter().map(count_strip_within_cell).collect();
     if cells_full.is_empty() {
         tracing::debug!(
             "anchor: FROM/RAID not detected; pipeline will derive positional cells once \
@@ -158,10 +161,7 @@ pub fn positional_cells(layout: &PanelLayout, words: &[OcrWord], n: usize) -> Ve
         .filter(|w| {
             let wy = w.rect.y as u32;
             let wx = w.rect.x as u32;
-            wy > name_band_top
-                && wy < name_band_bottom
-                && wx >= panel_left
-                && wx <= panel_right
+            wy > name_band_top && wy < name_band_bottom && wx >= panel_left && wx <= panel_right
         })
         .filter(|w| {
             let up = w.text.to_ascii_uppercase();

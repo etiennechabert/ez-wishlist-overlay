@@ -19,7 +19,7 @@ mod vr;
 
 use anyhow::{Context, Result};
 use parking_lot::RwLock;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::EnvFilter;
@@ -111,19 +111,25 @@ fn main() -> Result<()> {
     // 90 Hz render loop must not block.
     let (ocr_path_tx, ocr_path_rx) = crossbeam_channel::bounded::<std::path::PathBuf>(4);
     let last_ocr: Arc<RwLock<Option<gui::OcrFeedback>>> = Arc::new(RwLock::new(None));
+    // Cross-thread wake-up channel for the OCR worker. The worker writes
+    // to `last_ocr` between paints, so without an explicit
+    // `request_repaint()` the GUI might sleep on its 1 s heartbeat before
+    // noticing. `App::new` populates this once the egui Context exists.
+    let ui_ctx: Arc<OnceLock<egui::Context>> = Arc::new(OnceLock::new());
     let _ocr_handle = spawn_ocr_worker(
         shared_state.clone(),
         settings.clone(),
         save_tx.clone(),
         last_ocr.clone(),
         ocr_path_rx,
+        ui_ctx.clone(),
     );
 
     let vr_runtime = Arc::new(vr::Runtime::spawn(
         shared_state.clone(),
         settings.clone(),
         paths.clone(),
-        ocr_path_tx,
+        ocr_path_tx.clone(),
     ));
 
     let update_rx = if settings.read().check_for_updates {
@@ -147,6 +153,11 @@ fn main() -> Result<()> {
         "EZ Wishlist Overlay",
         native_options,
         Box::new(move |cc| {
+            // Publish the egui Context so the OCR worker can wake the UI
+            // thread the moment it writes a new feedback state. `set`
+            // returns Err if the slot was already populated — impossible
+            // here since `eframe::run_native` only calls this closure once.
+            let _ = ui_ctx.set(cc.egui_ctx.clone());
             Ok(Box::new(gui::App::new(
                 cc,
                 shared_state,
@@ -157,6 +168,7 @@ fn main() -> Result<()> {
                 log_buf,
                 update_rx,
                 last_ocr,
+                ocr_path_tx,
             )))
         }),
     )
@@ -216,7 +228,21 @@ fn spawn_ocr_worker(
     save_tx: crossbeam_channel::Sender<gui::SaveTick>,
     last_ocr: Arc<RwLock<Option<gui::OcrFeedback>>>,
     ocr_path_rx: crossbeam_channel::Receiver<std::path::PathBuf>,
+    ui_ctx: Arc<OnceLock<egui::Context>>,
 ) -> std::thread::JoinHandle<()> {
+    // Publish a new feedback state AND wake the UI thread immediately.
+    // The worker writes between paints; without an explicit
+    // `request_repaint()` the GUI might sleep on its 1 s heartbeat.
+    let publish = move |slot: &Arc<RwLock<Option<gui::OcrFeedback>>>,
+                        wake: &Arc<OnceLock<egui::Context>>,
+                        feedback: gui::OcrFeedback| {
+        feedback.log();
+        *slot.write() = Some(feedback);
+        if let Some(c) = wake.get() {
+            c.request_repaint();
+        }
+    };
+
     std::thread::Builder::new()
         .name("ez-wishlist-ocr".into())
         .spawn(move || {
@@ -228,50 +254,38 @@ fn spawn_ocr_worker(
                     );
                     continue;
                 }
-                // Pull a snapshot of the game data — cheap (Arc<GameData>
-                // clone). Reading it here keeps the OCR thread's `state`
-                // read scoped tightly, so the GUI / VR / save threads
-                // don't see lock contention.
-                let data = state.read().data.clone();
-                let outcome = match ocr::process_screenshot(&path, &data) {
-                    Ok(Some(o)) => o,
-                    Ok(None) => {
-                        tracing::debug!(
-                            path = %path.display(),
-                            "OCR: not an upgrade panel — dropping",
-                        );
-                        continue;
-                    }
-                    Err(e) => {
-                        tracing::warn!(
-                            error = %e,
-                            path = %path.display(),
-                            "OCR pipeline failed",
-                        );
-                        continue;
-                    }
-                };
 
-                // Snapshot pre-update state inside the same write lock that
-                // applies the new counts. Reading `collected` first and the
-                // upgrade index from the same `AppState` reference gives the
-                // GUI overlay a coherent before/after view without re-locking.
-                let (version, feedback) = {
-                    let mut w = state.write();
-                    let feedback = gui::OcrFeedback::from_outcome(&outcome, &w);
-                    for (item_id, owned) in &outcome.items {
-                        w.set_collected(item_id, *owned);
+                // Show the user something within ~1 frame of capture so
+                // they know OCR kicked off, before the 100-500 ms pipeline
+                // pass.
+                publish(&last_ocr, &ui_ctx, gui::OcrFeedback::processing());
+
+                let data = state.read().data.clone();
+                let terminal = match ocr::process_screenshot(&path, &data) {
+                    Ok(Some(outcome)) => {
+                        // Single write lock: snapshot pre-update counts
+                        // (for the overlay's before/after), apply new
+                        // owned counts, then apply OCR-driven progression
+                        // (auto-track + auto-complete priors). The
+                        // version we send with the SaveTick covers all
+                        // three mutations.
+                        let (version, feedback) = {
+                            let mut w = state.write();
+                            let mut feedback = gui::OcrFeedback::done(&outcome, &w);
+                            for (item_id, owned) in &outcome.items {
+                                w.set_collected(item_id, *owned);
+                            }
+                            let progression = w.apply_ocr_progression(&outcome.upgrade_id);
+                            feedback.attach_progression(&w, progression);
+                            (w.version, feedback)
+                        };
+                        let _ = save_tx.try_send(gui::SaveTick { version });
+                        feedback
                     }
-                    (w.version, feedback)
+                    Ok(None) => gui::OcrFeedback::not_a_panel(),
+                    Err(e) => gui::OcrFeedback::failed(format!("{e:#}")),
                 };
-                tracing::info!(
-                    upgrade_id = %outcome.upgrade_id,
-                    upgrade_name = %outcome.upgrade_name,
-                    items = outcome.items.len(),
-                    "OCR: applied owned counts",
-                );
-                let _ = save_tx.try_send(gui::SaveTick { version });
-                *last_ocr.write() = Some(feedback);
+                publish(&last_ocr, &ui_ctx, terminal);
             }
             tracing::info!("OCR worker: channel closed, thread exiting");
         })

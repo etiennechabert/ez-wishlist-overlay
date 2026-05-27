@@ -90,6 +90,10 @@ pub struct App {
     /// Currently-displayed OCR feedback card. `None` once the overlay
     /// fades out (release builds) or the user clicks Close (debug builds).
     last_ocr: Option<OcrFeedback>,
+    /// Clone of the channel that feeds the OCR worker. Used by the
+    /// debug-build "Run OCR on fixture" button so we can exercise the
+    /// pipeline + overlay without a SteamVR session.
+    ocr_path_tx: Sender<std::path::PathBuf>,
 }
 
 impl App {
@@ -106,6 +110,7 @@ impl App {
         log_buf: crate::log_buffer::LogBuffer,
         update_rx: Option<Receiver<CheckStatus>>,
         last_ocr_shared: Arc<RwLock<Option<OcrFeedback>>>,
+        ocr_path_tx: Sender<std::path::PathBuf>,
     ) -> Self {
         // Extend egui's default Proportional fallback chain with Hack.
         // Ubuntu-Light (the proportional primary) doesn't cover most of the
@@ -157,6 +162,7 @@ impl App {
             capture_toast_shown_at: None,
             last_ocr_shared,
             last_ocr: None,
+            ocr_path_tx,
         }
     }
 
@@ -287,6 +293,7 @@ impl eframe::App for App {
                 &self.log_buf,
                 &self.vr,
                 self.last_capture.as_ref(),
+                &self.ocr_path_tx,
             );
         }
         if self.confirm_reset {
@@ -565,12 +572,7 @@ impl App {
         };
 
         let scale = |c: egui::Color32, a: f32| {
-            egui::Color32::from_rgba_unmultiplied(
-                c.r(),
-                c.g(),
-                c.b(),
-                (c.a() as f32 * a) as u8,
-            )
+            egui::Color32::from_rgba_unmultiplied(c.r(), c.g(), c.b(), (c.a() as f32 * a) as u8)
         };
 
         egui::Area::new(egui::Id::new("vr_capture_toast"))
@@ -580,10 +582,7 @@ impl App {
             .show(ctx, |ui| {
                 egui::Frame::default()
                     .fill(scale(egui::Color32::from_rgb(28, 28, 32), alpha))
-                    .stroke(egui::Stroke::new(
-                        1.5,
-                        scale(accent, alpha),
-                    ))
+                    .stroke(egui::Stroke::new(1.5, scale(accent, alpha)))
                     .rounding(egui::Rounding::same(10.0))
                     .inner_margin(egui::Margin::symmetric(24.0, 16.0))
                     .show(ui, |ui| {

@@ -41,7 +41,11 @@ use windows::Win32::UI::WindowsAndMessaging::{MB_ICONASTERISK, MB_ICONHAND};
 /// `success=true` plays the system "ding" (information), `false` plays the
 /// "error" sound. Both are async — they don't block the render loop.
 pub fn play_capture_done_beep(success: bool) {
-    let style = if success { MB_ICONASTERISK } else { MB_ICONHAND };
+    let style = if success {
+        MB_ICONASTERISK
+    } else {
+        MB_ICONHAND
+    };
     // SAFETY: MessageBeep has no preconditions; it queues a sound on the
     // shell audio thread and returns immediately.
     unsafe {
@@ -77,8 +81,14 @@ pub fn capture_compositor_mirror_to_png(out_path: &Path) -> Result<()> {
         let mid = (pixels.len() / 8) * 4; // roughly the centre row's start
         tracing::info!(
             "capture sample pixels — first RGBA=[{},{},{},{}], centre RGBA=[{},{},{},{}]",
-            pixels[0], pixels[1], pixels[2], pixels[3],
-            pixels[mid], pixels[mid + 1], pixels[mid + 2], pixels[mid + 3],
+            pixels[0],
+            pixels[1],
+            pixels[2],
+            pixels[3],
+            pixels[mid],
+            pixels[mid + 1],
+            pixels[mid + 2],
+            pixels[mid + 3],
         );
     }
 
@@ -168,7 +178,9 @@ impl MirrorTexture {
         let device_raw = device.as_raw();
         let err = unsafe { get_mirror(eye, device_raw, &mut srv_raw) };
         if err != sys::EVRCompositorError_VRCompositorError_None {
-            return Err(anyhow!("GetMirrorTextureD3D11 returned EVRCompositorError {err}"));
+            return Err(anyhow!(
+                "GetMirrorTextureD3D11 returned EVRCompositorError {err}"
+            ));
         }
         if srv_raw.is_null() {
             return Err(anyhow!("GetMirrorTextureD3D11 succeeded but SRV is null"));
@@ -219,7 +231,9 @@ fn lookup_compositor_fn_table() -> Result<*const sys::VR_IVRCompositor_FnTable> 
         ));
     }
     if ptr == 0 {
-        return Err(anyhow!("VR_GetGenericInterface(IVRCompositor) returned null"));
+        return Err(anyhow!(
+            "VR_GetGenericInterface(IVRCompositor) returned null"
+        ));
     }
     Ok(ptr as *const sys::VR_IVRCompositor_FnTable)
 }
@@ -286,7 +300,10 @@ fn readback_texture(
             chunk.swap(0, 2);
         }
     } else if fmt != DXGI_FORMAT_R8G8B8A8_UNORM && fmt != DXGI_FORMAT_R8G8B8A8_UNORM_SRGB {
-        tracing::warn!(format = fmt.0, "unrecognized mirror texture format — saving raw bytes");
+        tracing::warn!(
+            format = fmt.0,
+            "unrecognized mirror texture format — saving raw bytes"
+        );
     }
 
     Ok(pixels)

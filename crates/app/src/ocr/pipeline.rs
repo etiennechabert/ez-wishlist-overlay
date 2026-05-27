@@ -193,8 +193,8 @@ mod fixture_tests {
         let data = load_data();
         let in_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../../hideout_screenshots_native");
-        let out_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("src/assets/ocr_templates");
+        let out_dir =
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/assets/ocr_templates");
         std::fs::create_dir_all(&out_dir).expect("create output dir");
 
         let mut entries: Vec<_> = std::fs::read_dir(&in_dir)
@@ -205,8 +205,7 @@ mod fixture_tests {
         entries.sort_by_key(|e| e.file_name());
         assert!(!entries.is_empty(), "no PNGs in {}", in_dir.display());
 
-        let mut saved: std::collections::BTreeMap<char, String> =
-            std::collections::BTreeMap::new();
+        let mut saved: std::collections::BTreeMap<char, String> = std::collections::BTreeMap::new();
 
         for entry in &entries {
             let path = entry.path();
@@ -293,12 +292,7 @@ mod fixture_tests {
                 let mut comps = templates::find_components(&gray);
                 let padded_h = gray.height();
                 // Drop tiny noise + edge-touching artifacts.
-                comps.retain(|c| {
-                    c.w >= 4
-                        && c.h >= 8
-                        && c.y > 0
-                        && c.y + c.h < padded_h
-                });
+                comps.retain(|c| c.w >= 4 && c.h >= 8 && c.y > 0 && c.y + c.h < padded_h);
                 // The strip is wide (3 text-rows tall) so it can
                 // contain TWO horizontal rows of components: the
                 // digit row at top, and the FROM RAID label at
@@ -340,7 +334,9 @@ mod fixture_tests {
                 // Last y_n components = Y digits (known labels).
                 let y_start = comps.len() - y_n;
                 for (digit_char, comp) in y_str.chars().zip(&comps[y_start..]) {
-                    save_template_if_missing(comp, digit_char, &out_dir, &mut saved, &stem, cell_idx);
+                    save_template_if_missing(
+                        comp, digit_char, &out_dir, &mut saved, &stem, cell_idx,
+                    );
                 }
                 // The one immediately left of the Y digits = slash.
                 let slash_comp = &comps[y_start - 1];
@@ -384,7 +380,10 @@ mod fixture_tests {
         match img.save(&path) {
             Ok(()) => {
                 saved.insert(label, format!("{source_stem} cell{cell_idx}"));
-                eprintln!("  saved {filename} ({}×{}) from {source_stem} cell{cell_idx}", comp.w, comp.h);
+                eprintln!(
+                    "  saved {filename} ({}×{}) from {source_stem} cell{cell_idx}",
+                    comp.w, comp.h
+                );
             }
             Err(e) => eprintln!("  FAILED to save {filename}: {e}"),
         }
@@ -410,7 +409,10 @@ mod fixture_tests {
         entries.sort_by_key(|e| e.file_name());
         assert!(!entries.is_empty(), "no native PNGs to test against");
 
-        eprintln!("templates loaded: {}", crate::ocr::templates::EMBEDDED.len());
+        eprintln!(
+            "templates loaded: {}",
+            crate::ocr::templates::EMBEDDED.len()
+        );
         eprintln!();
 
         for entry in &entries {
@@ -467,7 +469,10 @@ mod fixture_tests {
         let full = engine::recognize_image(&img).expect("first OCR");
         let layout = anchor::detect_panel(&full, img_w, img_h)
             .expect("anchor 'Need to submit items' should be present");
-        eprintln!("panel:    header={:?}  row_label={:?}", layout.header, layout.row_label);
+        eprintln!(
+            "panel:    header={:?}  row_label={:?}",
+            layout.header, layout.row_label
+        );
         eprintln!("cells:    {} from FROM RAID anchors", layout.cells.len());
 
         let row_crop = img.crop_imm(
@@ -493,7 +498,10 @@ mod fixture_tests {
         let header_words = engine::recognize_image(&header_crop).expect("header OCR");
         eprintln!(
             "header:   {:?}",
-            header_words.iter().map(|w| w.text.as_str()).collect::<Vec<_>>(),
+            header_words
+                .iter()
+                .map(|w| w.text.as_str())
+                .collect::<Vec<_>>(),
         );
         let current_level = header_words
             .iter()
@@ -563,9 +571,7 @@ mod fixture_tests {
         let entries: Vec<_> = std::fs::read_dir(&dir)
             .unwrap_or_else(|e| panic!("read_dir {}: {e}", dir.display()))
             .filter_map(|e| e.ok())
-            .filter(|e| {
-                e.path().extension().and_then(|s| s.to_str()) == Some("jpg")
-            })
+            .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jpg"))
             .collect();
         assert!(
             !entries.is_empty(),
@@ -590,12 +596,7 @@ mod fixture_tests {
                         .flat_map(|m| &m.upgrades)
                         .find(|u| u.id == stem);
                     let req_ids: Vec<String> = upgrade
-                        .map(|u| {
-                            u.requirements
-                                .iter()
-                                .map(|r| r.item_id.clone())
-                                .collect()
-                        })
+                        .map(|u| u.requirements.iter().map(|r| r.item_id.clone()).collect())
                         .unwrap_or_default();
                     let outcome_ids: Vec<String> =
                         outcome.items.iter().map(|(id, _)| id.clone()).collect();
