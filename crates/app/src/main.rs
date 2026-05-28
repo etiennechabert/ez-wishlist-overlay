@@ -103,13 +103,14 @@ fn main() -> Result<()> {
     let settings = Arc::new(RwLock::new(settings::load(&paths.settings_file)));
     tracing::info!(settings = ?&*settings.read(), "settings loaded");
 
-    // OCR worker thread. The VR render thread pushes captured PNG paths
-    // into `ocr_path_tx` after each successful screenshot; this worker
-    // drains them, runs the OCR pipeline, and applies the results to
-    // `AppState.collected` via `set_collected` + a `SaveTick`. Kept off
-    // the VR thread because a full OCR pass can take 100-500 ms and the
-    // 90 Hz render loop must not block.
-    let (ocr_path_tx, ocr_path_rx) = crossbeam_channel::bounded::<std::path::PathBuf>(4);
+    // OCR worker thread. The VR render thread pushes captured bitmaps
+    // (and, in debug mode, the on-disk PNG path) into `ocr_job_tx`
+    // after each successful screenshot; this worker drains them, runs
+    // the OCR pipeline, and applies the results to
+    // `AppState.collected` via `set_collected` + a `SaveTick`. Kept
+    // off the VR thread because a full OCR pass can take 100-500 ms
+    // and the 90 Hz render loop must not block.
+    let (ocr_job_tx, ocr_job_rx) = crossbeam_channel::bounded::<ocr::OcrJob>(4);
     // The OCR feedback now lives entirely in VR (see vr::ocr_render +
     // OverlaySession's head-locked second overlay). The worker writes
     // OcrFeedback messages here; the VR render loop drains them and
@@ -120,14 +121,14 @@ fn main() -> Result<()> {
         settings.clone(),
         save_tx.clone(),
         ocr_feedback_tx,
-        ocr_path_rx,
+        ocr_job_rx,
     );
 
     let vr_runtime = Arc::new(vr::Runtime::spawn(
         shared_state.clone(),
         settings.clone(),
         paths.clone(),
-        ocr_path_tx.clone(),
+        ocr_job_tx.clone(),
         ocr_feedback_rx,
     ));
 
@@ -161,7 +162,7 @@ fn main() -> Result<()> {
                 settings,
                 log_buf,
                 update_rx,
-                ocr_path_tx,
+                ocr_job_tx,
             )))
         }),
     )
@@ -220,7 +221,7 @@ fn spawn_ocr_worker(
     settings: Arc<RwLock<settings::Settings>>,
     save_tx: crossbeam_channel::Sender<gui::SaveTick>,
     ocr_feedback_tx: crossbeam_channel::Sender<gui::OcrFeedback>,
-    ocr_path_rx: crossbeam_channel::Receiver<std::path::PathBuf>,
+    ocr_job_rx: crossbeam_channel::Receiver<ocr::OcrJob>,
 ) -> std::thread::JoinHandle<()> {
     // Log + forward a feedback record to the VR overlay. The render loop
     // owns the lifecycle (fade timers, show/hide); the worker just
@@ -234,40 +235,55 @@ fn spawn_ocr_worker(
     std::thread::Builder::new()
         .name("ez-wishlist-ocr".into())
         .spawn(move || {
-            while let Ok(first) = ocr_path_rx.recv() {
-                // Drain any newer paths that arrived while we were
-                // idle, keeping only the most recent. A full OCR pass
-                // takes a few seconds and a user mashing capture
-                // would otherwise get the older shot's result
-                // surfaced first — "OCR is reading the previous
-                // screenshot, not the one I just took."
-                let mut path = first;
+            while let Ok(first) = ocr_job_rx.recv() {
+                // Drain any newer jobs that arrived while we were
+                // idle, keeping only the most recent. A full OCR
+                // pass takes a few seconds and a user mashing
+                // capture would otherwise get the older shot's
+                // result surfaced first — "OCR is reading the
+                // previous screenshot, not the one I just took."
+                let mut job = first;
                 let mut skipped = 0usize;
-                while let Ok(newer) = ocr_path_rx.try_recv() {
-                    // Delete the skipped (stale) PNGs immediately —
-                    // they served their purpose of triggering the
-                    // worker but we're not going to OCR them.
-                    let _ = std::fs::remove_file(&path);
-                    path = newer;
+                while let Ok(newer) = ocr_job_rx.try_recv() {
+                    // Delete the skipped (stale) PNGs when they
+                    // exist (debug-mode captures only — fast-path
+                    // jobs have no on-disk file). The bitmaps in
+                    // the dropped jobs go away with `job` itself.
+                    if let Some(stale_path) = &job.source_path {
+                        let _ = std::fs::remove_file(stale_path);
+                    }
+                    job = newer;
                     skipped += 1;
                 }
                 if skipped > 0 {
+                    let latest = job
+                        .source_path
+                        .as_ref()
+                        .map(|p| p.display().to_string())
+                        .unwrap_or_else(|| "<in-memory>".to_string());
                     tracing::info!(
                         skipped,
-                        latest = %path.display(),
+                        latest = %latest,
                         "OCR worker: drained stale queued captures, processing latest only",
                     );
                 }
 
+                let path_display = || {
+                    job.source_path
+                        .as_ref()
+                        .map(|p| p.display().to_string())
+                        .unwrap_or_else(|| "<in-memory>".to_string())
+                };
+
                 // Resolve the user's debug preference once per
-                // capture. When `ocr_debug` is on the pipeline keeps
-                // the screenshot PNG, writes per-cell strip PNGs,
-                // and drops an `.ocr-debug.txt` sidecar next to the
-                // capture so users can attach the bundle to a GitHub
-                // issue. When it's off every artifact is ephemeral
-                // and the screenshot itself is deleted after OCR
-                // finishes — production users don't accumulate ~10 MB
-                // PNGs in their data dir on every capture.
+                // capture. When `ocr_debug` is on the pipeline
+                // keeps the screenshot PNG (already on disk —
+                // written by the VR thread before sending),
+                // writes per-cell strip PNGs, and drops an
+                // `.ocr-debug.txt` sidecar next to the capture so
+                // users can attach the bundle to a GitHub issue.
+                // When it's off no PNG was ever written and the
+                // pipeline's debug dumps automatically no-op.
                 let s = settings.read();
                 let ocr_enabled = s.ocr_enabled;
                 let ocr_debug = s.ocr_debug;
@@ -276,106 +292,116 @@ fn spawn_ocr_worker(
                 drop(s);
 
                 if ocr_capture_trace {
-                    // Re-hash the PNG that landed on disk. Compare to
-                    // the `png_fnv` the capture path logged: a mismatch
-                    // means something rewrote or truncated the file
-                    // between write and read.
-                    let png_meta = std::fs::metadata(&path).ok();
-                    let png_bytes = std::fs::read(&path).ok();
-                    let png_fnv = png_bytes.as_ref().map(|b| {
-                        let mut h: u64 = 0xcbf29ce484222325;
-                        for byte in b {
-                            h ^= *byte as u64;
-                            h = h.wrapping_mul(0x100000001b3);
-                        }
-                        h
-                    });
-                    tracing::info!(
-                        processing = %path.display(),
-                        png_size = ?png_meta.as_ref().map(|m| m.len()),
-                        png_modified = ?png_meta.as_ref().and_then(|m| m.modified().ok()),
-                        png_fnv = ?png_fnv.map(|v| format!("{v:#018x}")),
-                        "OCR worker: about to process PNG (compare png_fnv against capture log)"
-                    );
+                    // Re-hash the PNG that landed on disk when we
+                    // have one — compare against `png_fnv` the
+                    // capture path logged. In the fast path
+                    // there's no file to hash; the
+                    // `decoded_fnv` in the pipeline already
+                    // covers the in-memory check against
+                    // `rgb_fnv`.
+                    if let Some(path) = &job.source_path {
+                        let png_meta = std::fs::metadata(path).ok();
+                        let png_bytes = std::fs::read(path).ok();
+                        let png_fnv = png_bytes.as_ref().map(|b| {
+                            let mut h: u64 = 0xcbf29ce484222325;
+                            for byte in b {
+                                h ^= *byte as u64;
+                                h = h.wrapping_mul(0x100000001b3);
+                            }
+                            h
+                        });
+                        tracing::info!(
+                            processing = %path.display(),
+                            png_size = ?png_meta.as_ref().map(|m| m.len()),
+                            png_modified = ?png_meta.as_ref().and_then(|m| m.modified().ok()),
+                            png_fnv = ?png_fnv.map(|v| format!("{v:#018x}")),
+                            "OCR worker: about to process PNG (compare png_fnv against capture log)"
+                        );
+                    } else {
+                        tracing::info!(
+                            "OCR worker: about to process in-memory bitmap (fast path, no PNG)"
+                        );
+                    }
                 }
 
                 if !ocr_enabled {
                     tracing::info!(
-                        path = %path.display(),
+                        path = %path_display(),
                         "OCR disabled in Settings → 'Auto-extract counts from VR \
                          screenshots' — skipping. Toggle it on to see the \
                          in-headset feedback overlay.",
                     );
-                    if !ocr_debug {
-                        let _ = std::fs::remove_file(&path);
-                    }
+                    // In the fast path there's nothing on disk to
+                    // clean up; in debug mode the user asked for
+                    // the file to stick around. Either way: leave
+                    // it alone.
                     continue;
                 }
 
                 publish(&ocr_feedback_tx, gui::OcrFeedback::processing());
 
                 let data = state.read().data.clone();
-                let terminal =
-                    match ocr::process_screenshot(&path, &data, ocr_debug, ocr_capture_trace) {
-                        Ok(ocr::OcrPipelineResult::Identified(outcome)) => {
-                            let (version, feedback) = {
-                                let mut w = state.write();
-                                let mut feedback = gui::OcrFeedback::done(&outcome, &w);
-                                // Only apply cells the pipeline could
-                                // actually read. `None` means we saw the
-                                // cell but couldn't parse an X/Y count —
-                                // leave the user's existing collected
-                                // value alone instead of resetting to 0.
-                                for (item_id, owned) in &outcome.items {
-                                    if let Some(value) = owned {
-                                        w.set_collected(item_id, *value);
-                                    }
+                let ocr::OcrJob {
+                    image,
+                    source_path,
+                } = job;
+                let terminal = match ocr::process_image(
+                    image,
+                    source_path.as_deref(),
+                    &data,
+                    ocr_debug,
+                    ocr_capture_trace,
+                ) {
+                    Ok(ocr::OcrPipelineResult::Identified(outcome)) => {
+                        let (version, feedback) = {
+                            let mut w = state.write();
+                            let mut feedback = gui::OcrFeedback::done(&outcome, &w);
+                            // Only apply cells the pipeline could
+                            // actually read. `None` means we saw the
+                            // cell but couldn't parse an X/Y count —
+                            // leave the user's existing collected
+                            // value alone instead of resetting to 0.
+                            for (item_id, owned) in &outcome.items {
+                                if let Some(value) = owned {
+                                    w.set_collected(item_id, *value);
                                 }
-                                // Prior-level completion is a state inference
-                                // ("game showed Lv N, therefore Lv (N-1) is
-                                // done") — always apply it. Auto-tracking the
-                                // matched upgrade itself is a workflow choice
-                                // ("I'm working on this for the next raid"),
-                                // gated on the user's `ocr_auto_track` toggle.
-                                // `apply_ocr_progression` handles both: prior
-                                // completion runs unconditionally, the
-                                // OCR'd upgrade only enters `tracked_upgrades`
-                                // when the flag is on.
-                                let progression =
-                                    w.apply_ocr_progression(&outcome.upgrade_id, ocr_auto_track);
-                                feedback.attach_progression(&w, progression);
-                                (w.version, feedback)
-                            };
-                            let _ = save_tx.try_send(gui::SaveTick { version });
-                            feedback
-                        }
-                        Ok(ocr::OcrPipelineResult::NoPanel) => gui::OcrFeedback::not_a_panel(),
-                        Ok(ocr::OcrPipelineResult::UnknownUpgrade {
-                            module_hint,
-                            current_level,
-                        }) => gui::OcrFeedback::unknown_upgrade(
-                            module_hint,
-                            current_level,
-                            path.clone(),
-                        ),
-                        Err(e) => gui::OcrFeedback::failed(format!("{e:#}")),
-                    };
+                            }
+                            // Prior-level completion is a state inference
+                            // ("game showed Lv N, therefore Lv (N-1) is
+                            // done") — always apply it. Auto-tracking the
+                            // matched upgrade itself is a workflow choice
+                            // ("I'm working on this for the next raid"),
+                            // gated on the user's `ocr_auto_track` toggle.
+                            // `apply_ocr_progression` handles both: prior
+                            // completion runs unconditionally, the
+                            // OCR'd upgrade only enters `tracked_upgrades`
+                            // when the flag is on.
+                            let progression =
+                                w.apply_ocr_progression(&outcome.upgrade_id, ocr_auto_track);
+                            feedback.attach_progression(&w, progression);
+                            (w.version, feedback)
+                        };
+                        let _ = save_tx.try_send(gui::SaveTick { version });
+                        feedback
+                    }
+                    Ok(ocr::OcrPipelineResult::NoPanel) => gui::OcrFeedback::not_a_panel(),
+                    Ok(ocr::OcrPipelineResult::UnknownUpgrade {
+                        module_hint,
+                        current_level,
+                    }) => gui::OcrFeedback::unknown_upgrade(
+                        module_hint,
+                        current_level,
+                        source_path.clone(),
+                    ),
+                    Err(e) => gui::OcrFeedback::failed(format!("{e:#}")),
+                };
                 publish(&ocr_feedback_tx, terminal);
 
-                // Ephemeral by default. The pipeline already wrote
-                // any debug artifacts it needed; the source PNG is
-                // only kept when `ocr_debug` is on, since it's huge
-                // (~10 MB) and we don't want a long-running user's
-                // data dir to balloon.
-                if !ocr_debug {
-                    if let Err(e) = std::fs::remove_file(&path) {
-                        tracing::debug!(
-                            error = %e,
-                            path = %path.display(),
-                            "OCR worker: couldn't delete ephemeral screenshot (will linger)",
-                        );
-                    }
-                }
+                // No source PNG to delete in the fast path
+                // (nothing was ever written). In debug mode the
+                // user explicitly wants the bundle to survive
+                // alongside the per-cell strips + sidecar txt the
+                // pipeline just dropped.
             }
             tracing::info!("OCR worker: channel closed, thread exiting");
         })

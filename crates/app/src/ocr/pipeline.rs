@@ -18,9 +18,35 @@ use crate::ocr::OcrPipelineResult;
 use anyhow::Result;
 use std::path::Path;
 
+/// Thin shim that loads `path` from disk and delegates to
+/// [`process_image`]. Kept so tests and any future on-disk-only
+/// callers (manual GitHub-issue debugging, fixture sweeps) don't have
+/// to inline the `image::open` step.
 #[cfg(target_os = "windows")]
+#[allow(dead_code)] // used by `fixture_tests` below; never by the runtime.
 pub fn process_screenshot(
     path: &Path,
+    data: &GameData,
+    debug_dumps: bool,
+    trace: bool,
+) -> Result<OcrPipelineResult> {
+    use anyhow::Context;
+
+    let img = image::open(path).with_context(|| format!("opening {}", path.display()))?;
+    process_image(img, Some(path), data, debug_dumps, trace)
+}
+
+/// Run the OCR pipeline on an already-decoded bitmap. `source_path`
+/// is `Some(path)` when the caller also wrote the bitmap to disk
+/// (debug-mode VR captures, test fixtures, GitHub-issue
+/// repro flows) — the per-cell strip PNGs and `.ocr-debug.txt`
+/// sidecar are written next to it. `None` in the runtime's fast
+/// path: no disk artifacts, and the debug dumps automatically
+/// no-op because they need a path to write next to.
+#[cfg(target_os = "windows")]
+pub fn process_image(
+    img: image::DynamicImage,
+    source_path: Option<&Path>,
     data: &GameData,
     debug_dumps: bool,
     trace: bool,
@@ -29,16 +55,28 @@ pub fn process_screenshot(
     use anyhow::Context;
     use image::GenericImageView;
 
-    let img = image::open(path).with_context(|| format!("opening {}", path.display()))?;
     let (img_w, img_h) = img.dimensions();
     if img_w == 0 || img_h == 0 {
         anyhow::bail!("zero-sized image");
     }
 
+    // `path` is purely informational for tracing / debug-dump paths;
+    // when the fast path skipped writing a PNG the source-path
+    // tracing field is rendered as "<in-memory>".
+    let path_display = || {
+        source_path
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|| "<in-memory>".to_string())
+    };
+
     if trace {
-        // Hash the decoded image. Compare to the capture's `rgb_fnv`
-        // — mismatch means the decoder re-decoded into something
-        // different than what we wrote.
+        // Hash the in-memory image. When `source_path` is `Some` the
+        // capture path also logged `rgb_fnv` for the bytes it wrote
+        // — a mismatch points at corruption between capture and
+        // OCR. When `source_path` is `None` the fast path skipped
+        // the PNG round-trip entirely, so `decoded_fnv` should
+        // always equal the capture's `rgb_fnv` exactly (same
+        // buffer, no encode/decode in between).
         let rgb = img.to_rgb8();
         let mut h: u64 = 0xcbf29ce484222325;
         for b in rgb.as_raw() {
@@ -47,7 +85,7 @@ pub fn process_screenshot(
         }
         let raw = rgb.as_raw();
         tracing::info!(
-            path = %path.display(),
+            path = %path_display(),
             w = img_w,
             h = img_h,
             decoded_fnv = format!("{h:#018x}"),
@@ -72,7 +110,7 @@ pub fn process_screenshot(
             .map(|w| format!("{:?}@{:.0},{:.0}", w.text, w.rect.x, w.rect.y))
             .collect();
         tracing::info!(
-            path = %path.display(),
+            path = %path_display(),
             word_count = full_words.len(),
             engine_ms = t_engine_start.elapsed().as_millis() as u64,
             first_words = ?first_words,
@@ -83,7 +121,7 @@ pub fn process_screenshot(
         Some(l) => l,
         None => {
             tracing::info!(
-                path = %path.display(),
+                path = %path_display(),
                 words = full_words.len(),
                 "OCR pipeline: no \"Need to submit items\" anchor in OCR text — \
                  not an upgrade panel",
@@ -154,7 +192,7 @@ pub fn process_screenshot(
                 }
             };
             tracing::warn!(
-                path = %path.display(),
+                path = %path_display(),
                 module_hint = ?module_hint,
                 current_level,
                 "OCR pipeline: anchor found but no module.name + level match in data.json — \
@@ -229,8 +267,14 @@ pub fn process_screenshot(
     // is important: the per-cell loop below writes the strips for the
     // current capture, so if we deferred the purge until after the
     // dump it would delete the files we just wrote.
-    if debug_dumps {
-        crate::ocr::debug_dump::purge_prior_dumps(path);
+    //
+    // Debug dumps are only meaningful when there's an on-disk source
+    // PNG to land next to — in the fast path (`source_path = None`)
+    // the bitmap is in-memory only, so the dumps short-circuit even
+    // when `debug_dumps` is on.
+    let debug_dump_path: Option<&Path> = if debug_dumps { source_path } else { None };
+    if let Some(p) = debug_dump_path {
+        crate::ocr::debug_dump::purge_prior_dumps(p);
     }
 
     let mut items: Vec<(String, Option<u32>)> = Vec::with_capacity(upgrade.requirements.len());
@@ -239,14 +283,15 @@ pub fn process_screenshot(
         let strip = prepped.crop_imm(cell.x, cell.y, cell.w, cell.h);
         let gray = strip.to_luma8();
 
-        // When `debug_dumps` is on, drop the binarised cell strip next
-        // to the source screenshot as `<stem>.cell<i>.<HHMMSS>.png`.
-        // The strip is small (~150×60 px) and shows the user exactly
-        // what the template matcher actually saw, so attaching the
-        // four cell PNGs to a GitHub issue is enough for a maintainer
-        // to reproduce a wrong reading.
-        if debug_dumps {
-            if let Some(strip_path) = crate::ocr::debug_dump::cell_strip_path_for(path, i) {
+        // When `debug_dumps` is on (and we have a source path to land
+        // next to), drop the binarised cell strip next to the source
+        // screenshot as `<stem>.cell<i>.<HHMMSS>.png`. The strip is
+        // small (~150×60 px) and shows the user exactly what the
+        // template matcher actually saw, so attaching the four cell
+        // PNGs to a GitHub issue is enough for a maintainer to
+        // reproduce a wrong reading.
+        if let Some(p) = debug_dump_path {
+            if let Some(strip_path) = crate::ocr::debug_dump::cell_strip_path_for(p, i) {
                 match gray.save(&strip_path) {
                     Ok(()) => tracing::info!(
                         cell = i,
@@ -283,7 +328,7 @@ pub fn process_screenshot(
                 "OCR: failed to parse owned count for cell — leaving existing collected value untouched",
             );
         }
-        if debug_dumps {
+        if debug_dump_path.is_some() {
             let item_name = data
                 .items
                 .iter()
@@ -304,15 +349,16 @@ pub fn process_screenshot(
         }
     }
 
-    // When `debug_dumps` is on, dump everything the pipeline saw to a
-    // sibling text file next to the screenshot. The user attaches the
-    // bundle (`<stem>.png` + `<stem>.cell*.png` + `<stem>.ocr-debug.*.txt`)
-    // to a GitHub issue when a capture's reading is wrong.
-    if debug_dumps {
+    // When `debug_dumps` is on AND there's a source path, dump
+    // everything the pipeline saw to a sibling text file next to the
+    // screenshot. The user attaches the bundle (`<stem>.png` +
+    // `<stem>.cell*.png` + `<stem>.ocr-debug.*.txt`) to a GitHub
+    // issue when a capture's reading is wrong.
+    if let Some(p) = debug_dump_path {
         use crate::ocr::debug_dump::{self, OcrDebugDump, Resolution};
-        let labels = debug_dump::load_labels(path);
+        let labels = debug_dump::load_labels(p);
         let dump = OcrDebugDump {
-            source_path: path,
+            source_path: p,
             img_w,
             img_h,
             anchor: layout.anchor,
@@ -327,7 +373,7 @@ pub fn process_screenshot(
             cells: debug_cells,
             labels,
         };
-        let out = debug_dump::debug_path_for(path);
+        let out = debug_dump::debug_path_for(p);
         match debug_dump::write_text(&dump, &out) {
             Ok(()) => tracing::info!(path = %out.display(), "OCR debug dump written"),
             Err(e) => {
@@ -602,6 +648,17 @@ pub fn process_screenshot(
     _trace: bool,
 ) -> Result<OcrPipelineResult> {
     // Windows.Media.Ocr is not available on non-Windows targets.
+    Ok(OcrPipelineResult::NoPanel)
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn process_image(
+    _img: image::DynamicImage,
+    _source_path: Option<&Path>,
+    _data: &GameData,
+    _debug_dumps: bool,
+    _trace: bool,
+) -> Result<OcrPipelineResult> {
     Ok(OcrPipelineResult::NoPanel)
 }
 
@@ -1469,7 +1526,7 @@ mod fixture_tests {
         for entry in &entries {
             let path = entry.path();
             let stem = path.file_stem().unwrap().to_string_lossy().into_owned();
-            match ocr::process_screenshot(&path, &data, true, false) {
+            match super::process_screenshot(&path, &data, true, false) {
                 Ok(ocr::OcrPipelineResult::Identified(outcome)) => {
                     let upgrade = data
                         .modules
@@ -1578,7 +1635,7 @@ mod fixture_tests {
                 .and_then(|s| s.to_str())
                 .unwrap_or("")
                 .to_string();
-            match ocr::process_screenshot(&path, &data, true, false) {
+            match super::process_screenshot(&path, &data, true, false) {
                 Ok(ocr::OcrPipelineResult::Identified(outcome)) => {
                     let upgrade = data
                         .modules
@@ -1662,7 +1719,7 @@ mod fixture_tests {
                 Some(l) => l,
                 None => continue,
             };
-            let outcome = match ocr::process_screenshot(&path, &data, false, false) {
+            let outcome = match super::process_screenshot(&path, &data, false, false) {
                 Ok(ocr::OcrPipelineResult::Identified(o)) => o,
                 _ => continue,
             };

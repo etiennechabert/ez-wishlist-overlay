@@ -64,8 +64,11 @@ pub enum OcrFeedbackKind {
         /// the user would buy) is `current_level + 1`.
         current_level: u32,
         /// Path to the captured screenshot so the message can guide
-        /// the user to "attach this file to a GitHub issue."
-        screenshot_path: std::path::PathBuf,
+        /// the user to "attach this file to a GitHub issue." Only
+        /// populated when `settings.ocr_debug` is on; in the fast
+        /// path no PNG is written and the user would need to
+        /// re-capture with the toggle enabled to file a report.
+        screenshot_path: Option<std::path::PathBuf>,
     },
     /// Pipeline errored out. The message is shown verbatim — kept brief.
     Failed(String),
@@ -100,7 +103,7 @@ impl OcrFeedback {
     pub fn unknown_upgrade(
         module_hint: Option<String>,
         current_level: u32,
-        screenshot_path: std::path::PathBuf,
+        screenshot_path: Option<std::path::PathBuf>,
     ) -> Self {
         Self {
             kind: OcrFeedbackKind::UnknownUpgrade {
@@ -252,10 +255,14 @@ impl OcrFeedback {
                 current_level,
                 screenshot_path,
             } => {
+                let screenshot = screenshot_path
+                    .as_ref()
+                    .map(|p| p.display().to_string())
+                    .unwrap_or_else(|| "<none — enable ocr_debug to retain PNGs>".to_string());
                 tracing::warn!(
                     module_hint = ?module_hint,
                     current_level,
-                    screenshot = %screenshot_path.display(),
+                    screenshot = %screenshot,
                     "OCR overlay: unknown-upgrade — panel detected but no matching \
                      upgrade in data.json. Add the recipe via Desktop → Manual \
                      Recipe Entry and file a GitHub issue with the screenshot."

@@ -37,7 +37,33 @@ pub mod prep;
 #[cfg(target_os = "windows")]
 pub mod templates;
 
-pub use pipeline::process_screenshot;
+pub use pipeline::process_image;
+
+/// One unit of OCR work the VR thread hands to the worker.
+///
+/// Carries the captured bitmap by value so the worker doesn't have to
+/// re-decode a PNG that was just written by the same process — at 3K
+/// the round-trip costs ~5 s (encode + decode), most of OCR's wall
+/// time. The bitmap is the only thing the pipeline actually needs;
+/// the optional `source_path` is the on-disk PNG location when
+/// `settings.ocr_debug` is on, used by the per-cell strip dumps and
+/// the `.ocr-debug.txt` sidecar so they can land next to the
+/// screenshot bundle the user attaches to a GitHub issue.
+#[derive(Clone, Debug)]
+pub struct OcrJob {
+    /// Captured mirror-texture pixels, already in the shape the
+    /// pipeline expects (RGB8). Moving this through the channel
+    /// skips a PNG encode (~3.7 s) and a decode (~1 s) when
+    /// `ocr_debug` is off.
+    pub image: image::DynamicImage,
+    /// Where the source PNG was saved on disk. `Some(path)` when
+    /// `ocr_debug` is on (the user wants the screenshot retained
+    /// for GitHub bug reports); `None` in the fast path — there is
+    /// no on-disk file at all, and the per-cell debug strips +
+    /// sidecar are skipped automatically because they need a path
+    /// to write next to.
+    pub source_path: Option<std::path::PathBuf>,
+}
 
 /// Pixel-space bounding box from the OCR engine. Float coordinates because
 /// Windows.Media.Ocr can report sub-pixel boxes; `anchor` rounds to integer

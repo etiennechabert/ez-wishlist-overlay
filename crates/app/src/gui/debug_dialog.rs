@@ -4,11 +4,11 @@
 //! collect clean OCR samples without Steam's F12 JPEG compression.
 
 use crate::log_buffer::{LogBuffer, LogLine};
+use crate::ocr::OcrJob;
 use crate::vr::runtime::CaptureResult;
 use crate::vr::Runtime;
 use crossbeam_channel::Sender;
 use egui::Color32;
-use std::path::PathBuf;
 use std::sync::Arc;
 use tracing::Level;
 
@@ -18,7 +18,7 @@ pub fn show(
     log_buf: &LogBuffer,
     vr: &Arc<Runtime>,
     last_capture: Option<&CaptureResult>,
-    ocr_path_tx: &Sender<PathBuf>,
+    ocr_job_tx: &Sender<OcrJob>,
 ) {
     let mut close_now = false;
     egui::Window::new("Debug logs")
@@ -49,15 +49,25 @@ pub fn show(
             // shipped users have no use for fixtures, and the directory
             // isn't present in installer builds.
             #[cfg(debug_assertions)]
-            render_ocr_fixture_runner(ui, ocr_path_tx, weak);
+            render_ocr_fixture_runner(ui, ocr_job_tx, weak);
             #[cfg(not(debug_assertions))]
-            let _ = ocr_path_tx;
+            let _ = ocr_job_tx;
             match last_capture {
                 Some(CaptureResult::Ok(path)) => {
                     ui.label(
                         egui::RichText::new(format!("Saved: {}", path.display()))
                             .small()
                             .color(Color32::from_rgb(80, 180, 100)),
+                    );
+                }
+                Some(CaptureResult::Ephemeral) => {
+                    ui.label(
+                        egui::RichText::new(
+                            "Captured (not written to disk — enable OCR Debug in \
+                             Settings to keep the PNG).",
+                        )
+                        .small()
+                        .color(Color32::from_rgb(80, 180, 100)),
                     );
                 }
                 Some(CaptureResult::Err(msg)) => {
@@ -127,14 +137,14 @@ pub fn show(
 }
 
 #[cfg(debug_assertions)]
-fn render_ocr_fixture_runner(ui: &mut egui::Ui, ocr_path_tx: &Sender<PathBuf>, weak: Color32) {
+fn render_ocr_fixture_runner(ui: &mut egui::Ui, ocr_job_tx: &Sender<OcrJob>, weak: Color32) {
     // The fixtures sit at repo root next to `crates/`. We probe for the
     // directory at runtime; if the dev moved the workspace or the
     // binary is being run far from its build dir the button stays
     // disabled and explains why.
     let fixtures_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../hideout_screenshots_native");
-    let mut fixtures: Vec<PathBuf> = std::fs::read_dir(&fixtures_dir)
+    let mut fixtures: Vec<std::path::PathBuf> = std::fs::read_dir(&fixtures_dir)
         .map(|rd| {
             rd.filter_map(|e| e.ok())
                 .map(|e| e.path())
@@ -168,7 +178,28 @@ fn render_ocr_fixture_runner(ui: &mut egui::Ui, ocr_path_tx: &Sender<PathBuf>, w
                         .map(|n| n.to_string_lossy().into_owned())
                         .unwrap_or_default();
                     if ui.selectable_label(false, label).clicked() {
-                        if let Err(e) = ocr_path_tx.try_send(fixture.clone()) {
+                        // Decode the fixture on the UI thread (one-off
+                        // dev-mode click — a brief freeze is fine) so
+                        // the OCR worker receives the same shape of
+                        // job it would from a live VR capture. The
+                        // fixture path is preserved as `source_path`
+                        // so the pipeline's debug dumps still land in
+                        // a useful place when `ocr_debug` is on.
+                        let job = match image::open(fixture) {
+                            Ok(img) => OcrJob {
+                                image: img,
+                                source_path: Some(fixture.clone()),
+                            },
+                            Err(e) => {
+                                tracing::warn!(
+                                    error = %e,
+                                    path = %fixture.display(),
+                                    "failed to decode OCR fixture",
+                                );
+                                return;
+                            }
+                        };
+                        if let Err(e) = ocr_job_tx.try_send(job) {
                             tracing::warn!(
                                 error = %e,
                                 path = %fixture.display(),
