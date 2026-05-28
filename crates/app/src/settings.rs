@@ -22,6 +22,11 @@ pub mod bounds {
     /// 0 sits the panel at eye level (looking forward sees its lower edge);
     /// the upper end pushes it well above so you have to crane up to see it.
     pub const HEIGHT_OFFSET_M: std::ops::RangeInclusive<f32> = 0.0..=1.5;
+    /// How long the terminal OCR feedback card stays before fading out.
+    /// 1 s is a reasonable lower bound (anything shorter and the user
+    /// barely sees the result); 15 s is generous enough that even a
+    /// careful read of a 4-cell panel fits in one show.
+    pub const OCR_DISMISS_SECS: std::ops::RangeInclusive<u32> = 1..=15;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -60,12 +65,32 @@ pub struct Settings {
     /// When true, every OCR pass keeps the source screenshot PNG, drops
     /// per-cell binarised strip PNGs (`<stem>.cell<i>.<HHMMSS>.png`),
     /// and writes a `<stem>.ocr-debug.<HHMMSS>.txt` sidecar with every
-    /// intermediate the pipeline produced. Default OFF — production
-    /// users would otherwise accumulate ~10 MB screenshots per capture
-    /// in their data dir. Flip on when filing a GitHub issue so the
-    /// bundle can be attached.
+    /// intermediate the pipeline produced. Also keeps the in-headset
+    /// feedback card visible until the next capture replaces it (so
+    /// the user has time to inspect the read before grabbing the
+    /// debug artifacts). Default OFF — production users would
+    /// otherwise accumulate ~10 MB screenshots per capture in their
+    /// data dir, and the long-lived overlay would obstruct play.
     #[serde(default)]
     pub ocr_debug: bool,
+    /// How long the OCR feedback card stays before fading out, when
+    /// `ocr_debug` is off. Ignored when `ocr_debug` is on (the card
+    /// then sticks until the next capture so you have time to read
+    /// it alongside the on-disk debug artifacts).
+    #[serde(default = "default_ocr_dismiss_seconds")]
+    pub ocr_dismiss_seconds: u32,
+    /// When true, a successful OCR auto-tracks the matched upgrade
+    /// and marks every lower-level upgrade in the same module as
+    /// completed (the game only shows Lv N's panel after Lv (N-1) is
+    /// claimed, so seeing the panel is proof). Default ON.
+    ///
+    /// Turn OFF when you want to bulk-OCR a bunch of panels just to
+    /// refresh inventory counts without touching your tracked /
+    /// completed lists. Turn back ON before a raid when you want
+    /// the next panel you peek at to be auto-added to "what I'm
+    /// working on this run."
+    #[serde(default = "default_ocr_auto_track")]
+    pub ocr_auto_track: bool,
 }
 
 fn default_check_for_updates() -> bool {
@@ -80,6 +105,14 @@ fn default_capture_eye() -> CaptureEye {
     CaptureEye::Right
 }
 
+fn default_ocr_dismiss_seconds() -> u32 {
+    4
+}
+
+fn default_ocr_auto_track() -> bool {
+    true
+}
+
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum CaptureEye {
@@ -88,6 +121,17 @@ pub enum CaptureEye {
     /// the previous frame on some headsets — right eye stays in sync.
     #[default]
     Right,
+}
+
+impl Settings {
+    /// Clamp the OCR-side numeric tunables to their declared bounds.
+    /// Called on load and after every UI edit so a hand-written
+    /// settings file with an out-of-range value can't break the UI
+    /// or the runtime.
+    pub fn sanitize_ocr(&mut self) {
+        let d = bounds::OCR_DISMISS_SECS;
+        self.ocr_dismiss_seconds = self.ocr_dismiss_seconds.clamp(*d.start(), *d.end());
+    }
 }
 
 impl Default for Settings {
@@ -101,6 +145,8 @@ impl Default for Settings {
             ocr_enabled: default_ocr_enabled(),
             capture_eye: default_capture_eye(),
             ocr_debug: false,
+            ocr_dismiss_seconds: default_ocr_dismiss_seconds(),
+            ocr_auto_track: default_ocr_auto_track(),
         }
     }
 }
@@ -191,6 +237,7 @@ pub fn load(path: &Path) -> Settings {
         Ok(mut s) => {
             migrate(&mut s);
             s.vr.sanitize();
+            s.sanitize_ocr();
             s
         }
         Err(e) => {

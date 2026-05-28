@@ -15,21 +15,15 @@
 //! Dismissal semantics, implemented by `vr::runtime::drive_ocr_overlay`:
 //! - `Processing` never auto-dismisses — replaced when the pipeline
 //!   finishes.
-//! - Terminal kinds auto-fade after [`AUTO_DISMISS`] in release builds.
-//! - Debug builds keep terminal kinds visible until the next capture
-//!   replaces them — the per-item readings need scrutiny while the
-//!   template matcher is still being calibrated.
+//! - Terminal kinds auto-fade after `settings.ocr_dismiss_seconds`
+//!   (default 4 s) when `settings.ocr_debug` is off.
+//! - When `settings.ocr_debug` is on, terminal kinds stay visible
+//!   until the next capture replaces them — the user is inspecting
+//!   the in-headset card alongside the on-disk debug artifacts and
+//!   needs time to read both.
 
 use crate::ocr::OcrOutcome;
 use crate::state::{AppState, OcrProgression};
-use std::time::Duration;
-
-/// How long terminal overlay states stay before fading in release
-/// builds. Read by `vr::runtime::drive_ocr_overlay`
-/// (`#[cfg(target_os = "windows")]`); marked dead-code-allowed so the
-/// Linux build doesn't fail at clippy/-D warnings.
-#[allow(dead_code)]
-pub const AUTO_DISMISS: Duration = Duration::from_secs(3);
 
 #[derive(Clone, Debug)]
 pub struct OcrFeedback {

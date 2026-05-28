@@ -404,7 +404,17 @@ fn render_loop(
             apply_fade_in(session, &mut fade_start, frame_start)?;
         }
 
-        drive_ocr_overlay(session, ocr_feedback_rx, &mut ocr_state, frame_start);
+        {
+            let s = settings.read();
+            drive_ocr_overlay(
+                session,
+                ocr_feedback_rx,
+                &mut ocr_state,
+                frame_start,
+                s.ocr_debug,
+                std::time::Duration::from_secs(s.ocr_dismiss_seconds as u64),
+            );
+        }
 
         // Liveness probe — fails when SteamVR disappears.
         session.heartbeat()?;
@@ -794,8 +804,9 @@ fn drive_ocr_overlay(
     feedback_rx: &Receiver<crate::gui::OcrFeedback>,
     state: &mut Option<OcrOverlayState>,
     frame_start: std::time::Instant,
+    ocr_debug: bool,
+    auto_dismiss: Duration,
 ) {
-    use crate::gui::ocr_feedback::AUTO_DISMISS;
     use crate::gui::OcrFeedbackKind;
 
     // Drain everything queued so we don't lag if multiple transitions
@@ -818,7 +829,12 @@ fn drive_ocr_overlay(
         return;
     };
 
-    let manual_dismiss = cfg!(debug_assertions);
+    // When `ocr_debug` is on the card sticks around until the next
+    // capture replaces it (the user is inspecting the read alongside
+    // the on-disk debug artifacts). When off, terminal kinds fade
+    // out after `auto_dismiss`. Processing kinds never auto-fade —
+    // they're replaced by the terminal result when OCR finishes.
+    let manual_dismiss = ocr_debug;
     let processing = matches!(current.feedback.kind, OcrFeedbackKind::Processing);
     let age = frame_start.duration_since(current.visible_since);
 
@@ -834,8 +850,9 @@ fn drive_ocr_overlay(
         current.submitted = true;
     }
 
-    // Auto-dismiss only for terminal kinds in release builds.
-    if !processing && !manual_dismiss && age >= AUTO_DISMISS {
+    // Terminal kinds fade out after `auto_dismiss` unless debug mode
+    // wants the card to stick.
+    if !processing && !manual_dismiss && age >= auto_dismiss {
         if let Err(e) = session.set_ocr_alpha(0.0) {
             tracing::warn!(error = %e, "OCR overlay: set_alpha(0) failed");
         }
@@ -846,13 +863,14 @@ fn drive_ocr_overlay(
         return;
     }
 
-    // Per-frame alpha for release-build fade-out. Processing and
-    // debug builds stay at 1.0.
+    // Per-frame alpha. Processing kinds and debug-mode terminals
+    // stay at 1.0; non-debug terminals fade through the last
+    // ~600 ms of their visible time.
     let target_alpha = if processing || manual_dismiss {
         1.0
     } else {
         let fade_tail = Duration::from_millis(600);
-        let remaining = AUTO_DISMISS.saturating_sub(age);
+        let remaining = auto_dismiss.saturating_sub(age);
         if remaining < fade_tail {
             (remaining.as_secs_f32() / fade_tail.as_secs_f32()).clamp(0.0, 1.0)
         } else {

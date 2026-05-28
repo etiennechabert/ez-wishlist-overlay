@@ -271,6 +271,7 @@ fn spawn_ocr_worker(
                 let s = settings.read();
                 let ocr_enabled = s.ocr_enabled;
                 let ocr_debug = s.ocr_debug;
+                let ocr_auto_track = s.ocr_auto_track;
                 drop(s);
 
                 if !ocr_enabled {
@@ -304,8 +305,18 @@ fn spawn_ocr_worker(
                                     w.set_collected(item_id, *value);
                                 }
                             }
-                            let progression = w.apply_ocr_progression(&outcome.upgrade_id);
-                            feedback.attach_progression(&w, progression);
+                            // Auto-tracking the matched upgrade + auto-
+                            // completing every lower-level upgrade is
+                            // useful when the user is OCR'ing the panel
+                            // they're about to grind toward ("I want
+                            // this for my next raid"), but noisy when
+                            // they're bulk-OCR'ing many panels just to
+                            // refresh inventory. Gated on a setting so
+                            // both flows work.
+                            if ocr_auto_track {
+                                let progression = w.apply_ocr_progression(&outcome.upgrade_id);
+                                feedback.attach_progression(&w, progression);
+                            }
                             (w.version, feedback)
                         };
                         let _ = save_tx.try_send(gui::SaveTick { version });
