@@ -87,8 +87,7 @@ pub fn ui(
 ) {
     let data = state.read().data.clone();
 
-    starter_preset_row(ui, state, save_tx);
-    natural_progression_row(ui, state, save_tx);
+    presets_row(ui, state, save_tx);
     header_row(ui);
     ui.separator();
 
@@ -177,10 +176,37 @@ fn header_row(ui: &mut egui::Ui) {
     });
 }
 
-/// Sits above the column headers — the starter-preset button on the left,
-/// "N/N starter upgrades tracked" hint immediately to its right. Lives on
-/// its own row so it can't collide with the Level 1–4 column titles.
-fn starter_preset_row(
+/// Sits above the column headers: the two preset buttons (Starter,
+/// Natural-Progression) with their "N/M tracked" counters, plus a
+/// trailing "Deselect all" button when anything is currently
+/// tracked. All on a single horizontal row so the user can take in
+/// the whole "what's the state of my tracking?" question at a glance
+/// — splitting them vertically (the previous layout) made each
+/// counter feel disconnected from the others, and forced an extra
+/// scan to figure out total coverage.
+fn presets_row(ui: &mut egui::Ui, state: &Arc<RwLock<AppState>>, save_tx: &Sender<SaveTick>) {
+    ui.horizontal(|ui| {
+        starter_preset_controls(ui, state, save_tx);
+        ui.add_space(20.0);
+        natural_progression_controls(ui, state, save_tx);
+
+        // Untrack-all is only meaningful when there's something to
+        // untrack, so it conditionally renders rather than sitting
+        // disabled. Tracked > 0 is the right signal — completed
+        // upgrades don't count (they're not "tracking", they're
+        // "done" and should stay that way).
+        let has_tracked = !state.read().tracked_upgrades.is_empty();
+        if has_tracked {
+            ui.add_space(20.0);
+            untrack_all_button(ui, state, save_tx);
+        }
+    });
+}
+
+/// Apply / Undo button + "N/M starter upgrades tracked" counter for
+/// the community-recommended starter set. Adds itself to whatever
+/// horizontal layout the caller has open (see [`presets_row`]).
+fn starter_preset_controls(
     ui: &mut egui::Ui,
     state: &Arc<RwLock<AppState>>,
     save_tx: &Sender<SaveTick>,
@@ -219,34 +245,34 @@ fn starter_preset_row(
         crate::presets::STARTER_HIDEOUT.join("\n  • "),
     );
 
-    ui.horizontal(|ui| {
-        let resp = ui
-            .add_enabled(enabled, egui::Button::new(label))
-            .on_hover_text(&tooltip)
-            .on_disabled_hover_text(&tooltip);
-        if resp.clicked() && enabled {
-            let mut s = state.write();
-            let ids = if action_apply { &missing } else { &to_untrack };
-            for id in ids {
-                s.set_tracked_upgrade(&id.to_string(), action_apply);
-            }
-            drop(s);
-            notify(state, save_tx);
+    let resp = ui
+        .add_enabled(enabled, egui::Button::new(label))
+        .on_hover_text(&tooltip)
+        .on_disabled_hover_text(&tooltip);
+    if resp.clicked() && enabled {
+        let mut s = state.write();
+        let ids = if action_apply { &missing } else { &to_untrack };
+        for id in ids {
+            s.set_tracked_upgrade(&id.to_string(), action_apply);
         }
-        ui.add_space(8.0);
-        let weak = ui.visuals().weak_text_color();
-        ui.label(
-            egui::RichText::new(format!("{covered}/{total} starter upgrades tracked"))
-                .small()
-                .color(weak),
-        );
-    });
+        drop(s);
+        notify(state, save_tx);
+    }
+    ui.add_space(8.0);
+    let weak = ui.visuals().weak_text_color();
+    ui.label(
+        egui::RichText::new(format!("{covered}/{total} starter upgrades tracked"))
+            .small()
+            .color(weak),
+    );
 }
 
-/// "Natural progression" preset: every module's Level 1 upgrade. The set is
-/// computed from the loaded `GameData` rather than a hand-curated list so it
-/// stays correct when modules are added/renamed upstream.
-fn natural_progression_row(
+/// "Natural progression" preset: every module's Level 1 upgrade. The
+/// set is computed from the loaded `GameData` rather than a
+/// hand-curated list so it stays correct when modules are
+/// added/renamed upstream. Adds itself to the caller's horizontal
+/// layout (see [`presets_row`]).
+fn natural_progression_controls(
     ui: &mut egui::Ui,
     state: &Arc<RwLock<AppState>>,
     save_tx: &Sender<SaveTick>,
@@ -298,28 +324,64 @@ fn natural_progression_row(
         current target. Apply tracks the missing Lv1s; Undo untracks them \
         again (completed upgrades stay completed).";
 
-    ui.horizontal(|ui| {
-        let resp = ui
-            .add_enabled(enabled, egui::Button::new(label))
-            .on_hover_text(tooltip)
-            .on_disabled_hover_text(tooltip);
-        if resp.clicked() && enabled {
-            let mut s = state.write();
-            let ids = if action_apply { &missing } else { &to_untrack };
-            for id in ids {
-                s.set_tracked_upgrade(id, action_apply);
-            }
-            drop(s);
-            notify(state, save_tx);
+    let resp = ui
+        .add_enabled(enabled, egui::Button::new(label))
+        .on_hover_text(tooltip)
+        .on_disabled_hover_text(tooltip);
+    if resp.clicked() && enabled {
+        let mut s = state.write();
+        let ids = if action_apply { &missing } else { &to_untrack };
+        for id in ids {
+            s.set_tracked_upgrade(id, action_apply);
         }
-        ui.add_space(8.0);
-        let weak = ui.visuals().weak_text_color();
-        ui.label(
-            egui::RichText::new(format!("{covered}/{total} Level 1 upgrades tracked"))
-                .small()
-                .color(weak),
-        );
-    });
+        drop(s);
+        notify(state, save_tx);
+    }
+    ui.add_space(8.0);
+    let weak = ui.visuals().weak_text_color();
+    ui.label(
+        egui::RichText::new(format!("{covered}/{total} Level 1 upgrades tracked"))
+            .small()
+            .color(weak),
+    );
+}
+
+/// "Untrack all" — untracks every currently-tracked upgrade in one
+/// click. Doesn't touch completed upgrades (those are "done", not
+/// "tracking", and the user expects them to stay marked done). The
+/// caller in [`presets_row`] gates rendering on
+/// `tracked_upgrades.is_empty()` so this only appears when there's
+/// something to clear; rendering it disabled would be visual noise
+/// on a fresh install.
+fn untrack_all_button(
+    ui: &mut egui::Ui,
+    state: &Arc<RwLock<AppState>>,
+    save_tx: &Sender<SaveTick>,
+) {
+    let tracked: Vec<String> = state.read().tracked_upgrades.iter().cloned().collect();
+    let count = tracked.len();
+    let tooltip = format!(
+        "Untrack every currently-tracked upgrade ({count} total). \
+         Completed upgrades stay completed."
+    );
+    let resp = ui
+        .add(egui::Button::new("Untrack all"))
+        .on_hover_text(&tooltip);
+    if resp.clicked() {
+        let mut s = state.write();
+        for id in &tracked {
+            s.set_tracked_upgrade(id, false);
+        }
+        drop(s);
+        notify(state, save_tx);
+    }
+    ui.add_space(8.0);
+    let weak = ui.visuals().weak_text_color();
+    ui.label(
+        egui::RichText::new(format!("{count} tracked"))
+            .small()
+            .color(weak),
+    );
 }
 
 /// Master-toggle header row for a category. Carries the same ●/○ toggle as
