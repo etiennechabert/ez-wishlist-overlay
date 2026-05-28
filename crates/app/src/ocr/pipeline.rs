@@ -1676,10 +1676,12 @@ mod fixture_tests {
     /// Owned-count accuracy regression. For each native PNG fixture
     /// paired with a `<UpgradeId>.label.txt`, count cells where the
     /// pipeline reads the same `owned/needed` pair the user hand-
-    /// labelled. Asserts a minimum floor so future strip-Y, X-pad, or
-    /// template changes can't silently undo the closed-loop gains
-    /// (baseline at 40/59 after iter 5; gate at 35 leaves headroom
-    /// for incidental UI noise on real-world captures).
+    /// labelled. Asserts a minimum floor so future strip-Y, X-pad,
+    /// or template changes can't silently undo the closed-loop
+    /// gains (current baseline 48/59 after issue #58's hole-count
+    /// discriminator landed; gate at 45 leaves headroom for one
+    /// fixture flickering by 1-3 cells on a different build
+    /// environment).
     ///
     /// Wrong reads count against accuracy; UNREAD cells count as
     /// "no opinion" and are excluded from the labelled total — they
@@ -1751,13 +1753,13 @@ mod fixture_tests {
         }
         eprintln!("Total: {correct}/{labelled} correct, {wrong_writes} wrong writes");
 
-        // Floor below baseline of 40/59 so incidental fluctuations
-        // (e.g. one fixture flickering by 1 cell on a different
-        // build environment) don't block CI; large regressions still
-        // trip the gate.
+        // Floor at 45, three below the current 48/59 baseline so
+        // incidental fluctuations (e.g. one fixture flickering by
+        // a cell on a different build environment) don't block CI;
+        // large regressions still trip the gate.
         assert!(
-            correct >= 35,
-            "owned-count accuracy regressed below floor: {correct}/{labelled} (want ≥ 35)"
+            correct >= 45,
+            "owned-count accuracy regressed below floor: {correct}/{labelled} (want ≥ 45)"
         );
     }
 }
