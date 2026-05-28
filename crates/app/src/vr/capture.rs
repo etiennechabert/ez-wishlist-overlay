@@ -20,6 +20,30 @@ use anyhow::{anyhow, Context as _, Result};
 use std::ffi::c_void;
 use std::path::Path;
 use std::ptr;
+use std::sync::atomic::{AtomicU64, Ordering};
+
+/// Per-process capture sequence number. Bumped on every entry to
+/// [`capture_compositor_mirror_to_png`] so the rest of the pipeline
+/// (PNG path → OCR worker → cell-strip dump) can stamp every log
+/// line with `capture_seq=N`. Lets the user cross-reference logs
+/// from a single capture across threads without guessing.
+static CAPTURE_SEQ: AtomicU64 = AtomicU64::new(0);
+
+/// FNV-1a 64-bit hash over a byte slice. We use it to fingerprint
+/// the raw pixel buffer and the encoded PNG bytes so consecutive
+/// captures can be compared: if two consecutive captures share a
+/// `pixel_fnv` the compositor mirror handed back the same buffer
+/// twice (the actual "previous-screenshot" bug). If `pixel_fnv`
+/// differs but the saved PNG's `png_fnv` matches a previous one,
+/// it's a file-write / file-read mismatch.
+fn fnv1a64(bytes: &[u8]) -> u64 {
+    let mut h: u64 = 0xcbf29ce484222325;
+    for b in bytes {
+        h ^= *b as u64;
+        h = h.wrapping_mul(0x100000001b3);
+    }
+    h
+}
 
 use openvr_sys as sys;
 use windows::core::Interface;
@@ -58,33 +82,48 @@ pub fn play_capture_done_beep(success: bool) {
 /// to `out_path` as PNG. Caller must guarantee `VR_Init` has already run on
 /// this process (the OverlaySession constructor does).
 pub fn capture_compositor_mirror_to_png(out_path: &Path) -> Result<()> {
-    // No-cycle, max-fresh strategy per user request. Instead of
-    // walking past stale buffers in the compositor's mirror swap
-    // chain with a multi-cycle drain, we close+reopen every SteamVR-
-    // and D3D11-side resource the capture path touches, every call:
-    //
-    //   - Fresh `D3D11CreateDevice` (and its immediate context).
-    //   - Fresh `VR_GetGenericInterface(IVRCompositor)` fn-table lookup.
-    //   - Fresh `GetMirrorTextureD3D11` SRV, released at end of scope.
-    //   - Fresh staging texture in `readback_texture`, fresh `CopyResource`.
-    //
-    // Hypothesis: SteamVR's mirror-texture allocator keys off the
-    // calling D3D11 device's COM identity, so a brand-new device every
-    // call should hand us a brand-new shared SRV pointing at the
-    // CURRENT mirror frame, with no carry-over from the previous
-    // capture's view. If that holds, we get a fresh snapshot in one
-    // acquire — no queue to drain.
-    //
-    // If this still leaks the previous frame, the next escalation is
-    // either a PrintWindow capture of the SteamVR mirror window
-    // (bypassing the OpenVR API entirely) or putting the drain cycles
-    // back. Worth measuring first.
-    let d3d = D3d11Context::create().context("D3D11CreateDevice")?;
-    let fn_table = lookup_compositor_fn_table().context("look up IVRCompositor fn-table")?;
+    // No-cycle, max-fresh strategy per user request. Every SteamVR
+    // and D3D11 resource the capture path touches is reallocated per
+    // call — fresh device, fresh fn-table lookup, fresh SRV, fresh
+    // staging texture. Diagnosis below relies on hashing the
+    // resulting pixel buffer + PNG bytes so we can prove whether the
+    // mirror handed us the same content twice.
+    let capture_seq = CAPTURE_SEQ.fetch_add(1, Ordering::Relaxed);
+    let t_start = std::time::Instant::now();
+    tracing::info!(
+        capture_seq,
+        out_path = %out_path.display(),
+        "capture: ENTER capture_compositor_mirror_to_png"
+    );
 
+    let t_d3d_start = std::time::Instant::now();
+    let d3d = D3d11Context::create().context("D3D11CreateDevice")?;
+    tracing::info!(
+        capture_seq,
+        device_ptr = format!("{:p}", d3d.device.as_raw()),
+        context_ptr = format!("{:p}", d3d.context.as_raw()),
+        elapsed_ms = t_d3d_start.elapsed().as_millis() as u64,
+        "capture: D3D11 device created"
+    );
+
+    let t_fn_start = std::time::Instant::now();
+    let fn_table = lookup_compositor_fn_table().context("look up IVRCompositor fn-table")?;
+    tracing::info!(
+        capture_seq,
+        fn_table_ptr = format!("{:p}", fn_table),
+        elapsed_ms = t_fn_start.elapsed().as_millis() as u64,
+        "capture: IVRCompositor fn-table looked up"
+    );
+
+    let t_acq_start = std::time::Instant::now();
     let mirror = MirrorTexture::acquire(fn_table, &d3d.device, sys::EVREye_Eye_Left)
         .context("GetMirrorTextureD3D11")?;
-    tracing::debug!("compositor mirror acquired (no-cycle fresh-allocation strategy)");
+    tracing::info!(
+        capture_seq,
+        srv_ptr = format!("{:p}", mirror.srv_raw),
+        elapsed_ms = t_acq_start.elapsed().as_millis() as u64,
+        "capture: GetMirrorTextureD3D11 returned SRV"
+    );
 
     let texture = unsafe { mirror.srv().GetResource() }
         .context("ID3D11ShaderResourceView::GetResource")?
@@ -96,23 +135,57 @@ pub fn capture_compositor_mirror_to_png(out_path: &Path) -> Result<()> {
         texture.GetDesc(&mut d);
         d
     };
+    tracing::info!(
+        capture_seq,
+        width = desc.Width,
+        height = desc.Height,
+        format = desc.Format.0,
+        texture_ptr = format!("{:p}", texture.as_raw()),
+        "capture: backing texture descriptor"
+    );
 
+    let t_read_start = std::time::Instant::now();
     let pixels = readback_texture(&d3d, &texture, &desc).context("readback")?;
+    tracing::info!(
+        capture_seq,
+        pixel_bytes = pixels.len(),
+        elapsed_ms = t_read_start.elapsed().as_millis() as u64,
+        "capture: pixel readback complete"
+    );
 
-    // Diagnostic: sample two pixels to confirm RGB carries data even when
-    // PNG viewers render alpha=0 as transparent (which looks blank-white).
+    // **Diagnostic gold**: fingerprint the raw pixel buffer. If
+    // consecutive captures (seq N, N+1) report the same `pixel_fnv`
+    // the compositor mirror IS handing back the same buffer twice —
+    // we know the bug is on SteamVR's side and no amount of D3D11
+    // freshness will help. If they differ, the mirror IS giving us
+    // a new frame each call and the previous-screenshot bug must be
+    // somewhere downstream (PNG encode, file I/O, OCR worker).
+    let pixel_fnv = fnv1a64(&pixels);
     if pixels.len() >= 4 {
-        let mid = (pixels.len() / 8) * 4; // roughly the centre row's start
+        let mid = (pixels.len() / 8) * 4;
+        let last_start = pixels.len().saturating_sub(4);
         tracing::info!(
-            "capture sample pixels — first RGBA=[{},{},{},{}], centre RGBA=[{},{},{},{}]",
-            pixels[0],
-            pixels[1],
-            pixels[2],
-            pixels[3],
-            pixels[mid],
-            pixels[mid + 1],
-            pixels[mid + 2],
-            pixels[mid + 3],
+            capture_seq,
+            pixel_fnv = format!("{pixel_fnv:#018x}"),
+            first_rgba = format!(
+                "[{},{},{},{}]",
+                pixels[0], pixels[1], pixels[2], pixels[3]
+            ),
+            centre_rgba = format!(
+                "[{},{},{},{}]",
+                pixels[mid],
+                pixels[mid + 1],
+                pixels[mid + 2],
+                pixels[mid + 3],
+            ),
+            last_rgba = format!(
+                "[{},{},{},{}]",
+                pixels[last_start],
+                pixels[last_start + 1],
+                pixels[last_start + 2],
+                pixels[last_start + 3],
+            ),
+            "capture: pixel fingerprint (compare against previous capture_seq to detect mirror reuse)"
         );
     }
 
@@ -125,6 +198,13 @@ pub fn capture_compositor_mirror_to_png(out_path: &Path) -> Result<()> {
     for chunk in pixels.chunks_exact(4) {
         rgb.extend_from_slice(&chunk[..3]);
     }
+    let rgb_fnv = fnv1a64(&rgb);
+    tracing::info!(
+        capture_seq,
+        rgb_bytes = rgb.len(),
+        rgb_fnv = format!("{rgb_fnv:#018x}"),
+        "capture: RGB strip-alpha buffer ready"
+    );
 
     if let Some(parent) = out_path.parent() {
         std::fs::create_dir_all(parent)
@@ -132,15 +212,25 @@ pub fn capture_compositor_mirror_to_png(out_path: &Path) -> Result<()> {
     }
     let img = image::RgbImage::from_raw(desc.Width, desc.Height, rgb)
         .ok_or_else(|| anyhow!("RgbImage::from_raw: pixel buffer size mismatch"))?;
+    let t_save_start = std::time::Instant::now();
     img.save(out_path)
         .with_context(|| format!("writing PNG to {}", out_path.display()))?;
-
+    // Re-hash the PNG on disk. If two captures end up with the same
+    // `png_fnv` despite distinct paths, we either wrote the same
+    // pixels twice (mirror reuse) or hit a file-system race.
+    let png_fnv = std::fs::read(out_path).ok().map(|b| fnv1a64(&b));
+    let png_size = std::fs::metadata(out_path).ok().map(|m| m.len());
     tracing::info!(
+        capture_seq,
         path = %out_path.display(),
         w = desc.Width,
         h = desc.Height,
         format = desc.Format.0,
-        "captured compositor mirror"
+        png_size = ?png_size,
+        png_fnv = ?png_fnv.map(|v| format!("{v:#018x}")),
+        save_ms = t_save_start.elapsed().as_millis() as u64,
+        total_ms = t_start.elapsed().as_millis() as u64,
+        "capture: EXIT — PNG written"
     );
     Ok(())
 }

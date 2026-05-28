@@ -27,6 +27,35 @@ pub fn process_screenshot(path: &Path, data: &GameData) -> Result<OcrPipelineRes
     if img_w == 0 || img_h == 0 {
         anyhow::bail!("zero-sized image");
     }
+    // Fingerprint the decoded image so the user can prove whether the
+    // OCR engine is being handed the same bitmap on consecutive
+    // captures. FNV-1a over the RGB8 bytes — matches the format the
+    // capture path logs (`rgb_fnv`) so the two log lines can be
+    // diffed directly. If `decoded_fnv` here matches the prior
+    // capture's `rgb_fnv` (not the current capture's), the OCR worker
+    // is reading the wrong file.
+    let rgb_for_hash = img.to_rgb8();
+    let decoded_fnv: u64 = {
+        let mut h: u64 = 0xcbf29ce484222325;
+        for b in rgb_for_hash.as_raw() {
+            h ^= *b as u64;
+            h = h.wrapping_mul(0x100000001b3);
+        }
+        h
+    };
+    let first_pixel = {
+        let r = rgb_for_hash.as_raw();
+        format!("[{},{},{}]", r[0], r[1], r[2])
+    };
+    drop(rgb_for_hash);
+    tracing::info!(
+        path = %path.display(),
+        w = img_w,
+        h = img_h,
+        decoded_fnv = format!("{decoded_fnv:#018x}"),
+        first_rgb = %first_pixel,
+        "ocr pipeline: image decoded (compare decoded_fnv against capture's rgb_fnv)"
+    );
 
     // Single OCR pass on the whole image. The first-pass words feed
     // both anchor detection (for cell layout) and the strict resolver
@@ -35,7 +64,20 @@ pub fn process_screenshot(path: &Path, data: &GameData) -> Result<OcrPipelineRes
     // needed — the panel-bounds heuristic isn't reliable enough to
     // pixel-accurately crop the row label, and a single OCR pass with
     // tight matching turns out to be both simpler and more robust.
+    let t_engine_start = std::time::Instant::now();
     let full_words = engine::recognize_image(&img).context("first-pass OCR")?;
+    let first_words: Vec<String> = full_words
+        .iter()
+        .take(12)
+        .map(|w| format!("{:?}@{:.0},{:.0}", w.text, w.rect.x, w.rect.y))
+        .collect();
+    tracing::info!(
+        path = %path.display(),
+        word_count = full_words.len(),
+        engine_ms = t_engine_start.elapsed().as_millis() as u64,
+        first_words = ?first_words,
+        "ocr pipeline: Windows.Media.Ocr first-pass complete"
+    );
     let layout = match anchor::detect_panel(&full_words, img_w, img_h) {
         Some(l) => l,
         None => {

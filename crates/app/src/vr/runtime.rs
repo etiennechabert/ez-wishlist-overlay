@@ -332,18 +332,15 @@ fn render_loop(
         // render loop — the overlay should keep working even if a screenshot
         // fails. On success, hand the path to the OCR worker via `ocr_tx`.
         while capture_rx.try_recv().is_ok() {
+            tracing::info!("vr: capture_rx triggered — beginning capture sequence");
             // Retire any prior OCR card BEFORE grabbing the compositor
             // mirror. The OCR overlay is a real SteamVR overlay
             // composited into the eye buffers, so a still-visible
             // previous card would otherwise be baked into the new
             // screenshot and the next OCR pass would see itself over
             // the Facility Upgrade panel.
-            //
-            // The capture call itself drains the compositor mirror
-            // swap chain (acquire→release→sleep→acquire) so the frame
-            // we read is composited *after* the overlay was hidden —
-            // we don't need to sleep here at the call site.
-            if ocr_state.is_some() {
+            let had_overlay = ocr_state.is_some();
+            if had_overlay {
                 if let Err(e) = session.set_ocr_alpha(0.0) {
                     tracing::warn!(error = %e, "OCR overlay: pre-capture clear-alpha failed");
                 }
@@ -351,14 +348,26 @@ fn render_loop(
                     tracing::warn!(error = %e, "OCR overlay: pre-capture hide failed");
                 }
                 ocr_state = None;
+                tracing::info!("vr: OCR overlay hidden pre-capture");
+            } else {
+                tracing::info!("vr: no prior OCR overlay to hide");
             }
             let path = next_screenshot_path(paths);
+            tracing::info!(
+                path = %path.display(),
+                "vr: generated screenshot path"
+            );
             let result = match session.capture_screenshot(&path) {
                 Ok(()) => {
                     // Best-effort forward to OCR. If the channel is full
                     // (worker busy on a previous shot) we drop this one
                     // silently — VR render loop must not block.
-                    let _ = ocr_tx.try_send(path.clone());
+                    let send_result = ocr_tx.try_send(path.clone());
+                    tracing::info!(
+                        path = %path.display(),
+                        ocr_tx_send_ok = send_result.is_ok(),
+                        "vr: capture finished, forwarded path to OCR worker"
+                    );
                     super::capture::play_capture_done_beep(true);
                     CaptureResult::Ok(path)
                 }

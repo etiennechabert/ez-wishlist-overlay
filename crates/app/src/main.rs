@@ -235,6 +235,11 @@ fn spawn_ocr_worker(
         .name("ez-wishlist-ocr".into())
         .spawn(move || {
             while let Ok(first) = ocr_path_rx.recv() {
+                tracing::info!(
+                    received = %first.display(),
+                    queue_len_hint = ocr_path_rx.len(),
+                    "OCR worker: recv() returned path"
+                );
                 // Drain any newer paths that arrived while we were
                 // idle, keeping only the most recent. A full OCR pass
                 // takes ~3-7 s (PNG decode + Windows.Media.Ocr on a 3K
@@ -244,18 +249,41 @@ fn spawn_ocr_worker(
                 // shot's result first — manifesting as "OCR is reading
                 // the previous screenshot, not the one I just took."
                 let mut path = first;
-                let mut skipped = 0usize;
+                let mut skipped: Vec<std::path::PathBuf> = Vec::new();
                 while let Ok(newer) = ocr_path_rx.try_recv() {
-                    skipped += 1;
-                    path = newer;
+                    skipped.push(std::mem::replace(&mut path, newer));
                 }
-                if skipped > 0 {
+                if !skipped.is_empty() {
                     tracing::info!(
-                        skipped,
+                        skipped_count = skipped.len(),
+                        skipped_paths = ?skipped.iter().map(|p| p.display().to_string()).collect::<Vec<_>>(),
                         latest = %path.display(),
                         "OCR worker: drained stale queued captures, processing latest only",
                     );
                 }
+                // Fingerprint the PNG file the OCR is about to read.
+                // Compare to the `png_fnv` logged by the capture path
+                // — if they don't match, something rewrote the file
+                // between capture and OCR (extremely unlikely but
+                // worth ruling out).
+                let png_meta = std::fs::metadata(&path).ok();
+                let png_bytes = std::fs::read(&path).ok();
+                let png_fnv = png_bytes.as_ref().map(|b| {
+                    let mut h: u64 = 0xcbf29ce484222325;
+                    for byte in b {
+                        h ^= *byte as u64;
+                        h = h.wrapping_mul(0x100000001b3);
+                    }
+                    h
+                });
+                tracing::info!(
+                    processing = %path.display(),
+                    png_size = ?png_meta.as_ref().map(|m| m.len()),
+                    png_modified = ?png_meta.as_ref().and_then(|m| m.modified().ok()),
+                    png_fnv = ?png_fnv.map(|v| format!("{v:#018x}")),
+                    "OCR worker: about to process PNG (compare png_fnv against capture log)"
+                );
+                drop(png_bytes);
 
                 if !settings.read().ocr_enabled {
                     // Surface this at info — users only see the
