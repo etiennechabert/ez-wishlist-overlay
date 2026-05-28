@@ -58,36 +58,40 @@ pub fn play_capture_done_beep(success: bool) {
 /// to `out_path` as PNG. Caller must guarantee `VR_Init` has already run on
 /// this process (the OverlaySession constructor does).
 pub fn capture_compositor_mirror_to_png(out_path: &Path) -> Result<()> {
+    // Fresh D3D11 device + fresh staging texture (in `readback_texture`)
+    // per call — nothing is cached, no buffer reuse. The compositor
+    // mirror itself is owned by SteamVR; we discard our handle on each
+    // `Release` so successive calls re-acquire from scratch.
     let d3d = D3d11Context::create().context("D3D11CreateDevice")?;
     let fn_table = lookup_compositor_fn_table().context("look up IVRCompositor fn-table")?;
 
-    // Drain the compositor mirror swap chain. Two observed problems
-    // with a single naive `GetMirrorTextureD3D11`:
-    //   1. The FIRST call after process start (or after a long idle)
-    //      returns an uninitialized buffer — captures came out solid
-    //      black despite the game rendering normally.
-    //   2. Subsequent calls return whichever buffer the compositor
-    //      last *wrote to*, which can lag the *latest* composited
-    //      frame by one swap-chain slot. After hiding our OCR overlay
-    //      we'd still grab a frame that included the overlay; the
-    //      OCR pipeline's strict-match then resolved against the
-    //      overlay's `upgrade_name` text and reported the previous
-    //      panel's results.
-    // Acquire→release→sleep→acquire forces SteamVR to:
-    //   - allocate the mirror texture if it hadn't yet,
-    //   - advance its internal write pointer past whatever buffer was
-    //     pending,
-    //   - composite at least one fresh frame into a clean buffer that
-    //     the second acquire then picks up.
-    // The sleep covers worst-case 60 Hz compositor headsets at 3 frames.
-    {
+    // Drain the compositor mirror swap chain hard. Single-acquire
+    // returned the FRAME-BEFORE on consecutive captures in the wild —
+    // "OCR is reading the previous screenshot, not the one I just
+    // took." Two cumulative effects:
+    //   1. First acquire of a session can return an uninitialised
+    //      buffer (saved PNG was solid black).
+    //   2. SteamVR appears to expose mirror frames through a small
+    //      swap chain; rapid successive acquires hand back the
+    //      buffer the compositor *wrote* one or two slots ago, not
+    //      the absolute newest.
+    //
+    // Two acquire→release→sleep cycles before the keeper acquire push
+    // the compositor through enough fresh composites (at 90 Hz that's
+    // 18 vsyncs across 200 ms, even allowing for skipped frames) that
+    // the third acquire is guaranteed to land on a buffer composited
+    // AFTER everything we did in `runtime.rs` — including hiding the
+    // OCR overlay.
+    for cycle in 0..2 {
         let _drain = MirrorTexture::acquire(fn_table, &d3d.device, sys::EVREye_Eye_Left)
-            .context("GetMirrorTextureD3D11 (drain)")?;
-        // _drain Drop calls ReleaseMirrorTextureD3D11.
+            .with_context(|| format!("GetMirrorTextureD3D11 (drain cycle {cycle})"))?;
+        // _drain's Drop calls ReleaseMirrorTextureD3D11; release
+        // happens at the end of this block scope.
+        drop(_drain);
+        std::thread::sleep(std::time::Duration::from_millis(100));
     }
-    std::thread::sleep(std::time::Duration::from_millis(60));
     let mirror = MirrorTexture::acquire(fn_table, &d3d.device, sys::EVREye_Eye_Left)
-        .context("GetMirrorTextureD3D11")?;
+        .context("GetMirrorTextureD3D11 (keeper)")?;
 
     let texture = unsafe { mirror.srv().GetResource() }
         .context("ID3D11ShaderResourceView::GetResource")?

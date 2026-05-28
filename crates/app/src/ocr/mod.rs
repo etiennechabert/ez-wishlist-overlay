@@ -74,3 +74,38 @@ pub struct OcrOutcome {
     /// progress when the strip Y misaligned).
     pub items: Vec<(String, Option<u32>)>,
 }
+
+/// What the pipeline produces for a given screenshot.
+///
+/// The previous shape (`Result<Option<OcrOutcome>>`) collapsed two
+/// genuinely different outcomes — "screenshot isn't a panel" and
+/// "panel detected but I can't find that upgrade in `data.json`" —
+/// into a single `Ok(None)` that the worker rendered as "not a
+/// panel." That misled users into thinking their capture failed when
+/// in fact the data file was the gap; they spent time re-taking
+/// screenshots that were already perfectly fine. Splitting the
+/// outcomes lets the in-headset card say something actionable.
+#[derive(Clone, Debug)]
+pub enum OcrPipelineResult {
+    /// Anchor found, upgrade resolved, cells read.
+    Identified(OcrOutcome),
+    /// `Need to submit items` anchor wasn't found — the screenshot
+    /// probably isn't an upgrade panel.
+    NoPanel,
+    /// Anchor found (so the screenshot IS an upgrade panel) but the
+    /// strict resolver couldn't match it to any
+    /// `module.name` + `upgrade.level` pair in `data.json`. Almost
+    /// always means a missing upgrade in the dataset — the scraper
+    /// hasn't picked it up yet, or this is a level we don't model.
+    UnknownUpgrade {
+        /// First OCR token from the panel header area that looked
+        /// like a module name (e.g. `"Moreitem"`, `"Quality"`) when
+        /// we can pick one out, otherwise `None`. Lets the overlay
+        /// hint at what the user should add to `data.json`.
+        module_hint: Option<String>,
+        /// Parsed `LV<n>` digit from the header, when present. The
+        /// resolver looks for `level == current_level + 1`, so this
+        /// is what the user's next upgrade level would be minus one.
+        current_level: u32,
+    },
+}

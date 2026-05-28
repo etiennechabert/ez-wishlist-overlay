@@ -288,7 +288,7 @@ fn spawn_ocr_worker(
                 loop {
                     let data = state.read().data.clone();
                     let terminal = match ocr::process_screenshot(&path, &data) {
-                        Ok(Some(outcome)) => {
+                        Ok(ocr::OcrPipelineResult::Identified(outcome)) => {
                             let (version, feedback) = {
                                 let mut w = state.write();
                                 let mut feedback = gui::OcrFeedback::done(&outcome, &w);
@@ -310,7 +310,15 @@ fn spawn_ocr_worker(
                             let _ = save_tx.try_send(gui::SaveTick { version });
                             feedback
                         }
-                        Ok(None) => gui::OcrFeedback::not_a_panel(),
+                        Ok(ocr::OcrPipelineResult::NoPanel) => gui::OcrFeedback::not_a_panel(),
+                        Ok(ocr::OcrPipelineResult::UnknownUpgrade {
+                            module_hint,
+                            current_level,
+                        }) => gui::OcrFeedback::unknown_upgrade(
+                            module_hint,
+                            current_level,
+                            path.clone(),
+                        ),
                         Err(e) => gui::OcrFeedback::failed(format!("{e:#}")),
                     };
 

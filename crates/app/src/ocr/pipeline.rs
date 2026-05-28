@@ -12,12 +12,12 @@
 //! Non-Windows: returns `Ok(None)` — Windows.Media.Ocr is unavailable.
 
 use crate::data::GameData;
-use crate::ocr::OcrOutcome;
+use crate::ocr::{OcrOutcome, OcrPipelineResult};
 use anyhow::Result;
 use std::path::Path;
 
 #[cfg(target_os = "windows")]
-pub fn process_screenshot(path: &Path, data: &GameData) -> Result<Option<OcrOutcome>> {
+pub fn process_screenshot(path: &Path, data: &GameData) -> Result<OcrPipelineResult> {
     use crate::ocr::{anchor, engine, match_upgrade, prep, templates};
     use anyhow::Context;
     use image::GenericImageView;
@@ -39,12 +39,13 @@ pub fn process_screenshot(path: &Path, data: &GameData) -> Result<Option<OcrOutc
     let layout = match anchor::detect_panel(&full_words, img_w, img_h) {
         Some(l) => l,
         None => {
-            tracing::debug!(
+            tracing::info!(
                 path = %path.display(),
                 words = full_words.len(),
-                "OCR pipeline: not an upgrade menu (no submit anchor)",
+                "OCR pipeline: no \"Need to submit items\" anchor in OCR text — \
+                 not an upgrade panel",
             );
-            return Ok(None);
+            return Ok(OcrPipelineResult::NoPanel);
         }
     };
 
@@ -68,7 +69,59 @@ pub fn process_screenshot(path: &Path, data: &GameData) -> Result<Option<OcrOutc
         .join(" ");
     let upgrade_id = match match_upgrade::resolve(data, &panel_text, current_level) {
         Some(id) => id,
-        None => return Ok(None),
+        None => {
+            // Pull the raw OCR'd title text from the panel header rect
+            // (the upgrade-name region above the "Need to submit items"
+            // anchor). When we don't have a strict match we surface
+            // EXACTLY what the OCR engine read, even if it's a single
+            // letter like "e" — the user can see whether the failure
+            // is "OCR mis-read the title" vs "title is correct but
+            // missing from data.json" without guessing. Stop-tokens
+            // like LV<digit> / FACILITY UPGRADE are excluded so the
+            // hint stays short and recognisable.
+            let header = layout.header;
+            let module_hint = {
+                let mut tokens: Vec<&str> = full_words
+                    .iter()
+                    .filter(|w| {
+                        let wx = w.rect.x as u32;
+                        let wy = w.rect.y as u32;
+                        wx >= header.x
+                            && wx <= header.x + header.w
+                            && wy >= header.y
+                            && wy <= header.y + header.h
+                    })
+                    .filter(|w| anchor::parse_level_token(&w.text).is_none())
+                    .filter(|w| {
+                        let up = w.text.to_ascii_uppercase();
+                        !matches!(up.as_str(), "FACILITY" | "UPGRADE")
+                    })
+                    .map(|w| w.text.as_str())
+                    .collect();
+                if tokens.is_empty() {
+                    None
+                } else {
+                    // Header tokens come back roughly top-to-bottom,
+                    // left-to-right from the OCR engine; we keep that
+                    // order so multi-word titles like "Procurement
+                    // System" stay in their natural reading order.
+                    let joined = tokens.join(" ");
+                    tokens.clear();
+                    Some(joined)
+                }
+            };
+            tracing::warn!(
+                path = %path.display(),
+                module_hint = ?module_hint,
+                current_level,
+                "OCR pipeline: anchor found but no module.name + level match in data.json — \
+                 likely an upgrade missing from the dataset",
+            );
+            return Ok(OcrPipelineResult::UnknownUpgrade {
+                module_hint,
+                current_level,
+            });
+        }
     };
 
     // Find the resolved upgrade so we can map cells → requirement item_ids.
@@ -253,7 +306,7 @@ pub fn process_screenshot(path: &Path, data: &GameData) -> Result<Option<OcrOutc
         }
     }
 
-    Ok(Some(OcrOutcome {
+    Ok(OcrPipelineResult::Identified(OcrOutcome {
         upgrade_id: upgrade.id.clone(),
         upgrade_name: module.name.clone(),
         items,
@@ -297,12 +350,17 @@ fn pick_best_strip_y(
     // Per-cell X-pad variants — extend the strip leftward to recover
     // leading digits that the positional layout clips at the cell-left
     // edge (Quality cell 0 reading "/2" instead of "2/2"). Right-pad
-    // covers the rarer trailing-digit clip.
-    let x_pad_candidates: [(u32, u32); 4] = [
+    // covers the rarer trailing-digit clip. The last entry is the
+    // most aggressive — anchor-height-and-a-half on both sides — for
+    // captures where the digit row sits well clear of the cell
+    // centre (user-reported "OCR'd 3 instead of 2 because we're at
+    // the border" on misc_b_disinfectingwipes).
+    let x_pad_candidates: [(u32, u32); 5] = [
         (0, 0),
         (anchor.h / 2, 0),
         (anchor.h, 0),
         (anchor.h / 2, anchor.h / 2),
+        (anchor.h * 3 / 2, anchor.h / 2),
     ];
 
     // Candidate top-Y values. Numerators come from empirical layouts:
@@ -353,16 +411,76 @@ fn pick_best_strip_y(
         if parsed_y != req_q {
             return None;
         }
+
+        // Confidence floor on every non-slash digit's best template
+        // match. Without this gate the picker confirms variants that
+        // accidentally template-match noise into an "X/Y" shape:
+        //   - WaterCollectorLv2 cell 2 captured the "FROM RAID"
+        //     letters and they happened to score "8/6" — Y=6 matched
+        //     `needed=6` so the picker accepted X=8 as the owned
+        //     count for Nails (actual value was very different).
+        //   - CryptoMining cell 0 caught half of the leading "0"
+        //     digit which template-matched as "3" with a mediocre
+        //     score — Y=4 matched `needed=4` so X=3 stuck.
+        // Requiring every digit to clear ~0.65 against its assigned
+        // template rejects both cases (FROM-RAID letters score
+        // ~0.55-0.65 against digit templates; clipped half-digits
+        // score similarly low). Threshold tuned to leave the
+        // observed minimum correct-match score (~0.696 for narrow
+        // "1" glyphs) inside the accept band.
+        const MIN_DIGIT_CONFIDENCE: f32 = 0.65;
+        let y_n = req_q.to_string().chars().count();
+        let total = recog.kept_components.len();
+        if total < y_n + 1 {
+            return None;
+        }
+        let slash_idx = total - y_n - 1;
+        for (i, k) in recog.kept_components.iter().enumerate() {
+            if i == slash_idx {
+                continue;
+            }
+            let best = k
+                .scores
+                .iter()
+                .find(|(c, _)| *c != '/')
+                .map(|(_, s)| *s)
+                .unwrap_or(0.0);
+            if best < MIN_DIGIT_CONFIDENCE {
+                return None;
+            }
+        }
+
         // Higher tier for 1-digit X (the common case); a positive base
         // ensures any confirmed variant outranks an unconfirmed one.
         Some(if parsed_x < 10 { 100 } else { 50 })
     };
 
+    // Score WITH a pad-bonus tiebreaker so that, among variants
+    // passing the same digit-confidence + Y-match gate, the one
+    // with more left-padding wins. The base unpadded crop is
+    // usually correct, but when a leading digit sits *right* at
+    // the cell column's left edge it gets clipped and template-
+    // matched as a different digit (e.g. `2` → `3`). The picker
+    // can't tell the two apart from match-score alone (both look
+    // like valid 1-digit reads), so we add a small constant per
+    // pad-pixel on the left so that more padding breaks ties.
+    // Multiplier reserves room for the base score; pad won't
+    // promote a 2-digit read over a 1-digit read.
+    let score_variant_with_pad = |x, y, w, h, req_q, pad_l: u32| -> Option<u32> {
+        let s = score_variant(x, y, w, h, req_q)?;
+        // Cap the bonus so a wildly padded crop that accidentally
+        // includes a neighbour's digit doesn't trump a clean read.
+        let pad_bonus = pad_l.min(40);
+        Some(s * 1000 + pad_bonus)
+    };
+
     let mut best_scores: Vec<u32> = vec![0; base_cells.len()];
 
-    // First: score the base geometry.
+    // First: score the base geometry. Base has pad_l = 0, so the
+    // tiebreaker bonus is zero — any padded variant that matches the
+    // base's parse score wins.
     for (i, (cell, req)) in base_cells.iter().zip(requirements.iter()).enumerate() {
-        if let Some(s) = score_variant(cell.x, cell.y, cell.w, cell.h, req.quantity) {
+        if let Some(s) = score_variant_with_pad(cell.x, cell.y, cell.w, cell.h, req.quantity, 0) {
             best_scores[i] = s;
             confirmed[i] = true;
         }
@@ -378,7 +496,9 @@ fn pick_best_strip_y(
                 let new_x = cell.x.saturating_sub(*pad_l);
                 let new_w = (cell.w + pad_l + pad_r).min(img_w.saturating_sub(new_x));
                 let new_h = strip_h.min(img_h.saturating_sub(*y_top));
-                if let Some(s) = score_variant(new_x, *y_top, new_w, new_h, req.quantity) {
+                if let Some(s) =
+                    score_variant_with_pad(new_x, *y_top, new_w, new_h, req.quantity, *pad_l)
+                {
                     if s > best_scores[i] {
                         best_scores[i] = s;
                         best_cells[i] = BBox {
@@ -399,9 +519,9 @@ fn pick_best_strip_y(
 }
 
 #[cfg(not(target_os = "windows"))]
-pub fn process_screenshot(_path: &Path, _data: &GameData) -> Result<Option<OcrOutcome>> {
+pub fn process_screenshot(_path: &Path, _data: &GameData) -> Result<OcrPipelineResult> {
     // Windows.Media.Ocr is not available on non-Windows targets.
-    Ok(None)
+    Ok(OcrPipelineResult::NoPanel)
 }
 
 #[cfg(all(test, target_os = "windows"))]
@@ -431,6 +551,20 @@ mod fixture_tests {
     fn fixture_dir() -> PathBuf {
         // CARGO_MANIFEST_DIR is `crates/app`; native PNGs live at repo root.
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../hideout_screenshots_native")
+    }
+
+    /// True for the "primary" fixture PNGs (e.g. `BookcaseLv1.png`).
+    /// Excludes per-cell strip debug PNGs (`*.cellN.*.png`) and other
+    /// sibling files that get written next to fixtures by the
+    /// pipeline's debug-build dumps — those would otherwise be picked
+    /// up as fixtures themselves and break the test sweep.
+    fn is_primary_fixture(entry: &std::fs::DirEntry) -> bool {
+        let path = entry.path();
+        if path.extension().and_then(|s| s.to_str()) != Some("png") {
+            return false;
+        }
+        let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+        !stem.contains(".cell") && !stem.contains(".ocr-debug")
     }
 
     /// Sweep every JPG fixture, report a per-image pass/fail line, and
@@ -480,7 +614,7 @@ mod fixture_tests {
         let mut entries: Vec<_> = std::fs::read_dir(&in_dir)
             .unwrap_or_else(|e| panic!("read_dir {}: {e}", in_dir.display()))
             .filter_map(|e| e.ok())
-            .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("png"))
+            .filter(is_primary_fixture)
             .collect();
         entries.sort_by_key(|e| e.file_name());
 
@@ -560,7 +694,7 @@ mod fixture_tests {
         let mut entries: Vec<_> = std::fs::read_dir(&in_dir)
             .unwrap_or_else(|e| panic!("read_dir {}: {e}", in_dir.display()))
             .filter_map(|e| e.ok())
-            .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("png"))
+            .filter(is_primary_fixture)
             .collect();
         entries.sort_by_key(|e| e.file_name());
 
@@ -928,7 +1062,7 @@ mod fixture_tests {
         let mut entries: Vec<_> = std::fs::read_dir(&in_dir)
             .unwrap_or_else(|e| panic!("read_dir {}: {e}", in_dir.display()))
             .filter_map(|e| e.ok())
-            .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("png"))
+            .filter(is_primary_fixture)
             .collect();
         entries.sort_by_key(|e| e.file_name());
 
@@ -1036,7 +1170,7 @@ mod fixture_tests {
         let mut entries: Vec<_> = std::fs::read_dir(&in_dir)
             .unwrap_or_else(|e| panic!("read_dir {}: {e}", in_dir.display()))
             .filter_map(|e| e.ok())
-            .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("png"))
+            .filter(is_primary_fixture)
             .collect();
         entries.sort_by_key(|e| e.file_name());
         assert!(!entries.is_empty(), "no PNGs in {}", in_dir.display());
@@ -1240,7 +1374,7 @@ mod fixture_tests {
         let mut entries: Vec<_> = std::fs::read_dir(&in_dir)
             .unwrap_or_else(|e| panic!("read_dir {}: {e}", in_dir.display()))
             .filter_map(|e| e.ok())
-            .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("png"))
+            .filter(is_primary_fixture)
             .collect();
         entries.sort_by_key(|e| e.file_name());
         assert!(!entries.is_empty(), "no native PNGs to test against");
@@ -1255,7 +1389,7 @@ mod fixture_tests {
             let path = entry.path();
             let stem = path.file_stem().unwrap().to_string_lossy().into_owned();
             match ocr::process_screenshot(&path, &data) {
-                Ok(Some(outcome)) => {
+                Ok(ocr::OcrPipelineResult::Identified(outcome)) => {
                     let upgrade = data
                         .modules
                         .iter()
@@ -1281,7 +1415,17 @@ mod fixture_tests {
                         }
                     }
                 }
-                Ok(None) => eprintln!("NONE  {stem}: pipeline returned None"),
+                Ok(ocr::OcrPipelineResult::NoPanel) => {
+                    eprintln!("NONE  {stem}: pipeline returned NoPanel");
+                }
+                Ok(ocr::OcrPipelineResult::UnknownUpgrade {
+                    module_hint,
+                    current_level,
+                }) => {
+                    eprintln!(
+                        "UNK   {stem}: unknown upgrade (hint={module_hint:?} lv={current_level})",
+                    );
+                }
                 Err(e) => eprintln!("ERR   {stem}: {e:#}"),
             }
         }
@@ -1289,14 +1433,21 @@ mod fixture_tests {
 
     /// Diagnostic: dump every OCR'd word for one native PNG, with
     /// focus on the area below the anchor (where FROM RAID labels +
-    /// counts live).
+    /// counts live). Path is read from the `OCR_DUMP_PATH` env var
+    /// when set so you can point it at user-reported captures
+    /// without rebuilding; defaults to CryptoMiningLv2 for the
+    /// in-repo fixture sweep.
     #[test]
     #[ignore = "diagnostic — run with --ignored"]
     fn dump_native_png_words() {
         use crate::ocr::engine;
-        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../hideout_screenshots_native/CryptoMiningLv2.png");
-        let img = image::open(&path).expect("open native PNG");
+        let path = match std::env::var_os("OCR_DUMP_PATH") {
+            Some(p) => std::path::PathBuf::from(p),
+            None => std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../hideout_screenshots_native/CryptoMiningLv2.png"),
+        };
+        eprintln!("OCR dump for: {}", path.display());
+        let img = image::open(&path).expect("open PNG");
         let words = engine::recognize_image(&img).expect("OCR");
         eprintln!("{} words total:", words.len());
         let mut sorted: Vec<_> = words.iter().collect();
@@ -1329,7 +1480,7 @@ mod fixture_tests {
         let entries: Vec<_> = std::fs::read_dir(&dir)
             .unwrap_or_else(|e| panic!("read_dir {}: {e}", dir.display()))
             .filter_map(|e| e.ok())
-            .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("png"))
+            .filter(is_primary_fixture)
             .collect();
         assert!(
             !entries.is_empty(),
@@ -1347,7 +1498,7 @@ mod fixture_tests {
                 .unwrap_or("")
                 .to_string();
             match ocr::process_screenshot(&path, &data) {
-                Ok(Some(outcome)) => {
+                Ok(ocr::OcrPipelineResult::Identified(outcome)) => {
                     let upgrade = data
                         .modules
                         .iter()
@@ -1369,8 +1520,12 @@ mod fixture_tests {
                         fail.push(stem);
                     }
                 }
-                Ok(None) => {
-                    eprintln!("FAIL  {stem}: pipeline returned None (panel not detected)");
+                Ok(ocr::OcrPipelineResult::NoPanel) => {
+                    eprintln!("FAIL  {stem}: pipeline returned NoPanel");
+                    fail.push(stem);
+                }
+                Ok(ocr::OcrPipelineResult::UnknownUpgrade { .. }) => {
+                    eprintln!("FAIL  {stem}: pipeline returned UnknownUpgrade");
                     fail.push(stem);
                 }
                 Err(e) => {
@@ -1408,7 +1563,7 @@ mod fixture_tests {
         let entries: Vec<_> = std::fs::read_dir(&dir)
             .unwrap_or_else(|e| panic!("read_dir {}: {e}", dir.display()))
             .filter_map(|e| e.ok())
-            .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("png"))
+            .filter(is_primary_fixture)
             .collect();
 
         let mut correct = 0usize;
@@ -1427,7 +1582,7 @@ mod fixture_tests {
                 None => continue,
             };
             let outcome = match ocr::process_screenshot(&path, &data) {
-                Ok(Some(o)) => o,
+                Ok(ocr::OcrPipelineResult::Identified(o)) => o,
                 _ => continue,
             };
             let upgrade = data

@@ -56,6 +56,23 @@ pub enum OcrFeedbackKind {
     /// Pipeline ran but the screenshot wasn't an upgrade panel (no
     /// "Need to submit items" anchor). Nothing was written to state.
     NotAPanel,
+    /// Pipeline found an upgrade panel but couldn't match the module
+    /// + level pair in `data.json` — almost always an upgrade the
+    /// scraper hasn't picked up yet. Distinguished from `NotAPanel`
+    /// because the user's capture WAS a valid panel and they
+    /// shouldn't be told "not a panel" (they'd spend time re-taking
+    /// the screenshot for nothing).
+    UnknownUpgrade {
+        /// Best guess at the module name from OCR tokens (e.g. "Moreitem").
+        /// `None` when we couldn't extract a sensible token.
+        module_hint: Option<String>,
+        /// `LV<n>` parsed from the panel header. Target level (what
+        /// the user would buy) is `current_level + 1`.
+        current_level: u32,
+        /// Path to the captured screenshot so the message can guide
+        /// the user to "attach this file to a GitHub issue."
+        screenshot_path: std::path::PathBuf,
+    },
     /// Pipeline errored out. The message is shown verbatim — kept brief.
     Failed(String),
 }
@@ -83,6 +100,20 @@ impl OcrFeedback {
     pub fn not_a_panel() -> Self {
         Self {
             kind: OcrFeedbackKind::NotAPanel,
+        }
+    }
+
+    pub fn unknown_upgrade(
+        module_hint: Option<String>,
+        current_level: u32,
+        screenshot_path: std::path::PathBuf,
+    ) -> Self {
+        Self {
+            kind: OcrFeedbackKind::UnknownUpgrade {
+                module_hint,
+                current_level,
+                screenshot_path,
+            },
         }
     }
 
@@ -220,6 +251,20 @@ impl OcrFeedback {
             OcrFeedbackKind::NotAPanel => {
                 tracing::info!(
                     "OCR overlay: not-a-panel — screenshot didn't match the upgrade-panel anchor"
+                );
+            }
+            OcrFeedbackKind::UnknownUpgrade {
+                module_hint,
+                current_level,
+                screenshot_path,
+            } => {
+                tracing::warn!(
+                    module_hint = ?module_hint,
+                    current_level,
+                    screenshot = %screenshot_path.display(),
+                    "OCR overlay: unknown-upgrade — panel detected but no matching \
+                     upgrade in data.json. Add the recipe via Desktop → Manual \
+                     Recipe Entry and file a GitHub issue with the screenshot."
                 );
             }
             OcrFeedbackKind::Failed(msg) => {
