@@ -190,15 +190,15 @@ fn presets_row(ui: &mut egui::Ui, state: &Arc<RwLock<AppState>>, save_tx: &Sende
         ui.add_space(20.0);
         natural_progression_controls(ui, state, save_tx);
 
-        // Deselect-all is only meaningful when there's something to
-        // deselect, so it conditionally renders rather than sitting
+        // Untrack-all is only meaningful when there's something to
+        // untrack, so it conditionally renders rather than sitting
         // disabled. Tracked > 0 is the right signal — completed
         // upgrades don't count (they're not "tracking", they're
         // "done" and should stay that way).
         let has_tracked = !state.read().tracked_upgrades.is_empty();
         if has_tracked {
             ui.add_space(20.0);
-            deselect_all_button(ui, state, save_tx);
+            untrack_all_button(ui, state, save_tx);
         }
     });
 }
@@ -346,14 +346,14 @@ fn natural_progression_controls(
     );
 }
 
-/// "Deselect all" — untracks every currently-tracked upgrade in one
+/// "Untrack all" — untracks every currently-tracked upgrade in one
 /// click. Doesn't touch completed upgrades (those are "done", not
 /// "tracking", and the user expects them to stay marked done). The
 /// caller in [`presets_row`] gates rendering on
 /// `tracked_upgrades.is_empty()` so this only appears when there's
 /// something to clear; rendering it disabled would be visual noise
 /// on a fresh install.
-fn deselect_all_button(
+fn untrack_all_button(
     ui: &mut egui::Ui,
     state: &Arc<RwLock<AppState>>,
     save_tx: &Sender<SaveTick>,
@@ -365,7 +365,7 @@ fn deselect_all_button(
          Completed upgrades stay completed."
     );
     let resp = ui
-        .add(egui::Button::new("Deselect all"))
+        .add(egui::Button::new("Untrack all"))
         .on_hover_text(&tooltip);
     if resp.clicked() {
         let mut s = state.write();
