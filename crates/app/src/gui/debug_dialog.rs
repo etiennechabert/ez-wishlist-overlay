@@ -1,10 +1,25 @@
-//! Modal that surfaces the in-memory log buffer (see `log_buffer.rs`).
+//! Modal that surfaces the in-memory log buffer (see `log_buffer.rs`) plus a
+//! "Capture VR Screenshot" button — a developer tool that pulls the SteamVR
+//! compositor's left-eye mirror texture as a lossless PNG. We use this to
+//! collect clean OCR samples without Steam's F12 JPEG compression.
 
 use crate::log_buffer::{LogBuffer, LogLine};
+use crate::vr::runtime::CaptureResult;
+use crate::vr::Runtime;
+use crossbeam_channel::Sender;
 use egui::Color32;
+use std::path::PathBuf;
+use std::sync::Arc;
 use tracing::Level;
 
-pub fn show(ctx: &egui::Context, open: &mut bool, log_buf: &LogBuffer) {
+pub fn show(
+    ctx: &egui::Context,
+    open: &mut bool,
+    log_buf: &LogBuffer,
+    vr: &Arc<Runtime>,
+    last_capture: Option<&CaptureResult>,
+    ocr_path_tx: &Sender<PathBuf>,
+) {
     let mut close_now = false;
     egui::Window::new("Debug logs")
         .open(open)
@@ -16,6 +31,47 @@ pub fn show(ctx: &egui::Context, open: &mut bool, log_buf: &LogBuffer) {
             let lines = log_buf.snapshot();
             let dark = ui.visuals().dark_mode;
             let weak = ui.visuals().weak_text_color();
+
+            ui.horizontal(|ui| {
+                if ui.button("Capture VR screenshot").clicked() {
+                    vr.request_screenshot();
+                }
+                ui.label(
+                    egui::RichText::new("Or press Space when this window is focused")
+                        .small()
+                        .color(weak),
+                );
+            });
+
+            // Debug-build helper: push a checked-in fixture PNG through
+            // the OCR worker so the feedback overlay can be exercised
+            // without SteamVR running. Only compiled in debug builds —
+            // shipped users have no use for fixtures, and the directory
+            // isn't present in installer builds.
+            #[cfg(debug_assertions)]
+            render_ocr_fixture_runner(ui, ocr_path_tx, weak);
+            #[cfg(not(debug_assertions))]
+            let _ = ocr_path_tx;
+            match last_capture {
+                Some(CaptureResult::Ok(path)) => {
+                    ui.label(
+                        egui::RichText::new(format!("Saved: {}", path.display()))
+                            .small()
+                            .color(Color32::from_rgb(80, 180, 100)),
+                    );
+                }
+                Some(CaptureResult::Err(msg)) => {
+                    ui.label(
+                        egui::RichText::new(format!("Capture failed: {msg}"))
+                            .small()
+                            .color(Color32::from_rgb(220, 100, 90)),
+                    );
+                }
+                None => {
+                    ui.label(egui::RichText::new(" ").small());
+                }
+            }
+            ui.separator();
 
             ui.horizontal(|ui| {
                 ui.label(
@@ -68,6 +124,66 @@ pub fn show(ctx: &egui::Context, open: &mut bool, log_buf: &LogBuffer) {
     if close_now {
         *open = false;
     }
+}
+
+#[cfg(debug_assertions)]
+fn render_ocr_fixture_runner(ui: &mut egui::Ui, ocr_path_tx: &Sender<PathBuf>, weak: Color32) {
+    // The fixtures sit at repo root next to `crates/`. We probe for the
+    // directory at runtime; if the dev moved the workspace or the
+    // binary is being run far from its build dir the button stays
+    // disabled and explains why.
+    let fixtures_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../hideout_screenshots_native");
+    let mut fixtures: Vec<PathBuf> = std::fs::read_dir(&fixtures_dir)
+        .map(|rd| {
+            rd.filter_map(|e| e.ok())
+                .map(|e| e.path())
+                .filter(|p| p.extension().and_then(|s| s.to_str()) == Some("png"))
+                .collect()
+        })
+        .unwrap_or_default();
+    fixtures.sort();
+
+    ui.horizontal(|ui| {
+        ui.label(
+            egui::RichText::new("Test OCR on fixture")
+                .small()
+                .strong()
+                .color(weak),
+        );
+        if fixtures.is_empty() {
+            ui.label(
+                egui::RichText::new(format!("(no PNGs in {})", fixtures_dir.display()))
+                    .small()
+                    .color(weak),
+            );
+            return;
+        }
+        egui::ComboBox::from_id_salt("ocr-fixture-picker")
+            .selected_text("pick a fixture")
+            .show_ui(ui, |ui| {
+                for fixture in &fixtures {
+                    let label = fixture
+                        .file_name()
+                        .map(|n| n.to_string_lossy().into_owned())
+                        .unwrap_or_default();
+                    if ui.selectable_label(false, label).clicked() {
+                        if let Err(e) = ocr_path_tx.try_send(fixture.clone()) {
+                            tracing::warn!(
+                                error = %e,
+                                path = %fixture.display(),
+                                "failed to enqueue OCR fixture",
+                            );
+                        }
+                    }
+                }
+            });
+        ui.label(
+            egui::RichText::new("(needs ocr_enabled in Settings)")
+                .small()
+                .color(weak),
+        );
+    });
 }
 
 fn format_line(line: &LogLine) -> String {

@@ -8,7 +8,7 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
-const SCHEMA_VERSION: u32 = 1;
+const SCHEMA_VERSION: u32 = 2;
 
 /// Bounds on each tunable (UI clamps the slider; loader clamps the file).
 pub mod bounds {
@@ -22,6 +22,11 @@ pub mod bounds {
     /// 0 sits the panel at eye level (looking forward sees its lower edge);
     /// the upper end pushes it well above so you have to crane up to see it.
     pub const HEIGHT_OFFSET_M: std::ops::RangeInclusive<f32> = 0.0..=1.5;
+    /// How long the terminal OCR feedback card stays before fading out.
+    /// 1 s is a reasonable lower bound (anything shorter and the user
+    /// barely sees the result); 15 s is generous enough that even a
+    /// careful read of a 4-cell panel fits in one show.
+    pub const OCR_DISMISS_SECS: std::ops::RangeInclusive<u32> = 1..=15;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -40,10 +45,106 @@ pub struct Settings {
     /// nagware, but newer versions still surface.
     #[serde(default)]
     pub dismissed_update_version: Option<String>,
+    /// When true, the OCR worker auto-extracts owned counts from every
+    /// VR mirror-texture screenshot and overwrites `AppState.collected`
+    /// for the matched upgrade. Defaults to ON now that the per-digit
+    /// templates ship under `crates/app/src/assets/ocr_templates/` and
+    /// the pipeline has been validated against
+    /// `hideout_screenshots_native/` (15/15 upgrades identified, owned
+    /// counts read correctly across the committed digit templates).
+    #[serde(default = "default_ocr_enabled")]
+    pub ocr_enabled: bool,
+    /// Which compositor mirror eye texture to capture for OCR. Default
+    /// is the RIGHT eye — empirically the left eye's mirror buffer
+    /// occasionally returned the previous frame on consecutive
+    /// captures (the "second screenshot OCR's the first" bug), while
+    /// the right eye stayed in sync. Switch to `Left` if a specific
+    /// headset behaves the opposite way.
+    #[serde(default = "default_capture_eye")]
+    pub capture_eye: CaptureEye,
+    /// When true, every OCR pass keeps the source screenshot PNG, drops
+    /// per-cell binarised strip PNGs (`<stem>.cell<i>.<HHMMSS>.png`),
+    /// and writes a `<stem>.ocr-debug.<HHMMSS>.txt` sidecar with every
+    /// intermediate the pipeline produced. Also keeps the in-headset
+    /// feedback card visible until the next capture replaces it (so
+    /// the user has time to inspect the read before grabbing the
+    /// debug artifacts). Default OFF — production users would
+    /// otherwise accumulate ~10 MB screenshots per capture in their
+    /// data dir, and the long-lived overlay would obstruct play.
+    #[serde(default)]
+    pub ocr_debug: bool,
+    /// How long the OCR feedback card stays before fading out, when
+    /// `ocr_debug` is off. Ignored when `ocr_debug` is on (the card
+    /// then sticks until the next capture so you have time to read
+    /// it alongside the on-disk debug artifacts).
+    #[serde(default = "default_ocr_dismiss_seconds")]
+    pub ocr_dismiss_seconds: u32,
+    /// When true, a successful OCR auto-tracks the matched upgrade
+    /// and marks every lower-level upgrade in the same module as
+    /// completed (the game only shows Lv N's panel after Lv (N-1) is
+    /// claimed, so seeing the panel is proof). Default ON.
+    ///
+    /// Turn OFF when you want to bulk-OCR a bunch of panels just to
+    /// refresh inventory counts without touching your tracked /
+    /// completed lists. Turn back ON before a raid when you want
+    /// the next panel you peek at to be auto-added to "what I'm
+    /// working on this run."
+    #[serde(default = "default_ocr_auto_track")]
+    pub ocr_auto_track: bool,
+    /// When true, every OCR capture emits a deep diagnostic trace:
+    /// per-process `capture_seq`, FNV-1a hashes of the raw pixel
+    /// buffer / RGB-stripped buffer / encoded PNG / pipeline-decoded
+    /// bytes, compositor frame index and timing from
+    /// `IVRCompositor::GetFrameTiming`, the opposite-eye mirror's
+    /// fingerprint, per-step elapsed times, and the first 12 words
+    /// the OCR engine returned. Lets you cross-reference exactly
+    /// what content the mirror handed back vs what the pipeline
+    /// processed if "OCR is reading the previous screenshot"-style
+    /// bugs recur. Off by default — the FNV passes hash ~30 MB
+    /// per capture and the logs are voluminous.
+    #[serde(default)]
+    pub ocr_capture_trace: bool,
 }
 
 fn default_check_for_updates() -> bool {
     true
+}
+
+fn default_ocr_enabled() -> bool {
+    true
+}
+
+fn default_capture_eye() -> CaptureEye {
+    CaptureEye::Right
+}
+
+fn default_ocr_dismiss_seconds() -> u32 {
+    4
+}
+
+fn default_ocr_auto_track() -> bool {
+    true
+}
+
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum CaptureEye {
+    Left,
+    /// Default. The left-eye mirror was empirically observed leaking
+    /// the previous frame on some headsets — right eye stays in sync.
+    #[default]
+    Right,
+}
+
+impl Settings {
+    /// Clamp the OCR-side numeric tunables to their declared bounds.
+    /// Called on load and after every UI edit so a hand-written
+    /// settings file with an out-of-range value can't break the UI
+    /// or the runtime.
+    pub fn sanitize_ocr(&mut self) {
+        let d = bounds::OCR_DISMISS_SECS;
+        self.ocr_dismiss_seconds = self.ocr_dismiss_seconds.clamp(*d.start(), *d.end());
+    }
 }
 
 impl Default for Settings {
@@ -54,6 +155,12 @@ impl Default for Settings {
             theme: Theme::default(),
             check_for_updates: default_check_for_updates(),
             dismissed_update_version: None,
+            ocr_enabled: default_ocr_enabled(),
+            capture_eye: default_capture_eye(),
+            ocr_debug: false,
+            ocr_dismiss_seconds: default_ocr_dismiss_seconds(),
+            ocr_auto_track: default_ocr_auto_track(),
+            ocr_capture_trace: false,
         }
     }
 }
@@ -142,7 +249,9 @@ pub fn load(path: &Path) -> Settings {
     };
     match serde_json::from_str::<Settings>(&raw) {
         Ok(mut s) => {
+            migrate(&mut s);
             s.vr.sanitize();
+            s.sanitize_ocr();
             s
         }
         Err(e) => {
@@ -150,6 +259,29 @@ pub fn load(path: &Path) -> Settings {
             let _ = backup_corrupt(path);
             Settings::default()
         }
+    }
+}
+
+/// Forward-migrate a settings struct loaded from a previous schema
+/// version. Runs once per load; we don't gate behind a fresh
+/// `SCHEMA_VERSION` check after each step because the migration is
+/// idempotent (each branch's predicate is "is this still on the
+/// older default I want to flip?").
+///
+/// v1 → v2: flip `ocr_enabled` from the old default-false (kept while
+/// per-digit templates were still being calibrated) to true, so the
+/// in-headset feedback overlay surfaces on every capture without the
+/// user having to dig into Settings.
+fn migrate(s: &mut Settings) {
+    if s.schema_version < 2 {
+        if !s.ocr_enabled {
+            tracing::info!(
+                "settings migration v1→v2: enabling OCR (default flipped on now \
+                 that digit templates ship and the pipeline is validated)",
+            );
+            s.ocr_enabled = true;
+        }
+        s.schema_version = 2;
     }
 }
 
@@ -231,6 +363,36 @@ mod tests {
         };
         vr.sanitize();
         assert_eq!(vr.grid_cols, *bounds::GRID_COLS.start());
+    }
+
+    #[test]
+    fn migration_v1_to_v2_flips_ocr_enabled_on() {
+        // Simulate the saved settings the previous build wrote:
+        // schema_version 1 with ocr_enabled deliberately false (kept
+        // off while templates were being calibrated).
+        let mut s = Settings {
+            schema_version: 1,
+            ocr_enabled: false,
+            ..Settings::default()
+        };
+        migrate(&mut s);
+        assert_eq!(s.schema_version, 2);
+        assert!(s.ocr_enabled, "OCR must auto-enable on v1 → v2 migration");
+    }
+
+    #[test]
+    fn migration_leaves_v2_settings_alone() {
+        // A user who already chose to turn OCR off on schema v2 must
+        // keep that choice — the migration only runs when bumping out
+        // of v1.
+        let mut s = Settings {
+            schema_version: 2,
+            ocr_enabled: false,
+            ..Settings::default()
+        };
+        migrate(&mut s);
+        assert!(!s.ocr_enabled);
+        assert_eq!(s.schema_version, 2);
     }
 
     #[test]

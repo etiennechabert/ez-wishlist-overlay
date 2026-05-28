@@ -26,3 +26,21 @@ state.json
 dev.log
 vr-fntable.txt
 ocr_data/
+
+# Native VR captures are now the OCR pipeline's ground-truth test set
+# (paired with `<UpgradeId>.label.txt` files). Committed despite their
+# size (~10 MB lossless per PNG, ~150 MB total) because the
+# fixture-test + regression diagnostics depend on them. New
+# screenshots from `<data_dir>/vr_screenshots/` should NOT be added
+# here unless they're meant as fixtures.
+
+# OCR debug dumps generated next to captured screenshots in debug builds.
+# Filenames are `<stem>.ocr-debug.<HHMMSS>.txt` (HHMMSS = when the dump
+# was written, so successive regenerations don't silently overwrite).
+*.ocr-debug.*.txt
+
+# Per-cell binarised strip PNGs the pipeline drops next to source
+# screenshots in debug builds (`<stem>.cell<N>.<HHMMSS>.png`). Same
+# rationale as the debug dumps — useful in-flight diagnostic, not
+# something that should land in git or in the fixture set.
+*.cell*.png

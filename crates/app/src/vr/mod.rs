@@ -18,11 +18,14 @@
 
 pub mod anchor;
 pub mod input;
+pub mod ocr_render;
 pub mod pose;
 pub mod render;
 pub mod runtime;
 pub mod text;
 
+#[cfg(target_os = "windows")]
+mod capture;
 #[cfg(target_os = "windows")]
 mod overlay;
 

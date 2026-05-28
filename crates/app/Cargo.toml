@@ -35,6 +35,10 @@ time = { version = "0.3.37", features = ["formatting", "macros", "local-offset"]
 once_cell = "1.20.2"
 tiny-skia = "0.11.4"
 fontdue = "0.9.3"
+# Levenshtein distance for the OCR strict-match resolver — tolerates
+# character-level OCR errors against `module.name` only; never used to
+# bridge dataset drift (see crates/app/src/ocr/match_upgrade.rs).
+strsim = "0.11"
 
 # One-shot HTTPS GET against the GitHub releases API for the in-app update
 # check. `ureq` is sync + tiny (no async runtime), which fits our single
@@ -49,13 +53,35 @@ ureq = { version = "2.12", default-features = false, features = ["tls", "json"] 
 # Building on Windows requires a C++ toolchain, cmake, and libclang on PATH
 # (openvr_sys builds the bundled OpenVR SDK + bindgen). See README.
 #
-# `openvr_sys` is pulled in directly because the safe wrapper doesn't expose
-# `SetOverlayInputMethod` / `SetOverlayFlag`, which we need to make the
-# controller laser actually intersect our overlay. Version pinned to the
-# same revision the safe wrapper uses transitively.
+# `openvr_sys` is pulled in directly (not through the `openvr` safe wrapper)
+# for two functions 0.9.0 omits:
+#   - `SetOverlayInputMethod` / `SetOverlayFlag`, needed for the controller
+#     laser to intersect the overlay (vr/overlay.rs).
+#   - `IVRCompositor::GetMirrorTextureD3D11`, needed for native-resolution
+#     screenshot capture (vr/capture.rs).
+# Version pinned to the revision the safe wrapper uses transitively.
+# `windows` is needed for the D3D11 device + staging-texture readback that
+# the mirror-texture pull does.
 [target.'cfg(target_os = "windows")'.dependencies]
 openvr = "0.9.0"
 openvr_sys = "2.1.4"
+windows = { version = "0.58", features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Direct3D",
+    "Win32_Graphics_Direct3D11",
+    "Win32_Graphics_Dxgi_Common",
+    "Win32_System_Diagnostics_Debug",
+    "Win32_UI_WindowsAndMessaging",
+    # OCR (WinRT) — used by crates/app/src/ocr/engine.rs to run
+    # Windows.Media.Ocr over the panel screenshot crops.
+    "Foundation",
+    "Foundation_Collections",
+    "Globalization",
+    "Graphics_Imaging",
+    "Media_Ocr",
+    "Storage",
+    "Storage_Streams",
+] }
 
 [features]
 default = []

@@ -4,19 +4,24 @@ mod about_dialog;
 mod debug_dialog;
 mod hideout_pane;
 mod icon_cache;
+pub mod ocr_feedback;
 mod overrides_export;
 mod preview_pane;
 mod settings_dialog;
 mod tasks_pane;
 pub mod theme;
 
+pub use ocr_feedback::{OcrFeedback, OcrFeedbackKind, OcrItemDelta};
+
 use crate::data::GameData;
 use crate::persist::PersistPaths;
 use crate::state::AppState;
 use crate::updater::CheckStatus;
+use crate::vr::runtime::CaptureResult;
 use crossbeam_channel::{Receiver, Sender};
 use parking_lot::RwLock;
 use std::sync::Arc;
+use std::time::Instant;
 
 pub use icon_cache::IconCache;
 
@@ -70,6 +75,19 @@ pub struct App {
     /// One-shot confirmation ("Copied. …") that appears under the Copy
     /// button after a successful copy; cleared when the dialog closes.
     export_copy_feedback: Option<String>,
+    /// Most recent VR-screenshot result, drained from `vr` once per frame.
+    /// Kept around (rather than re-drained) so the debug dialog can keep
+    /// showing the last path/error even after the toast fades. Replaced on
+    /// each new capture.
+    last_capture: Option<CaptureResult>,
+    /// When the centred capture-confirmation toast first appeared. `None`
+    /// means no toast is showing right now. Reset to `Some(now)` every time
+    /// `last_capture` is replaced.
+    capture_toast_shown_at: Option<Instant>,
+    /// Clone of the channel that feeds the OCR worker. Used by the
+    /// debug-build "Run OCR on fixture" button so we can exercise the
+    /// pipeline + in-headset overlay without a SteamVR session.
+    ocr_path_tx: Sender<std::path::PathBuf>,
 }
 
 impl App {
@@ -85,6 +103,7 @@ impl App {
         settings: Arc<RwLock<crate::settings::Settings>>,
         log_buf: crate::log_buffer::LogBuffer,
         update_rx: Option<Receiver<CheckStatus>>,
+        ocr_path_tx: Sender<std::path::PathBuf>,
     ) -> Self {
         // Extend egui's default Proportional fallback chain with Hack.
         // Ubuntu-Light (the proportional primary) doesn't cover most of the
@@ -132,6 +151,9 @@ impl App {
             export_title: None,
             export_url: None,
             export_copy_feedback: None,
+            last_capture: None,
+            capture_toast_shown_at: None,
+            ocr_path_tx,
         }
     }
 
@@ -158,6 +180,34 @@ impl eframe::App for App {
         // surface even without user input. egui otherwise sleeps until the
         // next event.
         ctx.request_repaint_after(std::time::Duration::from_secs(1));
+
+        // Spacebar = "take a VR screenshot" while the desktop window has
+        // focus. Clicking a button is impractical with the headset on, so
+        // this hotkey lets the user trigger a capture from inside VR
+        // (looking down at the desktop monitor — or, more usefully,
+        // pressing space on the keyboard before putting the headset back
+        // on). The `wants_keyboard_input` guard avoids stealing spaces
+        // from any focused text input.
+        if !ctx.wants_keyboard_input()
+            && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Space))
+        {
+            self.vr.request_screenshot();
+        }
+
+        // Drain the VR worker's latest capture result once per frame and
+        // stash it locally. Both the centred toast and the debug-dialog
+        // status line read from `self.last_capture`, so the runtime's slot
+        // is consumed exactly once per result.
+        if let Some(result) = self.vr.take_last_capture() {
+            self.last_capture = Some(result);
+            self.capture_toast_shown_at = Some(Instant::now());
+        }
+        self.render_capture_toast(ctx);
+
+        // OCR feedback now renders in the headset via the second
+        // SteamVR overlay (see vr::ocr_render + vr::runtime). The
+        // worker sends OcrFeedback messages to the VR thread; nothing
+        // surfaces on the desktop except the tracing logs.
 
         let desired_theme = self.settings.read().theme;
         if self.applied_theme != Some(desired_theme) {
@@ -220,7 +270,14 @@ impl eframe::App for App {
             about_dialog::show(ctx, &mut self.show_about, &data, &self.check_status);
         }
         if self.show_debug {
-            debug_dialog::show(ctx, &mut self.show_debug, &self.log_buf);
+            debug_dialog::show(
+                ctx,
+                &mut self.show_debug,
+                &self.log_buf,
+                &self.vr,
+                self.last_capture.as_ref(),
+                &self.ocr_path_tx,
+            );
         }
         if self.confirm_reset {
             self.confirm_reset_dialog(ctx);
@@ -450,6 +507,85 @@ impl App {
                 latest_version: info.latest_version.clone(),
             };
         }
+    }
+
+    /// Centred transient toast confirming a VR-screenshot capture. Auto-
+    /// dismisses after `TOAST_DURATION`; the last frame fades to zero
+    /// alpha so it doesn't pop out abruptly. Will eventually carry the
+    /// OCR'd panel summary instead of just the file path.
+    fn render_capture_toast(&mut self, ctx: &egui::Context) {
+        use std::time::Duration;
+        const TOAST_DURATION: Duration = Duration::from_secs(3);
+        const FADE_TAIL: Duration = Duration::from_millis(600);
+
+        let Some(shown_at) = self.capture_toast_shown_at else {
+            return;
+        };
+        let age = shown_at.elapsed();
+        if age >= TOAST_DURATION {
+            self.capture_toast_shown_at = None;
+            return;
+        }
+        // Keep the UI repainting while the toast is on screen so it
+        // disappears on time even if no other input arrives.
+        ctx.request_repaint_after(Duration::from_millis(33));
+
+        // Linear fade in the last `FADE_TAIL` of its lifetime.
+        let alpha = if TOAST_DURATION.saturating_sub(age) < FADE_TAIL {
+            let remaining = TOAST_DURATION.saturating_sub(age).as_secs_f32();
+            (remaining / FADE_TAIL.as_secs_f32()).clamp(0.0, 1.0)
+        } else {
+            1.0
+        };
+
+        let (title, body, accent) = match &self.last_capture {
+            Some(CaptureResult::Ok(path)) => (
+                "Capture saved",
+                path.file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| path.display().to_string()),
+                egui::Color32::from_rgb(80, 180, 100),
+            ),
+            Some(CaptureResult::Err(msg)) => (
+                "Capture failed",
+                msg.clone(),
+                egui::Color32::from_rgb(220, 100, 90),
+            ),
+            None => return,
+        };
+
+        let scale = |c: egui::Color32, a: f32| {
+            egui::Color32::from_rgba_unmultiplied(c.r(), c.g(), c.b(), (c.a() as f32 * a) as u8)
+        };
+
+        egui::Area::new(egui::Id::new("vr_capture_toast"))
+            .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
+            .interactable(false)
+            .order(egui::Order::Tooltip)
+            .show(ctx, |ui| {
+                egui::Frame::default()
+                    .fill(scale(egui::Color32::from_rgb(28, 28, 32), alpha))
+                    .stroke(egui::Stroke::new(1.5, scale(accent, alpha)))
+                    .rounding(egui::Rounding::same(10.0))
+                    .inner_margin(egui::Margin::symmetric(24.0, 16.0))
+                    .show(ui, |ui| {
+                        ui.vertical_centered(|ui| {
+                            ui.label(
+                                egui::RichText::new(title)
+                                    .strong()
+                                    .size(18.0)
+                                    .color(scale(accent, alpha)),
+                            );
+                            ui.add_space(4.0);
+                            ui.label(
+                                egui::RichText::new(body)
+                                    .monospace()
+                                    .size(13.0)
+                                    .color(scale(egui::Color32::from_gray(230), alpha)),
+                            );
+                        });
+                    });
+            });
     }
 
     fn confirm_reset_dialog(&mut self, ctx: &egui::Context) {

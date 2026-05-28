@@ -7,13 +7,21 @@
 //! the desktop app are platform-agnostic and we don't want a broken VR layer
 //! to bleed into macOS/Linux iteration builds.
 
+use crate::persist::PersistPaths;
 use crate::settings::Settings;
 use crate::state::AppState;
+use crossbeam_channel::{Receiver, Sender};
 use parking_lot::RwLock;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
 const RETRY_DELAY: Duration = Duration::from_secs(5);
+
+/// Subdirectory under `PersistPaths::data_dir` where captured mirror-texture
+/// PNGs are written. Kept simple — the OCR test bed under `ocr_data/` is
+/// happy to consume from wherever.
+const SCREENSHOT_SUBDIR: &str = "vr_screenshots";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum VrStatus {
@@ -63,11 +71,37 @@ impl VrStatus {
 /// session state.
 pub struct Runtime {
     status: Arc<RwLock<VrStatus>>,
+    /// One-shot trigger for "save the next mirror texture as PNG". Bounded
+    /// so the GUI can't queue thousands of pending captures if the user
+    /// mashes the button while SteamVR is disconnected.
+    capture_tx: Sender<()>,
+    /// Most recent capture result the worker thread reported. Cleared when
+    /// the GUI consumes it via [`Runtime::take_last_capture`].
+    last_capture: Arc<RwLock<Option<CaptureResult>>>,
     _join: std::thread::JoinHandle<()>,
 }
 
+#[derive(Clone, Debug)]
+pub enum CaptureResult {
+    Ok(PathBuf),
+    Err(String),
+}
+
 impl Runtime {
-    pub fn spawn(state: Arc<RwLock<AppState>>, settings: Arc<RwLock<Settings>>) -> Self {
+    /// Spawn the VR worker thread.
+    ///
+    /// `ocr_tx` receives the path of every successfully-saved mirror-texture
+    /// PNG. The downstream OCR worker thread (in `main.rs`) reads from the
+    /// matching receiver and reflects parsed counts back into `AppState`.
+    /// Bounded + `try_send` so a busy OCR worker can't backpressure the VR
+    /// render loop; excess captures are silently dropped on the OCR side.
+    pub fn spawn(
+        state: Arc<RwLock<AppState>>,
+        settings: Arc<RwLock<Settings>>,
+        paths: Arc<PersistPaths>,
+        ocr_tx: Sender<PathBuf>,
+        ocr_feedback_rx: Receiver<crate::gui::OcrFeedback>,
+    ) -> Self {
         let initial = if cfg!(target_os = "windows") {
             VrStatus::Connecting
         } else {
@@ -75,12 +109,32 @@ impl Runtime {
         };
         let status = Arc::new(RwLock::new(initial));
         let status_writer = status.clone();
+        let last_capture = Arc::new(RwLock::new(None));
+        let last_capture_writer = last_capture.clone();
+        // Bound at 4 so a mashed button doesn't queue work the worker can't
+        // service. `try_send` from the GUI side is non-blocking; excess
+        // presses are silently dropped, which is fine semantically — a
+        // screenshot is a one-shot ask.
+        let (capture_tx, capture_rx) = crossbeam_channel::bounded::<()>(4);
         let join = std::thread::Builder::new()
             .name("ez-wishlist-vr".into())
-            .spawn(move || run(state, settings, status_writer))
+            .spawn(move || {
+                run(
+                    state,
+                    settings,
+                    paths,
+                    status_writer,
+                    capture_rx,
+                    last_capture_writer,
+                    ocr_tx,
+                    ocr_feedback_rx,
+                )
+            })
             .expect("spawn VR thread");
         Self {
             status,
+            capture_tx,
+            last_capture,
             _join: join,
         }
     }
@@ -88,13 +142,32 @@ impl Runtime {
     pub fn status(&self) -> VrStatus {
         self.status.read().clone()
     }
+
+    /// Ask the VR worker to take one mirror-texture screenshot the next time
+    /// it ticks. Non-blocking; if the queue is full (4 pending captures) the
+    /// extra press is dropped silently.
+    pub fn request_screenshot(&self) {
+        let _ = self.capture_tx.try_send(());
+    }
+
+    /// Returns the most recent capture result and clears it, so the GUI
+    /// shows a status line once per capture instead of permanently.
+    pub fn take_last_capture(&self) -> Option<CaptureResult> {
+        self.last_capture.write().take()
+    }
 }
 
 #[cfg(not(target_os = "windows"))]
+#[allow(clippy::too_many_arguments)]
 fn run(
     _state: Arc<RwLock<AppState>>,
     _settings: Arc<RwLock<Settings>>,
+    _paths: Arc<PersistPaths>,
     status: Arc<RwLock<VrStatus>>,
+    _capture_rx: Receiver<()>,
+    _last_capture: Arc<RwLock<Option<CaptureResult>>>,
+    _ocr_tx: Sender<PathBuf>,
+    _ocr_feedback_rx: Receiver<crate::gui::OcrFeedback>,
 ) {
     // Status is already Unsupported. Nothing else to do — park the thread.
     *status.write() = VrStatus::Unsupported;
@@ -102,10 +175,16 @@ fn run(
 }
 
 #[cfg(target_os = "windows")]
+#[allow(clippy::too_many_arguments)]
 fn run(
     state: Arc<RwLock<AppState>>,
     settings: Arc<RwLock<Settings>>,
+    paths: Arc<PersistPaths>,
     status: Arc<RwLock<VrStatus>>,
+    capture_rx: Receiver<()>,
+    last_capture: Arc<RwLock<Option<CaptureResult>>>,
+    ocr_tx: Sender<PathBuf>,
+    ocr_feedback_rx: Receiver<crate::gui::OcrFeedback>,
 ) {
     use super::overlay::OverlaySession;
 
@@ -128,7 +207,16 @@ fn run(
                 tracing::info!("VR overlay initialized");
                 // Anchor is captured on each show transition, not at init —
                 // see render_loop / OverlaySession::anchor_at_current_hmd.
-                let lost = render_loop(&mut session, &state, &settings);
+                let lost = render_loop(
+                    &mut session,
+                    &state,
+                    &settings,
+                    &paths,
+                    &capture_rx,
+                    &last_capture,
+                    &ocr_tx,
+                    &ocr_feedback_rx,
+                );
                 if let Err(e) = lost {
                     tracing::warn!(error = %e, "VR session lost");
                 }
@@ -148,10 +236,16 @@ fn run(
 /// ~90Hz inner loop. Returns `Err` when SteamVR appears to have gone away
 /// (any OpenVR call returning an error), prompting the outer loop to retry.
 #[cfg(target_os = "windows")]
+#[allow(clippy::too_many_arguments)]
 fn render_loop(
     session: &mut super::overlay::OverlaySession,
     state: &Arc<RwLock<AppState>>,
     settings: &Arc<RwLock<Settings>>,
+    paths: &Arc<PersistPaths>,
+    capture_rx: &Receiver<()>,
+    last_capture: &Arc<RwLock<Option<CaptureResult>>>,
+    ocr_tx: &Sender<PathBuf>,
+    ocr_feedback_rx: &Receiver<crate::gui::OcrFeedback>,
 ) -> anyhow::Result<()> {
     use super::input::Debouncer;
     use super::pose::{Visibility, VisibilityFsm};
@@ -174,6 +268,12 @@ fn render_loop(
     let mut debouncer = Debouncer::new();
     let mut event_buf: Vec<EventInfo> = Vec::with_capacity(8);
     let mut current_hover: Option<String> = None;
+    // Lifecycle of the head-locked OCR feedback card. The worker
+    // produces an `OcrFeedback` for every state transition; this loop
+    // owns the on-screen lifetime (auto-fade in release, hold-until-
+    // replaced in debug). `ocr_state` is `None` when nothing is
+    // showing, `Some(_)` while a card is up.
+    let mut ocr_state: Option<OcrOverlayState> = None;
 
     loop {
         let frame_start = Instant::now();
@@ -226,6 +326,50 @@ fn render_loop(
             frame_start,
         );
 
+        // Drain pending capture requests. Non-blocking; each request maps to
+        // one PNG written under `<data_dir>/vr_screenshots/`. Errors are
+        // surfaced to the GUI via `last_capture` rather than aborting the
+        // render loop — the overlay should keep working even if a screenshot
+        // fails. On success, hand the path to the OCR worker via `ocr_tx`.
+        while capture_rx.try_recv().is_ok() {
+            // Retire any prior OCR card BEFORE grabbing the compositor
+            // mirror. The OCR overlay is a real SteamVR overlay
+            // composited into the eye buffers, so a still-visible
+            // previous card would otherwise be baked into the new
+            // screenshot and the next OCR pass would see itself over
+            // the Facility Upgrade panel.
+            if ocr_state.is_some() {
+                if let Err(e) = session.set_ocr_alpha(0.0) {
+                    tracing::warn!(error = %e, "OCR overlay: pre-capture clear-alpha failed");
+                }
+                if let Err(e) = session.set_ocr_visible(false) {
+                    tracing::warn!(error = %e, "OCR overlay: pre-capture hide failed");
+                }
+                ocr_state = None;
+            }
+            let path = next_screenshot_path(paths);
+            let (capture_eye, trace) = {
+                let s = settings.read();
+                (s.capture_eye.into(), s.ocr_capture_trace)
+            };
+            let result = match session.capture_screenshot(&path, capture_eye, trace) {
+                Ok(()) => {
+                    // Best-effort forward to OCR. If the channel is full
+                    // (worker busy on a previous shot) we drop this one
+                    // silently — VR render loop must not block.
+                    let _ = ocr_tx.try_send(path.clone());
+                    super::capture::play_capture_done_beep(true);
+                    CaptureResult::Ok(path)
+                }
+                Err(e) => {
+                    tracing::warn!(error = %e, "compositor mirror capture failed");
+                    super::capture::play_capture_done_beep(false);
+                    CaptureResult::Err(format!("{e:#}"))
+                }
+            };
+            *last_capture.write() = Some(result);
+        }
+
         if visible_now {
             let current_version = state.read().version;
             let need_data_render = clean_sig != Some((current_version, vr.grid_cols));
@@ -261,6 +405,18 @@ fn render_loop(
                 current_hover = new_hover;
             }
             apply_fade_in(session, &mut fade_start, frame_start)?;
+        }
+
+        {
+            let s = settings.read();
+            drive_ocr_overlay(
+                session,
+                ocr_feedback_rx,
+                &mut ocr_state,
+                frame_start,
+                s.ocr_debug,
+                std::time::Duration::from_secs(s.ocr_dismiss_seconds as u64),
+            );
         }
 
         // Liveness probe — fails when SteamVR disappears.
@@ -531,6 +687,31 @@ fn apply_fade_in(
     Ok(())
 }
 
+/// Build the path for the next screenshot. Format matches the in-game F12
+/// naming convention (`YYYYMMDDhhmmss_<nanos>.png`) so sorting it next to
+/// Steam's JPEGs in a file browser feels natural.
+#[cfg(target_os = "windows")]
+fn next_screenshot_path(paths: &PersistPaths) -> PathBuf {
+    use time::macros::format_description;
+    use time::OffsetDateTime;
+
+    let now = OffsetDateTime::now_local().unwrap_or_else(|_| OffsetDateTime::now_utc());
+    let stamp = now
+        .format(format_description!(
+            "[year][month][day][hour][minute][second]"
+        ))
+        .unwrap_or_else(|_| "00000000000000".into());
+    // Nanosecond suffix disambiguates rapid presses within the same second.
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.subsec_nanos())
+        .unwrap_or(0);
+    paths
+        .data_dir
+        .join(SCREENSHOT_SUBDIR)
+        .join(format!("{stamp}_{nanos:09}.png"))
+}
+
 /// Re-render the wishlist grid into `clean_pixmap` (no hover overlay).
 /// Slow path: decodes icons, lays out cells. Called only when the data
 /// changes (wishlist version bump, grid-cols change).
@@ -576,6 +757,135 @@ fn submit_with_hover(
     }
     session.submit_rgba(frame.data(), frame.width(), frame.height())?;
     Ok(())
+}
+
+/// Render state for the head-locked OCR feedback overlay. Carries the
+/// most recently published [`crate::gui::OcrFeedback`] plus the moment
+/// the card became visible — together they drive auto-fade in release
+/// builds and replace-on-new in debug builds.
+#[cfg(target_os = "windows")]
+struct OcrOverlayState {
+    feedback: crate::gui::OcrFeedback,
+    /// When this particular feedback card showed up on the overlay.
+    /// Refreshed every time the worker publishes a new feedback so
+    /// fade-out timing resets correctly across rapid successive runs.
+    visible_since: std::time::Instant,
+    /// True when the texture has been pushed to the overlay at least
+    /// once for this feedback. We render → submit exactly once per
+    /// state transition; per-frame fades go through `set_ocr_alpha`
+    /// only. Re-submitting an unchanged pixmap at 90 Hz was both
+    /// wasteful and (more importantly) visibly flickered the card.
+    submitted: bool,
+    /// Current alpha last pushed to SteamVR. Tracked alongside the
+    /// overlay session's own cache so we can compare against the
+    /// computed fade target without rounding noise.
+    last_alpha: f32,
+}
+
+/// Drain pending feedback messages and drive the OCR overlay's
+/// show / hide / fade lifecycle.
+///
+/// Replace semantics: any new feedback supersedes the current one
+/// (timer resets, pixmap re-renders). Auto-dismiss only fires in
+/// release builds — debug builds keep the latest card on screen until
+/// the next OCR run replaces it, so the developer has time to read
+/// every per-item line.
+///
+/// We render the pixmap **exactly once** per state transition, then
+/// only touch `set_ocr_alpha` per frame. Re-submitting the same
+/// texture at 90 Hz caused visible flicker (SteamVR seemed to swap
+/// in partial uploads) and was wasted work besides.
+///
+/// Overlay-submit / visibility / alpha failures are logged but never
+/// propagated up: the OCR overlay is a developer-aid surface, not
+/// load-bearing, and one bad `SetOverlayRaw` should not kill the
+/// VR session and tear down the wishlist grid the user is actively
+/// looking at.
+#[cfg(target_os = "windows")]
+fn drive_ocr_overlay(
+    session: &mut super::overlay::OverlaySession,
+    feedback_rx: &Receiver<crate::gui::OcrFeedback>,
+    state: &mut Option<OcrOverlayState>,
+    frame_start: std::time::Instant,
+    ocr_debug: bool,
+    auto_dismiss: Duration,
+) {
+    use crate::gui::OcrFeedbackKind;
+
+    // Drain everything queued so we don't lag if multiple transitions
+    // arrived between frames. Only the most recent feedback matters
+    // for the display.
+    let mut latest = None;
+    while let Ok(fb) = feedback_rx.try_recv() {
+        latest = Some(fb);
+    }
+    if let Some(fb) = latest {
+        *state = Some(OcrOverlayState {
+            feedback: fb,
+            visible_since: frame_start,
+            submitted: false,
+            last_alpha: 0.0,
+        });
+    }
+
+    let Some(current) = state.as_mut() else {
+        return;
+    };
+
+    // When `ocr_debug` is on the card sticks around until the next
+    // capture replaces it (the user is inspecting the read alongside
+    // the on-disk debug artifacts). When off, terminal kinds fade
+    // out after `auto_dismiss`. Processing kinds never auto-fade —
+    // they're replaced by the terminal result when OCR finishes.
+    let manual_dismiss = ocr_debug;
+    let processing = matches!(current.feedback.kind, OcrFeedbackKind::Processing);
+    let age = frame_start.duration_since(current.visible_since);
+
+    // First submit for this feedback: render once and push.
+    if !current.submitted {
+        let pixmap = super::ocr_render::render(&current.feedback);
+        if let Err(e) = session.submit_ocr_rgba(pixmap.data(), pixmap.width(), pixmap.height()) {
+            tracing::warn!(error = %e, "OCR overlay: submit failed (continuing)");
+        }
+        if let Err(e) = session.set_ocr_visible(true) {
+            tracing::warn!(error = %e, "OCR overlay: set_visible failed");
+        }
+        current.submitted = true;
+    }
+
+    // Terminal kinds fade out after `auto_dismiss` unless debug mode
+    // wants the card to stick.
+    if !processing && !manual_dismiss && age >= auto_dismiss {
+        if let Err(e) = session.set_ocr_alpha(0.0) {
+            tracing::warn!(error = %e, "OCR overlay: set_alpha(0) failed");
+        }
+        if let Err(e) = session.set_ocr_visible(false) {
+            tracing::warn!(error = %e, "OCR overlay: hide failed");
+        }
+        *state = None;
+        return;
+    }
+
+    // Per-frame alpha. Processing kinds and debug-mode terminals
+    // stay at 1.0; non-debug terminals fade through the last
+    // ~600 ms of their visible time.
+    let target_alpha = if processing || manual_dismiss {
+        1.0
+    } else {
+        let fade_tail = Duration::from_millis(600);
+        let remaining = auto_dismiss.saturating_sub(age);
+        if remaining < fade_tail {
+            (remaining.as_secs_f32() / fade_tail.as_secs_f32()).clamp(0.0, 1.0)
+        } else {
+            1.0
+        }
+    };
+    if (target_alpha - current.last_alpha).abs() > 1.0 / 256.0 {
+        if let Err(e) = session.set_ocr_alpha(target_alpha) {
+            tracing::warn!(error = %e, "OCR overlay: set_alpha failed");
+        }
+        current.last_alpha = target_alpha;
+    }
 }
 
 /// Per-tick hover detection: ray-cast from each controller, find whichever

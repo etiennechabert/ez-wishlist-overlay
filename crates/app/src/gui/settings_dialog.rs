@@ -1,6 +1,6 @@
 //! Modal dialog for user-tunable settings.
 
-use crate::settings::{bounds, Settings, Theme, VrSettings};
+use crate::settings::{bounds, CaptureEye, Settings, Theme, VrSettings};
 use parking_lot::RwLock;
 use std::path::Path;
 use std::sync::Arc;
@@ -34,6 +34,17 @@ pub fn show(
             vr_section(ui, &mut working.vr);
 
             ui.add_space(12.0);
+            ocr_section(
+                ui,
+                &mut working.ocr_enabled,
+                &mut working.capture_eye,
+                &mut working.ocr_debug,
+                &mut working.ocr_dismiss_seconds,
+                &mut working.ocr_auto_track,
+                &mut working.ocr_capture_trace,
+            );
+
+            ui.add_space(12.0);
             storage_section(ui, data_dir);
 
             ui.add_space(12.0);
@@ -49,6 +60,7 @@ pub fn show(
             });
 
             working.vr.sanitize();
+            working.sanitize_ocr();
             if working != before {
                 *settings.write() = working;
                 outcome.changed = true;
@@ -79,6 +91,92 @@ fn appearance_section(ui: &mut egui::Ui, theme: &mut Theme) {
         ui.selectable_value(theme, Theme::Light, "Light");
         ui.selectable_value(theme, Theme::System, "System");
     });
+}
+
+fn ocr_section(
+    ui: &mut egui::Ui,
+    ocr_enabled: &mut bool,
+    capture_eye: &mut CaptureEye,
+    ocr_debug: &mut bool,
+    ocr_dismiss_seconds: &mut u32,
+    ocr_auto_track: &mut bool,
+    ocr_capture_trace: &mut bool,
+) {
+    ui.heading("Screenshot OCR");
+    ui.add_space(4.0);
+    ui.checkbox(ocr_enabled, "Auto-extract counts from VR screenshots")
+        .on_hover_text(
+            "When you press the screenshot hotkey on the Facility Upgrade \
+             panel, the captured image is OCR'd and the owned counts for \
+             every required item land in your wishlist. A head-locked \
+             feedback card pops up in the headset showing each change. \
+             Disable to keep the screenshot trigger but skip the OCR pass.",
+        );
+
+    ui.add_space(6.0);
+    ui.checkbox(ocr_auto_track, "Auto-track the OCR'd upgrade")
+        .on_hover_text(
+            "When on, a successful OCR adds the matched upgrade to your \
+             tracked list and marks every lower-level upgrade in the same \
+             module as completed (the game only shows Lv N's panel after \
+             Lv (N-1) is claimed, so seeing it is proof). Turn off when \
+             you want to bulk-OCR panels just to refresh inventory counts \
+             without touching what's tracked. Turn back on before a raid \
+             when peeking at a panel should mean \"I'm working on this.\"",
+        );
+
+    ui.add_space(6.0);
+    ui.horizontal(|ui| {
+        ui.label("Capture eye").on_hover_text(
+            "Which compositor mirror eye texture to feed into OCR. On most \
+             headsets the right eye stays in sync with what you see; the \
+             left-eye mirror has been observed lagging by one frame on \
+             some setups, which would surface as \"OCR reads the previous \
+             panel.\" Try the other side if you see that.",
+        );
+        ui.selectable_value(capture_eye, CaptureEye::Right, "Right");
+        ui.selectable_value(capture_eye, CaptureEye::Left, "Left");
+    });
+
+    ui.add_space(6.0);
+    ui.horizontal(|ui| {
+        ui.label("Dismiss after (s)").on_hover_text(
+            "How long the OCR feedback card stays in the headset before \
+             fading. Ignored when \"Save OCR debug artifacts\" is on — \
+             then the card sticks around until the next capture.",
+        );
+        stepper_slider_u32(ui, ocr_dismiss_seconds, bounds::OCR_DISMISS_SECS, 1, " s");
+    });
+
+    ui.add_space(6.0);
+    ui.checkbox(ocr_debug, "Save OCR debug artifacts (for bug reports)")
+        .on_hover_text(
+            "When on, every OCR pass keeps the full screenshot PNG, drops \
+             one binarised strip per cell, writes a debug text file next \
+             to the capture, AND keeps the in-headset card visible until \
+             the next capture (so you can read it alongside the files). \
+             Attach the bundle to a GitHub issue if OCR misreads a panel. \
+             When off (default), all OCR artifacts are deleted after the \
+             read finishes — screenshots are ~10 MB each.",
+        );
+
+    ui.add_space(6.0);
+    ui.checkbox(
+        ocr_capture_trace,
+        "Verbose capture trace (diagnose mirror bugs)",
+    )
+    .on_hover_text(
+        "When on, every capture emits a deep diagnostic trace: \
+             per-process capture sequence number, FNV-1a hashes of the \
+             raw pixel buffer / RGB strip / encoded PNG / decoded \
+             pipeline bytes, compositor frame timing, opposite-eye \
+             probe, and the first 12 OCR'd words. Lets you confirm \
+             whether the mirror is handing back stale frames or the \
+             bug is downstream if 'OCR is reading the previous \
+             screenshot'-style issues recur. Off by default — the \
+             FNV passes hash ~30 MB per capture and the logs are \
+             very chatty.",
+    );
 }
 
 fn updates_section(ui: &mut egui::Ui, check_for_updates: &mut bool) {

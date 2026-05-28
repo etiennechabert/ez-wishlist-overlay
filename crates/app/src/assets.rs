@@ -9,6 +9,7 @@ use rust_embed::RustEmbed;
 #[include = "icons/*"]
 #[include = "vr_actions.json"]
 #[include = "vr_bindings_*.json"]
+#[include = "ocr_templates/*"]
 pub struct Assets;
 
 /// Files comprising the OpenVR action manifest + default bindings. Used by
@@ -38,6 +39,30 @@ pub fn load_game_data() -> Result<crate::data::GameData> {
 /// wrote (e.g. `"icons/misc_b_bolts.png"`).
 pub fn read_icon(icon_path: &str) -> Option<std::borrow::Cow<'static, [u8]>> {
     Assets::get(icon_path).map(|f| f.data)
+}
+
+/// Enumerate every PNG under `assets/ocr_templates/` as
+/// `(stem_without_extension, bytes)` pairs. Used by the OCR digit-template
+/// matcher to load `0.png`…`9.png` + `slash.png` at first use. Returns an
+/// empty iterator if the folder is missing (the OCR pipeline falls back to
+/// "owned count = 0" — upgrade identification still works).
+///
+/// Windows-only: the OCR pipeline itself is `cfg(target_os = "windows")`
+/// (Windows.Media.Ocr is the only engine), so this helper has no caller
+/// on Linux/macOS — gating it here keeps `-D warnings` happy in CI.
+#[cfg(target_os = "windows")]
+pub fn ocr_template_files() -> Vec<(String, std::borrow::Cow<'static, [u8]>)> {
+    Assets::iter()
+        .filter(|p| p.starts_with("ocr_templates/") && p.ends_with(".png"))
+        .filter_map(|p| {
+            let stem = std::path::Path::new(p.as_ref())
+                .file_stem()
+                .and_then(|s| s.to_str())?
+                .to_string();
+            let file = Assets::get(&p)?;
+            Some((stem, file.data))
+        })
+        .collect()
 }
 
 /// Extract every file in [`VR_ACTION_FILES`] into `dir` (creating it if

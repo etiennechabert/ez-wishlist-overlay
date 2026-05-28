@@ -1,0 +1,5 @@
+# GeneratorLv2 — ground truth (owned / needed)
+misc_b_lighterfluid    1/6
+misc_oilcan            1/8
+misc_b_insulatingtape  0/6
+misc_b_sparkplug       0/1
