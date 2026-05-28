@@ -7,6 +7,7 @@
 //! the desktop app are platform-agnostic and we don't want a broken VR layer
 //! to bleed into macOS/Linux iteration builds.
 
+use crate::ocr::OcrJob;
 use crate::persist::PersistPaths;
 use crate::settings::Settings;
 use crate::state::AppState;
@@ -83,23 +84,34 @@ pub struct Runtime {
 
 #[derive(Clone, Debug)]
 pub enum CaptureResult {
+    /// Capture succeeded and was written to disk at this path. Only
+    /// produced when `settings.ocr_debug` is on, because the runtime
+    /// otherwise skips the PNG write entirely (see [`Runtime::spawn`]).
     Ok(PathBuf),
+    /// Capture succeeded but no PNG was written — the default fast
+    /// path, where the bitmap goes straight to the OCR worker over
+    /// the channel and never touches disk. The GUI surfaces this as
+    /// a generic "captured" toast since there's no file to show.
+    Ephemeral,
     Err(String),
 }
 
 impl Runtime {
     /// Spawn the VR worker thread.
     ///
-    /// `ocr_tx` receives the path of every successfully-saved mirror-texture
-    /// PNG. The downstream OCR worker thread (in `main.rs`) reads from the
-    /// matching receiver and reflects parsed counts back into `AppState`.
-    /// Bounded + `try_send` so a busy OCR worker can't backpressure the VR
-    /// render loop; excess captures are silently dropped on the OCR side.
+    /// `ocr_tx` receives one [`OcrJob`] per successful capture — the
+    /// already-decoded mirror-texture bitmap, plus the on-disk PNG
+    /// path when `settings.ocr_debug` is on (otherwise `None`, and
+    /// no PNG is written at all). The downstream OCR worker thread
+    /// (in `main.rs`) reads from the matching receiver and reflects
+    /// parsed counts back into `AppState`. Bounded + `try_send` so a
+    /// busy OCR worker can't backpressure the VR render loop;
+    /// excess captures are silently dropped on the OCR side.
     pub fn spawn(
         state: Arc<RwLock<AppState>>,
         settings: Arc<RwLock<Settings>>,
         paths: Arc<PersistPaths>,
-        ocr_tx: Sender<PathBuf>,
+        ocr_tx: Sender<OcrJob>,
         ocr_feedback_rx: Receiver<crate::gui::OcrFeedback>,
     ) -> Self {
         let initial = if cfg!(target_os = "windows") {
@@ -166,7 +178,7 @@ fn run(
     status: Arc<RwLock<VrStatus>>,
     _capture_rx: Receiver<()>,
     _last_capture: Arc<RwLock<Option<CaptureResult>>>,
-    _ocr_tx: Sender<PathBuf>,
+    _ocr_tx: Sender<OcrJob>,
     _ocr_feedback_rx: Receiver<crate::gui::OcrFeedback>,
 ) {
     // Status is already Unsupported. Nothing else to do — park the thread.
@@ -183,7 +195,7 @@ fn run(
     status: Arc<RwLock<VrStatus>>,
     capture_rx: Receiver<()>,
     last_capture: Arc<RwLock<Option<CaptureResult>>>,
-    ocr_tx: Sender<PathBuf>,
+    ocr_tx: Sender<OcrJob>,
     ocr_feedback_rx: Receiver<crate::gui::OcrFeedback>,
 ) {
     use super::overlay::OverlaySession;
@@ -244,7 +256,7 @@ fn render_loop(
     paths: &Arc<PersistPaths>,
     capture_rx: &Receiver<()>,
     last_capture: &Arc<RwLock<Option<CaptureResult>>>,
-    ocr_tx: &Sender<PathBuf>,
+    ocr_tx: &Sender<OcrJob>,
     ocr_feedback_rx: &Receiver<crate::gui::OcrFeedback>,
 ) -> anyhow::Result<()> {
     use super::input::Debouncer;
@@ -326,11 +338,20 @@ fn render_loop(
             frame_start,
         );
 
-        // Drain pending capture requests. Non-blocking; each request maps to
-        // one PNG written under `<data_dir>/vr_screenshots/`. Errors are
-        // surfaced to the GUI via `last_capture` rather than aborting the
-        // render loop — the overlay should keep working even if a screenshot
-        // fails. On success, hand the path to the OCR worker via `ocr_tx`.
+        // Drain pending capture requests. Non-blocking; each request
+        // maps to one bitmap handed to the OCR worker over `ocr_tx`.
+        // Errors are surfaced to the GUI via `last_capture` rather
+        // than aborting the render loop — the overlay should keep
+        // working even if a screenshot fails.
+        //
+        // PNG-on-disk is gated on `settings.ocr_debug`: off (the
+        // default), we never write the file and the worker decodes
+        // nothing — total OCR latency drops from ~6-7 s to ~2-3 s
+        // because the 3.7 s encode + 1 s decode round-trip is gone.
+        // On, we still write the PNG so the user can attach a
+        // capture bundle to a GitHub issue, and the path travels
+        // along with the bitmap so the pipeline's per-cell strips
+        // and `.ocr-debug.txt` sidecar land next to it.
         while capture_rx.try_recv().is_ok() {
             // Retire any prior OCR card BEFORE grabbing the compositor
             // mirror. The OCR overlay is a real SteamVR overlay
@@ -347,19 +368,31 @@ fn render_loop(
                 }
                 ocr_state = None;
             }
-            let path = next_screenshot_path(paths);
-            let (capture_eye, trace) = {
+            let (capture_eye, trace, ocr_debug) = {
                 let s = settings.read();
-                (s.capture_eye.into(), s.ocr_capture_trace)
+                (s.capture_eye.into(), s.ocr_capture_trace, s.ocr_debug)
             };
-            let result = match session.capture_screenshot(&path, capture_eye, trace) {
-                Ok(()) => {
-                    // Best-effort forward to OCR. If the channel is full
-                    // (worker busy on a previous shot) we drop this one
-                    // silently — VR render loop must not block.
-                    let _ = ocr_tx.try_send(path.clone());
+            let png_path = ocr_debug.then(|| next_screenshot_path(paths));
+            let capture_result = match &png_path {
+                Some(path) => session.capture_screenshot_to_png(path, capture_eye, trace),
+                None => session.capture_screenshot(capture_eye, trace),
+            };
+            let result = match capture_result {
+                Ok(img) => {
+                    // Best-effort forward to OCR. If the channel is
+                    // full (worker busy on a previous shot) we drop
+                    // this one silently — VR render loop must not
+                    // block.
+                    let job = OcrJob {
+                        image: img,
+                        source_path: png_path.clone(),
+                    };
+                    let _ = ocr_tx.try_send(job);
                     super::capture::play_capture_done_beep(true);
-                    CaptureResult::Ok(path)
+                    match png_path {
+                        Some(path) => CaptureResult::Ok(path),
+                        None => CaptureResult::Ephemeral,
+                    }
                 }
                 Err(e) => {
                     tracing::warn!(error = %e, "compositor mirror capture failed");

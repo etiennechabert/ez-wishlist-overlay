@@ -113,9 +113,17 @@ impl CaptureEye {
     }
 }
 
-/// Pull the configured eye's mirror texture from the SteamVR compositor
-/// and write it to `out_path` as PNG. Caller must guarantee `VR_Init`
-/// has already run on this process (the OverlaySession constructor does).
+/// Pull the configured eye's mirror texture from the SteamVR
+/// compositor and return it as an in-memory [`image::DynamicImage`]
+/// (RGB8). Caller must guarantee `VR_Init` has already run on this
+/// process (the OverlaySession constructor does).
+///
+/// Returning the bitmap rather than writing a PNG lets the runtime
+/// skip the PNG encode (~3.7 s on a 3K eye buffer) and the OCR
+/// worker's matching decode (~1 s) — the main capture pipeline only
+/// pays for the GPU readback (~150 ms). Callers who *do* want a PNG
+/// on disk (debug mode, manual screenshot exports) save the returned
+/// image themselves with `.save(path)`.
 ///
 /// Defaults to the right eye (settings-configurable); the left-eye
 /// mirror lagged the actual compositor frame by multiple slots on
@@ -135,18 +143,16 @@ impl CaptureEye {
 /// compositor frame timing, opposite-eye probe). Off by default —
 /// the FNV passes hash ~30 MB per capture and the logs are very
 /// chatty.
-pub fn capture_compositor_mirror_to_png(
-    out_path: &Path,
+pub fn capture_compositor_mirror_image(
     eye: CaptureEye,
     trace: bool,
-) -> Result<()> {
+) -> Result<image::DynamicImage> {
     let capture_seq = if trace {
         let s = CAPTURE_SEQ.fetch_add(1, Ordering::Relaxed);
         tracing::info!(
             capture_seq = s,
-            out_path = %out_path.display(),
             eye = eye.label(),
-            "capture: ENTER capture_compositor_mirror_to_png"
+            "capture: ENTER capture_compositor_mirror_image"
         );
         s
     } else {
@@ -302,23 +308,57 @@ pub fn capture_compositor_mirror_to_png(
         );
     }
 
-    // Save as RGB8: the compositor's eye render-target alpha channel is
-    // garbage / always zero in practice (the compositor doesn't use it for
-    // mirror-texture output), and an alpha-0 PNG renders as fully transparent
-    // in every image viewer — which looks like a blank screenshot. Dropping
-    // the alpha entirely sidesteps that.
+    // Repack as RGB8: the compositor's eye render-target alpha channel
+    // is garbage / always zero in practice (the compositor doesn't use
+    // it for mirror-texture output), and an alpha-0 PNG renders as
+    // fully transparent in every image viewer — which looks like a
+    // blank screenshot. Dropping the alpha entirely sidesteps that and
+    // also shrinks the buffer we hand to the OCR worker (~25 % saved).
     let mut rgb = Vec::with_capacity((desc.Width * desc.Height * 3) as usize);
     for chunk in pixels.chunks_exact(4) {
         rgb.extend_from_slice(&chunk[..3]);
     }
     let rgb_fnv = if trace { Some(fnv1a64(&rgb)) } else { None };
 
+    let img = image::RgbImage::from_raw(desc.Width, desc.Height, rgb)
+        .ok_or_else(|| anyhow!("RgbImage::from_raw: pixel buffer size mismatch"))?;
+
+    if trace {
+        tracing::info!(
+            capture_seq,
+            w = desc.Width,
+            h = desc.Height,
+            eye = eye.label(),
+            rgb_fnv = rgb_fnv.map(|v| format!("{v:#018x}")),
+            total_ms = t_start.map(|s| s.elapsed().as_millis() as u64),
+            "capture: EXIT — RGB buffer ready (full fingerprint)"
+        );
+    } else {
+        tracing::info!(
+            w = desc.Width,
+            h = desc.Height,
+            eye = eye.label(),
+            "captured compositor mirror"
+        );
+    }
+    Ok(image::DynamicImage::ImageRgb8(img))
+}
+
+/// Capture the compositor mirror and additionally write it to
+/// `out_path` as PNG. Used by the debug-mode VR flow (the user wants
+/// the screenshot retained for GitHub-issue bundles) and any
+/// hand-export path. Returns the in-memory bitmap too so the caller
+/// doesn't have to re-decode the file they just wrote.
+pub fn capture_compositor_mirror_to_png(
+    out_path: &Path,
+    eye: CaptureEye,
+    trace: bool,
+) -> Result<image::DynamicImage> {
+    let img = capture_compositor_mirror_image(eye, trace)?;
     if let Some(parent) = out_path.parent() {
         std::fs::create_dir_all(parent)
             .with_context(|| format!("creating {}", parent.display()))?;
     }
-    let img = image::RgbImage::from_raw(desc.Width, desc.Height, rgb)
-        .ok_or_else(|| anyhow!("RgbImage::from_raw: pixel buffer size mismatch"))?;
     let t_save_start = std::time::Instant::now();
     img.save(out_path)
         .with_context(|| format!("writing PNG to {}", out_path.display()))?;
@@ -327,28 +367,16 @@ pub fn capture_compositor_mirror_to_png(
         let png_fnv = std::fs::read(out_path).ok().map(|b| fnv1a64(&b));
         let png_size = std::fs::metadata(out_path).ok().map(|m| m.len());
         tracing::info!(
-            capture_seq,
             path = %out_path.display(),
-            w = desc.Width,
-            h = desc.Height,
-            eye = eye.label(),
-            rgb_fnv = rgb_fnv.map(|v| format!("{v:#018x}")),
             png_size = ?png_size,
             png_fnv = ?png_fnv.map(|v| format!("{v:#018x}")),
             save_ms = t_save_start.elapsed().as_millis() as u64,
-            total_ms = t_start.map(|s| s.elapsed().as_millis() as u64),
-            "capture: EXIT — PNG written (full fingerprint)"
+            "capture: PNG written"
         );
     } else {
-        tracing::info!(
-            path = %out_path.display(),
-            w = desc.Width,
-            h = desc.Height,
-            eye = eye.label(),
-            "captured compositor mirror"
-        );
+        tracing::info!(path = %out_path.display(), "captured compositor mirror → PNG");
     }
-    Ok(())
+    Ok(img)
 }
 
 /// Owned D3D11 device + immediate context, scoped to one capture call.

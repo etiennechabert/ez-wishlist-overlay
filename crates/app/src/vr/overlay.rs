@@ -444,17 +444,33 @@ impl OverlaySession {
         (left, right)
     }
 
-    /// Pull the compositor's left-eye mirror texture (native render-target
-    /// resolution, lossless) and save it as PNG. Lossless input is what
-    /// makes the OCR pipeline tractable; the chunky pixel-art digit font is
-    /// destroyed by Steam's F12 JPEG. Method lives on `OverlaySession`
-    /// purely so the type system enforces "VR_Init has run on this thread".
+    /// Pull the compositor's mirror texture (native render-target
+    /// resolution, lossless) into an in-memory bitmap. Lossless input
+    /// is what makes the OCR pipeline tractable; the chunky pixel-art
+    /// digit font is destroyed by Steam's F12 JPEG. Returning the
+    /// bitmap rather than a written PNG lets the runtime hand it
+    /// straight to the OCR worker over the channel, skipping the
+    /// ~5 s round-trip through disk in the default fast path. Method
+    /// lives on `OverlaySession` purely so the type system enforces
+    /// "VR_Init has run on this thread".
     pub fn capture_screenshot(
+        &self,
+        eye: super::capture::CaptureEye,
+        trace: bool,
+    ) -> Result<image::DynamicImage> {
+        super::capture::capture_compositor_mirror_image(eye, trace)
+    }
+
+    /// Same as [`Self::capture_screenshot`] but also writes the
+    /// bitmap to `out_path` as PNG. Used by the debug-mode VR flow
+    /// (`settings.ocr_debug = true`) so users can attach the
+    /// screenshot bundle to GitHub issues.
+    pub fn capture_screenshot_to_png(
         &self,
         out_path: &std::path::Path,
         eye: super::capture::CaptureEye,
         trace: bool,
-    ) -> Result<()> {
+    ) -> Result<image::DynamicImage> {
         super::capture::capture_compositor_mirror_to_png(out_path, eye, trace)
     }
 

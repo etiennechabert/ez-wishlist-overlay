@@ -87,7 +87,7 @@ pub struct App {
     /// Clone of the channel that feeds the OCR worker. Used by the
     /// debug-build "Run OCR on fixture" button so we can exercise the
     /// pipeline + in-headset overlay without a SteamVR session.
-    ocr_path_tx: Sender<std::path::PathBuf>,
+    ocr_job_tx: Sender<crate::ocr::OcrJob>,
 }
 
 impl App {
@@ -103,7 +103,7 @@ impl App {
         settings: Arc<RwLock<crate::settings::Settings>>,
         log_buf: crate::log_buffer::LogBuffer,
         update_rx: Option<Receiver<CheckStatus>>,
-        ocr_path_tx: Sender<std::path::PathBuf>,
+        ocr_job_tx: Sender<crate::ocr::OcrJob>,
     ) -> Self {
         // Extend egui's default Proportional fallback chain with Hack.
         // Ubuntu-Light (the proportional primary) doesn't cover most of the
@@ -153,7 +153,7 @@ impl App {
             export_copy_feedback: None,
             last_capture: None,
             capture_toast_shown_at: None,
-            ocr_path_tx,
+            ocr_job_tx,
         }
     }
 
@@ -276,7 +276,7 @@ impl eframe::App for App {
                 &self.log_buf,
                 &self.vr,
                 self.last_capture.as_ref(),
-                &self.ocr_path_tx,
+                &self.ocr_job_tx,
             );
         }
         if self.confirm_reset {
@@ -544,6 +544,11 @@ impl App {
                 path.file_name()
                     .map(|n| n.to_string_lossy().into_owned())
                     .unwrap_or_else(|| path.display().to_string()),
+                egui::Color32::from_rgb(80, 180, 100),
+            ),
+            Some(CaptureResult::Ephemeral) => (
+                "Captured",
+                "Sent to OCR (no PNG saved).".to_string(),
                 egui::Color32::from_rgb(80, 180, 100),
             ),
             Some(CaptureResult::Err(msg)) => (
