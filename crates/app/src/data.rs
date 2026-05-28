@@ -109,6 +109,22 @@ pub struct Item {
     pub id: ItemId,
     pub name: String,
     pub icon_path: String,
+    /// Top-level upstream category, e.g. `"misc"`, `"weapons"`, `"medical"`.
+    /// Optional so older `data.json` files (pre-DB-view) still load.
+    #[serde(default)]
+    pub category: Option<String>,
+    /// Upstream subcategory, e.g. `"HighValue"`, `"5.45x39mm"`.
+    #[serde(default)]
+    pub subcategory: Option<String>,
+    /// Item weight in kg. Optional — not every upstream entry carries stats.
+    #[serde(default)]
+    pub weight: Option<f32>,
+    /// Vendor price in roubles. Optional for the same reason.
+    #[serde(default)]
+    pub price: Option<u64>,
+    /// Upstream rarity tier, e.g. `"Rare"`, `"Ultimate"`.
+    #[serde(default)]
+    pub rarity: Option<String>,
 }
 
 /// Lookup tables built once from a `GameData`.

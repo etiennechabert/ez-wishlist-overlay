@@ -231,6 +231,11 @@ mod tests {
                 id: "nut".into(),
                 name: "Nut".into(),
                 icon_path: String::new(),
+                category: None,
+                subcategory: None,
+                weight: None,
+                price: None,
+                rarity: None,
             }],
         })
     }

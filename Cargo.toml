@@ -16,7 +16,7 @@ authors = ["Etienne Chabert"]
 anyhow = "1.0.95"
 thiserror = "2.0.9"
 serde = { version = "1.0.217", features = ["derive"] }
-serde_json = "1.0.135"
+serde_json = { version = "1.0.135", features = ["preserve_order"] }
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
 image = { version = "0.25.5", default-features = false, features = ["png", "webp", "jpeg"] }

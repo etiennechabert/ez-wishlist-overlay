@@ -212,6 +212,11 @@ mod tests {
                 id: item.into(),
                 name: item.to_string(),
                 icon_path: "i.png".into(),
+                category: None,
+                subcategory: None,
+                weight: None,
+                price: None,
+                rarity: None,
             }],
         };
         let mut state = AppState::new(Arc::new(data));

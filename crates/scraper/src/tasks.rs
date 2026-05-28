@@ -9,7 +9,7 @@ use anyhow::{Context, Result};
 use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::Deserialize;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 
 use crate::items::ItemCatalog;
@@ -37,7 +37,6 @@ struct UpstreamTask {
 
 pub struct TasksResult {
     pub vendors: Vec<Vendor>,
-    pub referenced_items: HashSet<String>,
     pub unparsed_objectives: Vec<UnparsedObjective>,
 }
 
@@ -105,7 +104,6 @@ pub fn parse(tasks_ts_path: &Path, catalog: &ItemCatalog) -> Result<TasksResult>
     }
 
     let mut vendor_tasks: BTreeMap<VendorId, Vec<Task>> = BTreeMap::new();
-    let mut referenced_items: HashSet<String> = HashSet::new();
     let mut unparsed: Vec<UnparsedObjective> = Vec::new();
 
     let mut total = 0;
@@ -128,10 +126,7 @@ pub fn parse(tasks_ts_path: &Path, catalog: &ItemCatalog) -> Result<TasksResult>
 
         let reqs: Vec<Requirement> = requirements
             .into_iter()
-            .map(|(item_id, quantity)| {
-                referenced_items.insert(item_id.clone());
-                Requirement { item_id, quantity }
-            })
+            .map(|(item_id, quantity)| Requirement { item_id, quantity })
             .collect();
 
         let task = Task {
@@ -177,7 +172,6 @@ pub fn parse(tasks_ts_path: &Path, catalog: &ItemCatalog) -> Result<TasksResult>
 
     Ok(TasksResult {
         vendors,
-        referenced_items,
         unparsed_objectives: unparsed,
     })
 }

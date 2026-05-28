@@ -2099,7 +2099,7 @@
           ],
           "requirements": [
             {
-              "item_id": "misc_b_valve",
+              "item_id": "misc_b_pipeline",
               "quantity": 3
             }
           ],
@@ -2870,739 +2870,1504 @@
   ],
   "items": [
     {
-      "id": "food_beer",
-      "name": "Beer",
-      "icon_path": "icons/food_beer.png"
-    },
-    {
-      "id": "key_f3_factoryroom",
-      "name": "Sewer's room Key",
-      "icon_path": "icons/key_f3_factoryroom.png"
-    },
-    {
       "id": "misc_1batterie_2",
       "name": "Size D battery",
-      "icon_path": "icons/misc_1batterie_2.png"
+      "icon_path": "icons/misc_1batterie_2.png",
+      "category": "misc",
+      "subcategory": "Power",
+      "weight": 0.03,
+      "price": 1200,
+      "rarity": "Uncommon"
     },
     {
       "id": "misc_b_1battery",
       "name": "Size D battery",
-      "icon_path": "icons/misc_b_1battery.png"
+      "icon_path": "icons/misc_b_1battery.png",
+      "category": "misc",
+      "subcategory": "Power",
+      "weight": 0.03,
+      "price": 1200,
+      "rarity": "Common"
+    },
+    {
+      "id": "misc_b_aladdinlamp",
+      "name": "Aladdin lamp",
+      "icon_path": "icons/misc_b_aladdinlamp.png",
+      "category": "misc",
+      "subcategory": "HighValue",
+      "weight": 1.011,
+      "price": 1285200,
+      "rarity": "Ultimate"
     },
     {
       "id": "misc_b_antiquebook",
       "name": "Antique book",
-      "icon_path": "icons/misc_b_antiquebook.png"
+      "icon_path": "icons/misc_b_antiquebook.png",
+      "category": "misc",
+      "subcategory": "Intel",
+      "weight": 0.75,
+      "price": 46000,
+      "rarity": "Uncommon"
     },
     {
       "id": "misc_b_antiqueteaset",
       "name": "Antique Tea cup",
-      "icon_path": "icons/misc_b_antiqueteaset.png"
+      "icon_path": "icons/misc_b_antiqueteaset.png",
+      "category": "misc",
+      "subcategory": "HighValue",
+      "weight": 0.1,
+      "price": 132269,
+      "rarity": "Epic"
     },
     {
       "id": "misc_b_aspire",
       "name": "Aspirin",
-      "icon_path": "icons/misc_b_aspire.png"
+      "icon_path": "icons/misc_b_aspire.png",
+      "category": "misc",
+      "subcategory": "Medicine",
+      "weight": 0.12,
+      "price": 1000,
+      "rarity": "Uncommon"
     },
     {
       "id": "misc_b_asthmamedication",
       "name": "Asthma medicine",
-      "icon_path": "icons/misc_b_asthmamedication.png"
+      "icon_path": "icons/misc_b_asthmamedication.png",
+      "category": "misc",
+      "subcategory": "Medicine",
+      "weight": 0.25,
+      "price": 0,
+      "rarity": "Rare"
     },
     {
       "id": "misc_b_bandaid",
       "name": "Adhesive bandages",
-      "icon_path": "icons/misc_b_bandaid.png"
+      "icon_path": "icons/misc_b_bandaid.png",
+      "category": "misc",
+      "subcategory": "Medicine",
+      "weight": 0.1,
+      "price": 0,
+      "rarity": "Uncommon"
     },
     {
       "id": "misc_b_batter_large",
       "name": "Storage Battery",
-      "icon_path": "icons/misc_b_batter_large.png"
+      "icon_path": "icons/misc_b_batter_large.png",
+      "category": "misc",
+      "subcategory": "Power",
+      "weight": 4.5,
+      "price": 98475,
+      "rarity": "Rare"
     },
     {
       "id": "misc_b_beardoil",
       "name": "Beard Oil",
-      "icon_path": "icons/misc_b_beardoil.png"
+      "icon_path": "icons/misc_b_beardoil.png",
+      "category": "misc",
+      "subcategory": "Household",
+      "weight": 0.15,
+      "price": 3000,
+      "rarity": "Rare"
     },
     {
       "id": "misc_b_bottledglucose",
       "name": "Bottled glucose",
-      "icon_path": "icons/misc_b_bottledglucose.png"
+      "icon_path": "icons/misc_b_bottledglucose.png",
+      "category": "misc",
+      "subcategory": "Medicine",
+      "weight": 0.8,
+      "price": 0,
+      "rarity": "Uncommon"
+    },
+    {
+      "id": "misc_b_bullstatue",
+      "name": "Bull statue",
+      "icon_path": "icons/misc_b_bullstatue.png",
+      "category": "misc",
+      "subcategory": "HighValue",
+      "weight": 3.8,
+      "price": 110000,
+      "rarity": "Rare"
+    },
+    {
+      "id": "misc_b_cash",
+      "name": "Cash 25k",
+      "icon_path": "icons/misc_b_cash.png",
+      "category": "misc",
+      "subcategory": "HighValue",
+      "weight": 0.25,
+      "price": 25000,
+      "rarity": "Epic"
+    },
+    {
+      "id": "misc_b_cash2",
+      "name": "Cash 50k",
+      "icon_path": "icons/misc_b_cash2.png",
+      "category": "misc",
+      "subcategory": "HighValue",
+      "weight": 0.5,
+      "price": 50000,
+      "rarity": "Epic"
+    },
+    {
+      "id": "misc_b_cash3",
+      "name": "Cash 75k",
+      "icon_path": "icons/misc_b_cash3.png",
+      "category": "misc",
+      "subcategory": "HighValue",
+      "weight": 0.75,
+      "price": 75000,
+      "rarity": "Epic"
     },
     {
       "id": "misc_b_ceramic_adhesive",
       "name": "Ceramic adhesive",
-      "icon_path": "icons/misc_b_ceramic_adhesive.png"
+      "icon_path": "icons/misc_b_ceramic_adhesive.png",
+      "category": "misc",
+      "subcategory": "Building",
+      "weight": 0.4,
+      "price": 4200,
+      "rarity": "Uncommon"
     },
     {
       "id": "misc_b_civilradio",
       "name": "Civil radio",
-      "icon_path": "icons/misc_b_civilradio.png"
+      "icon_path": "icons/misc_b_civilradio.png",
+      "category": "misc",
+      "subcategory": "Electric",
+      "weight": 1.0,
+      "price": 6600,
+      "rarity": "Epic"
     },
     {
       "id": "misc_b_dataline",
       "name": "Data Cord",
-      "icon_path": "icons/misc_b_dataline.png"
+      "icon_path": "icons/misc_b_dataline.png",
+      "category": "misc",
+      "subcategory": "Electric",
+      "weight": 0.05,
+      "price": 1323,
+      "rarity": "Common"
     },
     {
       "id": "misc_b_defibrillator",
       "name": "Defibrillator",
-      "icon_path": "icons/misc_b_defibrillator.png"
+      "icon_path": "icons/misc_b_defibrillator.png",
+      "category": "misc",
+      "subcategory": "Medicine",
+      "weight": 4.2,
+      "price": 521360,
+      "rarity": "Epic"
     },
     {
       "id": "misc_b_deodorant",
       "name": "Deodorant",
-      "icon_path": "icons/misc_b_deodorant.png"
+      "icon_path": "icons/misc_b_deodorant.png",
+      "category": "misc",
+      "subcategory": "Household",
+      "weight": 0.4,
+      "price": 8820,
+      "rarity": "Rare"
     },
     {
       "id": "misc_b_digitalsensor",
       "name": "Digital sensor",
-      "icon_path": "icons/misc_b_digitalsensor.png"
+      "icon_path": "icons/misc_b_digitalsensor.png",
+      "category": "misc",
+      "subcategory": "Electric",
+      "weight": 3.6,
+      "price": 500000,
+      "rarity": "Rare"
     },
     {
       "id": "misc_b_disinfectingwipes",
       "name": "Disinfectant wipes",
-      "icon_path": "icons/misc_b_disinfectingwipes.png"
+      "icon_path": "icons/misc_b_disinfectingwipes.png",
+      "category": "misc",
+      "subcategory": "Medicine",
+      "weight": 0.2,
+      "price": 0,
+      "rarity": "Uncommon"
     },
     {
       "id": "misc_b_electricdrill",
       "name": "Electric drill",
-      "icon_path": "icons/misc_b_electricdrill.png"
+      "icon_path": "icons/misc_b_electricdrill.png",
+      "category": "misc",
+      "subcategory": "Tools",
+      "weight": 2.0,
+      "price": 47288,
+      "rarity": "Rare"
     },
     {
       "id": "misc_b_flashlight",
       "name": "Flash light",
-      "icon_path": "icons/misc_b_flashlight.png"
+      "icon_path": "icons/misc_b_flashlight.png",
+      "category": "misc",
+      "subcategory": "Electric",
+      "weight": 0.1,
+      "price": 1485,
+      "rarity": "Rare"
     },
     {
       "id": "misc_b_gamecartridge",
       "name": "GrimLord' Cart",
-      "icon_path": "icons/misc_b_gamecartridge.png"
+      "icon_path": "icons/misc_b_gamecartridge.png",
+      "category": "misc",
+      "subcategory": "HighValue",
+      "weight": 0.1,
+      "price": 80000,
+      "rarity": "Uncommon"
+    },
+    {
+      "id": "misc_b_gamecartridge_a",
+      "name": "'Showdown' Cart",
+      "icon_path": "icons/misc_b_gamecartridge_a.png",
+      "category": "misc",
+      "subcategory": "HighValue",
+      "weight": 0.05,
+      "price": 80000,
+      "rarity": "Uncommon"
+    },
+    {
+      "id": "misc_b_gamecartridge_b",
+      "name": "'Contractors' Cart",
+      "icon_path": "icons/misc_b_gamecartridge_b.png",
+      "category": "misc",
+      "subcategory": "HighValue",
+      "weight": 0.1,
+      "price": 80000,
+      "rarity": "Uncommon"
+    },
+    {
+      "id": "misc_b_gamecartridge_d",
+      "name": "'Exfilzone' Cart",
+      "icon_path": "icons/misc_b_gamecartridge_d.png",
+      "category": "misc",
+      "subcategory": "HighValue",
+      "weight": 0.1,
+      "price": 80000,
+      "rarity": "Uncommon"
     },
     {
       "id": "misc_b_gameconsole",
       "name": "Game console",
-      "icon_path": "icons/misc_b_gameconsole.png"
+      "icon_path": "icons/misc_b_gameconsole.png",
+      "category": "misc",
+      "subcategory": "Electric",
+      "weight": 0.14,
+      "price": 80000,
+      "rarity": "Epic"
     },
     {
       "id": "misc_b_gaspipewrench",
       "name": "Gas pipe pliers",
-      "icon_path": "icons/misc_b_gaspipewrench.png"
+      "icon_path": "icons/misc_b_gaspipewrench.png",
+      "category": "misc",
+      "subcategory": "Tools",
+      "weight": 3.6,
+      "price": 0,
+      "rarity": "Rare"
     },
     {
       "id": "misc_b_gastank",
       "name": "Gas can",
-      "icon_path": "icons/misc_b_gastank.png"
+      "icon_path": "icons/misc_b_gastank.png",
+      "category": "misc",
+      "subcategory": "Combustible",
+      "weight": 0.22,
+      "price": 1061,
+      "rarity": "Common"
     },
     {
       "id": "misc_b_gastank_large",
       "name": "Large gas can",
-      "icon_path": "icons/misc_b_gastank_large.png"
+      "icon_path": "icons/misc_b_gastank_large.png",
+      "category": "misc",
+      "subcategory": "Combustible",
+      "weight": 0.5,
+      "price": 13999,
+      "rarity": "Common"
     },
     {
       "id": "misc_b_glue_large",
       "name": "Instant glue",
-      "icon_path": "icons/misc_b_glue_large.png"
+      "icon_path": "icons/misc_b_glue_large.png",
+      "category": "misc",
+      "subcategory": "Building",
+      "weight": 0.01,
+      "price": 10710,
+      "rarity": "Rare"
+    },
+    {
+      "id": "misc_b_goldelephant",
+      "name": "Golden elephant",
+      "icon_path": "icons/misc_b_goldelephant.png",
+      "category": "misc",
+      "subcategory": "HighValue",
+      "weight": 6.0,
+      "price": 1372000,
+      "rarity": "Ultimate"
+    },
+    {
+      "id": "misc_b_goldenknife",
+      "name": "Golden prize",
+      "icon_path": "icons/misc_b_goldenknife.png",
+      "category": "misc",
+      "subcategory": "HighValue",
+      "weight": 1.6,
+      "price": 300000,
+      "rarity": "Legendary"
+    },
+    {
+      "id": "misc_b_goldenlionring",
+      "name": "Gold lion ring",
+      "icon_path": "icons/misc_b_goldenlionring.png",
+      "category": "misc",
+      "subcategory": "HighValue",
+      "weight": 0.025,
+      "price": 1200000,
+      "rarity": "Common"
+    },
+    {
+      "id": "misc_b_goldenprize",
+      "name": "Golden prize",
+      "icon_path": "icons/misc_b_goldenprize.png",
+      "category": "misc",
+      "subcategory": "HighValue",
+      "weight": 3.0,
+      "price": 346290,
+      "rarity": "Legendary"
     },
     {
       "id": "misc_b_gunoil",
       "name": "Gun Oil",
-      "icon_path": "icons/misc_b_gunoil.png"
+      "icon_path": "icons/misc_b_gunoil.png",
+      "category": "misc",
+      "subcategory": "Combustible",
+      "weight": 0.2,
+      "price": 12348,
+      "rarity": "Rare"
     },
     {
       "id": "misc_b_harddrive",
       "name": "Hard drive",
-      "icon_path": "icons/misc_b_harddrive.png"
+      "icon_path": "icons/misc_b_harddrive.png",
+      "category": "misc",
+      "subcategory": "Intel",
+      "weight": 0.69,
+      "price": 11700,
+      "rarity": "Epic"
     },
     {
       "id": "misc_b_horrornovel",
       "name": "Horror novel",
-      "icon_path": "icons/misc_b_horrornovel.png"
+      "icon_path": "icons/misc_b_horrornovel.png",
+      "category": "misc",
+      "subcategory": "Intel",
+      "weight": 0.4,
+      "price": 0,
+      "rarity": "Uncommon"
     },
     {
       "id": "misc_b_insulatingtape",
       "name": "Insulating Tape",
-      "icon_path": "icons/misc_b_insulatingtape.png"
-    },
-    {
-      "id": "misc_b_ionbattery",
-      "name": "Ion Battery",
-      "icon_path": "icons/misc_b_ionbattery.png"
+      "icon_path": "icons/misc_b_insulatingtape.png",
+      "category": "misc",
+      "subcategory": "Building",
+      "weight": 0.02,
+      "price": 4200,
+      "rarity": "Uncommon"
     },
     {
       "id": "misc_b_iodophor",
       "name": "Iodine",
-      "icon_path": "icons/misc_b_iodophor.png"
+      "icon_path": "icons/misc_b_iodophor.png",
+      "category": "misc",
+      "subcategory": "Medicine",
+      "weight": 0.16,
+      "price": 0,
+      "rarity": "Rare"
+    },
+    {
+      "id": "misc_b_ionbattery",
+      "name": "Ion Battery",
+      "icon_path": "icons/misc_b_ionbattery.png",
+      "category": "misc",
+      "subcategory": "Power",
+      "weight": 0.08,
+      "price": 6120,
+      "rarity": "Rare"
     },
     {
       "id": "misc_b_lightbulb",
       "name": "Energy-saving lamp",
-      "icon_path": "icons/misc_b_lightbulb.png"
+      "icon_path": "icons/misc_b_lightbulb.png",
+      "category": "misc",
+      "subcategory": "Electric",
+      "weight": 0.4,
+      "price": 4000,
+      "rarity": "Common"
     },
     {
       "id": "misc_b_lighter",
       "name": "Lighter",
-      "icon_path": "icons/misc_b_lighter.png"
+      "icon_path": "icons/misc_b_lighter.png",
+      "category": "misc",
+      "subcategory": "Combustible",
+      "weight": 0.06,
+      "price": 848,
+      "rarity": "Common"
     },
     {
       "id": "misc_b_lighterfluid",
       "name": "Lighter fluid",
-      "icon_path": "icons/misc_b_lighterfluid.png"
+      "icon_path": "icons/misc_b_lighterfluid.png",
+      "category": "misc",
+      "subcategory": "Combustible",
+      "weight": 0.2,
+      "price": 4200,
+      "rarity": "Uncommon"
     },
     {
       "id": "misc_b_magazine",
       "name": "Magazine",
-      "icon_path": "icons/misc_b_magazine.png"
+      "icon_path": "icons/misc_b_magazine.png",
+      "category": "misc",
+      "subcategory": "Intel",
+      "weight": 0.3,
+      "price": 0,
+      "rarity": "Uncommon"
     },
     {
       "id": "misc_b_marinestoragebattery",
       "name": "Marine Battery",
-      "icon_path": "icons/misc_b_marinestoragebattery.png"
+      "icon_path": "icons/misc_b_marinestoragebattery.png",
+      "category": "misc",
+      "subcategory": "Power",
+      "weight": 17.5,
+      "price": 80000,
+      "rarity": "Rare"
     },
     {
       "id": "misc_b_match",
       "name": "Matches",
-      "icon_path": "icons/misc_b_match.png"
+      "icon_path": "icons/misc_b_match.png",
+      "category": "misc",
+      "subcategory": "Combustible",
+      "weight": 0.05,
+      "price": 0,
+      "rarity": "Rare"
     },
     {
       "id": "misc_b_medicalkit",
       "name": "Portable medical kit",
-      "icon_path": "icons/misc_b_medicalkit.png"
+      "icon_path": "icons/misc_b_medicalkit.png",
+      "category": "misc",
+      "subcategory": "Medicine",
+      "weight": 1.4,
+      "price": 0,
+      "rarity": "Epic"
     },
     {
       "id": "misc_b_medicalscissors",
       "name": "Medical scissors",
-      "icon_path": "icons/misc_b_medicalscissors.png"
+      "icon_path": "icons/misc_b_medicalscissors.png",
+      "category": "misc",
+      "subcategory": "Medicine",
+      "weight": 0.09,
+      "price": 0,
+      "rarity": "Uncommon"
+    },
+    {
+      "id": "misc_b_militaryharddrive",
+      "name": "Hard drive - classified",
+      "icon_path": "icons/misc_b_militaryharddrive.png",
+      "category": "misc",
+      "subcategory": "HighValue",
+      "weight": 1.2,
+      "price": 346000,
+      "rarity": "Epic"
     },
     {
       "id": "misc_b_militaryusbdrive",
       "name": "USB - classified",
-      "icon_path": "icons/misc_b_militaryusbdrive.png"
+      "icon_path": "icons/misc_b_militaryusbdrive.png",
+      "category": "misc",
+      "subcategory": "HighValue",
+      "weight": 0.08,
+      "price": 110000,
+      "rarity": "Uncommon"
     },
     {
       "id": "misc_b_moldboard",
       "name": "Moldboard",
-      "icon_path": "icons/misc_b_moldboard.png"
+      "icon_path": "icons/misc_b_moldboard.png",
+      "category": "misc",
+      "subcategory": "Tools",
+      "weight": 0.1,
+      "price": 743,
+      "rarity": "Rare"
     },
     {
       "id": "misc_b_nail",
       "name": "Nails",
-      "icon_path": "icons/misc_b_nail.png"
+      "icon_path": "icons/misc_b_nail.png",
+      "category": "misc",
+      "subcategory": "Building",
+      "weight": 0.08,
+      "price": 945,
+      "rarity": "Rare"
     },
     {
       "id": "misc_b_newphone",
       "name": "New Phone",
-      "icon_path": "icons/misc_b_newphone.png"
+      "icon_path": "icons/misc_b_newphone.png",
+      "category": "misc",
+      "subcategory": "Electric",
+      "weight": 0.21,
+      "price": 18000,
+      "rarity": "Epic"
     },
     {
       "id": "misc_b_nut",
       "name": "Nuts",
-      "icon_path": "icons/misc_b_nut.png"
+      "icon_path": "icons/misc_b_nut.png",
+      "category": "misc",
+      "subcategory": "Building",
+      "weight": 0.15,
+      "price": 1040,
+      "rarity": "Common"
+    },
+    {
+      "id": "misc_b_nut2",
+      "name": "Big Nut",
+      "icon_path": "icons/misc_b_nut2.png",
+      "category": "misc",
+      "subcategory": "Building",
+      "weight": 0.03,
+      "price": 978,
+      "rarity": "Common"
     },
     {
       "id": "misc_b_oldphone",
       "name": "Old Phone",
-      "icon_path": "icons/misc_b_oldphone.png"
+      "icon_path": "icons/misc_b_oldphone.png",
+      "category": "misc",
+      "subcategory": "Electric",
+      "weight": 0.16,
+      "price": 5940,
+      "rarity": "Epic"
     },
     {
       "id": "misc_b_oliveoil",
       "name": "Olive oil",
-      "icon_path": "icons/misc_b_oliveoil.png"
+      "icon_path": "icons/misc_b_oliveoil.png",
+      "category": "misc",
+      "subcategory": "Combustible",
+      "weight": 1.1,
+      "price": 48649,
+      "rarity": "Epic"
     },
     {
       "id": "misc_b_opticaldisc",
       "name": "CD",
-      "icon_path": "icons/misc_b_opticaldisc.png"
+      "icon_path": "icons/misc_b_opticaldisc.png",
+      "category": "misc",
+      "subcategory": "Intel",
+      "weight": 0.03,
+      "price": 0,
+      "rarity": "Epic"
     },
     {
       "id": "misc_b_pcfan",
       "name": "CPU Fan",
-      "icon_path": "icons/misc_b_pcfan.png"
+      "icon_path": "icons/misc_b_pcfan.png",
+      "category": "misc",
+      "subcategory": "Electric",
+      "weight": 0.15,
+      "price": 1500,
+      "rarity": "Uncommon"
+    },
+    {
+      "id": "misc_b_perfume",
+      "name": "Perfume",
+      "icon_path": "icons/misc_b_perfume.png",
+      "category": "misc",
+      "subcategory": "HighValue",
+      "weight": 0.3,
+      "price": 86000,
+      "rarity": "Uncommon"
     },
     {
       "id": "misc_b_pesticide",
       "name": "Pesticide",
-      "icon_path": "icons/misc_b_pesticide.png"
+      "icon_path": "icons/misc_b_pesticide.png",
+      "category": "misc",
+      "subcategory": "Household",
+      "weight": 0.22,
+      "price": 9000,
+      "rarity": "Rare"
     },
     {
       "id": "misc_b_piezometer",
       "name": "Piezometer",
-      "icon_path": "icons/misc_b_piezometer.png"
+      "icon_path": "icons/misc_b_piezometer.png",
+      "category": "misc",
+      "subcategory": "Building",
+      "weight": 0.4,
+      "price": 45500,
+      "rarity": "Rare"
     },
     {
-      "id": "misc_b_valve",
+      "id": "misc_b_pipeline",
       "name": "Valve",
-      "icon_path": "icons/misc_b_valve.png"
+      "icon_path": "icons/misc_b_pipeline.png",
+      "category": "misc",
+      "subcategory": "Building",
+      "weight": 0.3,
+      "price": 4242,
+      "rarity": "Rare"
     },
     {
       "id": "misc_b_plier",
       "name": "Plier",
-      "icon_path": "icons/misc_b_plier.png"
+      "icon_path": "icons/misc_b_plier.png",
+      "category": "misc",
+      "subcategory": "Tools",
+      "weight": 0.16,
+      "price": 3090,
+      "rarity": "Uncommon"
     },
     {
       "id": "misc_b_plier_large",
       "name": "Large plier",
-      "icon_path": "icons/misc_b_plier_large.png"
+      "icon_path": "icons/misc_b_plier_large.png",
+      "category": "misc",
+      "subcategory": "Tools",
+      "weight": 0.28,
+      "price": 735,
+      "rarity": "Uncommon"
     },
     {
       "id": "misc_b_powerbank",
       "name": "Power Bank",
-      "icon_path": "icons/misc_b_powerbank.png"
+      "icon_path": "icons/misc_b_powerbank.png",
+      "category": "misc",
+      "subcategory": "Power",
+      "weight": 0.35,
+      "price": 6000,
+      "rarity": "Uncommon"
     },
     {
       "id": "misc_b_radioscanner",
       "name": "Radio scanner",
-      "icon_path": "icons/misc_b_radioscanner.png"
+      "icon_path": "icons/misc_b_radioscanner.png",
+      "category": "misc",
+      "subcategory": "Electric",
+      "weight": 2.0,
+      "price": 25425,
+      "rarity": "Epic"
     },
     {
       "id": "misc_b_ram",
       "name": "RAM",
-      "icon_path": "icons/misc_b_ram.png"
+      "icon_path": "icons/misc_b_ram.png",
+      "category": "misc",
+      "subcategory": "Electric",
+      "weight": 0.08,
+      "price": 5400,
+      "rarity": "Epic"
     },
     {
       "id": "misc_b_rat_poison",
       "name": "Rat poison",
-      "icon_path": "icons/misc_b_rat_poison.png"
+      "icon_path": "icons/misc_b_rat_poison.png",
+      "category": "misc",
+      "subcategory": "Household",
+      "weight": 0.2,
+      "price": 32175,
+      "rarity": "Epic"
     },
     {
       "id": "misc_b_recorder",
       "name": "Recorder",
-      "icon_path": "icons/misc_b_recorder.png"
+      "icon_path": "icons/misc_b_recorder.png",
+      "category": "misc",
+      "subcategory": "Intel",
+      "weight": 0.24,
+      "price": 20000,
+      "rarity": "Epic"
     },
     {
       "id": "misc_b_rustedcleaner",
       "name": "Rust cleaner",
-      "icon_path": "icons/misc_b_rustedcleaner.png"
+      "icon_path": "icons/misc_b_rustedcleaner.png",
+      "category": "misc",
+      "subcategory": "Household",
+      "weight": 0.22,
+      "price": 750,
+      "rarity": "Common"
     },
     {
       "id": "misc_b_saltcan",
       "name": "Salt can",
-      "icon_path": "icons/misc_b_saltcan.png"
+      "icon_path": "icons/misc_b_saltcan.png",
+      "category": "misc",
+      "subcategory": "Household",
+      "weight": 0.14,
+      "price": 3000,
+      "rarity": "Rare"
     },
     {
       "id": "misc_b_screw",
       "name": "Bolts",
-      "icon_path": "icons/misc_b_screw.png"
+      "icon_path": "icons/misc_b_screw.png",
+      "category": "misc",
+      "subcategory": "Building",
+      "weight": 0.1,
+      "price": 1071,
+      "rarity": "Common"
     },
     {
       "id": "misc_b_shampoo",
       "name": "Shampoo",
-      "icon_path": "icons/misc_b_shampoo.png"
+      "icon_path": "icons/misc_b_shampoo.png",
+      "category": "misc",
+      "subcategory": "Household",
+      "weight": 0.28,
+      "price": 8910,
+      "rarity": "Rare"
     },
     {
       "id": "misc_b_smallshovel",
       "name": "Small Shovel",
-      "icon_path": "icons/misc_b_smallshovel.png"
+      "icon_path": "icons/misc_b_smallshovel.png",
+      "category": "misc",
+      "subcategory": "Tools",
+      "weight": 0.1,
+      "price": 2970,
+      "rarity": "Rare"
     },
     {
       "id": "misc_b_smokelesspowder",
       "name": "Smokeless powder",
-      "icon_path": "icons/misc_b_smokelesspowder.png"
+      "icon_path": "icons/misc_b_smokelesspowder.png",
+      "category": "misc",
+      "subcategory": "Combustible",
+      "weight": 1.3,
+      "price": 45081,
+      "rarity": "Epic"
     },
     {
       "id": "misc_b_soap",
       "name": "Soap",
-      "icon_path": "icons/misc_b_soap.png"
+      "icon_path": "icons/misc_b_soap.png",
+      "category": "misc",
+      "subcategory": "Household",
+      "weight": 0.05,
+      "price": 765,
+      "rarity": "Rare"
     },
     {
       "id": "misc_b_socket",
       "name": "Socket",
-      "icon_path": "icons/misc_b_socket.png"
+      "icon_path": "icons/misc_b_socket.png",
+      "category": "misc",
+      "subcategory": "Electric",
+      "weight": 0.4,
+      "price": 6060,
+      "rarity": "Epic"
     },
     {
       "id": "misc_b_sparkplug",
       "name": "Spark Plug",
-      "icon_path": "icons/misc_b_sparkplug.png"
+      "icon_path": "icons/misc_b_sparkplug.png",
+      "category": "misc",
+      "subcategory": "Tools",
+      "weight": 0.12,
+      "price": 8100,
+      "rarity": "Epic"
     },
     {
       "id": "misc_b_spraycan",
       "name": "Spray Can",
-      "icon_path": "icons/misc_b_spraycan.png"
+      "icon_path": "icons/misc_b_spraycan.png",
+      "category": "misc",
+      "subcategory": "Building",
+      "weight": 0.3,
+      "price": 12726,
+      "rarity": "Epic"
+    },
+    {
+      "id": "misc_b_stonlion",
+      "name": "Stone lion",
+      "icon_path": "icons/misc_b_stonlion.png",
+      "category": "misc",
+      "subcategory": "HighValue",
+      "weight": 4.2,
+      "price": 162162,
+      "rarity": "Epic"
     },
     {
       "id": "misc_b_storagebattery",
       "name": "Car Battery",
-      "icon_path": "icons/misc_b_storagebattery.png"
+      "icon_path": "icons/misc_b_storagebattery.png",
+      "category": "misc",
+      "subcategory": "Power",
+      "weight": 8.0,
+      "price": 98475,
+      "rarity": "Epic"
     },
     {
       "id": "misc_b_superglue",
       "name": "Super Glue",
-      "icon_path": "icons/misc_b_superglue.png"
+      "icon_path": "icons/misc_b_superglue.png",
+      "category": "misc",
+      "subcategory": "Building",
+      "weight": 0.05,
+      "price": 10603,
+      "rarity": "Rare"
     },
     {
       "id": "misc_b_tape",
       "name": "Tape",
-      "icon_path": "icons/misc_b_tape.png"
+      "icon_path": "icons/misc_b_tape.png",
+      "category": "misc",
+      "subcategory": "Intel",
+      "weight": 0.27,
+      "price": 3822,
+      "rarity": "Uncommon"
+    },
+    {
+      "id": "misc_b_tape_holder",
+      "name": "Tape holder",
+      "icon_path": "icons/misc_b_tape_holder.png",
+      "category": "misc",
+      "subcategory": "Tools",
+      "weight": 0.1,
+      "price": 863,
+      "rarity": "Common"
+    },
+    {
+      "id": "misc_b_tape_large",
+      "name": "Gas can",
+      "icon_path": "icons/misc_b_tape_large.png",
+      "category": "misc",
+      "subcategory": "Combustible",
+      "weight": 0.08,
+      "price": 0,
+      "rarity": "Common"
     },
     {
       "id": "misc_b_tapemeasure",
       "name": "Measuring Tape",
-      "icon_path": "icons/misc_b_tapemeasure.png"
+      "icon_path": "icons/misc_b_tapemeasure.png",
+      "category": "misc",
+      "subcategory": "Tools",
+      "weight": 0.14,
+      "price": 750,
+      "rarity": "Common"
     },
     {
       "id": "misc_b_tapeplayer",
-      "name": "Tape player",
-      "icon_path": "icons/misc_b_tapeplayer.png"
+      "name": "Civil radio",
+      "icon_path": "icons/misc_b_tapeplayer.png",
+      "category": "misc",
+      "subcategory": "Electric",
+      "weight": 0.6,
+      "price": 0,
+      "rarity": "Epic"
     },
     {
       "id": "misc_b_tire_sealant",
       "name": "Tire sealant",
-      "icon_path": "icons/misc_b_tire_sealant.png"
+      "icon_path": "icons/misc_b_tire_sealant.png",
+      "category": "misc",
+      "subcategory": "Tools",
+      "weight": 0.15,
+      "price": 743,
+      "rarity": "Common"
     },
     {
       "id": "misc_b_toiletpaper",
       "name": "Toilet Paper",
-      "icon_path": "icons/misc_b_toiletpaper.png"
+      "icon_path": "icons/misc_b_toiletpaper.png",
+      "category": "misc",
+      "subcategory": "Household",
+      "weight": 0.03,
+      "price": 918,
+      "rarity": "Common"
     },
     {
       "id": "misc_b_toothpaste",
       "name": "Toothpaste",
-      "icon_path": "icons/misc_b_toothpaste.png"
+      "icon_path": "icons/misc_b_toothpaste.png",
+      "category": "misc",
+      "subcategory": "Household",
+      "weight": 0.05,
+      "price": 675,
+      "rarity": "Rare"
     },
     {
       "id": "misc_b_transformer",
       "name": "Voltage transformer",
-      "icon_path": "icons/misc_b_transformer.png"
+      "icon_path": "icons/misc_b_transformer.png",
+      "category": "misc",
+      "subcategory": "Electric",
+      "weight": 1.6,
+      "price": 63700,
+      "rarity": "Rare"
     },
     {
       "id": "misc_b_uvlight",
       "name": "UV lamp",
-      "icon_path": "icons/misc_b_uvlight.png"
+      "icon_path": "icons/misc_b_uvlight.png",
+      "category": "misc",
+      "subcategory": "Medicine",
+      "weight": 0.56,
+      "price": 0,
+      "rarity": "Epic"
     },
     {
       "id": "misc_b_visionmodule",
       "name": "Imaging module",
-      "icon_path": "icons/misc_b_visionmodule.png"
+      "icon_path": "icons/misc_b_visionmodule.png",
+      "category": "misc",
+      "subcategory": "Electric",
+      "weight": 0.8,
+      "price": 80000,
+      "rarity": "Rare"
     },
     {
       "id": "misc_b_wd40",
       "name": "WD-40",
-      "icon_path": "icons/misc_b_wd40.png"
+      "icon_path": "icons/misc_b_wd40.png",
+      "category": "misc",
+      "subcategory": "Combustible",
+      "weight": 0.18,
+      "price": 1050,
+      "rarity": "Common"
     },
     {
       "id": "misc_b_wire",
       "name": "Wire",
-      "icon_path": "icons/misc_b_wire.png"
+      "icon_path": "icons/misc_b_wire.png",
+      "category": "misc",
+      "subcategory": "Building",
+      "weight": 0.1,
+      "price": 1040,
+      "rarity": "Rare"
     },
     {
       "id": "misc_b_wirecutting",
       "name": "Wire Cutter",
-      "icon_path": "icons/misc_b_wirecutting.png"
+      "icon_path": "icons/misc_b_wirecutting.png",
+      "category": "misc",
+      "subcategory": "Tools",
+      "weight": 0.08,
+      "price": 3090,
+      "rarity": "Uncommon"
     },
     {
       "id": "misc_b_wrench",
       "name": "Wrench",
-      "icon_path": "icons/misc_b_wrench.png"
+      "icon_path": "icons/misc_b_wrench.png",
+      "category": "misc",
+      "subcategory": "Tools",
+      "weight": 0.24,
+      "price": 2940,
+      "rarity": "Epic"
+    },
+    {
+      "id": "misc_badge",
+      "name": "Sheriff's Badge",
+      "icon_path": "icons/misc_badge.png",
+      "category": "misc",
+      "subcategory": "HighValue",
+      "weight": 0.2,
+      "price": 116025,
+      "rarity": "Common"
     },
     {
       "id": "misc_barcleaner",
       "name": "Household Cleaner",
-      "icon_path": "icons/misc_barcleaner.png"
+      "icon_path": "icons/misc_barcleaner.png",
+      "category": "misc",
+      "subcategory": "Household",
+      "weight": 0.65,
+      "price": 2910,
+      "rarity": "Common"
+    },
+    {
+      "id": "misc_baseball",
+      "name": "Old Baseball",
+      "icon_path": "icons/misc_baseball.png",
+      "category": "misc",
+      "subcategory": "Household",
+      "weight": 0.3,
+      "price": 0,
+      "rarity": "Common"
     },
     {
       "id": "misc_bentrifuge",
       "name": "Centrifuge",
-      "icon_path": "icons/misc_bentrifuge.png"
+      "icon_path": "icons/misc_bentrifuge.png",
+      "category": "misc",
+      "subcategory": "Medicine",
+      "weight": 3.4,
+      "price": 80000,
+      "rarity": "Epic"
     },
     {
       "id": "misc_blimbingrope",
       "name": "Climbing rope",
-      "icon_path": "icons/misc_blimbingrope.png"
+      "icon_path": "icons/misc_blimbingrope.png",
+      "category": "misc",
+      "subcategory": "Tools",
+      "weight": 0.8,
+      "price": 20000,
+      "rarity": "Common"
     },
     {
       "id": "misc_bomputertextbook",
       "name": "Computer manual",
-      "icon_path": "icons/misc_bomputertextbook.png"
+      "icon_path": "icons/misc_bomputertextbook.png",
+      "category": "misc",
+      "subcategory": "Intel",
+      "weight": 0.5,
+      "price": 0,
+      "rarity": "Uncommon"
     },
     {
       "id": "misc_bpu",
       "name": "CPU",
-      "icon_path": "icons/misc_bpu.png"
+      "icon_path": "icons/misc_bpu.png",
+      "category": "misc",
+      "subcategory": "Electric",
+      "weight": 0.1,
+      "price": 87750,
+      "rarity": "Epic"
+    },
+    {
+      "id": "misc_brimsonqueenring",
+      "name": "Ruby ring",
+      "icon_path": "icons/misc_brimsonqueenring.png",
+      "category": "misc",
+      "subcategory": "HighValue",
+      "weight": 0.02,
+      "price": 1200000,
+      "rarity": "Common"
+    },
+    {
+      "id": "misc_camera",
+      "name": "Vintage Camera",
+      "icon_path": "icons/misc_camera.png",
+      "category": "misc",
+      "subcategory": "HighValue",
+      "weight": 1.7,
+      "price": 93730,
+      "rarity": "Epic"
+    },
+    {
+      "id": "misc_cloth",
+      "name": "Linen Fabrics",
+      "icon_path": "icons/misc_cloth.png",
+      "category": "misc",
+      "subcategory": "Household",
+      "weight": 0.41,
+      "price": 0,
+      "rarity": "Rare"
     },
     {
       "id": "misc_copperwire",
       "name": "Copper Wire",
-      "icon_path": "icons/misc_copperwire.png"
+      "icon_path": "icons/misc_copperwire.png",
+      "category": "misc",
+      "subcategory": "Building",
+      "weight": 0.4,
+      "price": 4326,
+      "rarity": "Epic"
+    },
+    {
+      "id": "misc_csdoll_gold",
+      "name": "Game Figurine (hidden)",
+      "icon_path": "icons/misc_csdoll_gold.png",
+      "category": "misc",
+      "subcategory": "HighValue",
+      "weight": 0.99,
+      "price": 137000,
+      "rarity": "Epic"
+    },
+    {
+      "id": "misc_csdoll_standard",
+      "name": "Game Figurine #1",
+      "icon_path": "icons/misc_csdoll_standard.png",
+      "category": "misc",
+      "subcategory": "HighValue",
+      "weight": 0.15,
+      "price": 25200,
+      "rarity": "Rare"
+    },
+    {
+      "id": "misc_csdoll_standard_2",
+      "name": "Game Figurine #2",
+      "icon_path": "icons/misc_csdoll_standard_2.png",
+      "category": "misc",
+      "subcategory": "HighValue",
+      "weight": 0.15,
+      "price": 25200,
+      "rarity": "Rare"
+    },
+    {
+      "id": "misc_csdoll_standard_3",
+      "name": "Game Figurine #3",
+      "icon_path": "icons/misc_csdoll_standard_3.png",
+      "category": "misc",
+      "subcategory": "HighValue",
+      "weight": 0.15,
+      "price": 25200,
+      "rarity": "Rare"
+    },
+    {
+      "id": "misc_csdoll_standard_4",
+      "name": "Game Figurine #4",
+      "icon_path": "icons/misc_csdoll_standard_4.png",
+      "category": "misc",
+      "subcategory": "HighValue",
+      "weight": 0.15,
+      "price": 25200,
+      "rarity": "Rare"
+    },
+    {
+      "id": "misc_csdoll_standard_5",
+      "name": "Game Figurine #5",
+      "icon_path": "icons/misc_csdoll_standard_5.png",
+      "category": "misc",
+      "subcategory": "HighValue",
+      "weight": 0.15,
+      "price": 25200,
+      "rarity": "Rare"
+    },
+    {
+      "id": "misc_csdoll_standard_6",
+      "name": "Game Figurine #6",
+      "icon_path": "icons/misc_csdoll_standard_6.png",
+      "category": "misc",
+      "subcategory": "HighValue",
+      "weight": 0.15,
+      "price": 25200,
+      "rarity": "Rare"
+    },
+    {
+      "id": "misc_csdoll_standard_7",
+      "name": "Game Figurine #7",
+      "icon_path": "icons/misc_csdoll_standard_7.png",
+      "category": "misc",
+      "subcategory": "HighValue",
+      "weight": 0.15,
+      "price": 25200,
+      "rarity": "Rare"
+    },
+    {
+      "id": "misc_ducktoy",
+      "name": "Toy Duck",
+      "icon_path": "icons/misc_ducktoy.png",
+      "category": "misc",
+      "subcategory": "Household",
+      "weight": 0.45,
+      "price": 0,
+      "rarity": "Uncommon"
+    },
+    {
+      "id": "misc_facialcleaner",
+      "name": "Facial Cleanser",
+      "icon_path": "icons/misc_facialcleaner.png",
+      "category": "misc",
+      "subcategory": "Household",
+      "weight": 0.25,
+      "price": 3000,
+      "rarity": "Common"
     },
     {
       "id": "misc_floppydisk",
       "name": "Floppy Disk",
-      "icon_path": "icons/misc_floppydisk.png"
+      "icon_path": "icons/misc_floppydisk.png",
+      "category": "misc",
+      "subcategory": "Intel",
+      "weight": 0.2,
+      "price": 9647,
+      "rarity": "Rare"
+    },
+    {
+      "id": "misc_fossil",
+      "name": "Fossil",
+      "icon_path": "icons/misc_fossil.png",
+      "category": "misc",
+      "subcategory": "HighValue",
+      "weight": 2.4,
+      "price": 102102,
+      "rarity": "Epic"
+    },
+    {
+      "id": "misc_gamedisk",
+      "name": "Game Disc",
+      "icon_path": "icons/misc_gamedisk.png",
+      "category": "misc",
+      "subcategory": "HighValue",
+      "weight": 0.3,
+      "price": 93730,
+      "rarity": "Rare"
+    },
+    {
+      "id": "misc_gamedisk_deluxedition",
+      "name": "Contractors Delux Edition",
+      "icon_path": "icons/misc_gamedisk_deluxedition.png",
+      "category": "misc",
+      "subcategory": "HighValue",
+      "weight": 0.3,
+      "price": 91000,
+      "rarity": "Rare"
+    },
+    {
+      "id": "misc_gamedisk_showdown",
+      "name": "ShowDown",
+      "icon_path": "icons/misc_gamedisk_showdown.png",
+      "category": "misc",
+      "subcategory": "HighValue",
+      "weight": 0.3,
+      "price": 109200,
+      "rarity": "Rare"
+    },
+    {
+      "id": "misc_gamedisk_showdown_deluxedition",
+      "name": "ShowDown Delux Edition",
+      "icon_path": "icons/misc_gamedisk_showdown_deluxedition.png",
+      "category": "misc",
+      "subcategory": "HighValue",
+      "weight": 0.3,
+      "price": 111384,
+      "rarity": "Rare"
+    },
+    {
+      "id": "misc_goldcup",
+      "name": "Antique Gold Goblet",
+      "icon_path": "icons/misc_goldcup.png",
+      "category": "misc",
+      "subcategory": "HighValue",
+      "weight": 4.2,
+      "price": 357000,
+      "rarity": "Epic"
     },
     {
       "id": "misc_goldingot",
       "name": "Gold Ingot",
-      "icon_path": "icons/misc_goldingot.png"
+      "icon_path": "icons/misc_goldingot.png",
+      "category": "misc",
+      "subcategory": "HighValue",
+      "weight": 6.2,
+      "price": 367710,
+      "rarity": "Epic"
+    },
+    {
+      "id": "misc_graphiccard",
+      "name": "Graphic Card",
+      "icon_path": "icons/misc_graphiccard.png",
+      "category": "misc",
+      "subcategory": "Electric",
+      "weight": 2.5,
+      "price": 227500,
+      "rarity": "Epic"
     },
     {
       "id": "misc_gunpowder",
       "name": "Gunpowder",
-      "icon_path": "icons/misc_gunpowder.png"
+      "icon_path": "icons/misc_gunpowder.png",
+      "category": "misc",
+      "subcategory": "Combustible",
+      "weight": 1.2,
+      "price": 45500,
+      "rarity": "Epic"
     },
     {
       "id": "misc_hammer",
       "name": "Hammer",
-      "icon_path": "icons/misc_hammer.png"
+      "icon_path": "icons/misc_hammer.png",
+      "category": "misc",
+      "subcategory": "Tools",
+      "weight": 0.3,
+      "price": 9356,
+      "rarity": "Uncommon"
+    },
+    {
+      "id": "misc_householdleaner",
+      "name": "Household Cleaner",
+      "icon_path": "icons/misc_householdleaner.png",
+      "category": "misc",
+      "subcategory": "Household",
+      "weight": 0.7,
+      "price": 2910,
+      "rarity": "Common"
     },
     {
       "id": "misc_mouse",
       "name": "Mouse",
-      "icon_path": "icons/misc_mouse.png"
+      "icon_path": "icons/misc_mouse.png",
+      "category": "misc",
+      "subcategory": "Electric",
+      "weight": 0.15,
+      "price": 1500,
+      "rarity": "Uncommon"
+    },
+    {
+      "id": "misc_mug",
+      "name": "Mug",
+      "icon_path": "icons/misc_mug.png",
+      "category": "misc",
+      "subcategory": "Household",
+      "weight": 0.32,
+      "price": 0,
+      "rarity": "Common"
     },
     {
       "id": "misc_notebook",
       "name": "Notebook",
-      "icon_path": "icons/misc_notebook.png"
+      "icon_path": "icons/misc_notebook.png",
+      "category": "misc",
+      "subcategory": "Intel",
+      "weight": 0.27,
+      "price": 975,
+      "rarity": "Common"
     },
     {
       "id": "misc_oilcan",
       "name": "Oil can",
-      "icon_path": "icons/misc_oilcan.png"
+      "icon_path": "icons/misc_oilcan.png",
+      "category": "misc",
+      "subcategory": "Combustible",
+      "weight": 3.5,
+      "price": 4733,
+      "rarity": "Uncommon"
+    },
+    {
+      "id": "misc_pocketwatch",
+      "name": "Pocketwatch",
+      "icon_path": "icons/misc_pocketwatch.png",
+      "category": "misc",
+      "subcategory": "HighValue",
+      "weight": 0.15,
+      "price": 336000,
+      "rarity": "Epic"
+    },
+    {
+      "id": "misc_radio",
+      "name": "Portable Radio",
+      "icon_path": "icons/misc_radio.png",
+      "category": "misc",
+      "subcategory": "Electric",
+      "weight": 7.0,
+      "price": 20952,
+      "rarity": "Epic"
     },
     {
       "id": "misc_remote",
       "name": "Remote Control",
-      "icon_path": "icons/misc_remote.png"
+      "icon_path": "icons/misc_remote.png",
+      "category": "misc",
+      "subcategory": "Electric",
+      "weight": 0.25,
+      "price": 1470,
+      "rarity": "Common"
     },
     {
       "id": "misc_screwdriver",
       "name": "Screwdriver",
-      "icon_path": "icons/misc_screwdriver.png"
+      "icon_path": "icons/misc_screwdriver.png",
+      "category": "misc",
+      "subcategory": "Tools",
+      "weight": 0.2,
+      "price": 758,
+      "rarity": "Uncommon"
+    },
+    {
+      "id": "misc_silvercup",
+      "name": "Antique Silver Goblet",
+      "icon_path": "icons/misc_silvercup.png",
+      "category": "misc",
+      "subcategory": "HighValue",
+      "weight": 1.6,
+      "price": 91000,
+      "rarity": "Epic"
+    },
+    {
+      "id": "misc_sunglass",
+      "name": "Sunglasses",
+      "icon_path": "icons/misc_sunglass.png",
+      "category": "misc",
+      "subcategory": "Household",
+      "weight": 0.1,
+      "price": 0,
+      "rarity": "Common"
+    },
+    {
+      "id": "misc_toycar",
+      "name": "Toy Car",
+      "icon_path": "icons/misc_toycar.png",
+      "category": "misc",
+      "subcategory": "HighValue",
+      "weight": 0.2,
+      "price": 0,
+      "rarity": "Uncommon"
     },
     {
       "id": "misc_videotape",
       "name": "Videotape",
-      "icon_path": "icons/misc_videotape.png"
+      "icon_path": "icons/misc_videotape.png",
+      "category": "misc",
+      "subcategory": "Intel",
+      "weight": 0.28,
+      "price": 45081,
+      "rarity": "Rare"
+    },
+    {
+      "id": "misc_vrheadset",
+      "name": "VR Headset",
+      "icon_path": "icons/misc_vrheadset.png",
+      "category": "misc",
+      "subcategory": "HighValue",
+      "weight": 0.2,
+      "price": 0,
+      "rarity": "Common"
     },
     {
       "id": "misc_wastechip",
       "name": "Waste Chip",
-      "icon_path": "icons/misc_wastechip.png"
+      "icon_path": "icons/misc_wastechip.png",
+      "category": "misc",
+      "subcategory": "Electric",
+      "weight": 0.15,
+      "price": 5880,
+      "rarity": "Epic"
+    },
+    {
+      "id": "misc_wooddoll",
+      "name": "Wood Doll",
+      "icon_path": "icons/misc_wooddoll.png",
+      "category": "misc",
+      "subcategory": "HighValue",
+      "weight": 0.25,
+      "price": 0,
+      "rarity": "Uncommon"
     },
     {
       "id": "misc_wrench",
       "name": "Small Wrench",
-      "icon_path": "icons/misc_wrench.png"
-    },
-    {
-      "id": "taskitem_ark_floppydisk",
-      "name": "ARK Floppy Disk",
-      "icon_path": "icons/taskitem_ark_floppydisk.png"
-    },
-    {
-      "id": "taskitem_baseball",
-      "name": "Tommy's Hidden Camera",
-      "icon_path": "icons/taskitem_baseball.png"
-    },
-    {
-      "id": "taskitem_electricdrill_blue",
-      "name": "Electric drill",
-      "icon_path": "icons/taskitem_electricdrill_blue.png"
-    },
-    {
-      "id": "taskitem_familytape",
-      "name": "Family Videotape",
-      "icon_path": "icons/taskitem_familytape.png"
-    },
-    {
-      "id": "taskitem_goldcup",
-      "name": "Gold Cup -Task",
-      "icon_path": "icons/taskitem_goldcup.png"
-    },
-    {
-      "id": "taskitem_goldeearth",
-      "name": "Maximilian's Golden Earth -Task",
-      "icon_path": "icons/taskitem_goldeearth.png"
-    },
-    {
-      "id": "taskitem_gunpowder",
-      "name": "Gunpowder",
-      "icon_path": "icons/taskitem_gunpowder.png"
-    },
-    {
-      "id": "taskitem_igor_notebook",
-      "name": "Igor's Notebook",
-      "icon_path": "icons/taskitem_igor_notebook.png"
-    },
-    {
-      "id": "taskitem_maggie_camera",
-      "name": "Maggie's Camera",
-      "icon_path": "icons/taskitem_maggie_camera.png"
-    },
-    {
-      "id": "taskitem_medherb",
-      "name": "Exotic Herbs",
-      "icon_path": "icons/taskitem_medherb.png"
-    },
-    {
-      "id": "taskitem_medicalbag",
-      "name": "Maggie's Medical Bag",
-      "icon_path": "icons/taskitem_medicalbag.png"
-    },
-    {
-      "id": "taskitem_photophone",
-      "name": "FotoVision+ Phone",
-      "icon_path": "icons/taskitem_photophone.png"
-    },
-    {
-      "id": "taskitem_placement_igor_foodcan",
-      "name": "Igor's Food can",
-      "icon_path": "icons/taskitem_placement_igor_foodcan.png"
-    },
-    {
-      "id": "taskitem_placement_igor_memobeer",
-      "name": "Beer of Mourning",
-      "icon_path": "icons/taskitem_placement_igor_memobeer.png"
-    },
-    {
-      "id": "taskitem_placement_igor_supplycase",
-      "name": "Igor's Supply Case",
-      "icon_path": "icons/taskitem_placement_igor_supplycase.png"
-    },
-    {
-      "id": "taskitem_placement_johnny_walkietalkie",
-      "name": "Walkie-Talkie",
-      "icon_path": "icons/taskitem_placement_johnny_walkietalkie.png"
-    },
-    {
-      "id": "taskitem_placement_maggie_medicine",
-      "name": "Maggie's Medicine (X-Nax)",
-      "icon_path": "icons/taskitem_placement_maggie_medicine.png"
-    },
-    {
-      "id": "taskitem_placement_maggie_poison",
-      "name": "Maggie's Poison",
-      "icon_path": "icons/taskitem_placement_maggie_poison.png"
-    },
-    {
-      "id": "taskitem_placement_maggie_usb",
-      "name": "Maggie's USB",
-      "icon_path": "icons/taskitem_placement_maggie_usb.png"
-    },
-    {
-      "id": "taskitem_placement_max_cash",
-      "name": "Max's Cash",
-      "icon_path": "icons/taskitem_placement_max_cash.png"
-    },
-    {
-      "id": "taskitem_placement_max_oldphone",
-      "name": "Max‘s Phone",
-      "icon_path": "icons/taskitem_placement_max_oldphone.png"
-    },
-    {
-      "id": "taskitem_placement_max_ring",
-      "name": "Max's Diamond ring",
-      "icon_path": "icons/taskitem_placement_max_ring.png"
-    },
-    {
-      "id": "taskitem_placement_signalenhancer",
-      "name": "Signal Enhancer",
-      "icon_path": "icons/taskitem_placement_signalenhancer.png"
-    },
-    {
-      "id": "taskitem_placement_tommy_surveillancecam",
-      "name": "Tommy's Surveillance Cam",
-      "icon_path": "icons/taskitem_placement_tommy_surveillancecam.png"
-    },
-    {
-      "id": "taskitem_placement_tommy_telescope",
-      "name": "ARK's Telescope",
-      "icon_path": "icons/taskitem_placement_tommy_telescope.png"
-    },
-    {
-      "id": "taskitem_radio",
-      "name": "Portable Radio",
-      "icon_path": "icons/taskitem_radio.png"
-    },
-    {
-      "id": "taskitem_safecase",
-      "name": "Johnny's Safebox",
-      "icon_path": "icons/taskitem_safecase.png"
-    },
-    {
-      "id": "taskitem_sharkdvd1",
-      "name": "\"SHARK\"",
-      "icon_path": "icons/taskitem_sharkdvd1.png"
-    },
-    {
-      "id": "taskitem_sharkdvd2",
-      "name": "\"SHARK\" Sequel",
-      "icon_path": "icons/taskitem_sharkdvd2.png"
-    },
-    {
-      "id": "taskitem_subwaydvd1",
-      "name": "\"Subway Scream\"",
-      "icon_path": "icons/taskitem_subwaydvd1.png"
-    },
-    {
-      "id": "taskitem_subwaydvd2",
-      "name": "\"Subway Scream2\"",
-      "icon_path": "icons/taskitem_subwaydvd2.png"
-    },
-    {
-      "id": "taskitem_task_gamedisk",
-      "name": "Game Disc",
-      "icon_path": "icons/taskitem_task_gamedisk.png"
-    },
-    {
-      "id": "taskitem_task_igor_sunglass",
-      "name": "Igor's Sunglass",
-      "icon_path": "icons/taskitem_task_igor_sunglass.png"
-    },
-    {
-      "id": "taskitem_task_medicalreport",
-      "name": "NTG Medical Report",
-      "icon_path": "icons/taskitem_task_medicalreport.png"
-    },
-    {
-      "id": "taskitem_task_missilelauncher",
-      "name": "Missile Launcher",
-      "icon_path": "icons/taskitem_task_missilelauncher.png"
-    },
-    {
-      "id": "taskitem_task_vrheadset",
-      "name": "VR Headset",
-      "icon_path": "icons/taskitem_task_vrheadset.png"
-    },
-    {
-      "id": "taskitem_taskintelphone",
-      "name": "Ark Soldier's Phone",
-      "icon_path": "icons/taskitem_taskintelphone.png"
-    },
-    {
-      "id": "taskitem_taskitem_plate1",
-      "name": "Antique Tea Plate - Yin",
-      "icon_path": "icons/taskitem_taskitem_plate1.png"
-    },
-    {
-      "id": "taskitem_taskitem_plate2",
-      "name": "Antique Tea Plate - Yang",
-      "icon_path": "icons/taskitem_taskitem_plate2.png"
-    },
-    {
-      "id": "taskitem_taskitembase_policef1key",
-      "name": "Shooting Range Key",
-      "icon_path": "icons/taskitem_taskitembase_policef1key.png"
-    },
-    {
-      "id": "taskitem_tracking_device",
-      "name": "MS2000 Tracker",
-      "icon_path": "icons/taskitem_tracking_device.png"
-    },
-    {
-      "id": "taskitem_wyethwine",
-      "name": "Wyeth's Dry Red Wine",
-      "icon_path": "icons/taskitem_wyethwine.png"
-    },
-    {
-      "id": "weapon-m4a1-hunter",
-      "name": "AR15 Hunter",
-      "icon_path": "icons/weapon-m4a1-hunter.png"
-    },
-    {
-      "id": "weapon-malyuk-762",
-      "name": "Malyuk 7.62",
-      "icon_path": "icons/weapon-malyuk-762.png"
+      "icon_path": "icons/misc_wrench.png",
+      "category": "misc",
+      "subcategory": "Tools",
+      "weight": 0.3,
+      "price": 743,
+      "rarity": "Uncommon"
     }
   ]
 }
