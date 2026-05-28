@@ -94,14 +94,39 @@ impl CaptureEye {
 /// has already run on this process (the OverlaySession constructor does).
 ///
 /// Defaults to the right eye (settings-configurable); the left-eye
-/// mirror lagged the actual compositor frame on some headsets,
-/// producing "the OCR is reading the previous panel" bugs that the
-/// right eye doesn't reproduce. Every D3D11 resource is reallocated
-/// per call (fresh device, fresh fn-table lookup, fresh SRV, fresh
-/// staging texture) so there's no carry-over between captures.
+/// mirror lagged the actual compositor frame by multiple slots on
+/// some headsets. The right eye is stable for repeated captures of
+/// the same panel, but on the FIRST capture after a panel switch
+/// even it returns the frame the compositor wrote one slot ago. We
+/// guard against that with a single drain cycle (acquire → release →
+/// sleep one vsync → acquire) so the keeper read lands on a
+/// freshly-composited frame.
+///
+/// Every D3D11 resource is reallocated per call (fresh device, fresh
+/// fn-table lookup, fresh SRVs, fresh staging texture) so there's no
+/// carry-over between captures.
 pub fn capture_compositor_mirror_to_png(out_path: &Path, eye: CaptureEye) -> Result<()> {
     let d3d = D3d11Context::create().context("D3D11CreateDevice")?;
     let fn_table = lookup_compositor_fn_table().context("look up IVRCompositor fn-table")?;
+
+    // Drain one slot of the mirror swap chain before the real read.
+    // Without this, the FIRST capture after the user navigates to a
+    // new panel returned the previous panel — even on the right eye —
+    // because SteamVR's mirror appears to expose frames through a
+    // small queue and hands back the second-newest entry the moment
+    // you ask. One acquire→release→sleep cycle is enough to walk past
+    // that slot; the keeper acquire below then lands on the actual
+    // latest composited frame.
+    {
+        let _primer = MirrorTexture::acquire(fn_table, &d3d.device, eye.sys())
+            .with_context(|| format!("GetMirrorTextureD3D11({}) primer", eye.label()))?;
+        drop(_primer);
+        // ~50 ms covers ~4 vsyncs at 90 Hz / ~3 at 60 Hz — enough for
+        // the compositor to advance even on a slow headset, and
+        // imperceptible against the existing readback + PNG-encode
+        // latency.
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
 
     let mirror = MirrorTexture::acquire(fn_table, &d3d.device, eye.sys())
         .with_context(|| format!("GetMirrorTextureD3D11({})", eye.label()))?;
