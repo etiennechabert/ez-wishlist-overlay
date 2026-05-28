@@ -20,6 +20,30 @@ use anyhow::{anyhow, Context as _, Result};
 use std::ffi::c_void;
 use std::path::Path;
 use std::ptr;
+use std::sync::atomic::{AtomicU64, Ordering};
+
+/// Per-process capture sequence number. Stamped on every trace line
+/// when `settings.ocr_capture_trace` is on so the user can cross-
+/// reference logs from one capture across the VR thread, OCR worker,
+/// and pipeline. Always incremented; the counter is essentially free
+/// when no tracing fires.
+static CAPTURE_SEQ: AtomicU64 = AtomicU64::new(0);
+
+/// FNV-1a 64-bit hash over a byte slice. Used by the
+/// `ocr_capture_trace` path to fingerprint pixel buffers and the
+/// encoded PNG so consecutive captures can be compared: two captures
+/// reporting the same `pixel_fnv` means the compositor mirror handed
+/// back the same buffer twice (the classic "previous-screenshot"
+/// bug); a `decoded_fnv` mismatch against the capture's `rgb_fnv`
+/// means the file mutated between write and read.
+fn fnv1a64(bytes: &[u8]) -> u64 {
+    let mut h: u64 = 0xcbf29ce484222325;
+    for b in bytes {
+        h ^= *b as u64;
+        h = h.wrapping_mul(0x100000001b3);
+    }
+    h
+}
 
 use openvr_sys as sys;
 use windows::core::Interface;
@@ -105,9 +129,70 @@ impl CaptureEye {
 /// Every D3D11 resource is reallocated per call (fresh device, fresh
 /// fn-table lookup, fresh SRVs, fresh staging texture) so there's no
 /// carry-over between captures.
-pub fn capture_compositor_mirror_to_png(out_path: &Path, eye: CaptureEye) -> Result<()> {
+///
+/// When `trace` is true, emits the full per-step diagnostic log
+/// (capture_seq, pointers, FNV fingerprints of every byte buffer,
+/// compositor frame timing, opposite-eye probe). Off by default —
+/// the FNV passes hash ~30 MB per capture and the logs are very
+/// chatty.
+pub fn capture_compositor_mirror_to_png(
+    out_path: &Path,
+    eye: CaptureEye,
+    trace: bool,
+) -> Result<()> {
+    let capture_seq = if trace {
+        let s = CAPTURE_SEQ.fetch_add(1, Ordering::Relaxed);
+        tracing::info!(
+            capture_seq = s,
+            out_path = %out_path.display(),
+            eye = eye.label(),
+            "capture: ENTER capture_compositor_mirror_to_png"
+        );
+        s
+    } else {
+        0
+    };
+    let t_start = if trace {
+        Some(std::time::Instant::now())
+    } else {
+        None
+    };
+
+    let t_d3d_start = std::time::Instant::now();
     let d3d = D3d11Context::create().context("D3D11CreateDevice")?;
+    if trace {
+        tracing::info!(
+            capture_seq,
+            device_ptr = format!("{:p}", d3d.device.as_raw()),
+            context_ptr = format!("{:p}", d3d.context.as_raw()),
+            elapsed_ms = t_d3d_start.elapsed().as_millis() as u64,
+            "capture: D3D11 device created"
+        );
+    }
     let fn_table = lookup_compositor_fn_table().context("look up IVRCompositor fn-table")?;
+    if trace {
+        // Compositor frame timing. If two consecutive captures share
+        // `frame_index`, the compositor itself is stuck on a frame.
+        let mut t: sys::Compositor_FrameTiming = unsafe { std::mem::zeroed() };
+        t.m_nSize = std::mem::size_of::<sys::Compositor_FrameTiming>() as u32;
+        let got = unsafe {
+            (*fn_table)
+                .GetFrameTiming
+                .map(|f| f(&mut t as *mut _, 0))
+                .unwrap_or(false)
+        };
+        if got {
+            tracing::info!(
+                capture_seq,
+                fn_table_ptr = format!("{:p}", fn_table),
+                frame_index = t.m_nFrameIndex,
+                frame_system_time_s = t.m_flSystemTimeInSeconds,
+                num_dropped = t.m_nNumDroppedFrames,
+                num_mispresented = t.m_nNumMisPresented,
+                "capture: fn-table looked up + compositor frame timing"
+            );
+        }
+    }
 
     // Drain one slot of the mirror swap chain before the real read.
     // Without this, the FIRST capture after the user navigates to a
@@ -128,8 +213,49 @@ pub fn capture_compositor_mirror_to_png(out_path: &Path, eye: CaptureEye) -> Res
         std::thread::sleep(std::time::Duration::from_millis(50));
     }
 
+    let t_acq_start = std::time::Instant::now();
     let mirror = MirrorTexture::acquire(fn_table, &d3d.device, eye.sys())
         .with_context(|| format!("GetMirrorTextureD3D11({})", eye.label()))?;
+    if trace {
+        tracing::info!(
+            capture_seq,
+            eye = eye.label(),
+            srv_ptr = format!("{:p}", mirror.srv_raw),
+            elapsed_ms = t_acq_start.elapsed().as_millis() as u64,
+            "capture: GetMirrorTextureD3D11 (keeper) returned SRV"
+        );
+        // Opposite-eye probe. If the captured eye's hash matches the
+        // previous capture but the OTHER eye's hash advances, the
+        // captured eye is lagging while the other is fresh.
+        let other = match eye {
+            CaptureEye::Left => sys::EVREye_Eye_Right,
+            CaptureEye::Right => sys::EVREye_Eye_Left,
+        };
+        let other_label = match eye {
+            CaptureEye::Left => "right",
+            CaptureEye::Right => "left",
+        };
+        if let Ok(other_mirror) = MirrorTexture::acquire(fn_table, &d3d.device, other) {
+            unsafe {
+                if let Ok(res) = other_mirror.srv().GetResource() {
+                    if let Ok(other_tex) = res.cast::<ID3D11Texture2D>() {
+                        let mut odesc = D3D11_TEXTURE2D_DESC::default();
+                        other_tex.GetDesc(&mut odesc);
+                        if let Ok(opix) = readback_texture(&d3d, &other_tex, &odesc) {
+                            let probe_len = opix.len().min(65536);
+                            let other_probe_fnv = fnv1a64(&opix[..probe_len]);
+                            tracing::info!(
+                                capture_seq,
+                                eye = other_label,
+                                probe_fnv = format!("{other_probe_fnv:#018x}"),
+                                "capture: OTHER-eye probe"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     let texture = unsafe { mirror.srv().GetResource() }
         .context("ID3D11ShaderResourceView::GetResource")?
@@ -142,7 +268,38 @@ pub fn capture_compositor_mirror_to_png(out_path: &Path, eye: CaptureEye) -> Res
         d
     };
 
+    let t_read_start = std::time::Instant::now();
     let pixels = readback_texture(&d3d, &texture, &desc).context("readback")?;
+    if trace {
+        let pixel_fnv = fnv1a64(&pixels);
+        let mid = (pixels.len() / 8) * 4;
+        let last_start = pixels.len().saturating_sub(4);
+        tracing::info!(
+            capture_seq,
+            width = desc.Width,
+            height = desc.Height,
+            format = desc.Format.0,
+            pixel_bytes = pixels.len(),
+            readback_ms = t_read_start.elapsed().as_millis() as u64,
+            pixel_fnv = format!("{pixel_fnv:#018x}"),
+            first_rgba = format!("[{},{},{},{}]", pixels[0], pixels[1], pixels[2], pixels[3]),
+            centre_rgba = format!(
+                "[{},{},{},{}]",
+                pixels[mid],
+                pixels[mid + 1],
+                pixels[mid + 2],
+                pixels[mid + 3]
+            ),
+            last_rgba = format!(
+                "[{},{},{},{}]",
+                pixels[last_start],
+                pixels[last_start + 1],
+                pixels[last_start + 2],
+                pixels[last_start + 3]
+            ),
+            "capture: readback complete + pixel fingerprint"
+        );
+    }
 
     // Save as RGB8: the compositor's eye render-target alpha channel is
     // garbage / always zero in practice (the compositor doesn't use it for
@@ -153,6 +310,7 @@ pub fn capture_compositor_mirror_to_png(out_path: &Path, eye: CaptureEye) -> Res
     for chunk in pixels.chunks_exact(4) {
         rgb.extend_from_slice(&chunk[..3]);
     }
+    let rgb_fnv = if trace { Some(fnv1a64(&rgb)) } else { None };
 
     if let Some(parent) = out_path.parent() {
         std::fs::create_dir_all(parent)
@@ -160,16 +318,35 @@ pub fn capture_compositor_mirror_to_png(out_path: &Path, eye: CaptureEye) -> Res
     }
     let img = image::RgbImage::from_raw(desc.Width, desc.Height, rgb)
         .ok_or_else(|| anyhow!("RgbImage::from_raw: pixel buffer size mismatch"))?;
+    let t_save_start = std::time::Instant::now();
     img.save(out_path)
         .with_context(|| format!("writing PNG to {}", out_path.display()))?;
 
-    tracing::info!(
-        path = %out_path.display(),
-        w = desc.Width,
-        h = desc.Height,
-        eye = eye.label(),
-        "captured compositor mirror"
-    );
+    if trace {
+        let png_fnv = std::fs::read(out_path).ok().map(|b| fnv1a64(&b));
+        let png_size = std::fs::metadata(out_path).ok().map(|m| m.len());
+        tracing::info!(
+            capture_seq,
+            path = %out_path.display(),
+            w = desc.Width,
+            h = desc.Height,
+            eye = eye.label(),
+            rgb_fnv = rgb_fnv.map(|v| format!("{v:#018x}")),
+            png_size = ?png_size,
+            png_fnv = ?png_fnv.map(|v| format!("{v:#018x}")),
+            save_ms = t_save_start.elapsed().as_millis() as u64,
+            total_ms = t_start.map(|s| s.elapsed().as_millis() as u64),
+            "capture: EXIT — PNG written (full fingerprint)"
+        );
+    } else {
+        tracing::info!(
+            path = %out_path.display(),
+            w = desc.Width,
+            h = desc.Height,
+            eye = eye.label(),
+            "captured compositor mirror"
+        );
+    }
     Ok(())
 }
 

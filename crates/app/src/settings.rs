@@ -91,6 +91,19 @@ pub struct Settings {
     /// working on this run."
     #[serde(default = "default_ocr_auto_track")]
     pub ocr_auto_track: bool,
+    /// When true, every OCR capture emits a deep diagnostic trace:
+    /// per-process `capture_seq`, FNV-1a hashes of the raw pixel
+    /// buffer / RGB-stripped buffer / encoded PNG / pipeline-decoded
+    /// bytes, compositor frame index and timing from
+    /// `IVRCompositor::GetFrameTiming`, the opposite-eye mirror's
+    /// fingerprint, per-step elapsed times, and the first 12 words
+    /// the OCR engine returned. Lets you cross-reference exactly
+    /// what content the mirror handed back vs what the pipeline
+    /// processed if "OCR is reading the previous screenshot"-style
+    /// bugs recur. Off by default — the FNV passes hash ~30 MB
+    /// per capture and the logs are voluminous.
+    #[serde(default)]
+    pub ocr_capture_trace: bool,
 }
 
 fn default_check_for_updates() -> bool {
@@ -147,6 +160,7 @@ impl Default for Settings {
             ocr_debug: false,
             ocr_dismiss_seconds: default_ocr_dismiss_seconds(),
             ocr_auto_track: default_ocr_auto_track(),
+            ocr_capture_trace: false,
         }
     }
 }

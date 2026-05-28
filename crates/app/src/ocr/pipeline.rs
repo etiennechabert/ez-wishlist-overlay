@@ -23,6 +23,7 @@ pub fn process_screenshot(
     path: &Path,
     data: &GameData,
     debug_dumps: bool,
+    trace: bool,
 ) -> Result<OcrPipelineResult> {
     use crate::ocr::{anchor, engine, match_upgrade, prep, templates};
     use anyhow::Context;
@@ -34,6 +35,27 @@ pub fn process_screenshot(
         anyhow::bail!("zero-sized image");
     }
 
+    if trace {
+        // Hash the decoded image. Compare to the capture's `rgb_fnv`
+        // — mismatch means the decoder re-decoded into something
+        // different than what we wrote.
+        let rgb = img.to_rgb8();
+        let mut h: u64 = 0xcbf29ce484222325;
+        for b in rgb.as_raw() {
+            h ^= *b as u64;
+            h = h.wrapping_mul(0x100000001b3);
+        }
+        let raw = rgb.as_raw();
+        tracing::info!(
+            path = %path.display(),
+            w = img_w,
+            h = img_h,
+            decoded_fnv = format!("{h:#018x}"),
+            first_rgb = format!("[{},{},{}]", raw[0], raw[1], raw[2]),
+            "ocr pipeline: image decoded (compare decoded_fnv against capture's rgb_fnv)"
+        );
+    }
+
     // Single OCR pass on the whole image. The first-pass words feed
     // both anchor detection (for cell layout) and the strict resolver
     // (for upgrade identification — which slides a window over these
@@ -41,7 +63,22 @@ pub fn process_screenshot(
     // needed — the panel-bounds heuristic isn't reliable enough to
     // pixel-accurately crop the row label, and a single OCR pass with
     // tight matching turns out to be both simpler and more robust.
+    let t_engine_start = std::time::Instant::now();
     let full_words = engine::recognize_image(&img).context("first-pass OCR")?;
+    if trace {
+        let first_words: Vec<String> = full_words
+            .iter()
+            .take(12)
+            .map(|w| format!("{:?}@{:.0},{:.0}", w.text, w.rect.x, w.rect.y))
+            .collect();
+        tracing::info!(
+            path = %path.display(),
+            word_count = full_words.len(),
+            engine_ms = t_engine_start.elapsed().as_millis() as u64,
+            first_words = ?first_words,
+            "ocr pipeline: Windows.Media.Ocr first-pass complete"
+        );
+    }
     let layout = match anchor::detect_panel(&full_words, img_w, img_h) {
         Some(l) => l,
         None => {
@@ -562,6 +599,7 @@ pub fn process_screenshot(
     _path: &Path,
     _data: &GameData,
     _debug_dumps: bool,
+    _trace: bool,
 ) -> Result<OcrPipelineResult> {
     // Windows.Media.Ocr is not available on non-Windows targets.
     Ok(OcrPipelineResult::NoPanel)
@@ -1431,7 +1469,7 @@ mod fixture_tests {
         for entry in &entries {
             let path = entry.path();
             let stem = path.file_stem().unwrap().to_string_lossy().into_owned();
-            match ocr::process_screenshot(&path, &data, true) {
+            match ocr::process_screenshot(&path, &data, true, false) {
                 Ok(ocr::OcrPipelineResult::Identified(outcome)) => {
                     let upgrade = data
                         .modules
@@ -1540,7 +1578,7 @@ mod fixture_tests {
                 .and_then(|s| s.to_str())
                 .unwrap_or("")
                 .to_string();
-            match ocr::process_screenshot(&path, &data, true) {
+            match ocr::process_screenshot(&path, &data, true, false) {
                 Ok(ocr::OcrPipelineResult::Identified(outcome)) => {
                     let upgrade = data
                         .modules
@@ -1624,7 +1662,7 @@ mod fixture_tests {
                 Some(l) => l,
                 None => continue,
             };
-            let outcome = match ocr::process_screenshot(&path, &data, false) {
+            let outcome = match ocr::process_screenshot(&path, &data, false, false) {
                 Ok(ocr::OcrPipelineResult::Identified(o)) => o,
                 _ => continue,
             };

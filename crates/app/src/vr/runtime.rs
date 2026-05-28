@@ -348,8 +348,11 @@ fn render_loop(
                 ocr_state = None;
             }
             let path = next_screenshot_path(paths);
-            let capture_eye: super::capture::CaptureEye = settings.read().capture_eye.into();
-            let result = match session.capture_screenshot(&path, capture_eye) {
+            let (capture_eye, trace) = {
+                let s = settings.read();
+                (s.capture_eye.into(), s.ocr_capture_trace)
+            };
+            let result = match session.capture_screenshot(&path, capture_eye, trace) {
                 Ok(()) => {
                     // Best-effort forward to OCR. If the channel is full
                     // (worker busy on a previous shot) we drop this one

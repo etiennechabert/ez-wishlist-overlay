@@ -272,7 +272,32 @@ fn spawn_ocr_worker(
                 let ocr_enabled = s.ocr_enabled;
                 let ocr_debug = s.ocr_debug;
                 let ocr_auto_track = s.ocr_auto_track;
+                let ocr_capture_trace = s.ocr_capture_trace;
                 drop(s);
+
+                if ocr_capture_trace {
+                    // Re-hash the PNG that landed on disk. Compare to
+                    // the `png_fnv` the capture path logged: a mismatch
+                    // means something rewrote or truncated the file
+                    // between write and read.
+                    let png_meta = std::fs::metadata(&path).ok();
+                    let png_bytes = std::fs::read(&path).ok();
+                    let png_fnv = png_bytes.as_ref().map(|b| {
+                        let mut h: u64 = 0xcbf29ce484222325;
+                        for byte in b {
+                            h ^= *byte as u64;
+                            h = h.wrapping_mul(0x100000001b3);
+                        }
+                        h
+                    });
+                    tracing::info!(
+                        processing = %path.display(),
+                        png_size = ?png_meta.as_ref().map(|m| m.len()),
+                        png_modified = ?png_meta.as_ref().and_then(|m| m.modified().ok()),
+                        png_fnv = ?png_fnv.map(|v| format!("{v:#018x}")),
+                        "OCR worker: about to process PNG (compare png_fnv against capture log)"
+                    );
+                }
 
                 if !ocr_enabled {
                     tracing::info!(
@@ -290,48 +315,51 @@ fn spawn_ocr_worker(
                 publish(&ocr_feedback_tx, gui::OcrFeedback::processing());
 
                 let data = state.read().data.clone();
-                let terminal = match ocr::process_screenshot(&path, &data, ocr_debug) {
-                    Ok(ocr::OcrPipelineResult::Identified(outcome)) => {
-                        let (version, feedback) = {
-                            let mut w = state.write();
-                            let mut feedback = gui::OcrFeedback::done(&outcome, &w);
-                            // Only apply cells the pipeline could
-                            // actually read. `None` means we saw the
-                            // cell but couldn't parse an X/Y count —
-                            // leave the user's existing collected
-                            // value alone instead of resetting to 0.
-                            for (item_id, owned) in &outcome.items {
-                                if let Some(value) = owned {
-                                    w.set_collected(item_id, *value);
+                let terminal =
+                    match ocr::process_screenshot(&path, &data, ocr_debug, ocr_capture_trace) {
+                        Ok(ocr::OcrPipelineResult::Identified(outcome)) => {
+                            let (version, feedback) = {
+                                let mut w = state.write();
+                                let mut feedback = gui::OcrFeedback::done(&outcome, &w);
+                                // Only apply cells the pipeline could
+                                // actually read. `None` means we saw the
+                                // cell but couldn't parse an X/Y count —
+                                // leave the user's existing collected
+                                // value alone instead of resetting to 0.
+                                for (item_id, owned) in &outcome.items {
+                                    if let Some(value) = owned {
+                                        w.set_collected(item_id, *value);
+                                    }
                                 }
-                            }
-                            // Prior-level completion is a state inference
-                            // ("game showed Lv N, therefore Lv (N-1) is
-                            // done") — always apply it. Auto-tracking the
-                            // matched upgrade itself is a workflow choice
-                            // ("I'm working on this for the next raid"),
-                            // gated on the user's `ocr_auto_track` toggle.
-                            // `apply_ocr_progression` handles both: prior
-                            // completion runs unconditionally, the
-                            // OCR'd upgrade only enters `tracked_upgrades`
-                            // when the flag is on.
-                            let progression =
-                                w.apply_ocr_progression(&outcome.upgrade_id, ocr_auto_track);
-                            feedback.attach_progression(&w, progression);
-                            (w.version, feedback)
-                        };
-                        let _ = save_tx.try_send(gui::SaveTick { version });
-                        feedback
-                    }
-                    Ok(ocr::OcrPipelineResult::NoPanel) => gui::OcrFeedback::not_a_panel(),
-                    Ok(ocr::OcrPipelineResult::UnknownUpgrade {
-                        module_hint,
-                        current_level,
-                    }) => {
-                        gui::OcrFeedback::unknown_upgrade(module_hint, current_level, path.clone())
-                    }
-                    Err(e) => gui::OcrFeedback::failed(format!("{e:#}")),
-                };
+                                // Prior-level completion is a state inference
+                                // ("game showed Lv N, therefore Lv (N-1) is
+                                // done") — always apply it. Auto-tracking the
+                                // matched upgrade itself is a workflow choice
+                                // ("I'm working on this for the next raid"),
+                                // gated on the user's `ocr_auto_track` toggle.
+                                // `apply_ocr_progression` handles both: prior
+                                // completion runs unconditionally, the
+                                // OCR'd upgrade only enters `tracked_upgrades`
+                                // when the flag is on.
+                                let progression =
+                                    w.apply_ocr_progression(&outcome.upgrade_id, ocr_auto_track);
+                                feedback.attach_progression(&w, progression);
+                                (w.version, feedback)
+                            };
+                            let _ = save_tx.try_send(gui::SaveTick { version });
+                            feedback
+                        }
+                        Ok(ocr::OcrPipelineResult::NoPanel) => gui::OcrFeedback::not_a_panel(),
+                        Ok(ocr::OcrPipelineResult::UnknownUpgrade {
+                            module_hint,
+                            current_level,
+                        }) => gui::OcrFeedback::unknown_upgrade(
+                            module_hint,
+                            current_level,
+                            path.clone(),
+                        ),
+                        Err(e) => gui::OcrFeedback::failed(format!("{e:#}")),
+                    };
                 publish(&ocr_feedback_tx, terminal);
 
                 // Ephemeral by default. The pipeline already wrote

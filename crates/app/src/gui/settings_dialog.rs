@@ -41,6 +41,7 @@ pub fn show(
                 &mut working.ocr_debug,
                 &mut working.ocr_dismiss_seconds,
                 &mut working.ocr_auto_track,
+                &mut working.ocr_capture_trace,
             );
 
             ui.add_space(12.0);
@@ -99,6 +100,7 @@ fn ocr_section(
     ocr_debug: &mut bool,
     ocr_dismiss_seconds: &mut u32,
     ocr_auto_track: &mut bool,
+    ocr_capture_trace: &mut bool,
 ) {
     ui.heading("Screenshot OCR");
     ui.add_space(4.0);
@@ -157,6 +159,24 @@ fn ocr_section(
              When off (default), all OCR artifacts are deleted after the \
              read finishes — screenshots are ~10 MB each.",
         );
+
+    ui.add_space(6.0);
+    ui.checkbox(
+        ocr_capture_trace,
+        "Verbose capture trace (diagnose mirror bugs)",
+    )
+    .on_hover_text(
+        "When on, every capture emits a deep diagnostic trace: \
+             per-process capture sequence number, FNV-1a hashes of the \
+             raw pixel buffer / RGB strip / encoded PNG / decoded \
+             pipeline bytes, compositor frame timing, opposite-eye \
+             probe, and the first 12 OCR'd words. Lets you confirm \
+             whether the mirror is handing back stale frames or the \
+             bug is downstream if 'OCR is reading the previous \
+             screenshot'-style issues recur. Off by default — the \
+             FNV passes hash ~30 MB per capture and the logs are \
+             very chatty.",
+    );
 }
 
 fn updates_section(ui: &mut egui::Ui, check_for_updates: &mut bool) {

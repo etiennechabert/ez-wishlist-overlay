@@ -453,8 +453,9 @@ impl OverlaySession {
         &self,
         out_path: &std::path::Path,
         eye: super::capture::CaptureEye,
+        trace: bool,
     ) -> Result<()> {
-        super::capture::capture_compositor_mirror_to_png(out_path, eye)
+        super::capture::capture_compositor_mirror_to_png(out_path, eye, trace)
     }
 
     /// Fire a haptic pulse on a controller. `duration_us` is microseconds;
