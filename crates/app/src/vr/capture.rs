@@ -30,8 +30,9 @@ use windows::Win32::Graphics::Direct3D11::{
     D3D11_MAP_READ, D3D11_SDK_VERSION, D3D11_TEXTURE2D_DESC, D3D11_USAGE_STAGING,
 };
 use windows::Win32::Graphics::Dxgi::Common::{
-    DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_FORMAT_B8G8R8A8_UNORM_SRGB, DXGI_FORMAT_R8G8B8A8_UNORM,
-    DXGI_FORMAT_R8G8B8A8_UNORM_SRGB, DXGI_SAMPLE_DESC,
+    DXGI_FORMAT_B8G8R8A8_TYPELESS, DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_FORMAT_B8G8R8A8_UNORM_SRGB,
+    DXGI_FORMAT_R8G8B8A8_TYPELESS, DXGI_FORMAT_R8G8B8A8_UNORM, DXGI_FORMAT_R8G8B8A8_UNORM_SRGB,
+    DXGI_SAMPLE_DESC,
 };
 use windows::Win32::System::Diagnostics::Debug::MessageBeep;
 use windows::Win32::UI::WindowsAndMessaging::{MB_ICONASTERISK, MB_ICONHAND};
@@ -319,13 +320,22 @@ fn readback_texture(
 
     // The PNG encoder wants RGBA8. The compositor's mirror texture is usually
     // R8G8B8A8_UNORM (or its sRGB sibling) — direct copy. If it ever hands us
-    // BGRA, swap channels.
+    // BGRA, swap channels. TYPELESS variants share the byte layout of their
+    // typed siblings (only the channel-interpretation hint differs), so we
+    // accept them as identity for the R-family and channel-swap for the
+    // B-family — the actual sample data lands in the right place either way.
     let fmt = desc.Format;
-    if fmt == DXGI_FORMAT_B8G8R8A8_UNORM || fmt == DXGI_FORMAT_B8G8R8A8_UNORM_SRGB {
+    let is_rgba = fmt == DXGI_FORMAT_R8G8B8A8_UNORM
+        || fmt == DXGI_FORMAT_R8G8B8A8_UNORM_SRGB
+        || fmt == DXGI_FORMAT_R8G8B8A8_TYPELESS;
+    let is_bgra = fmt == DXGI_FORMAT_B8G8R8A8_UNORM
+        || fmt == DXGI_FORMAT_B8G8R8A8_UNORM_SRGB
+        || fmt == DXGI_FORMAT_B8G8R8A8_TYPELESS;
+    if is_bgra {
         for chunk in pixels.chunks_exact_mut(4) {
             chunk.swap(0, 2);
         }
-    } else if fmt != DXGI_FORMAT_R8G8B8A8_UNORM && fmt != DXGI_FORMAT_R8G8B8A8_UNORM_SRGB {
+    } else if !is_rgba {
         tracing::warn!(
             format = fmt.0,
             "unrecognized mirror texture format — saving raw bytes"

@@ -128,6 +128,16 @@ pub fn process_screenshot(path: &Path, data: &GameData) -> Result<Option<OcrOutc
     // real progress whenever the strip Y misaligned and the template
     // matcher chewed on FROM RAID letters — turning "I have 8 bolts"
     // into "I have 0 bolts" silently on every bad capture.
+    // Sweep any stale sibling files (`.ocr-debug.*.txt`, `.cell*.png`)
+    // from previous runs BEFORE we start writing new ones. Doing this
+    // up front is important: the per-cell loop below writes
+    // `<stem>.cell<i>.<HHMMSS>.png` for the current capture, so if
+    // we deferred the purge until after the dump (as it used to be),
+    // it would delete the files we just wrote — leaving the user
+    // seeing an `OCR cell strip saved` log line but no file on disk.
+    #[cfg(debug_assertions)]
+    crate::ocr::debug_dump::purge_prior_dumps(path);
+
     let mut items: Vec<(String, Option<u32>)> = Vec::with_capacity(upgrade.requirements.len());
     // Per-cell intermediate state for the debug dump (debug builds only).
     #[cfg(debug_assertions)]
@@ -210,14 +220,13 @@ pub fn process_screenshot(path: &Path, data: &GameData) -> Result<Option<OcrOutc
 
     // In debug builds, dump everything the pipeline saw to a sibling
     // file next to the screenshot. The user can open this to see why
-    // a specific capture read counts the way it did (or didn't). We
-    // sweep any prior `<stem>.ocr-debug.*.txt` first so there's
-    // always at most one dump per source — successive runs (the
-    // fixture test in particular) used to accumulate noise.
+    // a specific capture read counts the way it did (or didn't). The
+    // stale-file sweep happened up-front (see purge_prior_dumps call
+    // above the per-cell loop) so the cell strips we wrote remain
+    // on disk.
     #[cfg(debug_assertions)]
     {
         use crate::ocr::debug_dump::{self, OcrDebugDump, Resolution};
-        debug_dump::purge_prior_dumps(path);
         let labels = debug_dump::load_labels(path);
         let dump = OcrDebugDump {
             source_path: path,
