@@ -234,7 +234,29 @@ fn spawn_ocr_worker(
     std::thread::Builder::new()
         .name("ez-wishlist-ocr".into())
         .spawn(move || {
-            while let Ok(path) = ocr_path_rx.recv() {
+            while let Ok(first) = ocr_path_rx.recv() {
+                // Drain any newer paths that arrived while we were
+                // idle, keeping only the most recent. A full OCR pass
+                // takes ~3-7 s (PNG decode + Windows.Media.Ocr on a 3K
+                // image + per-cell template matching). If the user
+                // tapped capture twice while the worker was idle on
+                // recv(), FIFO order would have shown the older
+                // shot's result first — manifesting as "OCR is reading
+                // the previous screenshot, not the one I just took."
+                let mut path = first;
+                let mut skipped = 0usize;
+                while let Ok(newer) = ocr_path_rx.try_recv() {
+                    skipped += 1;
+                    path = newer;
+                }
+                if skipped > 0 {
+                    tracing::info!(
+                        skipped,
+                        latest = %path.display(),
+                        "OCR worker: drained stale queued captures, processing latest only",
+                    );
+                }
+
                 if !settings.read().ocr_enabled {
                     // Surface this at info — users only see the
                     // info+warn levels and we want them to know why no
@@ -256,38 +278,68 @@ fn spawn_ocr_worker(
                 // pipeline finishes.
                 publish(&ocr_feedback_tx, gui::OcrFeedback::processing());
 
-                let data = state.read().data.clone();
-                let terminal = match ocr::process_screenshot(&path, &data) {
-                    Ok(Some(outcome)) => {
-                        // Single write lock: snapshot pre-update counts
-                        // (for the overlay's before/after), apply new
-                        // owned counts, then apply OCR-driven progression
-                        // (auto-track + auto-complete priors). One
-                        // SaveTick covers all three mutations.
-                        let (version, feedback) = {
-                            let mut w = state.write();
-                            let mut feedback = gui::OcrFeedback::done(&outcome, &w);
-                            // Only apply cells the pipeline could
-                            // actually read. `None` means we saw the
-                            // cell but couldn't parse an X/Y count —
-                            // leave the user's existing collected
-                            // value alone instead of resetting to 0.
-                            for (item_id, owned) in &outcome.items {
-                                if let Some(value) = owned {
-                                    w.set_collected(item_id, *value);
+                // Process the path. If a NEWER path arrives during
+                // processing, drop the stale terminal and re-process
+                // with the newer path. Without this loop the user
+                // would see the older shot's result flash up briefly
+                // before the newer one finishes — same "previous-
+                // screenshot" symptom, just on the trailing edge of
+                // a long OCR pass instead of the leading edge.
+                loop {
+                    let data = state.read().data.clone();
+                    let terminal = match ocr::process_screenshot(&path, &data) {
+                        Ok(Some(outcome)) => {
+                            let (version, feedback) = {
+                                let mut w = state.write();
+                                let mut feedback = gui::OcrFeedback::done(&outcome, &w);
+                                // Only apply cells the pipeline could
+                                // actually read. `None` means we saw
+                                // the cell but couldn't parse an X/Y
+                                // count — leave the user's existing
+                                // collected value alone instead of
+                                // resetting to 0.
+                                for (item_id, owned) in &outcome.items {
+                                    if let Some(value) = owned {
+                                        w.set_collected(item_id, *value);
+                                    }
                                 }
-                            }
-                            let progression = w.apply_ocr_progression(&outcome.upgrade_id);
-                            feedback.attach_progression(&w, progression);
-                            (w.version, feedback)
-                        };
-                        let _ = save_tx.try_send(gui::SaveTick { version });
-                        feedback
+                                let progression = w.apply_ocr_progression(&outcome.upgrade_id);
+                                feedback.attach_progression(&w, progression);
+                                (w.version, feedback)
+                            };
+                            let _ = save_tx.try_send(gui::SaveTick { version });
+                            feedback
+                        }
+                        Ok(None) => gui::OcrFeedback::not_a_panel(),
+                        Err(e) => gui::OcrFeedback::failed(format!("{e:#}")),
+                    };
+
+                    // Check: did a newer capture arrive while we were
+                    // processing this one? If so, this terminal is
+                    // already stale before we publish it — skip the
+                    // publish and re-process with the newest path.
+                    // Note: `set_collected` writes above still apply,
+                    // since the underlying screenshot was real game
+                    // state at capture time — only the user-visible
+                    // feedback card is suppressed.
+                    let mut newer_path = None;
+                    while let Ok(np) = ocr_path_rx.try_recv() {
+                        newer_path = Some(np);
                     }
-                    Ok(None) => gui::OcrFeedback::not_a_panel(),
-                    Err(e) => gui::OcrFeedback::failed(format!("{e:#}")),
-                };
-                publish(&ocr_feedback_tx, terminal);
+                    if let Some(np) = newer_path {
+                        tracing::info!(
+                            stale = %path.display(),
+                            latest = %np.display(),
+                            "OCR worker: terminal stale (newer capture during processing) — \
+                             reprocessing with latest path",
+                        );
+                        path = np;
+                        continue;
+                    }
+
+                    publish(&ocr_feedback_tx, terminal);
+                    break;
+                }
             }
             tracing::info!("OCR worker: channel closed, thread exiting");
         })
