@@ -507,6 +507,52 @@ fn pick_best_strip_y(
         }
     }
 
+    // Consensus-Y alignment across siblings. All cells in an upgrade
+    // panel live on the same horizontal row — their digit-row Y
+    // positions should agree to within a few pixels (the chunky
+    // glyphs are ~12-18 px tall and the picker's strip height tracks
+    // that). When the per-cell search wanders off and picks a Y
+    // many anchor heights away from its siblings, that cell is
+    // almost certainly sitting on a noise row that happened to
+    // template-match into a fake "X/Y" shape — the cost-row
+    // "400000" giving a Screwdriver cell a fake `0/6` is the
+    // canonical example. Reject outliers: any confirmed cell whose
+    // chosen Y differs from the median of confirmed cells by more
+    // than 2× anchor height gets reverted, which sends the cell
+    // through the main loop as UNREAD and preserves the user's
+    // existing count.
+    let confirmed_ys: Vec<u32> = best_scores
+        .iter()
+        .zip(best_cells.iter())
+        .filter(|(s, _)| **s > 0)
+        .map(|(_, c)| c.y)
+        .collect();
+    if confirmed_ys.len() >= 2 {
+        let mut sorted = confirmed_ys.clone();
+        sorted.sort();
+        let median_y = sorted[sorted.len() / 2];
+        let tolerance = anchor.h.saturating_mul(2).max(40);
+        for i in 0..best_cells.len() {
+            if best_scores[i] > 0 && best_cells[i].y.abs_diff(median_y) > tolerance {
+                tracing::info!(
+                    cell = i,
+                    chosen_y = best_cells[i].y,
+                    median_y,
+                    tolerance,
+                    "OCR picker: rejecting outlier-Y cell (siblings disagree); \
+                     cell will be UNREAD"
+                );
+                // Revert to base geometry so the main loop's
+                // recognise+Y-match gate fails cleanly (the base
+                // wasn't a strong match either, otherwise it would
+                // have been the picker's choice from the start).
+                best_cells[i] = base_cells[i];
+                best_scores[i] = 0;
+                confirmed[i] = false;
+            }
+        }
+    }
+
     let _ = confirmed; // Confirmed bits are an analysis aid, not consumed downstream.
     best_cells
 }
