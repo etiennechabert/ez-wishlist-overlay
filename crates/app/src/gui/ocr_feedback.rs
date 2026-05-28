@@ -56,12 +56,12 @@ pub enum OcrFeedbackKind {
     /// Pipeline ran but the screenshot wasn't an upgrade panel (no
     /// "Need to submit items" anchor). Nothing was written to state.
     NotAPanel,
-    /// Pipeline found an upgrade panel but couldn't match the module
-    /// + level pair in `data.json` — almost always an upgrade the
-    /// scraper hasn't picked up yet. Distinguished from `NotAPanel`
-    /// because the user's capture WAS a valid panel and they
-    /// shouldn't be told "not a panel" (they'd spend time re-taking
-    /// the screenshot for nothing).
+    /// Pipeline found an upgrade panel but couldn't match the
+    /// (module name, level) pair in `data.json` — almost always an
+    /// upgrade the scraper hasn't picked up yet. Distinguished from
+    /// `NotAPanel` because the user's capture WAS a valid panel and
+    /// they shouldn't be told "not a panel" (they'd spend time
+    /// re-taking the screenshot for nothing).
     UnknownUpgrade {
         /// Best guess at the module name from OCR tokens (e.g. "Moreitem").
         /// `None` when we couldn't extract a sensible token.

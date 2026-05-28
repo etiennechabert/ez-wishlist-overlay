@@ -20,7 +20,12 @@
 // when the only caller is the Windows-gated pipeline.
 #[cfg(target_os = "windows")]
 pub mod anchor;
-#[cfg(all(target_os = "windows", debug_assertions))]
+// Available in both debug and release on Windows now that the dump
+// is gated by the user's `settings::Settings::ocr_debug` flag, not
+// the build profile. Release users who want to file a GitHub issue
+// can flip the toggle and get the bundle without rebuilding from
+// source.
+#[cfg(target_os = "windows")]
 pub mod debug_dump;
 #[cfg(target_os = "windows")]
 pub mod engine;

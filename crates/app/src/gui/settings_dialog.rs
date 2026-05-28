@@ -1,6 +1,6 @@
 //! Modal dialog for user-tunable settings.
 
-use crate::settings::{bounds, Settings, Theme, VrSettings};
+use crate::settings::{bounds, CaptureEye, Settings, Theme, VrSettings};
 use parking_lot::RwLock;
 use std::path::Path;
 use std::sync::Arc;
@@ -34,7 +34,12 @@ pub fn show(
             vr_section(ui, &mut working.vr);
 
             ui.add_space(12.0);
-            ocr_section(ui, &mut working.ocr_enabled);
+            ocr_section(
+                ui,
+                &mut working.ocr_enabled,
+                &mut working.capture_eye,
+                &mut working.ocr_debug,
+            );
 
             ui.add_space(12.0);
             storage_section(ui, data_dir);
@@ -84,7 +89,12 @@ fn appearance_section(ui: &mut egui::Ui, theme: &mut Theme) {
     });
 }
 
-fn ocr_section(ui: &mut egui::Ui, ocr_enabled: &mut bool) {
+fn ocr_section(
+    ui: &mut egui::Ui,
+    ocr_enabled: &mut bool,
+    capture_eye: &mut CaptureEye,
+    ocr_debug: &mut bool,
+) {
     ui.heading("Screenshot OCR");
     ui.add_space(4.0);
     ui.checkbox(ocr_enabled, "Auto-extract counts from VR screenshots")
@@ -96,6 +106,30 @@ fn ocr_section(ui: &mut egui::Ui, ocr_enabled: &mut bool) {
              required items are written to your wishlist. A head-locked \
              feedback card pops up in the headset showing every change. \
              Disable to keep the screenshot trigger but skip the OCR pass.",
+        );
+
+    ui.add_space(6.0);
+    ui.horizontal(|ui| {
+        ui.label("Capture eye").on_hover_text(
+            "Which compositor mirror eye texture to feed into OCR. On most \
+                 headsets the right eye stays in sync with what you see; the \
+                 left-eye mirror has been observed lagging by one frame on \
+                 some setups, which would surface as \"OCR reads the previous \
+                 panel.\" Try the other side if you see that.",
+        );
+        ui.selectable_value(capture_eye, CaptureEye::Right, "Right");
+        ui.selectable_value(capture_eye, CaptureEye::Left, "Left");
+    });
+
+    ui.add_space(6.0);
+    ui.checkbox(ocr_debug, "Save OCR debug artifacts (for bug reports)")
+        .on_hover_text(
+            "When on, every OCR pass keeps the full screenshot PNG, drops \
+             one binarised strip per cell, and writes a debug text file \
+             next to the capture. Attach those files to a GitHub issue if \
+             OCR misreads a panel. When off (default), all OCR artifacts \
+             are deleted after the read finishes so your data folder stays \
+             clean — screenshots are ~10 MB each.",
         );
 }
 

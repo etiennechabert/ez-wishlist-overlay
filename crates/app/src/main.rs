@@ -235,146 +235,106 @@ fn spawn_ocr_worker(
         .name("ez-wishlist-ocr".into())
         .spawn(move || {
             while let Ok(first) = ocr_path_rx.recv() {
-                tracing::info!(
-                    received = %first.display(),
-                    queue_len_hint = ocr_path_rx.len(),
-                    "OCR worker: recv() returned path"
-                );
                 // Drain any newer paths that arrived while we were
                 // idle, keeping only the most recent. A full OCR pass
-                // takes ~3-7 s (PNG decode + Windows.Media.Ocr on a 3K
-                // image + per-cell template matching). If the user
-                // tapped capture twice while the worker was idle on
-                // recv(), FIFO order would have shown the older
-                // shot's result first — manifesting as "OCR is reading
-                // the previous screenshot, not the one I just took."
+                // takes a few seconds and a user mashing capture
+                // would otherwise get the older shot's result
+                // surfaced first — "OCR is reading the previous
+                // screenshot, not the one I just took."
                 let mut path = first;
-                let mut skipped: Vec<std::path::PathBuf> = Vec::new();
+                let mut skipped = 0usize;
                 while let Ok(newer) = ocr_path_rx.try_recv() {
-                    skipped.push(std::mem::replace(&mut path, newer));
+                    // Delete the skipped (stale) PNGs immediately —
+                    // they served their purpose of triggering the
+                    // worker but we're not going to OCR them.
+                    let _ = std::fs::remove_file(&path);
+                    path = newer;
+                    skipped += 1;
                 }
-                if !skipped.is_empty() {
+                if skipped > 0 {
                     tracing::info!(
-                        skipped_count = skipped.len(),
-                        skipped_paths = ?skipped.iter().map(|p| p.display().to_string()).collect::<Vec<_>>(),
+                        skipped,
                         latest = %path.display(),
                         "OCR worker: drained stale queued captures, processing latest only",
                     );
                 }
-                // Fingerprint the PNG file the OCR is about to read.
-                // Compare to the `png_fnv` logged by the capture path
-                // — if they don't match, something rewrote the file
-                // between capture and OCR (extremely unlikely but
-                // worth ruling out).
-                let png_meta = std::fs::metadata(&path).ok();
-                let png_bytes = std::fs::read(&path).ok();
-                let png_fnv = png_bytes.as_ref().map(|b| {
-                    let mut h: u64 = 0xcbf29ce484222325;
-                    for byte in b {
-                        h ^= *byte as u64;
-                        h = h.wrapping_mul(0x100000001b3);
-                    }
-                    h
-                });
-                tracing::info!(
-                    processing = %path.display(),
-                    png_size = ?png_meta.as_ref().map(|m| m.len()),
-                    png_modified = ?png_meta.as_ref().and_then(|m| m.modified().ok()),
-                    png_fnv = ?png_fnv.map(|v| format!("{v:#018x}")),
-                    "OCR worker: about to process PNG (compare png_fnv against capture log)"
-                );
-                drop(png_bytes);
 
-                if !settings.read().ocr_enabled {
-                    // Surface this at info — users only see the
-                    // info+warn levels and we want them to know why no
-                    // overlay popped up after a capture. Enable in
-                    // Settings → "Auto-extract counts from VR
-                    // screenshots".
+                // Resolve the user's debug preference once per
+                // capture. When `ocr_debug` is on the pipeline keeps
+                // the screenshot PNG, writes per-cell strip PNGs,
+                // and drops an `.ocr-debug.txt` sidecar next to the
+                // capture so users can attach the bundle to a GitHub
+                // issue. When it's off every artifact is ephemeral
+                // and the screenshot itself is deleted after OCR
+                // finishes — production users don't accumulate ~10 MB
+                // PNGs in their data dir on every capture.
+                let s = settings.read();
+                let ocr_enabled = s.ocr_enabled;
+                let ocr_debug = s.ocr_debug;
+                drop(s);
+
+                if !ocr_enabled {
                     tracing::info!(
                         path = %path.display(),
-                        "OCR disabled in Settings → \
-                         'Auto-extract counts from VR screenshots' — \
-                         skipping. Toggle it on to see the in-headset \
-                         feedback overlay.",
+                        "OCR disabled in Settings → 'Auto-extract counts from VR \
+                         screenshots' — skipping. Toggle it on to see the \
+                         in-headset feedback overlay.",
                     );
+                    if !ocr_debug {
+                        let _ = std::fs::remove_file(&path);
+                    }
                     continue;
                 }
 
-                // Surface "we're working" within ~1 frame of capture so
-                // the in-headset card pops up before the 100-500 ms
-                // pipeline finishes.
                 publish(&ocr_feedback_tx, gui::OcrFeedback::processing());
 
-                // Process the path. If a NEWER path arrives during
-                // processing, drop the stale terminal and re-process
-                // with the newer path. Without this loop the user
-                // would see the older shot's result flash up briefly
-                // before the newer one finishes — same "previous-
-                // screenshot" symptom, just on the trailing edge of
-                // a long OCR pass instead of the leading edge.
-                loop {
-                    let data = state.read().data.clone();
-                    let terminal = match ocr::process_screenshot(&path, &data) {
-                        Ok(ocr::OcrPipelineResult::Identified(outcome)) => {
-                            let (version, feedback) = {
-                                let mut w = state.write();
-                                let mut feedback = gui::OcrFeedback::done(&outcome, &w);
-                                // Only apply cells the pipeline could
-                                // actually read. `None` means we saw
-                                // the cell but couldn't parse an X/Y
-                                // count — leave the user's existing
-                                // collected value alone instead of
-                                // resetting to 0.
-                                for (item_id, owned) in &outcome.items {
-                                    if let Some(value) = owned {
-                                        w.set_collected(item_id, *value);
-                                    }
+                let data = state.read().data.clone();
+                let terminal = match ocr::process_screenshot(&path, &data, ocr_debug) {
+                    Ok(ocr::OcrPipelineResult::Identified(outcome)) => {
+                        let (version, feedback) = {
+                            let mut w = state.write();
+                            let mut feedback = gui::OcrFeedback::done(&outcome, &w);
+                            // Only apply cells the pipeline could
+                            // actually read. `None` means we saw the
+                            // cell but couldn't parse an X/Y count —
+                            // leave the user's existing collected
+                            // value alone instead of resetting to 0.
+                            for (item_id, owned) in &outcome.items {
+                                if let Some(value) = owned {
+                                    w.set_collected(item_id, *value);
                                 }
-                                let progression = w.apply_ocr_progression(&outcome.upgrade_id);
-                                feedback.attach_progression(&w, progression);
-                                (w.version, feedback)
-                            };
-                            let _ = save_tx.try_send(gui::SaveTick { version });
-                            feedback
-                        }
-                        Ok(ocr::OcrPipelineResult::NoPanel) => gui::OcrFeedback::not_a_panel(),
-                        Ok(ocr::OcrPipelineResult::UnknownUpgrade {
-                            module_hint,
-                            current_level,
-                        }) => gui::OcrFeedback::unknown_upgrade(
-                            module_hint,
-                            current_level,
-                            path.clone(),
-                        ),
-                        Err(e) => gui::OcrFeedback::failed(format!("{e:#}")),
-                    };
-
-                    // Check: did a newer capture arrive while we were
-                    // processing this one? If so, this terminal is
-                    // already stale before we publish it — skip the
-                    // publish and re-process with the newest path.
-                    // Note: `set_collected` writes above still apply,
-                    // since the underlying screenshot was real game
-                    // state at capture time — only the user-visible
-                    // feedback card is suppressed.
-                    let mut newer_path = None;
-                    while let Ok(np) = ocr_path_rx.try_recv() {
-                        newer_path = Some(np);
+                            }
+                            let progression = w.apply_ocr_progression(&outcome.upgrade_id);
+                            feedback.attach_progression(&w, progression);
+                            (w.version, feedback)
+                        };
+                        let _ = save_tx.try_send(gui::SaveTick { version });
+                        feedback
                     }
-                    if let Some(np) = newer_path {
-                        tracing::info!(
-                            stale = %path.display(),
-                            latest = %np.display(),
-                            "OCR worker: terminal stale (newer capture during processing) — \
-                             reprocessing with latest path",
+                    Ok(ocr::OcrPipelineResult::NoPanel) => gui::OcrFeedback::not_a_panel(),
+                    Ok(ocr::OcrPipelineResult::UnknownUpgrade {
+                        module_hint,
+                        current_level,
+                    }) => {
+                        gui::OcrFeedback::unknown_upgrade(module_hint, current_level, path.clone())
+                    }
+                    Err(e) => gui::OcrFeedback::failed(format!("{e:#}")),
+                };
+                publish(&ocr_feedback_tx, terminal);
+
+                // Ephemeral by default. The pipeline already wrote
+                // any debug artifacts it needed; the source PNG is
+                // only kept when `ocr_debug` is on, since it's huge
+                // (~10 MB) and we don't want a long-running user's
+                // data dir to balloon.
+                if !ocr_debug {
+                    if let Err(e) = std::fs::remove_file(&path) {
+                        tracing::debug!(
+                            error = %e,
+                            path = %path.display(),
+                            "OCR worker: couldn't delete ephemeral screenshot (will linger)",
                         );
-                        path = np;
-                        continue;
                     }
-
-                    publish(&ocr_feedback_tx, terminal);
-                    break;
                 }
             }
             tracing::info!("OCR worker: channel closed, thread exiting");

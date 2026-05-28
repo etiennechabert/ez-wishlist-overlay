@@ -57,6 +57,15 @@ pub struct Settings {
     /// headset behaves the opposite way.
     #[serde(default = "default_capture_eye")]
     pub capture_eye: CaptureEye,
+    /// When true, every OCR pass keeps the source screenshot PNG, drops
+    /// per-cell binarised strip PNGs (`<stem>.cell<i>.<HHMMSS>.png`),
+    /// and writes a `<stem>.ocr-debug.<HHMMSS>.txt` sidecar with every
+    /// intermediate the pipeline produced. Default OFF — production
+    /// users would otherwise accumulate ~10 MB screenshots per capture
+    /// in their data dir. Flip on when filing a GitHub issue so the
+    /// bundle can be attached.
+    #[serde(default)]
+    pub ocr_debug: bool,
 }
 
 fn default_check_for_updates() -> bool {
@@ -71,17 +80,14 @@ fn default_capture_eye() -> CaptureEye {
     CaptureEye::Right
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum CaptureEye {
     Left,
+    /// Default. The left-eye mirror was empirically observed leaking
+    /// the previous frame on some headsets — right eye stays in sync.
+    #[default]
     Right,
-}
-
-impl Default for CaptureEye {
-    fn default() -> Self {
-        Self::Right
-    }
 }
 
 impl Default for Settings {
@@ -94,6 +100,7 @@ impl Default for Settings {
             dismissed_update_version: None,
             ocr_enabled: default_ocr_enabled(),
             capture_eye: default_capture_eye(),
+            ocr_debug: false,
         }
     }
 }
