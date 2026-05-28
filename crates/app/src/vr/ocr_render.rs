@@ -17,28 +17,34 @@ use tiny_skia::{Color, Paint, PathBuilder, Pixmap, Rect, Stroke, Transform};
 /// Card width in pixels. The OpenVR overlay's metric width is fixed by
 /// [`super::overlay::OcrOverlay::WIDTH_M`]; height-in-metres is derived
 /// from the pixmap's aspect ratio, so a tall body card naturally grows
-/// down without us having to reconfigure SteamVR.
-pub const CARD_W: u32 = 960;
+/// down without us having to reconfigure SteamVR. The pixel canvas is
+/// scaled in lockstep with the overlay's metric width so per-pixel
+/// physical size (DPI) stays constant — bumping just one would either
+/// blur or alias the rendered text.
+pub const CARD_W: u32 = 1536;
 /// Minimum card height — used by the short variants (`Processing`,
 /// `NotAPanel`, `Failed`) where the body is one short paragraph.
-const CARD_H_MIN: u32 = 280;
+const CARD_H_MIN: u32 = 448;
 /// Hard ceiling — keeps the pixmap allocation bounded for upgrades with
 /// many requirements + several progression notes.
-const CARD_H_MAX: u32 = 920;
+const CARD_H_MAX: u32 = 1472;
 
-const PAD_X: f32 = 28.0;
-const PAD_Y: f32 = 22.0;
-const SECTION_GAP: f32 = 14.0;
-const ITEM_ROW_H: f32 = 32.0;
-const PROG_NOTE_ROW_H: f32 = 28.0;
+const PAD_X: f32 = 44.0;
+const PAD_Y: f32 = 36.0;
+const SECTION_GAP: f32 = 22.0;
+const ITEM_ROW_H: f32 = 52.0;
+const PROG_NOTE_ROW_H: f32 = 44.0;
 
-// Font sizes bumped ~30% over the original (22/16/13 → 30/22/18) so
-// the head-locked card stays legible at the head-lock distance — user
-// reported squinting at the previous sizes. Row + padding constants
-// scale with them to keep the layout proportions intact.
-const TITLE_PX: f32 = 30.0;
-const ROW_PX: f32 = 22.0;
-const SMALL_PX: f32 = 18.0;
+// Font sizes bumped ~60% over the previous pass (30/22/18 → 48/36/28)
+// because users reported the card was still too small to read
+// comfortably at the head-lock distance, especially the per-item
+// before→after numbers on the right. CARD_W + the overlay metric
+// width grow in lockstep so the per-pixel physical size (i.e. text
+// crispness) is preserved — only the apparent size on the headset
+// changes.
+const TITLE_PX: f32 = 48.0;
+const ROW_PX: f32 = 36.0;
+const SMALL_PX: f32 = 28.0;
 
 // `tiny_skia::Color::from_rgba8` isn't a `const fn`, so these can't be
 // real `const`s — fns next best, called at the few sites that need

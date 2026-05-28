@@ -258,16 +258,24 @@ impl AppState {
     /// collected enough of every required item to claim it. Ignores whether
     /// the collected counts are also needed for sibling upgrades — the goal
     /// here is to surface "you've got the materials for this one" cues in
-    /// the desktop UI, not gate aggregation. An empty requirements list
-    /// (free upgrade) counts as ready — there's nothing left to gather.
+    /// the desktop UI, not gate aggregation. Empty requirements lists are
+    /// NOT ready: every hideout upgrade in this game costs something, so an
+    /// empty recipe means "we don't know what it costs yet" (a placeholder
+    /// added because we know the level exists from a screenshot but don't
+    /// have its requirements). Flashing such a cell green would read as
+    /// "buy it now" when the user actually needs to fill in the recipe
+    /// first via the Edit panel.
     pub fn is_upgrade_ready(&self, upgrade_id: &UpgradeId) -> bool {
         if !self.tracked_upgrades.contains(upgrade_id)
             || self.completed_upgrades.contains(upgrade_id)
         {
             return false;
         }
-        self.effective_requirements(upgrade_id)
-            .iter()
+        let reqs = self.effective_requirements(upgrade_id);
+        if reqs.is_empty() {
+            return false;
+        }
+        reqs.iter()
             .all(|r| *self.collected.get(&r.item_id).unwrap_or(&0) >= r.quantity)
     }
 

@@ -23,10 +23,13 @@ const OCR_OVERLAY_KEY: &str = "com.etienneb.ez-wishlist-overlay.ocr\0";
 const OCR_OVERLAY_NAME: &str = "EZ Wishlist OCR Feedback\0";
 /// Metric width of the head-locked OCR feedback card. The height in
 /// metres follows from the submitted pixmap's aspect ratio, which
-/// [`super::ocr_render`] grows up to ~720 px tall — at 0.45 m wide that
-/// caps the card at ~0.36 m, comfortably below eye-line so it informs
-/// without dominating the view.
-const OCR_OVERLAY_WIDTH_M: f32 = 0.45;
+/// [`super::ocr_render`] grows up to ~1440 px tall — at 0.72 m wide
+/// that caps the card at ~0.55 m. Bigger than the original 0.45 m
+/// because users reported squinting; the explicit trade-off here is
+/// that the card now occupies more of the field of view, but it's
+/// still positioned ~0.18 m below the gaze centre so the upgrade
+/// panel underneath remains visible while reading.
+const OCR_OVERLAY_WIDTH_M: f32 = 0.72;
 /// Head-locked OCR card offsets, in the HMD's local frame.
 /// **OpenVR convention**: right-handed, Y-up, -Z forward, so an overlay
 /// placed at z=-1.5 sits 1.5 m in front of the user. Y is slightly
