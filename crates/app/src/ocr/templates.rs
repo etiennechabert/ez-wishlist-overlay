@@ -19,6 +19,14 @@ pub struct Template {
     pub mask: Vec<bool>,
     pub w: u32,
     pub h: u32,
+    /// Number of background regions fully enclosed by foreground.
+    /// Computed once at load time and used by [`score`] as a
+    /// size-invariant topology discriminator: pixel-agreement
+    /// scaling collapses closed-loop digits ('0', '6', '8') into
+    /// each other at small rendered sizes, but the *number* of
+    /// holes survives the scaling — `8` always has 2, `0`/`6`
+    /// always have 1, the rest have 0.
+    pub holes: u32,
 }
 
 #[derive(Clone)]
@@ -28,6 +36,9 @@ pub struct Component {
     pub w: u32,
     pub h: u32,
     pub mask: Vec<bool>,
+    /// Same topology feature as [`Template::holes`], computed once
+    /// when the component is built from the binarised strip.
+    pub holes: u32,
 }
 
 /// Embedded templates loaded once at first use. Sourced from
@@ -61,9 +72,115 @@ fn load_embedded() -> Result<Vec<Template>> {
             .to_luma8();
         let (w, h) = gray.dimensions();
         let mask: Vec<bool> = gray.pixels().map(|p| p.0[0] < 128).collect();
-        templates.push(Template { label, mask, w, h });
+        let holes = count_holes(&mask, w, h);
+        templates.push(Template {
+            label,
+            mask,
+            w,
+            h,
+            holes,
+        });
     }
     Ok(templates)
+}
+
+/// Count background "holes" — connected regions of background pixels
+/// fully enclosed by foreground. Same algorithm for both templates
+/// and live components: flood-fill the background from every bounding-
+/// box edge, then count connected components of the un-reached
+/// background pixels.
+///
+/// This is the topology feature the score function leans on to
+/// discriminate digits that the pixel-agreement metric can't separate
+/// at small rendered sizes ('0' vs '8', '3' vs '8', '1' vs '0').
+/// Closed-loop digits ('0','6','9') have 1 hole, '8' has 2, the rest
+/// have 0 — invariant of size, so it survives the small-component
+/// regime where nearest-neighbour resample loses the distinguishing
+/// fine features.
+fn count_holes(mask: &[bool], w: u32, h: u32) -> u32 {
+    if w == 0 || h == 0 {
+        return 0;
+    }
+    let n = (w * h) as usize;
+    let idx = |x: u32, y: u32| (y * w + x) as usize;
+    let is_bg = |x: u32, y: u32| !mask[idx(x, y)];
+
+    // Phase 1: flood-fill the exterior background from every edge.
+    let mut reached = vec![false; n];
+    let mut stack: Vec<(u32, u32)> = Vec::new();
+    for x in 0..w {
+        if is_bg(x, 0) {
+            stack.push((x, 0));
+        }
+        if h > 1 && is_bg(x, h - 1) {
+            stack.push((x, h - 1));
+        }
+    }
+    for y in 0..h {
+        if is_bg(0, y) {
+            stack.push((0, y));
+        }
+        if w > 1 && is_bg(w - 1, y) {
+            stack.push((w - 1, y));
+        }
+    }
+    while let Some((x, y)) = stack.pop() {
+        let i = idx(x, y);
+        if reached[i] || !is_bg(x, y) {
+            continue;
+        }
+        reached[i] = true;
+        for (dx, dy) in [(-1i32, 0), (1, 0), (0, -1), (0, 1)] {
+            let nx = x as i32 + dx;
+            let ny = y as i32 + dy;
+            if nx < 0 || ny < 0 || nx >= w as i32 || ny >= h as i32 {
+                continue;
+            }
+            stack.push((nx as u32, ny as u32));
+        }
+    }
+
+    // Phase 2: count connected components of unreached background
+    // pixels. Holes smaller than `MIN_HOLE_PIXELS` don't count — at
+    // the 5-7 px wide range where most live digits sit, single-pixel
+    // gaps inside a '2' / '5' / '3' (e.g. a tiny binarisation
+    // artefact that closes a curve into a loop) would otherwise read
+    // as a fake hole and push the score function to pick a
+    // closed-loop digit. Real closed-loop holes in '0' / '6' / '8'
+    // at these sizes are always ≥ 2 px because the loop spans the
+    // full inner cavity of the glyph.
+    const MIN_HOLE_PIXELS: u32 = 2;
+    let mut visited = reached.clone();
+    let mut holes = 0u32;
+    for sy in 0..h {
+        for sx in 0..w {
+            if visited[idx(sx, sy)] || !is_bg(sx, sy) {
+                continue;
+            }
+            let mut size = 0u32;
+            let mut hs = vec![(sx, sy)];
+            while let Some((x, y)) = hs.pop() {
+                let i = idx(x, y);
+                if visited[i] || !is_bg(x, y) {
+                    continue;
+                }
+                visited[i] = true;
+                size += 1;
+                for (dx, dy) in [(-1i32, 0), (1, 0), (0, -1), (0, 1)] {
+                    let nx = x as i32 + dx;
+                    let ny = y as i32 + dy;
+                    if nx < 0 || ny < 0 || nx >= w as i32 || ny >= h as i32 {
+                        continue;
+                    }
+                    hs.push((nx as u32, ny as u32));
+                }
+            }
+            if size >= MIN_HOLE_PIXELS {
+                holes += 1;
+            }
+        }
+    }
+    holes
 }
 
 /// 4-connected connected-components labelling on a binary mask. The input
@@ -124,21 +241,54 @@ pub fn find_components(img: &GrayImage) -> Vec<Component> {
                 let ly = py - min_y;
                 mask[(ly * cw + lx) as usize] = true;
             }
+            let holes = count_holes(&mask, cw, ch);
             comps.push(Component {
                 x: min_x,
                 y: min_y,
                 w: cw,
                 h: ch,
                 mask,
+                holes,
             });
         }
     }
     comps
 }
 
-/// Score how well a component matches a template by resampling the
-/// component to the template's dimensions (nearest-neighbour) and counting
-/// pixel agreement. Returns a score in [0, 1].
+/// Score how well a component matches a template. The base signal is
+/// pixel agreement after nearest-neighbour resample to the template's
+/// dimensions; on top of that we apply a topology discriminator
+/// (hole count) because the base signal can't separate closed-loop
+/// digits at small rendered sizes.
+///
+/// **Why the hole-count term exists.** The pixel-agreement score
+/// gives `'8'=0.702, '2'=0.676` for a component that's clearly a
+/// `2` (game UI captured at distance, digit ≈ 5×11). Closed-loop
+/// digits and non-loop digits collapse into the same coarse grid
+/// after nearest-neighbour scaling, and whichever template happens
+/// to have a slightly fuller foreground at the sample points wins.
+/// `comp.holes` and `t.holes` survive scaling unchanged — '0' always
+/// has 1 hole, '8' always has 2, '2' always has 0 — so a mismatch
+/// is strong evidence the template is wrong.
+///
+/// **Penalty schedule.** Asymmetric on purpose:
+/// - Equal hole counts → no change. Most common case.
+/// - Component has FEWER holes than template → mild penalty. Could
+///   legitimately be a small-size degradation (a barely-closed loop
+///   that broke open during binarisation), so we don't punish hard.
+/// - Component has MORE holes than template → stronger penalty.
+///   Templates are clean references; if the component shows extra
+///   enclosed background, it's either noise OR a genuinely
+///   higher-topology digit being matched to a lower-topology one
+///   (e.g. component '8' matched against template '0'). Either way
+///   the template is unlikely to be right.
+///
+/// Constants tuned by sweeping the fixture suite — a vertical-mass
+/// distribution discriminator was prototyped on top of this but
+/// regressed (-3 cells) because live components are noisy enough at
+/// these sizes for the top/bottom mass split to flip false-positive
+/// for legitimate matches. Hole count alone is the discriminator
+/// that survives.
 pub fn score(comp: &Component, t: &Template) -> f32 {
     let mut agree = 0u32;
     let total = t.w * t.h;
@@ -153,7 +303,26 @@ pub fn score(comp: &Component, t: &Template) -> f32 {
             }
         }
     }
-    agree as f32 / total as f32
+    let base = agree as f32 / total as f32;
+
+    // Hole-count discriminator. Caps the diff at 2 so a very noisy
+    // component can't drag the penalty to zero — even with bad
+    // binarisation the base pixel score still has signal.
+    let comp_h = comp.holes as i32;
+    let templ_h = t.holes as i32;
+    let penalty = if comp_h == templ_h {
+        1.0
+    } else if comp_h < templ_h {
+        // Component lost a hole — possible at small sizes. Mild.
+        let diff = ((templ_h - comp_h) as f32).min(2.0);
+        1.0 - 0.10 * diff
+    } else {
+        // Component has extra holes — wrong digit or noise. Stronger.
+        let diff = ((comp_h - templ_h) as f32).min(2.0);
+        1.0 - 0.18 * diff
+    };
+
+    base * penalty
 }
 
 /// Match every component in the binary strip against the templates and
