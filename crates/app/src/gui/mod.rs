@@ -242,14 +242,21 @@ impl eframe::App for App {
                 });
         }
 
-        // Right preview pane.
-        egui::SidePanel::right("preview")
-            .resizable(true)
-            .default_width(480.0)
-            .min_width(320.0)
-            .show(ctx, |ui| {
-                preview_pane::ui(ui, &self.state, &mut self.icons, &self.save_tx);
-            });
+        // Right preview pane. Hidden on the Items DB tab — the catalog
+        // browser is a reference view, not a tracked-progress view, so
+        // the per-tracked-item aggregation that lives on the right
+        // would just be noise next to it. The tab has its own
+        // "tracked only" toggle for users who want to narrow to the
+        // active set.
+        if self.tab != LeftTab::ItemsDb {
+            egui::SidePanel::right("preview")
+                .resizable(true)
+                .default_width(480.0)
+                .min_width(320.0)
+                .show(ctx, |ui| {
+                    preview_pane::ui(ui, &self.state, &mut self.icons, &self.save_tx);
+                });
+        }
 
         // Left main panel: tab strip + content.
         egui::CentralPanel::default().show(ctx, |ui| {
