@@ -341,10 +341,7 @@ fn spawn_ocr_worker(
                 publish(&ocr_feedback_tx, gui::OcrFeedback::processing());
 
                 let data = state.read().data.clone();
-                let ocr::OcrJob {
-                    image,
-                    source_path,
-                } = job;
+                let ocr::OcrJob { image, source_path } = job;
                 let terminal = match ocr::process_image(
                     image,
                     source_path.as_deref(),
