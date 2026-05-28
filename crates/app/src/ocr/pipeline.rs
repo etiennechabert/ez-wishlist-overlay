@@ -135,6 +135,33 @@ pub fn process_screenshot(path: &Path, data: &GameData) -> Result<Option<OcrOutc
     for (i, (cell, req)) in cells.iter().zip(upgrade.requirements.iter()).enumerate() {
         let strip = prepped.crop_imm(cell.x, cell.y, cell.w, cell.h);
         let gray = strip.to_luma8();
+
+        // In debug builds, drop the binarised cell strip next to the
+        // source screenshot as `<stem>.cell<i>.<HHMMSS>.png` and log
+        // its path so the user can open it in any viewer to see what
+        // the template matcher actually saw (vs what the screenshot
+        // looks like to a human). The strip is small (~150×60 px) so
+        // 4 of these per capture is a negligible disk hit. Release
+        // builds skip the write entirely.
+        #[cfg(debug_assertions)]
+        {
+            if let Some(strip_path) = crate::ocr::debug_dump::cell_strip_path_for(path, i) {
+                match gray.save(&strip_path) {
+                    Ok(()) => tracing::info!(
+                        cell = i,
+                        item_id = %req.item_id,
+                        path = %strip_path.display(),
+                        "OCR cell strip saved",
+                    ),
+                    Err(e) => tracing::warn!(
+                        error = %e,
+                        path = %strip_path.display(),
+                        "OCR cell strip save failed",
+                    ),
+                }
+            }
+        }
+
         let recog = templates::recognize_with_known_needed(&gray, templates, req.quantity);
         let parsed = templates::split_progress(&recog.recognised);
         // Reject the parse unless Y matches the known required quantity.

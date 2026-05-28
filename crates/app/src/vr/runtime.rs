@@ -339,25 +339,10 @@ fn render_loop(
             // screenshot and the next OCR pass would see itself over
             // the Facility Upgrade panel.
             //
-            // Hiding via `set_ocr_visible(false)` is asynchronous: it
-            // marks the overlay invisible inside SteamVR, but the
-            // compositor's *mirror texture* still shows the LAST
-            // composited frame (which still includes the visible
-            // overlay) until the compositor produces a new frame. At
-            // 90 Hz headsets that's an ~11 ms gap — and our previous
-            // code called `capture_screenshot` immediately after the
-            // hide, so the captured PNG often still carried the
-            // previous OCR card's title text ("Bookdesk Lv 1" etc.).
-            // The OCR pipeline then strict-matched that overlay text
-            // and reported the PREVIOUS panel's results for the new
-            // shot, manifesting as "I have to take two screenshots
-            // before OCR reads the panel I'm actually looking at."
-            //
-            // Sleep covers ~3 compositor frames at 90 Hz to guarantee
-            // the mirror has refreshed without the overlay. The user
-            // already perceives a moment of latency on space-bar
-            // capture (D3D11 device creation + PNG encode); an extra
-            // ~35 ms is imperceptible against that.
+            // The capture call itself drains the compositor mirror
+            // swap chain (acquire→release→sleep→acquire) so the frame
+            // we read is composited *after* the overlay was hidden —
+            // we don't need to sleep here at the call site.
             if ocr_state.is_some() {
                 if let Err(e) = session.set_ocr_alpha(0.0) {
                     tracing::warn!(error = %e, "OCR overlay: pre-capture clear-alpha failed");
@@ -366,7 +351,6 @@ fn render_loop(
                     tracing::warn!(error = %e, "OCR overlay: pre-capture hide failed");
                 }
                 ocr_state = None;
-                std::thread::sleep(Duration::from_millis(35));
             }
             let path = next_screenshot_path(paths);
             let result = match session.capture_screenshot(&path) {

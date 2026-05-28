@@ -88,6 +88,26 @@ pub struct CellDebug<'a> {
 /// — without it, regenerated debug files would silently overwrite the
 /// previous run and you couldn't tell if a file on disk reflects the
 /// latest pipeline behaviour or a stale build's.
+/// Sibling-file path for the per-cell binarised strip PNG that the
+/// template matcher actually consumes. e.g.
+/// `…/<screenshot>.cell<idx>.<HHMMSS>.png`
+///
+/// Returns `None` if the source path has no file stem (shouldn't
+/// happen in normal pipelines but the helper stays defensive). The
+/// `HHMMSS` suffix tracks dump freshness the same way
+/// [`debug_path_for`] does — successive captures with the same idx
+/// stay distinguishable on disk.
+pub fn cell_strip_path_for(source: &Path, idx: usize) -> Option<PathBuf> {
+    let now = time::OffsetDateTime::now_local().unwrap_or_else(|_| time::OffsetDateTime::now_utc());
+    let hhmmss = now
+        .format(time::macros::format_description!("[hour][minute][second]"))
+        .unwrap_or_else(|_| "000000".into());
+    let mut path = source.to_path_buf();
+    let stem = path.file_stem()?.to_string_lossy().into_owned();
+    path.set_file_name(format!("{stem}.cell{idx}.{hhmmss}.png"));
+    Some(path)
+}
+
 pub fn debug_path_for(source: &Path) -> PathBuf {
     let now = time::OffsetDateTime::now_local().unwrap_or_else(|_| time::OffsetDateTime::now_utc());
     let hhmmss = now
@@ -182,7 +202,8 @@ pub fn purge_prior_dumps(source: &Path) {
         Some(s) => s,
         None => return,
     };
-    let prefix = format!("{stem}.ocr-debug.");
+    let txt_prefix = format!("{stem}.ocr-debug.");
+    let cell_prefix = format!("{stem}.cell");
     let Ok(entries) = std::fs::read_dir(dir) else {
         return;
     };
@@ -191,7 +212,9 @@ pub fn purge_prior_dumps(source: &Path) {
         let Some(name_str) = name.to_str() else {
             continue;
         };
-        if name_str.starts_with(&prefix) && name_str.ends_with(".txt") {
+        let is_debug_dump = name_str.starts_with(&txt_prefix) && name_str.ends_with(".txt");
+        let is_cell_strip = name_str.starts_with(&cell_prefix) && name_str.ends_with(".png");
+        if is_debug_dump || is_cell_strip {
             let _ = std::fs::remove_file(entry.path());
         }
     }

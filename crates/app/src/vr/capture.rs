@@ -59,6 +59,32 @@ pub fn play_capture_done_beep(success: bool) {
 pub fn capture_compositor_mirror_to_png(out_path: &Path) -> Result<()> {
     let d3d = D3d11Context::create().context("D3D11CreateDevice")?;
     let fn_table = lookup_compositor_fn_table().context("look up IVRCompositor fn-table")?;
+
+    // Drain the compositor mirror swap chain. Two observed problems
+    // with a single naive `GetMirrorTextureD3D11`:
+    //   1. The FIRST call after process start (or after a long idle)
+    //      returns an uninitialized buffer — captures came out solid
+    //      black despite the game rendering normally.
+    //   2. Subsequent calls return whichever buffer the compositor
+    //      last *wrote to*, which can lag the *latest* composited
+    //      frame by one swap-chain slot. After hiding our OCR overlay
+    //      we'd still grab a frame that included the overlay; the
+    //      OCR pipeline's strict-match then resolved against the
+    //      overlay's `upgrade_name` text and reported the previous
+    //      panel's results.
+    // Acquire→release→sleep→acquire forces SteamVR to:
+    //   - allocate the mirror texture if it hadn't yet,
+    //   - advance its internal write pointer past whatever buffer was
+    //     pending,
+    //   - composite at least one fresh frame into a clean buffer that
+    //     the second acquire then picks up.
+    // The sleep covers worst-case 60 Hz compositor headsets at 3 frames.
+    {
+        let _drain = MirrorTexture::acquire(fn_table, &d3d.device, sys::EVREye_Eye_Left)
+            .context("GetMirrorTextureD3D11 (drain)")?;
+        // _drain Drop calls ReleaseMirrorTextureD3D11.
+    }
+    std::thread::sleep(std::time::Duration::from_millis(60));
     let mirror = MirrorTexture::acquire(fn_table, &d3d.device, sys::EVREye_Eye_Left)
         .context("GetMirrorTextureD3D11")?;
 
