@@ -305,18 +305,19 @@ fn spawn_ocr_worker(
                                     w.set_collected(item_id, *value);
                                 }
                             }
-                            // Auto-tracking the matched upgrade + auto-
-                            // completing every lower-level upgrade is
-                            // useful when the user is OCR'ing the panel
-                            // they're about to grind toward ("I want
-                            // this for my next raid"), but noisy when
-                            // they're bulk-OCR'ing many panels just to
-                            // refresh inventory. Gated on a setting so
-                            // both flows work.
-                            if ocr_auto_track {
-                                let progression = w.apply_ocr_progression(&outcome.upgrade_id);
-                                feedback.attach_progression(&w, progression);
-                            }
+                            // Prior-level completion is a state inference
+                            // ("game showed Lv N, therefore Lv (N-1) is
+                            // done") — always apply it. Auto-tracking the
+                            // matched upgrade itself is a workflow choice
+                            // ("I'm working on this for the next raid"),
+                            // gated on the user's `ocr_auto_track` toggle.
+                            // `apply_ocr_progression` handles both: prior
+                            // completion runs unconditionally, the
+                            // OCR'd upgrade only enters `tracked_upgrades`
+                            // when the flag is on.
+                            let progression =
+                                w.apply_ocr_progression(&outcome.upgrade_id, ocr_auto_track);
+                            feedback.attach_progression(&w, progression);
                             (w.version, feedback)
                         };
                         let _ = save_tx.try_send(gui::SaveTick { version });
