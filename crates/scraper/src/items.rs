@@ -35,6 +35,10 @@ struct UpstreamItem {
     id: String,
     name: String,
     #[serde(default)]
+    category: Option<String>,
+    #[serde(default)]
+    subcategory: Option<String>,
+    #[serde(default)]
     images: Option<UpstreamItemImages>,
     #[serde(default)]
     stats: Option<UpstreamItemStats>,
@@ -51,6 +55,12 @@ struct UpstreamItemStats {
     #[serde(default)]
     #[serde(rename = "taskIds")]
     task_ids: Vec<String>,
+    #[serde(default)]
+    price: Option<u64>,
+    #[serde(default)]
+    weight: Option<f32>,
+    #[serde(default)]
+    rarity: Option<String>,
 }
 
 pub struct ItemCatalog {
@@ -71,6 +81,11 @@ pub struct ItemRecord {
     pub upstream_icon: Option<String>,
     /// Task IDs this item is required by (only populated for task-items).
     pub task_ids: Vec<String>,
+    pub category: Option<String>,
+    pub subcategory: Option<String>,
+    pub price: Option<u64>,
+    pub weight: Option<f32>,
+    pub rarity: Option<String>,
 }
 
 impl ItemCatalog {
@@ -91,12 +106,17 @@ impl ItemCatalog {
                 .with_context(|| format!("parsing {}", path.display()))?;
             for u in raw {
                 let icon = u.images.and_then(|i| i.icon);
-                let task_ids = u.stats.map(|s| s.task_ids).unwrap_or_default();
+                let stats = u.stats.unwrap_or_default();
                 let rec = ItemRecord {
                     id: u.id.clone(),
                     name: u.name.clone(),
                     upstream_icon: icon,
-                    task_ids,
+                    task_ids: stats.task_ids,
+                    category: u.category,
+                    subcategory: u.subcategory,
+                    price: stats.price,
+                    weight: stats.weight,
+                    rarity: stats.rarity,
                 };
                 by_name
                     .entry(u.name.to_lowercase())
@@ -114,24 +134,22 @@ impl ItemCatalog {
         Ok(Self { items, by_name })
     }
 
-    /// Build the slimmed-down `Item` list for our `data.json`. Only items that
-    /// are actually referenced by `referenced_ids` are included — the upstream
-    /// has thousands of items (weapons, armors, ammo) the wishlist will never
-    /// touch, and shipping all their icons would bloat the binary.
-    pub fn build_output_items(
-        &self,
-        referenced_ids: &std::collections::HashSet<ItemId>,
-        icon_dir_name: &str,
-    ) -> Vec<Item> {
-        let mut out: Vec<Item> = referenced_ids
-            .iter()
-            .filter_map(|id| {
-                let rec = self.items.get(id)?;
-                Some(Item {
-                    id: rec.id.clone(),
-                    name: rec.name.clone(),
-                    icon_path: format!("{icon_dir_name}/{}.png", rec.id),
-                })
+    /// Build the full `Item` list for our `data.json`. We ship every upstream
+    /// item (not just those referenced by hideout/tasks) so the in-app Items
+    /// DB view has the complete catalog to sort and filter.
+    pub fn build_output_items(&self, icon_dir_name: &str) -> Vec<Item> {
+        let mut out: Vec<Item> = self
+            .items
+            .values()
+            .map(|rec| Item {
+                id: rec.id.clone(),
+                name: rec.name.clone(),
+                icon_path: format!("{icon_dir_name}/{}.png", rec.id),
+                category: rec.category.clone(),
+                subcategory: rec.subcategory.clone(),
+                weight: rec.weight,
+                price: rec.price,
+                rarity: rec.rarity.clone(),
             })
             .collect();
         out.sort_by(|a, b| a.id.cmp(&b.id));

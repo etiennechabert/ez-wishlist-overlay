@@ -92,12 +92,14 @@ fn main() -> Result<()> {
     let hideout = hideout::parse(&hideout_ts).context("hideout parse")?;
     let tasks = tasks::parse(&tasks_ts, &catalog).context("tasks parse")?;
 
-    // Union of every item referenced by any kept upgrade or task.
+    // Union of every item referenced by any kept upgrade or task. Used only
+    // for coverage diagnostics — `data.json` ships every item in the catalog
+    // so the Items DB view sees the full set.
     let mut referenced: HashSet<String> = HashSet::new();
     referenced.extend(hideout.referenced_items.iter().cloned());
     referenced.extend(tasks.referenced_items.iter().cloned());
 
-    let items_out = catalog.build_output_items(&referenced, output::ICON_DIR_NAME);
+    let items_out = catalog.build_output_items(output::ICON_DIR_NAME);
     let coverage = referenced
         .iter()
         .filter(|id| catalog.items.contains_key(*id))
@@ -106,6 +108,9 @@ fn main() -> Result<()> {
     if unknown > 0 {
         tracing::warn!(unknown, "referenced item IDs not present in any catalog");
     }
+    // Icons are copied for every item we emit, so the Items DB view has
+    // pictures next to weapons/armor/etc. — not just the wishlist subset.
+    let all_item_ids: HashSet<String> = catalog.items.keys().cloned().collect();
 
     let version = upstream::upstream_package_version(&upstream.root).unwrap_or_else(|e| {
         tracing::warn!(error = %e, "could not read upstream package.json version");
@@ -130,7 +135,7 @@ fn main() -> Result<()> {
     output::write_source_md(&args.output, &data, tasks.unparsed_objectives.len())?;
 
     let icons_written = if !args.skip_icons {
-        let outcome = output::copy_icons(&args.output, &upstream.root, &catalog, &referenced)?;
+        let outcome = output::copy_icons(&args.output, &upstream.root, &catalog, &all_item_ids)?;
         if !outcome.icons_missing.is_empty() {
             tracing::warn!(
                 count = outcome.icons_missing.len(),

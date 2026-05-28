@@ -4,6 +4,7 @@ mod about_dialog;
 mod debug_dialog;
 mod hideout_pane;
 mod icon_cache;
+mod items_db_pane;
 pub mod ocr_feedback;
 mod overrides_export;
 mod preview_pane;
@@ -35,6 +36,7 @@ pub struct SaveTick {
 enum LeftTab {
     Hideout,
     Tasks,
+    ItemsDb,
 }
 
 pub struct App {
@@ -49,6 +51,7 @@ pub struct App {
     settings_dirty: bool,
     confirm_reset: bool,
     tasks_filter: String,
+    items_db: items_db_pane::ItemsDbState,
     status_banner: Option<String>,
     vr: Arc<crate::vr::Runtime>,
     settings: Arc<RwLock<crate::settings::Settings>>,
@@ -140,6 +143,7 @@ impl App {
             settings_dirty: false,
             confirm_reset: false,
             tasks_filter: String::new(),
+            items_db: items_db_pane::ItemsDbState::default(),
             status_banner: banner,
             vr,
             settings,
@@ -252,16 +256,27 @@ impl eframe::App for App {
             ui.horizontal(|ui| {
                 ui.selectable_value(&mut self.tab, LeftTab::Hideout, "Hideout");
                 ui.selectable_value(&mut self.tab, LeftTab::Tasks, "Tasks");
+                ui.selectable_value(&mut self.tab, LeftTab::ItemsDb, "Items DB");
             });
             ui.separator();
-            egui::ScrollArea::vertical().show(ui, |ui| match self.tab {
+            match self.tab {
                 LeftTab::Hideout => {
-                    hideout_pane::ui(ui, &self.state, &mut self.icons, &self.save_tx)
+                    egui::ScrollArea::vertical().show(ui, |ui| {
+                        hideout_pane::ui(ui, &self.state, &mut self.icons, &self.save_tx)
+                    });
                 }
                 LeftTab::Tasks => {
-                    tasks_pane::ui(ui, &self.state, &mut self.tasks_filter, &self.save_tx)
+                    egui::ScrollArea::vertical().show(ui, |ui| {
+                        tasks_pane::ui(ui, &self.state, &mut self.tasks_filter, &self.save_tx)
+                    });
                 }
-            });
+                LeftTab::ItemsDb => {
+                    // TableBuilder ships its own vertical scrolling; nesting
+                    // a ScrollArea around it breaks sticky headers and the
+                    // virtualized row layout.
+                    items_db_pane::ui(ui, &self.state, &mut self.icons, &mut self.items_db);
+                }
+            }
         });
 
         // Modal dialogs.
