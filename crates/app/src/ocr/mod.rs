@@ -90,6 +90,14 @@ pub struct OcrOutcome {
 /// in fact the data file was the gap; they spent time re-taking
 /// screenshots that were already perfectly fine. Splitting the
 /// outcomes lets the in-headset card say something actionable.
+// `Identified` and `UnknownUpgrade` are only constructed by the
+// Windows-gated `pipeline::process_screenshot`. Linux gets a stub
+// that only returns `NoPanel`, which would otherwise fire
+// `dead_code` lints on the unused variants. The variants are still
+// part of the public surface — the worker matches on all three —
+// so suppress the lint at the enum level rather than gating the
+// variants themselves.
+#[allow(dead_code)]
 #[derive(Clone, Debug)]
 pub enum OcrPipelineResult {
     /// Anchor found, upgrade resolved, cells read.

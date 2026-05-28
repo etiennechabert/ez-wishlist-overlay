@@ -12,7 +12,9 @@
 //! Non-Windows: returns `Ok(None)` — Windows.Media.Ocr is unavailable.
 
 use crate::data::GameData;
-use crate::ocr::{OcrOutcome, OcrPipelineResult};
+use crate::ocr::OcrPipelineResult;
+#[cfg(target_os = "windows")]
+use crate::ocr::OcrOutcome;
 use anyhow::Result;
 use std::path::Path;
 
