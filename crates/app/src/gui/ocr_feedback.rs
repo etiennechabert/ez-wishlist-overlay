@@ -46,6 +46,17 @@ pub enum OcrFeedbackKind {
         /// "Auto-completed Bitcoin Mine Lv 1", "Now tracking Bitcoin
         /// Mine Lv 2"). Empty when nothing changed.
         progression_notes: Vec<String>,
+        /// `true` when fewer than half of the cells were successfully
+        /// read — the in-headset card surfaces a "try recapturing
+        /// straight on" hint and the tracing log mirrors it. The
+        /// safety filter has already preserved existing counts on
+        /// UNREAD cells, so this is informational rather than
+        /// destructive, but it tells the user a straight-on retake
+        /// would likely fix the gap (tilt, glare, and head-distance
+        /// all funnel into this signal — the issue [#56] notes
+        /// aggregate read-rate is the easiest first hint that
+        /// catches the general "something looks wrong" case).
+        low_read_rate: bool,
     },
     /// Pipeline ran but the screenshot wasn't an upgrade panel (no
     /// "Need to submit items" anchor). Nothing was written to state.
@@ -160,12 +171,27 @@ impl OcrFeedback {
             })
             .collect();
 
+        // Aggregate read-rate signal (per issue #56). The pipeline
+        // returns `None` for cells it couldn't confidently parse — at
+        // a low read-rate the most common cause is a non-perpendicular
+        // capture angle (the "Need to submit items" row visibly skews
+        // across the panel, and the strip-positioning picker drifts
+        // off the digit row). A `2/n` threshold (strict majority of
+        // unread cells) keeps the hint off for the common "one bad
+        // cell on a clean capture" case while still firing on the
+        // canonical tilt failures (IntelligentLv2 1/4, MedDeskLv1
+        // 1/4 in the fixture suite).
+        let total = items.len();
+        let unread = items.iter().filter(|i| i.after.is_none()).count();
+        let low_read_rate = total > 0 && unread * 2 > total;
+
         Self {
             kind: OcrFeedbackKind::Done {
                 upgrade_name: outcome.upgrade_name.clone(),
                 level,
                 items,
                 progression_notes: Vec::new(),
+                low_read_rate,
             },
         }
     }
@@ -214,6 +240,7 @@ impl OcrFeedback {
                 level,
                 items,
                 progression_notes,
+                low_read_rate,
             } => {
                 let applied = items.iter().filter(|i| i.after.is_some()).count();
                 let unread = items.len() - applied;
@@ -222,6 +249,7 @@ impl OcrFeedback {
                     level = level,
                     applied = applied,
                     unread = unread,
+                    low_read_rate = *low_read_rate,
                     "OCR overlay: done"
                 );
                 for item in items {
@@ -243,6 +271,14 @@ impl OcrFeedback {
                 }
                 for note in progression_notes {
                     tracing::info!("  {note}");
+                }
+                if *low_read_rate {
+                    tracing::warn!(
+                        applied,
+                        total = items.len(),
+                        "OCR overlay: low read-rate — try recapturing straight on \
+                         (panel tilt / distance / glare are the usual causes)"
+                    );
                 }
             }
             OcrFeedbackKind::NotAPanel => {

@@ -130,6 +130,7 @@ fn measure_body_height(kind: &OcrFeedbackKind) -> f32 {
         OcrFeedbackKind::Done {
             items,
             progression_notes,
+            low_read_rate,
             ..
         } => {
             let items_h = if items.is_empty() {
@@ -142,7 +143,12 @@ fn measure_body_height(kind: &OcrFeedbackKind) -> f32 {
             } else {
                 SECTION_GAP * 0.5 + progression_notes.len() as f32 * PROG_NOTE_ROW_H
             };
-            items_h + notes_h
+            let hint_h = if *low_read_rate {
+                SECTION_GAP * 0.5 + ROW_PX + 4.0
+            } else {
+                0.0
+            };
+            items_h + notes_h + hint_h
         }
     };
     header_block + body + footer_block
@@ -294,6 +300,7 @@ fn draw_body(pix: &mut Pixmap, kind: &OcrFeedbackKind, y_top: f32) -> f32 {
         OcrFeedbackKind::Done {
             items,
             progression_notes,
+            low_read_rate,
             ..
         } => {
             let mut y = y_top;
@@ -326,6 +333,26 @@ fn draw_body(pix: &mut Pixmap, kind: &OcrFeedbackKind, y_top: f32) -> f32 {
                     );
                     y += PROG_NOTE_ROW_H;
                 }
+            }
+            if *low_read_rate {
+                // "Try recapturing straight on" — a non-blocking
+                // hint when fewer than half the cells came back read.
+                // Coloured in the same amber as the per-cell "kept"
+                // markers and `NotAPanel` accent so the user reads
+                // the whole "something to look at" cluster as one
+                // visual layer rather than as an error.
+                let applied = items.iter().filter(|i| i.after.is_some()).count();
+                let total = items.len();
+                y += SECTION_GAP * 0.5;
+                text::draw_text(
+                    pix,
+                    &format!("Only {applied}/{total} cells read — try recapturing straight on.",),
+                    PAD_X,
+                    y + ROW_PX,
+                    ROW_PX,
+                    not_panel_accent(),
+                );
+                y += ROW_PX + 4.0;
             }
             y
         }
@@ -429,6 +456,7 @@ mod tests {
                     "Auto-completed Bitcoin Mine Lv 1".into(),
                     "Now tracking Bitcoin Mine Lv 2".into(),
                 ],
+                low_read_rate: false,
             },
         }
     }
@@ -460,6 +488,30 @@ mod tests {
         let pix = render(&OcrFeedback::failed("file not found"));
         assert_eq!(pix.width(), CARD_W);
         assert!(pix.height() >= CARD_H_MIN);
+    }
+
+    #[test]
+    fn renders_done_with_low_read_rate_hint_grows_card() {
+        let baseline = render(&done_feedback()).height();
+        let mut fb = done_feedback();
+        if let OcrFeedbackKind::Done {
+            low_read_rate,
+            items,
+            ..
+        } = &mut fb.kind
+        {
+            *low_read_rate = true;
+            // Push the read-rate below 50% so the rendered card
+            // also makes contextual sense for the hint line.
+            items[0].after = None;
+            items[1].after = None;
+        }
+        let with_hint = render(&fb).height();
+        assert!(
+            with_hint > baseline,
+            "low-read-rate hint should add at least one row of height \
+             (baseline={baseline}, with hint={with_hint})"
+        );
     }
 
     #[test]
