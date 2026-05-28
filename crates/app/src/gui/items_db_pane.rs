@@ -1,5 +1,6 @@
-//! Left tab: full item database, with name/category filter and click-to-sort
-//! columns. Read-only reference view — no wishlist mutation here.
+//! Left tab: MISC item database, with name filter and click-to-sort columns.
+//! Read-only reference view — no wishlist mutation here. Scoped to MISC for
+//! now; a category selector can be re-added once we expand beyond that.
 
 use crate::data::Item;
 use crate::gui::IconCache;
@@ -11,7 +12,6 @@ use std::sync::Arc;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SortColumn {
     Name,
-    Category,
     Subcategory,
     Weight,
     Price,
@@ -26,8 +26,6 @@ pub enum SortDir {
 
 pub struct ItemsDbState {
     pub filter: String,
-    /// Selected category, or `None` for "All".
-    pub category_filter: Option<String>,
     pub sort_by: SortColumn,
     pub sort_dir: SortDir,
 }
@@ -36,7 +34,6 @@ impl Default for ItemsDbState {
     fn default() -> Self {
         Self {
             filter: String::new(),
-            category_filter: None,
             sort_by: SortColumn::Name,
             sort_dir: SortDir::Asc,
         }
@@ -51,49 +48,21 @@ pub fn ui(
 ) {
     let data = state.read().data.clone();
 
-    // Build category list once per frame from the data.
-    let mut categories: Vec<String> = data
-        .items
-        .iter()
-        .filter_map(|i| i.category.clone())
-        .collect();
-    categories.sort();
-    categories.dedup();
-
     ui.horizontal(|ui| {
         ui.label("Filter:");
         ui.text_edit_singleline(&mut db.filter);
         if ui.button("✕").clicked() {
             db.filter.clear();
         }
-        ui.add_space(8.0);
-        ui.label("Category:");
-        let current = db
-            .category_filter
-            .clone()
-            .unwrap_or_else(|| "All".to_string());
-        egui::ComboBox::from_id_salt("items_db_category")
-            .selected_text(current)
-            .show_ui(ui, |ui| {
-                ui.selectable_value(&mut db.category_filter, None, "All");
-                for cat in &categories {
-                    ui.selectable_value(&mut db.category_filter, Some(cat.clone()), cat);
-                }
-            });
     });
     ui.separator();
 
     let filter_lc = db.filter.to_lowercase();
-    let cat_filter = db.category_filter.clone();
     let mut rows: Vec<&Item> = data
         .items
         .iter()
+        .filter(|item| item.category.as_deref() == Some("misc"))
         .filter(|item| {
-            if let Some(cat) = &cat_filter {
-                if item.category.as_deref() != Some(cat.as_str()) {
-                    return false;
-                }
-            }
             if filter_lc.is_empty() {
                 return true;
             }
@@ -122,18 +91,16 @@ pub fn ui(
         .resizable(true)
         .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
         .column(Column::exact(40.0)) // icon
-        .column(Column::initial(220.0).at_least(120.0).clip(true)) // name
-        .column(Column::initial(90.0).at_least(60.0)) // category
-        .column(Column::initial(130.0).at_least(80.0).clip(true)) // subcategory
-        .column(Column::initial(70.0).at_least(50.0)) // weight
-        .column(Column::initial(100.0).at_least(70.0)) // price
+        .column(Column::initial(240.0).at_least(140.0).clip(true)) // name
+        .column(Column::initial(150.0).at_least(80.0).clip(true)) // subcategory
+        .column(Column::initial(80.0).at_least(50.0)) // weight
+        .column(Column::initial(110.0).at_least(70.0)) // price
         .column(Column::remainder().at_least(70.0)) // rarity
         .header(22.0, |mut header| {
             header.col(|ui| {
                 ui.strong("Icon");
             });
             header.col(|ui| sort_header(ui, db, SortColumn::Name, "Name"));
-            header.col(|ui| sort_header(ui, db, SortColumn::Category, "Category"));
             header.col(|ui| sort_header(ui, db, SortColumn::Subcategory, "Subcategory"));
             header.col(|ui| sort_header(ui, db, SortColumn::Weight, "Weight"));
             header.col(|ui| sort_header(ui, db, SortColumn::Price, "Value"));
@@ -151,9 +118,6 @@ pub fn ui(
                 row.col(|ui| {
                     ui.label(&item.name)
                         .on_hover_text(format!("id: {}", item.id));
-                });
-                row.col(|ui| {
-                    ui.label(item.category.as_deref().unwrap_or("—"));
                 });
                 row.col(|ui| {
                     ui.label(item.subcategory.as_deref().unwrap_or("—"));
@@ -211,7 +175,6 @@ fn sort_rows(rows: &mut [&Item], col: SortColumn, dir: SortDir) {
     rows.sort_by(|a, b| {
         let ord = match col {
             SortColumn::Name => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
-            SortColumn::Category => opt_str_cmp(a.category.as_deref(), b.category.as_deref()),
             SortColumn::Subcategory => {
                 opt_str_cmp(a.subcategory.as_deref(), b.subcategory.as_deref())
             }

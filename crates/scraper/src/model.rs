@@ -5,10 +5,8 @@
 
 use serde::{Deserialize, Serialize};
 
-pub type UpgradeId = String;
 pub type TaskId = String;
 pub type ItemId = String;
-pub type ModuleId = String;
 pub type VendorId = String;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -17,26 +15,14 @@ pub struct GameData {
     pub scraped_at: String,
     pub source_repo: String,
     pub source_commit: String,
-    pub modules: Vec<HideoutModule>,
+    /// Hideout modules are owned by the hideout_screenshots skill (hand-
+    /// validated against in-game screenshots). The scraper reads the existing
+    /// data.json's `modules` value and writes it back unchanged, so we treat
+    /// it as opaque JSON here — that way fields like `cost` (added later by
+    /// the skill) round-trip without us having to grow this struct.
+    pub modules: serde_json::Value,
     pub vendors: Vec<Vendor>,
     pub items: Vec<Item>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct HideoutModule {
-    pub id: ModuleId,
-    pub name: String,
-    pub upgrades: Vec<Upgrade>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Upgrade {
-    pub id: UpgradeId,
-    pub name: String,
-    pub level: u32,
-    #[serde(default)]
-    pub description: String,
-    pub requirements: Vec<Requirement>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

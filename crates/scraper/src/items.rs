@@ -134,13 +134,15 @@ impl ItemCatalog {
         Ok(Self { items, by_name })
     }
 
-    /// Build the full `Item` list for our `data.json`. We ship every upstream
-    /// item (not just those referenced by hideout/tasks) so the in-app Items
-    /// DB view has the complete catalog to sort and filter.
-    pub fn build_output_items(&self, icon_dir_name: &str) -> Vec<Item> {
+    /// Build the `Item` list for our `data.json`, scoped to upstream `misc`
+    /// items only — that's the current scope of the in-app Items DB view.
+    /// When we expand to more categories, this filter is the only thing
+    /// that needs to grow.
+    pub fn build_output_items_misc(&self, icon_dir_name: &str) -> Vec<Item> {
         let mut out: Vec<Item> = self
             .items
             .values()
+            .filter(|rec| rec.category.as_deref() == Some("misc"))
             .map(|rec| Item {
                 id: rec.id.clone(),
                 name: rec.name.clone(),

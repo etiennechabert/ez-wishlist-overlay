@@ -6,7 +6,6 @@
 //! cargo run -p scraper -- --output crates/app/src/assets
 //! ```
 
-mod hideout;
 mod items;
 mod model;
 mod output;
@@ -17,7 +16,7 @@ mod upstream;
 use anyhow::{Context, Result};
 use clap::Parser;
 use std::collections::HashSet;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use time::OffsetDateTime;
 use tracing_subscriber::EnvFilter;
 
@@ -81,36 +80,18 @@ fn main() -> Result<()> {
     };
 
     let public_data = upstream.root.join("public").join("data");
-    let hideout_ts = upstream
-        .root
-        .join("src")
-        .join("data")
-        .join("hideout-upgrades.ts");
     let tasks_ts = upstream.root.join("src").join("data").join("tasks.ts");
 
     let catalog = items::ItemCatalog::from_upstream(&public_data)?;
-    let hideout = hideout::parse(&hideout_ts).context("hideout parse")?;
     let tasks = tasks::parse(&tasks_ts, &catalog).context("tasks parse")?;
 
-    // Union of every item referenced by any kept upgrade or task. Used only
-    // for coverage diagnostics — `data.json` ships every item in the catalog
-    // so the Items DB view sees the full set.
-    let mut referenced: HashSet<String> = HashSet::new();
-    referenced.extend(hideout.referenced_items.iter().cloned());
-    referenced.extend(tasks.referenced_items.iter().cloned());
+    // Hideout module data is hand-validated against in-game screenshots (see
+    // hideout_screenshots/CLAUDE.md). The scraper must never overwrite it,
+    // so we read the existing data.json and carry its `modules` field over.
+    let existing_modules = read_existing_modules(&args.output.join("data.json"));
 
-    let items_out = catalog.build_output_items(output::ICON_DIR_NAME);
-    let coverage = referenced
-        .iter()
-        .filter(|id| catalog.items.contains_key(*id))
-        .count();
-    let unknown = referenced.len() - coverage;
-    if unknown > 0 {
-        tracing::warn!(unknown, "referenced item IDs not present in any catalog");
-    }
-    // Icons are copied for every item we emit, so the Items DB view has
-    // pictures next to weapons/armor/etc. — not just the wishlist subset.
-    let all_item_ids: HashSet<String> = catalog.items.keys().cloned().collect();
+    let items_out = catalog.build_output_items_misc(output::ICON_DIR_NAME);
+    let emitted_ids: HashSet<String> = items_out.iter().map(|i| i.id.clone()).collect();
 
     let version = upstream::upstream_package_version(&upstream.root).unwrap_or_else(|e| {
         tracing::warn!(error = %e, "could not read upstream package.json version");
@@ -124,7 +105,7 @@ fn main() -> Result<()> {
             .unwrap_or_else(|_| "unknown".to_string()),
         source_repo: args.repo.clone(),
         source_commit: upstream.commit.clone(),
-        modules: hideout.modules,
+        modules: existing_modules,
         vendors: tasks.vendors,
         items: items_out,
     };
@@ -135,7 +116,7 @@ fn main() -> Result<()> {
     output::write_source_md(&args.output, &data, tasks.unparsed_objectives.len())?;
 
     let icons_written = if !args.skip_icons {
-        let outcome = output::copy_icons(&args.output, &upstream.root, &catalog, &all_item_ids)?;
+        let outcome = output::copy_icons(&args.output, &upstream.root, &catalog, &emitted_ids)?;
         if !outcome.icons_missing.is_empty() {
             tracing::warn!(
                 count = outcome.icons_missing.len(),
@@ -159,13 +140,25 @@ fn main() -> Result<()> {
     }
 
     println!();
+    let module_count = data.modules.as_array().map(|a| a.len()).unwrap_or(0);
+    let upgrade_count: usize = data
+        .modules
+        .as_array()
+        .map(|arr| {
+            arr.iter()
+                .map(|m| {
+                    m.get("upgrades")
+                        .and_then(|u| u.as_array())
+                        .map(|a| a.len())
+                        .unwrap_or(0)
+                })
+                .sum()
+        })
+        .unwrap_or(0);
     println!("== Scraper summary ==");
     println!("  data version : {}", data.data_version);
-    println!("  modules      : {}", data.modules.len());
-    println!(
-        "  upgrades     : {}",
-        data.modules.iter().map(|m| m.upgrades.len()).sum::<usize>()
-    );
+    println!("  modules      : {}", module_count);
+    println!("  upgrades     : {}", upgrade_count);
     println!("  vendors      : {}", data.vendors.len());
     println!(
         "  tasks        : {}",
@@ -181,6 +174,36 @@ fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Read the `modules` value from an existing `data.json`, returning an empty
+/// array if the file doesn't exist or can't be parsed. Hideout module data
+/// is authored by hand (via the hideout_screenshots skill) and must survive
+/// scraper re-runs — we pass it through as opaque JSON to preserve any
+/// fields the skill has added that aren't in our typed schema.
+fn read_existing_modules(path: &Path) -> serde_json::Value {
+    let empty = serde_json::Value::Array(Vec::new());
+    let text = match std::fs::read_to_string(path) {
+        Ok(t) => t,
+        Err(_) => {
+            tracing::info!(path = %path.display(), "no existing data.json — modules will be empty");
+            return empty;
+        }
+    };
+    let parsed: serde_json::Value = match serde_json::from_str(&text) {
+        Ok(v) => v,
+        Err(e) => {
+            tracing::warn!(error = %e, "could not parse existing data.json; modules will be empty");
+            return empty;
+        }
+    };
+    let modules = parsed
+        .get("modules")
+        .cloned()
+        .unwrap_or_else(|| empty.clone());
+    let count = modules.as_array().map(|a| a.len()).unwrap_or(0);
+    tracing::info!(count, "carried over hideout modules from existing data.json");
+    modules
 }
 
 fn init_logging(verbose: bool) {
