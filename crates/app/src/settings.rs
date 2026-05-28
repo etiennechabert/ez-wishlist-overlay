@@ -49,6 +49,14 @@ pub struct Settings {
     /// counts read correctly across the committed digit templates).
     #[serde(default = "default_ocr_enabled")]
     pub ocr_enabled: bool,
+    /// Which compositor mirror eye texture to capture for OCR. Default
+    /// is the RIGHT eye — empirically the left eye's mirror buffer
+    /// occasionally returned the previous frame on consecutive
+    /// captures (the "second screenshot OCR's the first" bug), while
+    /// the right eye stayed in sync. Switch to `Left` if a specific
+    /// headset behaves the opposite way.
+    #[serde(default = "default_capture_eye")]
+    pub capture_eye: CaptureEye,
 }
 
 fn default_check_for_updates() -> bool {
@@ -57,6 +65,23 @@ fn default_check_for_updates() -> bool {
 
 fn default_ocr_enabled() -> bool {
     true
+}
+
+fn default_capture_eye() -> CaptureEye {
+    CaptureEye::Right
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum CaptureEye {
+    Left,
+    Right,
+}
+
+impl Default for CaptureEye {
+    fn default() -> Self {
+        Self::Right
+    }
 }
 
 impl Default for Settings {
@@ -68,6 +93,7 @@ impl Default for Settings {
             check_for_updates: default_check_for_updates(),
             dismissed_update_version: None,
             ocr_enabled: default_ocr_enabled(),
+            capture_eye: default_capture_eye(),
         }
     }
 }

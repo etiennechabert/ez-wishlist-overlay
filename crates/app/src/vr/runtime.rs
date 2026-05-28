@@ -353,11 +353,13 @@ fn render_loop(
                 tracing::info!("vr: no prior OCR overlay to hide");
             }
             let path = next_screenshot_path(paths);
+            let capture_eye: super::capture::CaptureEye = settings.read().capture_eye.into();
             tracing::info!(
                 path = %path.display(),
+                eye = ?capture_eye,
                 "vr: generated screenshot path"
             );
-            let result = match session.capture_screenshot(&path) {
+            let result = match session.capture_screenshot(&path, capture_eye) {
                 Ok(()) => {
                     // Best-effort forward to OCR. If the channel is full
                     // (worker busy on a previous shot) we drop this one

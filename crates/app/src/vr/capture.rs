@@ -78,10 +78,45 @@ pub fn play_capture_done_beep(success: bool) {
     }
 }
 
-/// Pull the left-eye mirror texture from the SteamVR compositor and write it
-/// to `out_path` as PNG. Caller must guarantee `VR_Init` has already run on
-/// this process (the OverlaySession constructor does).
-pub fn capture_compositor_mirror_to_png(out_path: &Path) -> Result<()> {
+/// Which compositor mirror eye texture to capture. The default is the
+/// right eye — empirically that channel stayed in sync with in-game
+/// state when the left-eye mirror was leaking the previous frame on
+/// consecutive captures (the "second screenshot OCR's the first" bug
+/// we kept chasing). Configurable from [`crate::settings::Settings`].
+#[derive(Clone, Copy, Debug)]
+pub enum CaptureEye {
+    Left,
+    Right,
+}
+
+impl From<crate::settings::CaptureEye> for CaptureEye {
+    fn from(s: crate::settings::CaptureEye) -> Self {
+        match s {
+            crate::settings::CaptureEye::Left => CaptureEye::Left,
+            crate::settings::CaptureEye::Right => CaptureEye::Right,
+        }
+    }
+}
+
+impl CaptureEye {
+    fn sys(self) -> sys::EVREye {
+        match self {
+            CaptureEye::Left => sys::EVREye_Eye_Left,
+            CaptureEye::Right => sys::EVREye_Eye_Right,
+        }
+    }
+    fn label(self) -> &'static str {
+        match self {
+            CaptureEye::Left => "left",
+            CaptureEye::Right => "right",
+        }
+    }
+}
+
+/// Pull the configured eye's mirror texture from the SteamVR compositor
+/// and write it to `out_path` as PNG. Caller must guarantee `VR_Init`
+/// has already run on this process (the OverlaySession constructor does).
+pub fn capture_compositor_mirror_to_png(out_path: &Path, eye: CaptureEye) -> Result<()> {
     // No-cycle, max-fresh strategy per user request. Every SteamVR
     // and D3D11 resource the capture path touches is reallocated per
     // call — fresh device, fresh fn-table lookup, fresh SRV, fresh
@@ -93,6 +128,7 @@ pub fn capture_compositor_mirror_to_png(out_path: &Path) -> Result<()> {
     tracing::info!(
         capture_seq,
         out_path = %out_path.display(),
+        eye = eye.label(),
         "capture: ENTER capture_compositor_mirror_to_png"
     );
 
@@ -115,15 +151,95 @@ pub fn capture_compositor_mirror_to_png(out_path: &Path) -> Result<()> {
         "capture: IVRCompositor fn-table looked up"
     );
 
+    // Query the compositor's frame timing BEFORE we acquire the
+    // mirror SRV. `m_nFrameIndex` is the compositor's monotonic
+    // frame counter; if two consecutive captures report the same
+    // index the compositor is genuinely stuck on one frame (or our
+    // mirror acquire is reading a snapshot from an older index).
+    // `m_flSystemTimeInSeconds` is when the compositor finished the
+    // frame — comparing that to our wall-clock tells us how stale
+    // the buffer is.
+    {
+        let mut t: sys::Compositor_FrameTiming = unsafe { std::mem::zeroed() };
+        t.m_nSize = std::mem::size_of::<sys::Compositor_FrameTiming>() as u32;
+        let got = unsafe {
+            (*fn_table)
+                .GetFrameTiming
+                .map(|f| f(&mut t as *mut _, 0))
+                .unwrap_or(false)
+        };
+        if got {
+            tracing::info!(
+                capture_seq,
+                frame_index = t.m_nFrameIndex,
+                frame_system_time_s = t.m_flSystemTimeInSeconds,
+                num_dropped = t.m_nNumDroppedFrames,
+                num_mispresented = t.m_nNumMisPresented,
+                "capture: compositor frame timing (compare frame_index across captures)"
+            );
+        } else {
+            tracing::warn!(capture_seq, "capture: GetFrameTiming returned false");
+        }
+    }
+
     let t_acq_start = std::time::Instant::now();
-    let mirror = MirrorTexture::acquire(fn_table, &d3d.device, sys::EVREye_Eye_Left)
-        .context("GetMirrorTextureD3D11")?;
+    let mirror = MirrorTexture::acquire(fn_table, &d3d.device, eye.sys())
+        .with_context(|| format!("GetMirrorTextureD3D11({})", eye.label()))?;
     tracing::info!(
         capture_seq,
+        eye = eye.label(),
         srv_ptr = format!("{:p}", mirror.srv_raw),
         elapsed_ms = t_acq_start.elapsed().as_millis() as u64,
         "capture: GetMirrorTextureD3D11 returned SRV"
     );
+
+    // Eye-comparison diagnostic (debug builds only): also acquire
+    // the OTHER eye and fingerprint a head sample of its bytes. If
+    // the captured eye's hash is identical across two captures but
+    // the other eye's hash advances, the captured eye's mirror
+    // buffer is lagging while the other is fresh — eye textures
+    // are submitted independently by the game and may not stay in
+    // lockstep. Cheap probe (~65 KiB readback) so the cost is
+    // bounded; release builds skip this entirely to avoid paying
+    // for a second SRV acquire + texture copy.
+    #[cfg(debug_assertions)]
+    {
+        let other = match eye {
+            CaptureEye::Left => sys::EVREye_Eye_Right,
+            CaptureEye::Right => sys::EVREye_Eye_Left,
+        };
+        let other_label = match eye {
+            CaptureEye::Left => "right",
+            CaptureEye::Right => "left",
+        };
+        match MirrorTexture::acquire(fn_table, &d3d.device, other) {
+            Ok(other_mirror) => unsafe {
+                if let Ok(res) = other_mirror.srv().GetResource() {
+                    if let Ok(other_tex) = res.cast::<ID3D11Texture2D>() {
+                        let mut odesc = D3D11_TEXTURE2D_DESC::default();
+                        other_tex.GetDesc(&mut odesc);
+                        if let Ok(opix) = readback_texture(&d3d, &other_tex, &odesc) {
+                            let probe_len = opix.len().min(65536);
+                            let other_probe_fnv = fnv1a64(&opix[..probe_len]);
+                            tracing::info!(
+                                capture_seq,
+                                eye = other_label,
+                                srv_ptr = format!("{:p}", other_mirror.srv_raw),
+                                probe_fnv = format!("{other_probe_fnv:#018x}"),
+                                "capture: OTHER-eye probe (debug-only diagnostic)"
+                            );
+                        }
+                    }
+                }
+            },
+            Err(e) => tracing::warn!(
+                capture_seq,
+                eye = other_label,
+                error = %e,
+                "capture: other-eye debug acquire failed"
+            ),
+        }
+    }
 
     let texture = unsafe { mirror.srv().GetResource() }
         .context("ID3D11ShaderResourceView::GetResource")?

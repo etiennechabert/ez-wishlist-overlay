@@ -449,8 +449,12 @@ impl OverlaySession {
     /// makes the OCR pipeline tractable; the chunky pixel-art digit font is
     /// destroyed by Steam's F12 JPEG. Method lives on `OverlaySession`
     /// purely so the type system enforces "VR_Init has run on this thread".
-    pub fn capture_screenshot(&self, out_path: &std::path::Path) -> Result<()> {
-        super::capture::capture_compositor_mirror_to_png(out_path)
+    pub fn capture_screenshot(
+        &self,
+        out_path: &std::path::Path,
+        eye: super::capture::CaptureEye,
+    ) -> Result<()> {
+        super::capture::capture_compositor_mirror_to_png(out_path, eye)
     }
 
     /// Fire a haptic pulse on a controller. `duration_us` is microseconds;
