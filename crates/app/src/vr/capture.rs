@@ -67,31 +67,43 @@ pub fn capture_compositor_mirror_to_png(out_path: &Path) -> Result<()> {
 
     // Drain the compositor mirror swap chain hard. Single-acquire
     // returned the FRAME-BEFORE on consecutive captures in the wild —
-    // "OCR is reading the previous screenshot, not the one I just
-    // took." Two cumulative effects:
-    //   1. First acquire of a session can return an uninitialised
-    //      buffer (saved PNG was solid black).
-    //   2. SteamVR appears to expose mirror frames through a small
-    //      swap chain; rapid successive acquires hand back the
-    //      buffer the compositor *wrote* one or two slots ago, not
-    //      the absolute newest.
+    // "first screenshot is good, all subsequent ones lag by one
+    // frame." User confirmed empirically: capture 1 of panel A → A
+    // captured; switch to panel B and capture 2 → panel A captured
+    // again instead of B. The mirror SRV is bound to a small
+    // SteamVR-internal queue, and successive acquires hand back the
+    // *frame the compositor finished writing one slot ago*, not the
+    // absolute newest.
     //
-    // Two acquire→release→sleep cycles before the keeper acquire push
-    // the compositor through enough fresh composites (at 90 Hz that's
-    // 18 vsyncs across 200 ms, even allowing for skipped frames) that
-    // the third acquire is guaranteed to land on a buffer composited
-    // AFTER everything we did in `runtime.rs` — including hiding the
-    // OCR overlay.
-    for cycle in 0..2 {
+    // The fix: do enough acquire→release cycles before the keeper
+    // acquire that we walk past every stale slot in the queue. Each
+    // (acquire, release, sleep) pair gives SteamVR a chance to flip
+    // its mirror buffers (release returns the SRV; the sleep gives
+    // the compositor real time to write the next frame). Five cycles
+    // at 80 ms each = 400 ms total drain, ~36 vsync intervals at
+    // 90 Hz — far more than any reasonable queue depth.
+    //
+    // The user-perceived latency on space-bar capture is dominated
+    // by D3D11 device creation + PNG encode (~3-4 s on the 3K mirror
+    // texture), so 400 ms of extra sleep is invisible against that.
+    const DRAIN_CYCLES: usize = 5;
+    const DRAIN_SLEEP_MS: u64 = 80;
+    for cycle in 0..DRAIN_CYCLES {
         let _drain = MirrorTexture::acquire(fn_table, &d3d.device, sys::EVREye_Eye_Left)
             .with_context(|| format!("GetMirrorTextureD3D11 (drain cycle {cycle})"))?;
         // _drain's Drop calls ReleaseMirrorTextureD3D11; release
-        // happens at the end of this block scope.
+        // happens at end of statement here so the sleep below covers
+        // *post-release* compositor activity.
         drop(_drain);
-        std::thread::sleep(std::time::Duration::from_millis(100));
+        std::thread::sleep(std::time::Duration::from_millis(DRAIN_SLEEP_MS));
     }
     let mirror = MirrorTexture::acquire(fn_table, &d3d.device, sys::EVREye_Eye_Left)
         .context("GetMirrorTextureD3D11 (keeper)")?;
+    tracing::debug!(
+        drain_cycles = DRAIN_CYCLES,
+        drain_sleep_ms = DRAIN_SLEEP_MS,
+        "compositor mirror drain complete; keeper acquire taken",
+    );
 
     let texture = unsafe { mirror.srv().GetResource() }
         .context("ID3D11ShaderResourceView::GetResource")?
