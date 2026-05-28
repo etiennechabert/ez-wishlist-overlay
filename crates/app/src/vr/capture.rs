@@ -58,52 +58,33 @@ pub fn play_capture_done_beep(success: bool) {
 /// to `out_path` as PNG. Caller must guarantee `VR_Init` has already run on
 /// this process (the OverlaySession constructor does).
 pub fn capture_compositor_mirror_to_png(out_path: &Path) -> Result<()> {
-    // Fresh D3D11 device + fresh staging texture (in `readback_texture`)
-    // per call — nothing is cached, no buffer reuse. The compositor
-    // mirror itself is owned by SteamVR; we discard our handle on each
-    // `Release` so successive calls re-acquire from scratch.
+    // No-cycle, max-fresh strategy per user request. Instead of
+    // walking past stale buffers in the compositor's mirror swap
+    // chain with a multi-cycle drain, we close+reopen every SteamVR-
+    // and D3D11-side resource the capture path touches, every call:
+    //
+    //   - Fresh `D3D11CreateDevice` (and its immediate context).
+    //   - Fresh `VR_GetGenericInterface(IVRCompositor)` fn-table lookup.
+    //   - Fresh `GetMirrorTextureD3D11` SRV, released at end of scope.
+    //   - Fresh staging texture in `readback_texture`, fresh `CopyResource`.
+    //
+    // Hypothesis: SteamVR's mirror-texture allocator keys off the
+    // calling D3D11 device's COM identity, so a brand-new device every
+    // call should hand us a brand-new shared SRV pointing at the
+    // CURRENT mirror frame, with no carry-over from the previous
+    // capture's view. If that holds, we get a fresh snapshot in one
+    // acquire — no queue to drain.
+    //
+    // If this still leaks the previous frame, the next escalation is
+    // either a PrintWindow capture of the SteamVR mirror window
+    // (bypassing the OpenVR API entirely) or putting the drain cycles
+    // back. Worth measuring first.
     let d3d = D3d11Context::create().context("D3D11CreateDevice")?;
     let fn_table = lookup_compositor_fn_table().context("look up IVRCompositor fn-table")?;
 
-    // Drain the compositor mirror swap chain hard. Single-acquire
-    // returned the FRAME-BEFORE on consecutive captures in the wild —
-    // "first screenshot is good, all subsequent ones lag by one
-    // frame." User confirmed empirically: capture 1 of panel A → A
-    // captured; switch to panel B and capture 2 → panel A captured
-    // again instead of B. The mirror SRV is bound to a small
-    // SteamVR-internal queue, and successive acquires hand back the
-    // *frame the compositor finished writing one slot ago*, not the
-    // absolute newest.
-    //
-    // The fix: do enough acquire→release cycles before the keeper
-    // acquire that we walk past every stale slot in the queue. Each
-    // (acquire, release, sleep) pair gives SteamVR a chance to flip
-    // its mirror buffers (release returns the SRV; the sleep gives
-    // the compositor real time to write the next frame). Five cycles
-    // at 80 ms each = 400 ms total drain, ~36 vsync intervals at
-    // 90 Hz — far more than any reasonable queue depth.
-    //
-    // The user-perceived latency on space-bar capture is dominated
-    // by D3D11 device creation + PNG encode (~3-4 s on the 3K mirror
-    // texture), so 400 ms of extra sleep is invisible against that.
-    const DRAIN_CYCLES: usize = 5;
-    const DRAIN_SLEEP_MS: u64 = 80;
-    for cycle in 0..DRAIN_CYCLES {
-        let _drain = MirrorTexture::acquire(fn_table, &d3d.device, sys::EVREye_Eye_Left)
-            .with_context(|| format!("GetMirrorTextureD3D11 (drain cycle {cycle})"))?;
-        // _drain's Drop calls ReleaseMirrorTextureD3D11; release
-        // happens at end of statement here so the sleep below covers
-        // *post-release* compositor activity.
-        drop(_drain);
-        std::thread::sleep(std::time::Duration::from_millis(DRAIN_SLEEP_MS));
-    }
     let mirror = MirrorTexture::acquire(fn_table, &d3d.device, sys::EVREye_Eye_Left)
-        .context("GetMirrorTextureD3D11 (keeper)")?;
-    tracing::debug!(
-        drain_cycles = DRAIN_CYCLES,
-        drain_sleep_ms = DRAIN_SLEEP_MS,
-        "compositor mirror drain complete; keeper acquire taken",
-    );
+        .context("GetMirrorTextureD3D11")?;
+    tracing::debug!("compositor mirror acquired (no-cycle fresh-allocation strategy)");
 
     let texture = unsafe { mirror.srv().GetResource() }
         .context("ID3D11ShaderResourceView::GetResource")?
@@ -311,6 +292,12 @@ fn readback_texture(
     let staging = staging.ok_or_else(|| anyhow!("CreateTexture2D(staging) returned None"))?;
 
     unsafe { d3d.context.CopyResource(&staging, texture) };
+    // Force the GPU to finish the CopyResource before we Map the
+    // staging texture. Without Flush, the D3D11 driver may defer the
+    // copy and Map can read torn or pre-copy contents — an obscure
+    // mode of "we're reading stale pixels" that the no-cycle
+    // strategy depends on NOT happening.
+    unsafe { d3d.context.Flush() };
 
     let mut mapped = D3D11_MAPPED_SUBRESOURCE::default();
     unsafe {
