@@ -640,17 +640,9 @@ fn pick_best_strip_y(
     best_cells
 }
 
-#[cfg(not(target_os = "windows"))]
-pub fn process_screenshot(
-    _path: &Path,
-    _data: &GameData,
-    _debug_dumps: bool,
-    _trace: bool,
-) -> Result<OcrPipelineResult> {
-    // Windows.Media.Ocr is not available on non-Windows targets.
-    Ok(OcrPipelineResult::NoPanel)
-}
-
+// `process_screenshot` has no non-Windows stub — its only callers are
+// the Windows-gated fixture tests below. Non-Windows code drives the
+// pipeline via `process_image` only.
 #[cfg(not(target_os = "windows"))]
 pub fn process_image(
     _img: image::DynamicImage,

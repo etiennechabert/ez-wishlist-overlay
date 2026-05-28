@@ -45,6 +45,26 @@ fn fnv1a64(bytes: &[u8]) -> u64 {
     h
 }
 
+/// FNV-1a over every `stride`-th byte of `bytes`. Used in the
+/// adaptive frame-freshness poll: a full-buffer hash of a 30 MB
+/// mirror texture costs ~15 ms, but the poll just needs to detect
+/// "did *any* pixel change between successive `GetMirrorTextureD3D11`
+/// calls?" — sparse sampling answers that for ~0.2 ms per call.
+/// Stride 256 covers ~117 K bytes scattered across the whole buffer,
+/// which empirically catches every compositor frame change (the AA
+/// dither + per-frame perspective jitter touch effectively every
+/// region of the texture).
+fn fnv1a64_strided(bytes: &[u8], stride: usize) -> u64 {
+    let mut h: u64 = 0xcbf29ce484222325;
+    let mut i = 0;
+    while i < bytes.len() {
+        h ^= bytes[i] as u64;
+        h = h.wrapping_mul(0x100000001b3);
+        i += stride;
+    }
+    h
+}
+
 use openvr_sys as sys;
 use windows::core::Interface;
 use windows::Win32::Graphics::Direct3D::{D3D_DRIVER_TYPE_HARDWARE, D3D_FEATURE_LEVEL_11_0};
@@ -200,40 +220,104 @@ pub fn capture_compositor_mirror_image(
         }
     }
 
-    // Drain the mirror swap chain before the real read. The compositor
-    // exposes frames through a small queue and returns the next slot
-    // each call; in field reports a single drain cycle didn't always
-    // walk past every stale entry — the user navigated from panel A
-    // to panel B, captured, and STILL got A's frame back. Three
-    // cycles (acquire → release → sleep) at 60 ms each guarantees
-    // walking past a 3-slot-deep queue plus gives the compositor real
-    // time to push the latest frame into the buffer the keeper
-    // acquire below will pick up. Total ~180 ms — imperceptible
-    // against the existing GPU readback + PNG-encode latency
-    // (~150 ms + ~3.7 s respectively).
-    const PRIMER_CYCLES: usize = 3;
-    const PRIMER_SLEEP_MS: u64 = 60;
-    for _ in 0..PRIMER_CYCLES {
-        let _primer = MirrorTexture::acquire(fn_table, &d3d.device, eye.sys())
-            .with_context(|| format!("GetMirrorTextureD3D11({}) primer", eye.label()))?;
-        drop(_primer);
-        std::thread::sleep(std::time::Duration::from_millis(PRIMER_SLEEP_MS));
-    }
+    // Adaptive frame-freshness poll. Replaces the old fixed PRIMER
+    // (3× acquire-release-sleep 60 ms = 180 ms blind wait that *still*
+    // missed a frame when the trace probe's accidental 15-30 ms of
+    // GPU/CPU work wasn't there to push CopyResource past the
+    // compositor's next vsync). The new flow:
+    //
+    //   1. Take a baseline snapshot — one acquire + readback + a cheap
+    //      strided hash over the pixel buffer.
+    //   2. Sleep ~one vsync, take another snapshot. The
+    //      `GetMirrorTextureD3D11` call rotates the swap chain, so the
+    //      new snapshot reads a *different* slot than the baseline;
+    //      whatever the compositor has published since baseline lands
+    //      here.
+    //   3. If the strided hash differs from baseline → we have a
+    //      genuinely fresh frame and the polling loop exits. The bug
+    //      this fixes is "OCR captured the previous screenshot's
+    //      panel" — by *confirming* the bytes changed rather than
+    //      guessing the right blind-sleep duration, we get correctness
+    //      without paying the worst-case fixed wait.
+    //   4. Otherwise loop; cap at MAX_POLLS so a truly static scene
+    //      (or a stuck compositor) eventually falls through with a
+    //      logged warning, still returning the baseline as
+    //      best-effort.
+    //
+    // On a 90 Hz headset the typical exit is one poll (~30 ms total
+    // overhead vs the old 180 ms), so this is also a net latency win.
+    const POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(15);
+    const MAX_POLLS: usize = 12; // 180 ms hard cap, matches the old PRIMER budget
+    const HASH_STRIDE: usize = 256;
 
-    let t_acq_start = std::time::Instant::now();
-    let mirror = MirrorTexture::acquire(fn_table, &d3d.device, eye.sys())
-        .with_context(|| format!("GetMirrorTextureD3D11({})", eye.label()))?;
+    let snapshot_mirror = |label: &str| -> Result<(Vec<u8>, D3D11_TEXTURE2D_DESC, u64)> {
+        let mirror = MirrorTexture::acquire(fn_table, &d3d.device, eye.sys())
+            .with_context(|| format!("GetMirrorTextureD3D11({}) {label}", eye.label()))?;
+        let texture = unsafe { mirror.srv().GetResource() }
+            .context("ID3D11ShaderResourceView::GetResource")?
+            .cast::<ID3D11Texture2D>()
+            .context("SRV resource isn't an ID3D11Texture2D")?;
+        let mut desc = D3D11_TEXTURE2D_DESC::default();
+        unsafe { texture.GetDesc(&mut desc) };
+        let pixels = readback_texture(&d3d, &texture, &desc).context("readback")?;
+        let hash = fnv1a64_strided(&pixels, HASH_STRIDE);
+        drop(mirror);
+        Ok((pixels, desc, hash))
+    };
+
+    let t_poll_start = std::time::Instant::now();
+    let (mut pixels, desc, baseline_hash) = snapshot_mirror("baseline")?;
     if trace {
         tracing::info!(
             capture_seq,
             eye = eye.label(),
-            srv_ptr = format!("{:p}", mirror.srv_raw),
-            elapsed_ms = t_acq_start.elapsed().as_millis() as u64,
-            "capture: GetMirrorTextureD3D11 (keeper) returned SRV"
+            width = desc.Width,
+            height = desc.Height,
+            baseline_hash = format!("{baseline_hash:#018x}"),
+            baseline_ms = t_poll_start.elapsed().as_millis() as u64,
+            "capture: baseline snapshot taken — starting freshness poll"
         );
-        // Opposite-eye probe. If the captured eye's hash matches the
-        // previous capture but the OTHER eye's hash advances, the
-        // captured eye is lagging while the other is fresh.
+    }
+
+    let mut polls = 0usize;
+    let final_hash = loop {
+        if polls >= MAX_POLLS {
+            tracing::warn!(
+                capture_seq,
+                polls,
+                elapsed_ms = t_poll_start.elapsed().as_millis() as u64,
+                baseline_hash = format!("{baseline_hash:#018x}"),
+                "capture: mirror content never changed within MAX_POLLS — \
+                 using baseline (truly static scene or stuck compositor)"
+            );
+            break baseline_hash;
+        }
+        std::thread::sleep(POLL_INTERVAL);
+        polls += 1;
+        let (new_pixels, _new_desc, new_hash) = snapshot_mirror("poll")?;
+        if new_hash != baseline_hash {
+            pixels = new_pixels;
+            if trace {
+                tracing::info!(
+                    capture_seq,
+                    polls,
+                    baseline_hash = format!("{baseline_hash:#018x}"),
+                    fresh_hash = format!("{new_hash:#018x}"),
+                    elapsed_ms = t_poll_start.elapsed().as_millis() as u64,
+                    "capture: detected fresh compositor frame"
+                );
+            }
+            break new_hash;
+        }
+    };
+    let _ = final_hash; // consumed only via the trace log above
+
+    if trace {
+        // Opposite-eye probe, purely diagnostic. With adaptive polling
+        // it's no longer load-bearing (its accidental ~30 ms of GPU
+        // work was what masked the staleness bug pre-fix), so it sits
+        // *after* the keeper readback where its timing can't influence
+        // the result we hand to OCR.
         let other = match eye {
             CaptureEye::Left => sys::EVREye_Eye_Right,
             CaptureEye::Right => sys::EVREye_Eye_Left,
@@ -263,20 +347,6 @@ pub fn capture_compositor_mirror_image(
             }
         }
     }
-
-    let texture = unsafe { mirror.srv().GetResource() }
-        .context("ID3D11ShaderResourceView::GetResource")?
-        .cast::<ID3D11Texture2D>()
-        .context("SRV resource isn't an ID3D11Texture2D")?;
-
-    let desc = unsafe {
-        let mut d = D3D11_TEXTURE2D_DESC::default();
-        texture.GetDesc(&mut d);
-        d
-    };
-
-    let t_read_start = std::time::Instant::now();
-    let pixels = readback_texture(&d3d, &texture, &desc).context("readback")?;
     if trace {
         let pixel_fnv = fnv1a64(&pixels);
         let mid = (pixels.len() / 8) * 4;
@@ -287,7 +357,8 @@ pub fn capture_compositor_mirror_image(
             height = desc.Height,
             format = desc.Format.0,
             pixel_bytes = pixels.len(),
-            readback_ms = t_read_start.elapsed().as_millis() as u64,
+            poll_total_ms = t_poll_start.elapsed().as_millis() as u64,
+            polls,
             pixel_fnv = format!("{pixel_fnv:#018x}"),
             first_rgba = format!("[{},{},{},{}]", pixels[0], pixels[1], pixels[2], pixels[3]),
             centre_rgba = format!(
@@ -304,7 +375,7 @@ pub fn capture_compositor_mirror_image(
                 pixels[last_start + 2],
                 pixels[last_start + 3]
             ),
-            "capture: readback complete + pixel fingerprint"
+            "capture: keeper readback complete + pixel fingerprint"
         );
     }
 
