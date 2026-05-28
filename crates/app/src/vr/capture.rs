@@ -194,23 +194,24 @@ pub fn capture_compositor_mirror_to_png(
         }
     }
 
-    // Drain one slot of the mirror swap chain before the real read.
-    // Without this, the FIRST capture after the user navigates to a
-    // new panel returned the previous panel — even on the right eye —
-    // because SteamVR's mirror appears to expose frames through a
-    // small queue and hands back the second-newest entry the moment
-    // you ask. One acquire→release→sleep cycle is enough to walk past
-    // that slot; the keeper acquire below then lands on the actual
-    // latest composited frame.
-    {
+    // Drain the mirror swap chain before the real read. The compositor
+    // exposes frames through a small queue and returns the next slot
+    // each call; in field reports a single drain cycle didn't always
+    // walk past every stale entry — the user navigated from panel A
+    // to panel B, captured, and STILL got A's frame back. Three
+    // cycles (acquire → release → sleep) at 60 ms each guarantees
+    // walking past a 3-slot-deep queue plus gives the compositor real
+    // time to push the latest frame into the buffer the keeper
+    // acquire below will pick up. Total ~180 ms — imperceptible
+    // against the existing GPU readback + PNG-encode latency
+    // (~150 ms + ~3.7 s respectively).
+    const PRIMER_CYCLES: usize = 3;
+    const PRIMER_SLEEP_MS: u64 = 60;
+    for _ in 0..PRIMER_CYCLES {
         let _primer = MirrorTexture::acquire(fn_table, &d3d.device, eye.sys())
             .with_context(|| format!("GetMirrorTextureD3D11({}) primer", eye.label()))?;
         drop(_primer);
-        // ~50 ms covers ~4 vsyncs at 90 Hz / ~3 at 60 Hz — enough for
-        // the compositor to advance even on a slow headset, and
-        // imperceptible against the existing readback + PNG-encode
-        // latency.
-        std::thread::sleep(std::time::Duration::from_millis(50));
+        std::thread::sleep(std::time::Duration::from_millis(PRIMER_SLEEP_MS));
     }
 
     let t_acq_start = std::time::Instant::now();
