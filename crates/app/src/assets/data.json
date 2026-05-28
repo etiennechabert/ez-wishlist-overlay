@@ -1,6 +1,6 @@
 {
   "data_version": "2.0.4+6b0b855",
-  "scraped_at": "2026-05-28T07:24:18.795852Z",
+  "scraped_at": "2026-05-24T23:47:27.999507Z",
   "source_repo": "https://github.com/zelengeo/exfil-zone-assistant",
   "source_commit": "6b0b855985aca75ce0a87a478c355cc2afe2c76f",
   "modules": [
@@ -13,22 +13,23 @@
           "name": "Bookdesk",
           "level": 1,
           "description": "Manual ammo reloading time -10%",
+          "cost": 50000,
           "requirements": [
             {
-              "item_id": "misc_b_horrornovel",
+              "item_id": "misc_b_flashlight",
               "quantity": 5
             },
             {
-              "item_id": "misc_b_magazine",
+              "item_id": "misc_b_lightbulb",
+              "quantity": 5
+            },
+            {
+              "item_id": "misc_b_socket",
               "quantity": 3
             },
             {
-              "item_id": "misc_bomputertextbook",
+              "item_id": "misc_b_civilradio",
               "quantity": 2
-            },
-            {
-              "item_id": "misc_notebook",
-              "quantity": 5
             }
           ]
         },
@@ -193,9 +194,10 @@
           "name": "Bitcoin Mine",
           "level": 2,
           "description": "Unlock more slots; Increase money output.",
+          "cost": 200000,
           "requirements": [
             {
-              "item_id": "misc_b_ceramic_adhesive",
+              "item_id": "misc_bpu",
               "quantity": 4
             },
             {
@@ -203,7 +205,7 @@
               "quantity": 6
             },
             {
-              "item_id": "misc_bpu",
+              "item_id": "misc_b_ram",
               "quantity": 4
             },
             {
@@ -278,22 +280,23 @@
           "name": "Generator",
           "level": 2,
           "description": "Increase Fuel capacity, reduce power consumption.\nSupport upgrades for more facilities.",
+          "cost": 100000,
           "requirements": [
             {
               "item_id": "misc_b_lighterfluid",
               "quantity": 6
             },
             {
-              "item_id": "misc_b_transformer",
+              "item_id": "misc_oilcan",
+              "quantity": 8
+            },
+            {
+              "item_id": "misc_b_insulatingtape",
               "quantity": 6
             },
             {
-              "item_id": "misc_b_wire",
-              "quantity": 12
-            },
-            {
-              "item_id": "misc_oilcan",
-              "quantity": 8
+              "item_id": "misc_b_sparkplug",
+              "quantity": 1
             }
           ]
         },
@@ -356,18 +359,19 @@
           "name": "Gunsmith",
           "level": 2,
           "description": "Weapon parts storage capacity + 10kg",
+          "cost": 80000,
           "requirements": [
             {
-              "item_id": "misc_b_ceramic_adhesive",
-              "quantity": 8
-            },
-            {
-              "item_id": "misc_b_pipeline",
+              "item_id": "misc_b_valve",
               "quantity": 2
             },
             {
-              "item_id": "misc_b_wrench",
+              "item_id": "misc_b_nail",
               "quantity": 6
+            },
+            {
+              "item_id": "misc_b_ceramic_adhesive",
+              "quantity": 8
             },
             {
               "item_id": "misc_floppydisk",
@@ -434,22 +438,23 @@
           "name": "Intel Center",
           "level": 1,
           "description": "Show item prices with M.I.C.A.",
+          "cost": 100000,
           "requirements": [
-            {
-              "item_id": "misc_b_dataline",
-              "quantity": 2
-            },
-            {
-              "item_id": "misc_b_oldphone",
-              "quantity": 1
-            },
             {
               "item_id": "misc_b_opticaldisc",
               "quantity": 2
             },
             {
-              "item_id": "misc_mouse",
+              "item_id": "misc_b_1battery",
               "quantity": 2
+            },
+            {
+              "item_id": "misc_1batterie_2",
+              "quantity": 2
+            },
+            {
+              "item_id": "misc_b_oldphone",
+              "quantity": 1
             }
           ]
         },
@@ -458,22 +463,23 @@
           "name": "Intel Center",
           "level": 2,
           "description": "Character experience gain +15%",
+          "cost": 180000,
           "requirements": [
             {
-              "item_id": "misc_b_civilradio",
-              "quantity": 2
-            },
-            {
-              "item_id": "misc_b_harddrive",
-              "quantity": 3
-            },
-            {
-              "item_id": "misc_b_insulatingtape",
+              "item_id": "misc_b_opticaldisc",
               "quantity": 4
             },
             {
-              "item_id": "misc_b_opticaldisc",
+              "item_id": "misc_b_tape",
               "quantity": 3
+            },
+            {
+              "item_id": "misc_notebook",
+              "quantity": 3
+            },
+            {
+              "item_id": "taskitem_radio",
+              "quantity": 2
             }
           ]
         },
@@ -535,22 +541,23 @@
           "id": "KitchenAreaLv1",
           "name": "Kitchen Area",
           "level": 1,
-          "description": "Unlocks Coffee Machine, Microwave, Refrigerator",
+          "description": "Unlocks Coffee Machine, Microwave, Refrigerator. Increased Energy & Hydration Cap",
+          "cost": 70000,
           "requirements": [
+            {
+              "item_id": "misc_b_oliveoil",
+              "quantity": 3
+            },
+            {
+              "item_id": "misc_b_saltcan",
+              "quantity": 2
+            },
             {
               "item_id": "misc_b_gastank",
               "quantity": 1
             },
             {
-              "item_id": "misc_b_lighter",
-              "quantity": 2
-            },
-            {
-              "item_id": "misc_b_match",
-              "quantity": 3
-            },
-            {
-              "item_id": "misc_oilcan",
+              "item_id": "misc_b_plier_large",
               "quantity": 1
             }
           ]
@@ -566,22 +573,23 @@
           "name": "Med Desk",
           "level": 1,
           "description": "Drink recovery +10%.",
+          "cost": 70000,
           "requirements": [
             {
               "item_id": "misc_b_bottledglucose",
-              "quantity": 3
+              "quantity": 1
             },
             {
-              "item_id": "misc_b_disinfectingwipes",
-              "quantity": 3
+              "item_id": "misc_b_aspire",
+              "quantity": 1
             },
             {
-              "item_id": "misc_b_medicalkit",
+              "item_id": "misc_b_valve",
+              "quantity": 1
+            },
+            {
+              "item_id": "misc_b_socket",
               "quantity": 2
-            },
-            {
-              "item_id": "misc_b_uvlight",
-              "quantity": 3
             }
           ]
         },
@@ -744,6 +752,33 @@
       ]
     },
     {
+      "id": "Moreitem",
+      "name": "Procurement System",
+      "upgrades": [
+        {
+          "id": "MoreitemLv1",
+          "name": "Procurement System",
+          "level": 1,
+          "description": "More goods",
+          "cost": 120000,
+          "requirements": [
+            {
+              "item_id": "misc_hammer",
+              "quantity": 2
+            },
+            {
+              "item_id": "misc_b_recorder",
+              "quantity": 3
+            },
+            {
+              "item_id": "misc_b_1battery",
+              "quantity": 5
+            }
+          ]
+        }
+      ]
+    },
+    {
       "id": "OperationBed",
       "name": "Operating Bed",
       "upgrades": [
@@ -830,22 +865,23 @@
           "name": "Plant Stand",
           "level": 1,
           "description": "Food recovery +10%.",
+          "cost": 70000,
           "requirements": [
             {
-              "item_id": "misc_b_lightbulb",
-              "quantity": 5
+              "item_id": "misc_b_disinfectingwipes",
+              "quantity": 2
             },
             {
-              "item_id": "misc_b_rat_poison",
+              "item_id": "misc_b_valve",
               "quantity": 1
             },
             {
-              "item_id": "misc_b_smallshovel",
+              "item_id": "misc_b_lightbulb",
               "quantity": 2
             },
             {
-              "item_id": "misc_b_socket",
-              "quantity": 2
+              "item_id": "misc_b_insulatingtape",
+              "quantity": 1
             }
           ]
         },
@@ -893,6 +929,37 @@
             },
             {
               "item_id": "misc_b_smallshovel",
+              "quantity": 8
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "Quality",
+      "name": "Procurement Quality",
+      "upgrades": [
+        {
+          "id": "QualityLv1",
+          "name": "Procurement Quality",
+          "level": 1,
+          "description": "Higher quality",
+          "cost": 120000,
+          "requirements": [
+            {
+              "item_id": "misc_b_recorder",
+              "quantity": 2
+            },
+            {
+              "item_id": "misc_b_powerbank",
+              "quantity": 2
+            },
+            {
+              "item_id": "misc_b_ram",
+              "quantity": 2
+            },
+            {
+              "item_id": "misc_b_tape",
               "quantity": 8
             }
           ]
@@ -986,21 +1053,22 @@
           "name": "Toilet",
           "level": 1,
           "description": "Character experience gain +2%",
+          "cost": 120000,
           "requirements": [
             {
-              "item_id": "misc_b_pesticide",
+              "item_id": "misc_b_toiletpaper",
               "quantity": 2
             },
             {
-              "item_id": "misc_b_rustedcleaner",
-              "quantity": 2
-            },
-            {
-              "item_id": "misc_b_soap",
+              "item_id": "misc_hammer",
               "quantity": 1
             },
             {
-              "item_id": "misc_b_toiletpaper",
+              "item_id": "misc_b_pesticide",
+              "quantity": 1
+            },
+            {
+              "item_id": "misc_b_rustedcleaner",
               "quantity": 1
             }
           ]
@@ -1044,7 +1112,7 @@
               "quantity": 3
             },
             {
-              "item_id": "misc_b_pipeline",
+              "item_id": "misc_b_valve",
               "quantity": 5
             },
             {
@@ -1094,22 +1162,23 @@
           "name": "Sofa",
           "level": 1,
           "description": "Increase weight bearing capacity to 75",
+          "cost": 50000,
           "requirements": [
             {
-              "item_id": "misc_b_deodorant",
+              "item_id": "misc_blimbingrope",
               "quantity": 5
             },
             {
-              "item_id": "misc_b_glue_large",
+              "item_id": "misc_b_tire_sealant",
               "quantity": 3
             },
             {
-              "item_id": "misc_b_insulatingtape",
+              "item_id": "misc_b_plier_large",
+              "quantity": 3
+            },
+            {
+              "item_id": "misc_hammer",
               "quantity": 5
-            },
-            {
-              "item_id": "misc_b_superglue",
-              "quantity": 3
             }
           ]
         },
@@ -1172,22 +1241,23 @@
           "name": "Storage Room A",
           "level": 1,
           "description": "Access to storage room A",
+          "cost": 80000,
           "requirements": [
             {
-              "item_id": "misc_b_batter_large",
-              "quantity": 1
-            },
-            {
-              "item_id": "misc_b_flashlight",
-              "quantity": 6
-            },
-            {
               "item_id": "misc_b_nail",
-              "quantity": 8
+              "quantity": 3
             },
             {
-              "item_id": "misc_hammer",
-              "quantity": 1
+              "item_id": "misc_b_screw",
+              "quantity": 3
+            },
+            {
+              "item_id": "misc_b_disinfectingwipes",
+              "quantity": 3
+            },
+            {
+              "item_id": "misc_b_gastank_large",
+              "quantity": 3
             }
           ]
         }
@@ -1202,21 +1272,22 @@
           "name": "Storage Room B",
           "level": 1,
           "description": "Access to storage room B",
+          "cost": 400000,
           "requirements": [
             {
-              "item_id": "misc_b_moldboard",
+              "item_id": "misc_b_gastank_large",
               "quantity": 6
             },
             {
-              "item_id": "misc_b_nail",
-              "quantity": 10
+              "item_id": "misc_b_wrench",
+              "quantity": 6
             },
             {
-              "item_id": "misc_blimbingrope",
-              "quantity": 3
+              "item_id": "misc_screwdriver",
+              "quantity": 6
             },
             {
-              "item_id": "misc_hammer",
+              "item_id": "misc_b_batter_large",
               "quantity": 6
             }
           ]
@@ -1232,22 +1303,79 @@
           "name": "Storage Room C",
           "level": 1,
           "description": "Access to storage room C",
+          "cost": 400000,
           "requirements": [
             {
-              "item_id": "misc_b_gunoil",
-              "quantity": 12
+              "item_id": "misc_gunpowder",
+              "quantity": 10
             },
             {
               "item_id": "misc_b_smokelesspowder",
               "quantity": 10
             },
             {
-              "item_id": "misc_b_visionmodule",
-              "quantity": 6
+              "item_id": "misc_b_piezometer",
+              "quantity": 8
             },
             {
-              "item_id": "misc_gunpowder",
-              "quantity": 10
+              "item_id": "misc_b_visionmodule",
+              "quantity": 8
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "Storagevaluable",
+      "name": "Storage",
+      "upgrades": [
+        {
+          "id": "StoragevaluableLv1",
+          "name": "Storage",
+          "level": 1,
+          "description": "Expand Junk Box Capacity",
+          "cost": 488500,
+          "requirements": [
+            {
+              "item_id": "misc_wastechip",
+              "quantity": 2
+            },
+            {
+              "item_id": "misc_b_flashlight",
+              "quantity": 2
+            },
+            {
+              "item_id": "misc_b_ionbattery",
+              "quantity": 2
+            },
+            {
+              "item_id": "misc_b_tapeplayer",
+              "quantity": 1
+            }
+          ]
+        },
+        {
+          "id": "StoragevaluableLv2",
+          "name": "Storage",
+          "level": 2,
+          "description": "Expand Junk Box Capacity",
+          "cost": 807000,
+          "requirements": [
+            {
+              "item_id": "misc_b_wirecutting",
+              "quantity": 4
+            },
+            {
+              "item_id": "misc_wastechip",
+              "quantity": 3
+            },
+            {
+              "item_id": "misc_screwdriver",
+              "quantity": 3
+            },
+            {
+              "item_id": "misc_b_storagebattery",
+              "quantity": 1
             }
           ]
         }
@@ -1332,6 +1460,37 @@
       ]
     },
     {
+      "id": "TerminalStorage",
+      "name": "Starter's Storage Expansion",
+      "upgrades": [
+        {
+          "id": "TerminalStorageLv1",
+          "name": "Starter's Storage Expansion",
+          "level": 1,
+          "description": "Expand storage capacity in the Terminal area.",
+          "cost": 80000,
+          "requirements": [
+            {
+              "item_id": "misc_b_screw",
+              "quantity": 2
+            },
+            {
+              "item_id": "misc_b_nut",
+              "quantity": 2
+            },
+            {
+              "item_id": "misc_barcleaner",
+              "quantity": 1
+            },
+            {
+              "item_id": "misc_b_wrench",
+              "quantity": 2
+            }
+          ]
+        }
+      ]
+    },
+    {
       "id": "WaterCollector",
       "name": "Water Collector",
       "upgrades": [
@@ -1363,8 +1522,13 @@
           "id": "WaterCollectorLv2",
           "name": "Water Collector",
           "level": 2,
-          "description": "Regenerate Hydration faster inside Hideout.",
+          "description": "Faster Hydration Regeneration in HQ",
+          "cost": 50000,
           "requirements": [
+            {
+              "item_id": "misc_b_valve",
+              "quantity": 5
+            },
             {
               "item_id": "misc_b_insulatingtape",
               "quantity": 5
@@ -1374,12 +1538,8 @@
               "quantity": 6
             },
             {
-              "item_id": "misc_b_piezometer",
+              "item_id": "misc_b_spraycan",
               "quantity": 2
-            },
-            {
-              "item_id": "misc_b_pipeline",
-              "quantity": 3
             }
           ]
         },

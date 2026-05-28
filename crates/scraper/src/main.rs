@@ -202,7 +202,10 @@ fn read_existing_modules(path: &Path) -> serde_json::Value {
         .cloned()
         .unwrap_or_else(|| empty.clone());
     let count = modules.as_array().map(|a| a.len()).unwrap_or(0);
-    tracing::info!(count, "carried over hideout modules from existing data.json");
+    tracing::info!(
+        count,
+        "carried over hideout modules from existing data.json"
+    );
     modules
 }
 
