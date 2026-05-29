@@ -357,6 +357,9 @@ impl App {
             ui.colored_label(status.color(), status.label());
             ui.separator();
 
+            self.auto_capture_toggle(ui);
+            ui.separator();
+
             if ui.button("Reset progress").clicked() {
                 self.confirm_reset = true;
             }
@@ -374,6 +377,37 @@ impl App {
                 self.export_corrections_button(ui);
             });
         });
+    }
+
+    /// Prominent main-window toggle for the auto-capture loop. Loud when
+    /// ON (and the in-headset OCR card stays up the whole time) so the
+    /// mode can't be left running into a raid. Gated on OCR being enabled
+    /// — the loop has nothing to do otherwise. The flag lives on the VR
+    /// runtime and is never persisted, so it always starts OFF on launch.
+    fn auto_capture_toggle(&mut self, ui: &mut egui::Ui) {
+        let ocr_enabled = self.settings.read().ocr_enabled;
+        let mut on = self.vr.auto_capture_enabled();
+        let label = if on {
+            egui::RichText::new("● Auto-capture ON")
+                .strong()
+                .color(egui::Color32::from_rgb(220, 99, 89))
+        } else {
+            egui::RichText::new("Auto-capture")
+        };
+        let tooltip = if ocr_enabled {
+            "Loop OCR over whatever upgrade panel you look at, updating \
+             counts hands-free. A constant card stays in the headset while \
+             it runs — turn it OFF before playing. Interval is set in \
+             Settings; the mode always starts OFF on launch."
+        } else {
+            "Enable \"Auto-extract counts from VR screenshots\" in Settings \
+             to use auto-capture."
+        };
+        let resp = ui.add_enabled(ocr_enabled, egui::Checkbox::new(&mut on, label));
+        if resp.on_hover_text(tooltip).changed() {
+            self.vr.set_auto_capture(on);
+            tracing::info!(on, "auto-capture toggled from desktop header");
+        }
     }
 
     /// "Export corrections" pops up a modal with the user's per-recipe edits
