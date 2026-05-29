@@ -94,6 +94,7 @@ fn appearance_section(ui: &mut egui::Ui, theme: &mut Theme) {
     });
 }
 
+#[allow(clippy::too_many_arguments)]
 fn ocr_section(
     ui: &mut egui::Ui,
     ocr_enabled: &mut bool,
