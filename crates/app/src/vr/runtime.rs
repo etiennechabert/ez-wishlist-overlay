@@ -14,6 +14,7 @@ use crate::state::AppState;
 use crossbeam_channel::{Receiver, Sender};
 use parking_lot::RwLock;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -79,6 +80,11 @@ pub struct Runtime {
     /// Most recent capture result the worker thread reported. Cleared when
     /// the GUI consumes it via [`Runtime::take_last_capture`].
     last_capture: Arc<RwLock<Option<CaptureResult>>>,
+    /// Ephemeral auto-capture loop switch. Not persisted — always starts
+    /// `false` so the looping OCR can't be left running into a raid. The
+    /// VR render loop polls this each tick; the GUI flips it via
+    /// [`Runtime::set_auto_capture`].
+    auto_capture: Arc<AtomicBool>,
     _join: std::thread::JoinHandle<()>,
 }
 
@@ -128,6 +134,8 @@ impl Runtime {
         // presses are silently dropped, which is fine semantically — a
         // screenshot is a one-shot ask.
         let (capture_tx, capture_rx) = crossbeam_channel::bounded::<()>(4);
+        let auto_capture = Arc::new(AtomicBool::new(false));
+        let auto_capture_worker = auto_capture.clone();
         let join = std::thread::Builder::new()
             .name("ez-wishlist-vr".into())
             .spawn(move || {
@@ -140,6 +148,7 @@ impl Runtime {
                     last_capture_writer,
                     ocr_tx,
                     ocr_feedback_rx,
+                    auto_capture_worker,
                 )
             })
             .expect("spawn VR thread");
@@ -147,6 +156,7 @@ impl Runtime {
             status,
             capture_tx,
             last_capture,
+            auto_capture,
             _join: join,
         }
     }
@@ -167,6 +177,18 @@ impl Runtime {
     pub fn take_last_capture(&self) -> Option<CaptureResult> {
         self.last_capture.write().take()
     }
+
+    /// Enable/disable the auto-capture loop. Ephemeral — never persisted,
+    /// so it always starts OFF on launch. The VR render loop polls this
+    /// each tick: flipping it on fires a capture right away, off stops
+    /// the loop after any in-flight read finishes.
+    pub fn set_auto_capture(&self, on: bool) {
+        self.auto_capture.store(on, Ordering::Relaxed);
+    }
+
+    pub fn auto_capture_enabled(&self) -> bool {
+        self.auto_capture.load(Ordering::Relaxed)
+    }
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -180,6 +202,7 @@ fn run(
     _last_capture: Arc<RwLock<Option<CaptureResult>>>,
     _ocr_tx: Sender<OcrJob>,
     _ocr_feedback_rx: Receiver<crate::gui::OcrFeedback>,
+    _auto_capture: Arc<AtomicBool>,
 ) {
     // Status is already Unsupported. Nothing else to do — park the thread.
     *status.write() = VrStatus::Unsupported;
@@ -197,6 +220,7 @@ fn run(
     last_capture: Arc<RwLock<Option<CaptureResult>>>,
     ocr_tx: Sender<OcrJob>,
     ocr_feedback_rx: Receiver<crate::gui::OcrFeedback>,
+    auto_capture: Arc<AtomicBool>,
 ) {
     use super::overlay::OverlaySession;
 
@@ -228,6 +252,7 @@ fn run(
                     &last_capture,
                     &ocr_tx,
                     &ocr_feedback_rx,
+                    &auto_capture,
                 );
                 if let Err(e) = lost {
                     tracing::warn!(error = %e, "VR session lost");
@@ -258,6 +283,7 @@ fn render_loop(
     last_capture: &Arc<RwLock<Option<CaptureResult>>>,
     ocr_tx: &Sender<OcrJob>,
     ocr_feedback_rx: &Receiver<crate::gui::OcrFeedback>,
+    auto_capture: &Arc<AtomicBool>,
 ) -> anyhow::Result<()> {
     use super::input::Debouncer;
     use super::pose::{Visibility, VisibilityFsm};
@@ -286,6 +312,17 @@ fn render_loop(
     // replaced in debug). `ocr_state` is `None` when nothing is
     // showing, `Some(_)` while a card is up.
     let mut ocr_state: Option<OcrOverlayState> = None;
+
+    // Auto-capture loop bookkeeping. `capture_in_flight` is the
+    // single-flight latch — set when the auto loop dispatches a capture,
+    // cleared when the OCR worker reports a terminal result. Pacing is by
+    // comparing `frame_start` against `last_auto_done` (no sleeps, so the
+    // overlay never freezes). `auto_dispatched_at` backs a watchdog that
+    // frees the latch if a dispatched job never reports back.
+    let mut capture_in_flight = false;
+    let mut last_auto_done: Option<Instant> = None;
+    let mut auto_dispatched_at: Option<Instant> = None;
+    let mut prev_auto_on = false;
 
     loop {
         let frame_start = Instant::now();
@@ -338,69 +375,94 @@ fn render_loop(
             frame_start,
         );
 
-        // Drain pending capture requests. Non-blocking; each request
-        // maps to one bitmap handed to the OCR worker over `ocr_tx`.
-        // Errors are surfaced to the GUI via `last_capture` rather
-        // than aborting the render loop — the overlay should keep
-        // working even if a screenshot fails.
-        //
-        // PNG-on-disk is gated on `settings.ocr_debug`: off (the
-        // default), we never write the file and the worker decodes
-        // nothing — total OCR latency drops from ~6-7 s to ~2-3 s
-        // because the 3.7 s encode + 1 s decode round-trip is gone.
-        // On, we still write the PNG so the user can attach a
-        // capture bundle to a GitHub issue, and the path travels
-        // along with the bitmap so the pipeline's per-cell strips
-        // and `.ocr-debug.txt` sidecar land next to it.
+        // Manual capture requests (SPACE hotkey). Drain the queue and
+        // grab once — the OCR worker only keeps the latest shot anyway,
+        // so N queued presses don't need N readbacks. `beep = true` gives
+        // audible in-headset confirmation. The capture work itself lives
+        // in `capture_and_forward` (shared with the auto loop below).
+        let mut manual_requested = false;
         while capture_rx.try_recv().is_ok() {
-            // Retire any prior OCR card BEFORE grabbing the compositor
-            // mirror. The OCR overlay is a real SteamVR overlay
-            // composited into the eye buffers, so a still-visible
-            // previous card would otherwise be baked into the new
-            // screenshot and the next OCR pass would see itself over
-            // the Facility Upgrade panel.
-            if ocr_state.is_some() {
-                if let Err(e) = session.set_ocr_alpha(0.0) {
-                    tracing::warn!(error = %e, "OCR overlay: pre-capture clear-alpha failed");
-                }
-                if let Err(e) = session.set_ocr_visible(false) {
-                    tracing::warn!(error = %e, "OCR overlay: pre-capture hide failed");
-                }
+            manual_requested = true;
+        }
+        if manual_requested {
+            capture_and_forward(
+                session,
+                settings,
+                paths,
+                ocr_tx,
+                last_capture,
+                &mut ocr_state,
+                true,
+            );
+        }
+
+        // Auto-capture loop. Entirely non-blocking: paced by `Instant`
+        // comparisons in this ~90 Hz loop, single-flight via
+        // `capture_in_flight`, and silent (no per-loop beep). The mode
+        // flag is ephemeral, so it always starts off (see
+        // `Runtime::set_auto_capture`).
+        let auto_on = auto_capture.load(Ordering::Relaxed);
+        if auto_on && !prev_auto_on {
+            // Rising edge: make the first capture eligible immediately.
+            last_auto_done = None;
+        }
+        if !auto_on && prev_auto_on {
+            // Falling edge: drop any still-running placeholder card so a
+            // "Reading panel…" card doesn't hang on screen after the loop
+            // stops (Processing never auto-dismisses on its own).
+            if matches!(
+                ocr_state.as_ref().map(|s| &s.feedback.kind),
+                Some(crate::gui::OcrFeedbackKind::Processing)
+            ) {
+                let _ = session.set_ocr_alpha(0.0);
+                let _ = session.set_ocr_visible(false);
                 ocr_state = None;
             }
-            let (capture_eye, trace, ocr_debug) = {
+        }
+        prev_auto_on = auto_on;
+        if auto_on {
+            let (ocr_enabled, interval) = {
                 let s = settings.read();
-                (s.capture_eye.into(), s.ocr_capture_trace, s.ocr_debug)
+                (
+                    s.ocr_enabled,
+                    Duration::from_secs(s.auto_capture_interval_secs as u64),
+                )
             };
-            let png_path = ocr_debug.then(|| next_screenshot_path(paths));
-            let capture_result = match &png_path {
-                Some(path) => session.capture_screenshot_to_png(path, capture_eye, trace),
-                None => session.capture_screenshot(capture_eye, trace),
+            let due = match last_auto_done {
+                Some(t) => frame_start.duration_since(t) >= interval,
+                None => true,
             };
-            let result = match capture_result {
-                Ok(img) => {
-                    // Best-effort forward to OCR. If the channel is
-                    // full (worker busy on a previous shot) we drop
-                    // this one silently — VR render loop must not
-                    // block.
-                    let job = OcrJob {
-                        image: img,
-                        source_path: png_path.clone(),
-                    };
-                    let _ = ocr_tx.try_send(job);
-                    super::capture::play_capture_done_beep(true);
-                    match png_path {
-                        Some(path) => CaptureResult::Ok(path),
-                        None => CaptureResult::Ephemeral,
-                    }
+            if ocr_enabled && !capture_in_flight && due {
+                if capture_and_forward(
+                    session,
+                    settings,
+                    paths,
+                    ocr_tx,
+                    last_capture,
+                    &mut ocr_state,
+                    false,
+                ) {
+                    capture_in_flight = true;
+                    auto_dispatched_at = Some(frame_start);
+                } else {
+                    // Capture failed (no job dispatched) — wait one
+                    // interval before retrying instead of spinning.
+                    last_auto_done = Some(frame_start);
                 }
-                Err(e) => {
-                    tracing::warn!(error = %e, "compositor mirror capture failed");
-                    super::capture::play_capture_done_beep(false);
-                    CaptureResult::Err(format!("{e:#}"))
+            }
+            // Watchdog: if a dispatched read never produced terminal
+            // feedback (e.g. OCR was disabled mid-flight so the worker
+            // skipped it), free the latch so the loop can't wedge.
+            if let Some(t) = auto_dispatched_at {
+                if capture_in_flight && frame_start.duration_since(t) > Duration::from_secs(30) {
+                    tracing::warn!(
+                        "auto-capture: no OCR result within 30 s — clearing in-flight latch"
+                    );
+                    capture_in_flight = false;
+                    auto_dispatched_at = None;
+                    last_auto_done = Some(frame_start);
                 }
-            };
-            *last_capture.write() = Some(result);
+            }
         }
 
         if visible_now {
@@ -441,15 +503,29 @@ fn render_loop(
         }
 
         {
-            let s = settings.read();
-            drive_ocr_overlay(
+            let (ocr_debug, dismiss) = {
+                let s = settings.read();
+                (
+                    s.ocr_debug,
+                    Duration::from_secs(s.ocr_dismiss_seconds as u64),
+                )
+            };
+            let terminal = drive_ocr_overlay(
                 session,
                 ocr_feedback_rx,
                 &mut ocr_state,
                 frame_start,
-                s.ocr_debug,
-                std::time::Duration::from_secs(s.ocr_dismiss_seconds as u64),
+                ocr_debug,
+                auto_on,
+                dismiss,
             );
+            if terminal {
+                // OCR finished — release the single-flight latch and start
+                // the inter-read interval countdown.
+                capture_in_flight = false;
+                auto_dispatched_at = None;
+                last_auto_done = Some(frame_start);
+            }
         }
 
         // Liveness probe — fails when SteamVR disappears.
@@ -745,6 +821,83 @@ fn next_screenshot_path(paths: &PersistPaths) -> PathBuf {
         .join(format!("{stamp}_{nanos:09}.png"))
 }
 
+/// Grab one compositor-mirror frame and hand it to the OCR worker.
+/// Shared by the manual SPACE path and the auto-capture loop.
+///
+/// Retires any visible OCR card first: the card is a real SteamVR
+/// overlay composited into the eye buffers, so leaving it up would bake
+/// it into the screenshot and the next OCR pass would read itself over
+/// the panel. PNG-on-disk is gated on `settings.ocr_debug` (off by
+/// default → no disk round-trip, ~2-3 s OCR instead of ~6-7 s). Capture
+/// errors are surfaced to the GUI via `last_capture` rather than
+/// aborting the render loop.
+///
+/// `beep` plays the system done/error sound — `true` for manual
+/// captures (audible confirmation in-headset), `false` for the auto
+/// loop (a ding every few seconds would be maddening). Returns `true`
+/// when a bitmap was actually dispatched to the worker, `false` on
+/// capture error — the auto loop uses this to decide whether to arm its
+/// single-flight latch.
+#[cfg(target_os = "windows")]
+#[allow(clippy::too_many_arguments)]
+fn capture_and_forward(
+    session: &mut super::overlay::OverlaySession,
+    settings: &Arc<RwLock<Settings>>,
+    paths: &Arc<PersistPaths>,
+    ocr_tx: &Sender<OcrJob>,
+    last_capture: &Arc<RwLock<Option<CaptureResult>>>,
+    ocr_state: &mut Option<OcrOverlayState>,
+    beep: bool,
+) -> bool {
+    if ocr_state.is_some() {
+        if let Err(e) = session.set_ocr_alpha(0.0) {
+            tracing::warn!(error = %e, "OCR overlay: pre-capture clear-alpha failed");
+        }
+        if let Err(e) = session.set_ocr_visible(false) {
+            tracing::warn!(error = %e, "OCR overlay: pre-capture hide failed");
+        }
+        *ocr_state = None;
+    }
+    let (capture_eye, trace, ocr_debug) = {
+        let s = settings.read();
+        (s.capture_eye.into(), s.ocr_capture_trace, s.ocr_debug)
+    };
+    let png_path = ocr_debug.then(|| next_screenshot_path(paths));
+    let capture_result = match &png_path {
+        Some(path) => session.capture_screenshot_to_png(path, capture_eye, trace),
+        None => session.capture_screenshot(capture_eye, trace),
+    };
+    let (result, dispatched) = match capture_result {
+        Ok(img) => {
+            // Best-effort forward to OCR. If the channel is full (worker
+            // busy on a previous shot) we drop this one silently — the
+            // VR render loop must not block.
+            let job = OcrJob {
+                image: img,
+                source_path: png_path.clone(),
+            };
+            let _ = ocr_tx.try_send(job);
+            if beep {
+                super::capture::play_capture_done_beep(true);
+            }
+            let r = match png_path {
+                Some(path) => CaptureResult::Ok(path),
+                None => CaptureResult::Ephemeral,
+            };
+            (r, true)
+        }
+        Err(e) => {
+            tracing::warn!(error = %e, "compositor mirror capture failed");
+            if beep {
+                super::capture::play_capture_done_beep(false);
+            }
+            (CaptureResult::Err(format!("{e:#}")), false)
+        }
+    };
+    *last_capture.write() = Some(result);
+    dispatched
+}
+
 /// Re-render the wishlist grid into `clean_pixmap` (no hover overlay).
 /// Slow path: decodes icons, lays out cells. Called only when the data
 /// changes (wishlist version bump, grid-cols change).
@@ -841,18 +994,23 @@ fn drive_ocr_overlay(
     state: &mut Option<OcrOverlayState>,
     frame_start: std::time::Instant,
     ocr_debug: bool,
+    auto_on: bool,
     auto_dismiss: Duration,
-) {
+) -> bool {
     use crate::gui::OcrFeedbackKind;
 
     // Drain everything queued so we don't lag if multiple transitions
-    // arrived between frames. Only the most recent feedback matters
-    // for the display.
+    // arrived between frames. Only the most recent feedback matters for
+    // the display. A non-`Processing` feedback means the pipeline
+    // finished this tick — report that back (return value) so the auto
+    // loop can release its single-flight latch and start the interval.
     let mut latest = None;
     while let Ok(fb) = feedback_rx.try_recv() {
         latest = Some(fb);
     }
+    let mut terminal_consumed = false;
     if let Some(fb) = latest {
+        terminal_consumed = !matches!(fb.kind, OcrFeedbackKind::Processing);
         *state = Some(OcrOverlayState {
             feedback: fb,
             visible_since: frame_start,
@@ -861,22 +1019,36 @@ fn drive_ocr_overlay(
         });
     }
 
+    // While the auto-capture loop is on, keep a card up at all times so
+    // the head-locked "AUTO-CAPTURE ON" banner is an un-ignorable
+    // reminder. Seed a placeholder whenever nothing else is showing
+    // (just toggled on, or a prior card was cleared); the next real
+    // feedback replaces it.
+    if state.is_none() && auto_on {
+        *state = Some(OcrOverlayState {
+            feedback: crate::gui::OcrFeedback::processing(),
+            visible_since: frame_start,
+            submitted: false,
+            last_alpha: 0.0,
+        });
+    }
+
     let Some(current) = state.as_mut() else {
-        return;
+        return terminal_consumed;
     };
 
-    // When `ocr_debug` is on the card sticks around until the next
-    // capture replaces it (the user is inspecting the read alongside
-    // the on-disk debug artifacts). When off, terminal kinds fade
-    // out after `auto_dismiss`. Processing kinds never auto-fade —
-    // they're replaced by the terminal result when OCR finishes.
-    let manual_dismiss = ocr_debug;
+    // `ocr_debug` and auto-capture both pin the card: it sticks until the
+    // next capture replaces it (debug: inspect alongside on-disk
+    // artifacts; auto: the banner must stay up the whole session).
+    // Otherwise terminal kinds fade after `auto_dismiss`. Processing
+    // kinds never auto-fade — they're replaced when OCR finishes.
+    let manual_dismiss = ocr_debug || auto_on;
     let processing = matches!(current.feedback.kind, OcrFeedbackKind::Processing);
     let age = frame_start.duration_since(current.visible_since);
 
     // First submit for this feedback: render once and push.
     if !current.submitted {
-        let pixmap = super::ocr_render::render(&current.feedback);
+        let pixmap = super::ocr_render::render(&current.feedback, auto_on);
         if let Err(e) = session.submit_ocr_rgba(pixmap.data(), pixmap.width(), pixmap.height()) {
             tracing::warn!(error = %e, "OCR overlay: submit failed (continuing)");
         }
@@ -896,7 +1068,7 @@ fn drive_ocr_overlay(
             tracing::warn!(error = %e, "OCR overlay: hide failed");
         }
         *state = None;
-        return;
+        return terminal_consumed;
     }
 
     // Per-frame alpha. Processing kinds and debug-mode terminals
@@ -919,6 +1091,7 @@ fn drive_ocr_overlay(
         }
         current.last_alpha = target_alpha;
     }
+    terminal_consumed
 }
 
 /// Per-tick hover detection: ray-cast from each controller, find whichever

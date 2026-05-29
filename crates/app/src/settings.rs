@@ -27,6 +27,10 @@ pub mod bounds {
     /// barely sees the result); 15 s is generous enough that even a
     /// careful read of a 4-cell panel fits in one show.
     pub const OCR_DISMISS_SECS: std::ops::RangeInclusive<u32> = 1..=15;
+    /// Seconds the auto-capture loop pauses between OCR reads. 1 s keeps it
+    /// from hammering the compositor mirror back-to-back; 15 s is a relaxed
+    /// "walking between panels" pace.
+    pub const AUTO_CAPTURE_INTERVAL_SECS: std::ops::RangeInclusive<u32> = 1..=15;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -109,6 +113,15 @@ pub struct Settings {
     /// per capture and the logs are voluminous.
     #[serde(default)]
     pub ocr_capture_trace: bool,
+    /// Seconds the auto-capture loop waits after one OCR read finishes
+    /// before grabbing the next mirror frame. Only consulted while the
+    /// (non-persisted) auto-capture mode is active — see
+    /// [`crate::vr::Runtime::set_auto_capture`]. The mode toggle itself
+    /// is deliberately NOT a setting: it force-resets to off on every
+    /// launch so you can't leave the loop running into a raid with a
+    /// CPU core pegged.
+    #[serde(default = "default_auto_capture_interval_secs")]
+    pub auto_capture_interval_secs: u32,
 }
 
 fn default_check_for_updates() -> bool {
@@ -125,6 +138,10 @@ fn default_capture_eye() -> CaptureEye {
 
 fn default_ocr_dismiss_seconds() -> u32 {
     4
+}
+
+fn default_auto_capture_interval_secs() -> u32 {
+    3
 }
 
 fn default_ocr_auto_track() -> bool {
@@ -162,6 +179,9 @@ impl Settings {
     pub fn sanitize_ocr(&mut self) {
         let d = bounds::OCR_DISMISS_SECS;
         self.ocr_dismiss_seconds = self.ocr_dismiss_seconds.clamp(*d.start(), *d.end());
+        let a = bounds::AUTO_CAPTURE_INTERVAL_SECS;
+        self.auto_capture_interval_secs =
+            self.auto_capture_interval_secs.clamp(*a.start(), *a.end());
     }
 }
 
@@ -180,6 +200,7 @@ impl Default for Settings {
             ocr_dismiss_seconds: default_ocr_dismiss_seconds(),
             ocr_auto_track: default_ocr_auto_track(),
             ocr_capture_trace: false,
+            auto_capture_interval_secs: default_auto_capture_interval_secs(),
         }
     }
 }

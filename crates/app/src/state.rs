@@ -38,6 +38,22 @@ pub struct AppState {
     pub load_warning: Option<String>,
 }
 
+/// How far ahead the surplus / "redundant items" calculation looks when
+/// deciding what counts as still-needed. Selected per-view in the Items DB
+/// (see [`AppState::needed_by_id`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NeedHorizon {
+    /// Only upgrades the user is actively tracking (minus completed). Most
+    /// aggressive — anything not tracked reads as redundant.
+    TrackedOnly,
+    /// The lowest not-completed level of every non-disabled module — the next
+    /// thing buildable there. One step ahead everywhere.
+    AllNatural,
+    /// Every not-completed level of every non-disabled module, summed across
+    /// levels. Most conservative — flags the least as redundant.
+    AllFuture,
+}
+
 impl AppState {
     pub fn new(data: Arc<GameData>) -> Self {
         let index = Arc::new(DataIndex::build(&data));
@@ -526,6 +542,65 @@ impl AppState {
                 .then_with(|| a.name.cmp(&b.name))
         });
         out
+    }
+
+    /// Set of upgrade ids whose requirements count as "needed" for `horizon`.
+    /// Always excludes completed upgrades and upgrades whose module is
+    /// effectively disabled — the surplus view must never tell you to keep
+    /// items for a module you've shelved.
+    fn upgrades_for_horizon(&self, horizon: NeedHorizon) -> Vec<UpgradeId> {
+        match horizon {
+            NeedHorizon::TrackedOnly => {
+                self.tracked_upgrades
+                    .difference(&self.completed_upgrades)
+                    .filter(|id| {
+                        self.index.upgrades_by_id.get(*id).is_some_and(|uref| {
+                            !self.is_module_effectively_disabled(&uref.module_id)
+                        })
+                    })
+                    .cloned()
+                    .collect()
+            }
+            NeedHorizon::AllNatural => self
+                .data
+                .modules
+                .iter()
+                .filter(|m| !self.is_module_effectively_disabled(&m.id))
+                .filter_map(|m| {
+                    m.upgrades
+                        .iter()
+                        .filter(|u| !self.completed_upgrades.contains(&u.id))
+                        .min_by_key(|u| u.level)
+                        .map(|u| u.id.clone())
+                })
+                .collect(),
+            NeedHorizon::AllFuture => self
+                .data
+                .modules
+                .iter()
+                .filter(|m| !self.is_module_effectively_disabled(&m.id))
+                .flat_map(|m| {
+                    m.upgrades
+                        .iter()
+                        .filter(|u| !self.completed_upgrades.contains(&u.id))
+                        .map(|u| u.id.clone())
+                })
+                .collect(),
+        }
+    }
+
+    /// Total quantity of each item required across the upgrade set implied by
+    /// `horizon`. The single source of truth for the surplus / redundant-items
+    /// view in the Items DB. Applies recipe overrides via
+    /// [`Self::effective_requirements`]; hideout-only (never consults tasks).
+    pub fn needed_by_id(&self, horizon: NeedHorizon) -> HashMap<ItemId, u32> {
+        let mut totals: HashMap<ItemId, u32> = HashMap::new();
+        for upgrade_id in self.upgrades_for_horizon(horizon) {
+            for req in self.effective_requirements(&upgrade_id) {
+                *totals.entry(req.item_id).or_insert(0) += req.quantity;
+            }
+        }
+        totals
     }
 }
 
@@ -1289,5 +1364,52 @@ mod tests {
         // Disabling the module hides its tracked lv2 from the list entirely.
         s.set_module_disabled(&"workbench".to_string(), true);
         assert!(s.hideout_progress_rows().is_empty());
+    }
+
+    #[test]
+    fn needed_by_id_tracked_only_sums_tracked_not_completed() {
+        let mut s = AppState::new(fixture());
+        s.set_tracked_upgrade(&"workbench_lv2".to_string(), true);
+        let need = s.needed_by_id(NeedHorizon::TrackedOnly);
+        assert_eq!(need.get("bolts"), Some(&7));
+        assert_eq!(need.get("screws"), None);
+    }
+
+    #[test]
+    fn needed_by_id_all_natural_picks_lowest_incomplete_level() {
+        let s = AppState::new(fixture());
+        // Nothing completed → the next buildable level is Lv1.
+        let need = s.needed_by_id(NeedHorizon::AllNatural);
+        assert_eq!(need.get("bolts"), Some(&5));
+        assert_eq!(need.get("screws"), Some(&3));
+    }
+
+    #[test]
+    fn needed_by_id_all_natural_advances_after_completion() {
+        let mut s = AppState::new(fixture());
+        s.set_completed_upgrade(&"workbench_lv1".to_string(), true);
+        // Lv1 done → next buildable is Lv2 (bolts 7, no screws).
+        let need = s.needed_by_id(NeedHorizon::AllNatural);
+        assert_eq!(need.get("bolts"), Some(&7));
+        assert_eq!(need.get("screws"), None);
+    }
+
+    #[test]
+    fn needed_by_id_all_future_sums_every_remaining_level() {
+        let s = AppState::new(fixture());
+        let need = s.needed_by_id(NeedHorizon::AllFuture);
+        assert_eq!(need.get("bolts"), Some(&12)); // Lv1 5 + Lv2 7
+        assert_eq!(need.get("screws"), Some(&3));
+    }
+
+    #[test]
+    fn needed_by_id_skips_disabled_modules() {
+        let mut s = AppState::new(fixture());
+        s.set_module_disabled(&"workbench".to_string(), true);
+        assert!(s.needed_by_id(NeedHorizon::AllFuture).is_empty());
+        assert!(s.needed_by_id(NeedHorizon::AllNatural).is_empty());
+        // Even an explicitly tracked upgrade in a disabled module drops out.
+        s.set_tracked_upgrade(&"workbench_lv1".to_string(), true);
+        assert!(s.needed_by_id(NeedHorizon::TrackedOnly).is_empty());
     }
 }

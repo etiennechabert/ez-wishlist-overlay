@@ -235,6 +235,14 @@ fn spawn_ocr_worker(
     std::thread::Builder::new()
         .name("ez-wishlist-ocr".into())
         .spawn(move || {
+            // Debounce key: the (upgrade_id, items) of the last read we
+            // actually applied. An identical follow-up read — the same
+            // panel still on screen during an auto-capture loop — is
+            // skipped so it doesn't churn `version` → VR grid re-render →
+            // save on every loop iteration. `set_collected` bumps
+            // `version` unconditionally, so even a no-op rewrite is
+            // otherwise expensive.
+            let mut last_applied: Option<(String, Vec<(String, Option<u32>)>)> = None;
             while let Ok(first) = ocr_job_rx.recv() {
                 // Drain any newer jobs that arrived while we were
                 // idle, keeping only the most recent. A full OCR
@@ -350,36 +358,52 @@ fn spawn_ocr_worker(
                     ocr_capture_trace,
                 ) {
                     Ok(ocr::OcrPipelineResult::Identified(outcome)) => {
-                        let (version, feedback) = {
-                            let mut w = state.write();
-                            let mut feedback = gui::OcrFeedback::done(&outcome, &w);
-                            // Only apply cells the pipeline could
-                            // actually read. `None` means we saw the
-                            // cell but couldn't parse an X/Y count —
-                            // leave the user's existing collected
-                            // value alone instead of resetting to 0.
-                            for (item_id, owned) in &outcome.items {
-                                if let Some(value) = owned {
-                                    w.set_collected(item_id, *value);
+                        let key = (outcome.upgrade_id.clone(), outcome.items.clone());
+                        if last_applied.as_ref() == Some(&key) {
+                            // Identical to the read we just applied (same
+                            // panel still on screen). Skip the state
+                            // writes — and the `version` bump + save they
+                            // trigger — but still publish the card so the
+                            // overlay reflects the current read.
+                            tracing::debug!(
+                                upgrade = %outcome.upgrade_id,
+                                "OCR worker: identical to last applied read — skipping re-apply (debounce)",
+                            );
+                            let w = state.read();
+                            gui::OcrFeedback::done(&outcome, &w)
+                        } else {
+                            let (version, feedback) = {
+                                let mut w = state.write();
+                                let mut feedback = gui::OcrFeedback::done(&outcome, &w);
+                                // Only apply cells the pipeline could
+                                // actually read. `None` means we saw the
+                                // cell but couldn't parse an X/Y count —
+                                // leave the user's existing collected
+                                // value alone instead of resetting to 0.
+                                for (item_id, owned) in &outcome.items {
+                                    if let Some(value) = owned {
+                                        w.set_collected(item_id, *value);
+                                    }
                                 }
-                            }
-                            // Prior-level completion is a state inference
-                            // ("game showed Lv N, therefore Lv (N-1) is
-                            // done") — always apply it. Auto-tracking the
-                            // matched upgrade itself is a workflow choice
-                            // ("I'm working on this for the next raid"),
-                            // gated on the user's `ocr_auto_track` toggle.
-                            // `apply_ocr_progression` handles both: prior
-                            // completion runs unconditionally, the
-                            // OCR'd upgrade only enters `tracked_upgrades`
-                            // when the flag is on.
-                            let progression =
-                                w.apply_ocr_progression(&outcome.upgrade_id, ocr_auto_track);
-                            feedback.attach_progression(&w, progression);
-                            (w.version, feedback)
-                        };
-                        let _ = save_tx.try_send(gui::SaveTick { version });
-                        feedback
+                                // Prior-level completion is a state inference
+                                // ("game showed Lv N, therefore Lv (N-1) is
+                                // done") — always apply it. Auto-tracking the
+                                // matched upgrade itself is a workflow choice
+                                // ("I'm working on this for the next raid"),
+                                // gated on the user's `ocr_auto_track` toggle.
+                                // `apply_ocr_progression` handles both: prior
+                                // completion runs unconditionally, the
+                                // OCR'd upgrade only enters `tracked_upgrades`
+                                // when the flag is on.
+                                let progression =
+                                    w.apply_ocr_progression(&outcome.upgrade_id, ocr_auto_track);
+                                feedback.attach_progression(&w, progression);
+                                (w.version, feedback)
+                            };
+                            let _ = save_tx.try_send(gui::SaveTick { version });
+                            last_applied = Some(key);
+                            feedback
+                        }
                     }
                     Ok(ocr::OcrPipelineResult::NoPanel) => gui::OcrFeedback::not_a_panel(),
                     Ok(ocr::OcrPipelineResult::UnknownUpgrade {

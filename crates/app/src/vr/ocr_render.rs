@@ -28,6 +28,10 @@ const CARD_H_MIN: u32 = 448;
 /// Hard ceiling — keeps the pixmap allocation bounded for upgrades with
 /// many requirements + several progression notes.
 const CARD_H_MAX: u32 = 1472;
+/// Height of the persistent "AUTO-CAPTURE ON" banner drawn at the top of
+/// every card while the looping auto-capture mode is active. Added on top
+/// of the normal card height so the body layout is untouched.
+const BANNER_H: f32 = 76.0;
 
 const PAD_X: f32 = 44.0;
 const PAD_Y: f32 = 36.0;
@@ -76,21 +80,35 @@ fn not_panel_accent() -> Color {
 fn failed_accent() -> Color {
     Color::from_rgba8(220, 99, 89, 255)
 }
+/// Fill behind the auto-capture banner — a muted red so the alert text
+/// reads against it without being as loud as a solid `failed_accent` bar.
+fn banner_bg() -> Color {
+    Color::from_rgba8(74, 30, 28, 255)
+}
 
 /// Render `feedback` to a fresh RGBA pixmap. Height auto-fits the body
 /// content within `[CARD_H_MIN, CARD_H_MAX]`. Always wide enough at
 /// `CARD_W` — overlong text gets clipped at the card edge rather than
 /// reflowed; the on-screen overlay isn't a place to scroll, so it's
 /// better to stay snappy than to wrap unpredictably.
-pub fn render(feedback: &OcrFeedback) -> Pixmap {
+pub fn render(feedback: &OcrFeedback, auto_on: bool) -> Pixmap {
     let accent = accent_color(&feedback.kind);
+    let banner_h = if auto_on { BANNER_H } else { 0.0 };
     let body_h = measure_body_height(&feedback.kind);
-    let total_h = (body_h as u32).clamp(CARD_H_MIN, CARD_H_MAX);
+    // Banner height is added on top of the clamped body height so the
+    // body layout (and CARD_H_MIN/MAX budget) is unchanged whether or
+    // not the loop is running.
+    let total_h = (body_h as u32).clamp(CARD_H_MIN, CARD_H_MAX) + banner_h as u32;
     let mut pix = Pixmap::new(CARD_W, total_h).expect("ocr card pixmap alloc");
     pix.fill(bg());
     draw_border(&mut pix, accent);
 
-    let mut y = PAD_Y;
+    let mut y = if auto_on {
+        draw_auto_banner(&mut pix);
+        BANNER_H + PAD_Y
+    } else {
+        PAD_Y
+    };
     y = draw_header(&mut pix, &feedback.kind, accent, y);
     y += SECTION_GAP * 0.4;
     draw_separator(&mut pix, y);
@@ -103,7 +121,7 @@ pub fn render(feedback: &OcrFeedback) -> Pixmap {
     // Processing variant where the body is a single line).
     let footer_y = (total_h as f32) - PAD_Y;
     draw_separator(&mut pix, footer_y - 14.0);
-    draw_footer(&mut pix, feedback, footer_y);
+    draw_footer(&mut pix, feedback, auto_on, footer_y);
 
     // `y` is read above to layout the body; the unused var-name keeps
     // the order obvious for future extension. Drop it here to silence
@@ -186,6 +204,27 @@ fn draw_separator(pix: &mut Pixmap, y: f32) {
     let mut paint = Paint::default();
     paint.set_color(Color::from_rgba8(89, 89, 97, 255));
     pix.fill_rect(rect, &paint, Transform::identity(), None);
+}
+
+/// Persistent alert strip drawn at the very top while the auto-capture
+/// loop is running. It's the "you can't forget this is on" reminder —
+/// head-locked, so it follows your gaze no matter where you look.
+fn draw_auto_banner(pix: &mut Pixmap) {
+    // Fill inset 2 px so the card's accent border still frames it.
+    if let Some(rect) = Rect::from_xywh(2.0, 2.0, pix.width() as f32 - 4.0, BANNER_H - 2.0) {
+        let mut paint = Paint::default();
+        paint.set_color(banner_bg());
+        pix.fill_rect(rect, &paint, Transform::identity(), None);
+    }
+    let baseline = BANNER_H * 0.66;
+    text::draw_text(
+        pix,
+        "● AUTO-CAPTURE ON — turn off before playing",
+        PAD_X,
+        baseline,
+        ROW_PX,
+        failed_accent(),
+    );
 }
 
 fn draw_header(pix: &mut Pixmap, kind: &OcrFeedbackKind, accent: Color, y_top: f32) -> f32 {
@@ -387,16 +426,17 @@ fn draw_item_row(pix: &mut Pixmap, item: &OcrItemDelta, y_top: f32) {
     }
 }
 
-fn draw_footer(pix: &mut Pixmap, feedback: &OcrFeedback, baseline_y: f32) {
+fn draw_footer(pix: &mut Pixmap, feedback: &OcrFeedback, auto_on: bool, baseline_y: f32) {
     // The card renders exactly once per feedback (see
     // `vr::runtime::drive_ocr_overlay`), so a live countdown would
     // freeze on the first-second value and look broken. Static text
     // describing the lifecycle mode instead.
     let manual_dismiss = cfg!(debug_assertions);
-    let footer = match (&feedback.kind, manual_dismiss) {
-        (OcrFeedbackKind::Processing, _) => "Working… replaced when the pipeline finishes.",
-        (_, true) => "Debug build — stays until the next OCR run replaces it.",
-        (_, false) => "Fades out in a few seconds.",
+    let footer = match (&feedback.kind, auto_on, manual_dismiss) {
+        (OcrFeedbackKind::Processing, _, _) => "Working… replaced when the pipeline finishes.",
+        (_, true, _) => "Auto-capture loop running — disable it in the desktop app to stop.",
+        (_, false, true) => "Debug build — stays until the next OCR run replaces it.",
+        (_, false, false) => "Fades out in a few seconds.",
     };
     text::draw_text(pix, footer, PAD_X, baseline_y, SMALL_PX, weak());
 }
@@ -441,7 +481,7 @@ mod tests {
 
     #[test]
     fn renders_done_variant_to_expected_size() {
-        let pix = render(&done_feedback());
+        let pix = render(&done_feedback(), false);
         assert_eq!(pix.width(), CARD_W);
         assert!(pix.height() >= CARD_H_MIN);
         assert!(pix.height() <= CARD_H_MAX);
@@ -449,23 +489,33 @@ mod tests {
 
     #[test]
     fn renders_processing_variant() {
-        let pix = render(&OcrFeedback::processing());
+        let pix = render(&OcrFeedback::processing(), false);
         assert_eq!(pix.width(), CARD_W);
         assert_eq!(pix.height(), CARD_H_MIN);
     }
 
     #[test]
     fn renders_not_a_panel_variant() {
-        let pix = render(&OcrFeedback::not_a_panel());
+        let pix = render(&OcrFeedback::not_a_panel(), false);
         assert_eq!(pix.width(), CARD_W);
         assert_eq!(pix.height(), CARD_H_MIN);
     }
 
     #[test]
     fn renders_failed_variant() {
-        let pix = render(&OcrFeedback::failed("file not found"));
+        let pix = render(&OcrFeedback::failed("file not found"), false);
         assert_eq!(pix.width(), CARD_W);
         assert!(pix.height() >= CARD_H_MIN);
+    }
+
+    #[test]
+    fn auto_banner_adds_height() {
+        // Same feedback, banner on vs off — the banner strip must grow
+        // the card without otherwise changing the body layout.
+        let base = render(&OcrFeedback::processing(), false);
+        let with_banner = render(&OcrFeedback::processing(), true);
+        assert_eq!(with_banner.width(), base.width());
+        assert_eq!(with_banner.height(), base.height() + BANNER_H as u32);
     }
 
     #[test]
@@ -482,7 +532,7 @@ mod tests {
                 });
             }
         }
-        let pix = render(&fb);
+        let pix = render(&fb, false);
         assert_eq!(pix.height(), CARD_H_MAX, "growth should clip at CARD_H_MAX");
     }
 }

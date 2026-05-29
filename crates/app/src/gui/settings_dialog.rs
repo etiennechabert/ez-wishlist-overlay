@@ -42,6 +42,7 @@ pub fn show(
                 &mut working.ocr_dismiss_seconds,
                 &mut working.ocr_auto_track,
                 &mut working.ocr_capture_trace,
+                &mut working.auto_capture_interval_secs,
             );
 
             ui.add_space(12.0);
@@ -101,6 +102,7 @@ fn ocr_section(
     ocr_dismiss_seconds: &mut u32,
     ocr_auto_track: &mut bool,
     ocr_capture_trace: &mut bool,
+    auto_capture_interval_secs: &mut u32,
 ) {
     ui.heading("Screenshot OCR");
     ui.add_space(4.0);
@@ -161,6 +163,25 @@ fn ocr_section(
              then the card sticks around until the next capture.",
         );
         stepper_slider_u32(ui, ocr_dismiss_seconds, bounds::OCR_DISMISS_SECS, 1, " s");
+    });
+
+    ui.add_space(6.0);
+    ui.horizontal(|ui| {
+        ui.label("Auto-capture interval (s)").on_hover_text(
+            "When the auto-capture loop is running (toggle it from the \
+             main window header), it waits this long after each OCR read \
+             before grabbing the next frame. While running, a constant \
+             \"AUTO-CAPTURE ON\" card stays in the headset so you don't \
+             leave it looping into a raid — and the mode always starts \
+             OFF on launch.",
+        );
+        stepper_slider_u32(
+            ui,
+            auto_capture_interval_secs,
+            bounds::AUTO_CAPTURE_INTERVAL_SECS,
+            1,
+            " s",
+        );
     });
 
     ui.add_space(6.0);
