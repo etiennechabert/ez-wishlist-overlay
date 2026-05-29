@@ -1,6 +1,7 @@
 //! Top-level egui application.
 
 mod about_dialog;
+mod containers_pane;
 mod debug_dialog;
 mod hideout_pane;
 mod icon_cache;
@@ -36,6 +37,7 @@ pub struct SaveTick {
 enum LeftTab {
     Hideout,
     Tasks,
+    Containers,
     ItemsDb,
 }
 
@@ -250,13 +252,12 @@ impl eframe::App for App {
                 });
         }
 
-        // Right preview pane. Hidden on the Items DB tab — the catalog
-        // browser is a reference view, not a tracked-progress view, so
-        // the per-tracked-item aggregation that lives on the right
-        // would just be noise next to it. The tab has its own
-        // "tracked only" toggle for users who want to narrow to the
-        // active set.
-        if self.tab != LeftTab::ItemsDb {
+        // Right preview pane. Hidden on the Items DB and Containers tabs —
+        // both are management/reference views, not tracked-progress views, so
+        // the per-tracked-item aggregation that lives on the right would just
+        // be noise next to them. The Items DB tab has its own "tracked only"
+        // toggle for users who want to narrow to the active set.
+        if !matches!(self.tab, LeftTab::ItemsDb | LeftTab::Containers) {
             egui::SidePanel::right("preview")
                 .resizable(true)
                 .default_width(480.0)
@@ -271,6 +272,7 @@ impl eframe::App for App {
             ui.horizontal(|ui| {
                 ui.selectable_value(&mut self.tab, LeftTab::Hideout, "Hideout");
                 ui.selectable_value(&mut self.tab, LeftTab::Tasks, "Tasks");
+                ui.selectable_value(&mut self.tab, LeftTab::Containers, "Containers");
                 ui.selectable_value(&mut self.tab, LeftTab::ItemsDb, "Items DB");
             });
             ui.separator();
@@ -294,6 +296,11 @@ impl eframe::App for App {
                 LeftTab::Tasks => {
                     egui::ScrollArea::vertical().show(ui, |ui| {
                         tasks_pane::ui(ui, &self.state, &mut self.tasks_filter, &self.save_tx)
+                    });
+                }
+                LeftTab::Containers => {
+                    egui::ScrollArea::vertical().show(ui, |ui| {
+                        containers_pane::ui(ui, &self.state, &mut self.icons, &self.save_tx);
                     });
                 }
                 LeftTab::ItemsDb => {
@@ -694,7 +701,7 @@ impl App {
             .resizable(false)
             .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
             .show(ctx, |ui| {
-                ui.label("This clears every tracked upgrade, completed marker, and collected count. This cannot be undone.");
+                ui.label("This clears every tracked upgrade, completed marker, collected count, and secondary container. This cannot be undone.");
                 ui.add_space(8.0);
                 ui.horizontal(|ui| {
                     if ui.button("Cancel").clicked() {

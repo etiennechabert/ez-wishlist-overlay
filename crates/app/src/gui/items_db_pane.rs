@@ -2,10 +2,12 @@
 //! Read-only reference view — no wishlist mutation here. Scoped to MISC for
 //! now; a category selector can be re-added once we expand beyond that.
 //!
-//! Quantity / total weight / total value columns reflect the
-//! cross-cutting `AppState.collected` map (the same map OCR captures
-//! and the wishlist UI mutates). Sorting by Total Value makes this
-//! tab a "what's in my stash worth" view.
+//! Quantity / surplus / total weight / total value columns reflect the
+//! *combined* owned total across the stash (`AppState.collected`, the map OCR
+//! captures and the wishlist UI mutates) and every secondary container
+//! (`AppState.containers`) — see [`crate::state::AppState::owned_total`]. The
+//! Containers column attributes that total to where it lives. Sorting by Total
+//! Value makes this tab a "what's my whole inventory worth" view.
 
 use crate::data::Item;
 use crate::gui::IconCache;
@@ -23,6 +25,7 @@ pub enum SortColumn {
     Price,
     Rarity,
     Quantity,
+    Containers,
     Surplus,
     TotalWeight,
     TotalValue,
@@ -76,12 +79,40 @@ pub fn ui(
 ) {
     // Snapshot everything we need from state in one read, so the table
     // body below isn't repeatedly grabbing the RwLock per row.
-    let (data, collected, tracked_ids) = {
+    let (data, owned, stash, containers_by_item, tracked_ids) = {
         let s = state.read();
-        let collected: HashMap<String, u32> = s.collected.clone();
+        // Stash counts on their own — used only to attribute the stash portion
+        // in the per-item location tooltip.
+        let stash: HashMap<String, u32> = s.collected.clone();
+        // Combined owned total (stash + every container). Every quantity-driven
+        // column below — Qty, Surplus, Total wt/val — reads this, so they all
+        // count the whole inventory.
+        let mut owned = stash.clone();
+        // Reverse index: item id → which secondary containers hold it, and how
+        // many. Built once here so the virtualized body never scans containers.
+        let mut containers_by_item: HashMap<String, Vec<(String, u32)>> = HashMap::new();
+        for c in &s.containers {
+            for (item_id, &qty) in &c.contents {
+                *owned.entry(item_id.clone()).or_insert(0) += qty;
+                containers_by_item
+                    .entry(item_id.clone())
+                    .or_default()
+                    .push((c.name.clone(), qty));
+            }
+        }
+        // Stable display order within a cell, independent of HashMap iteration.
+        for parts in containers_by_item.values_mut() {
+            parts.sort_by(|a, b| a.0.cmp(&b.0));
+        }
         let tracked_ids: HashSet<String> =
             s.active_items().into_iter().map(|a| a.item_id).collect();
-        (s.data.clone(), collected, tracked_ids)
+        (
+            s.data.clone(),
+            owned,
+            stash,
+            containers_by_item,
+            tracked_ids,
+        )
     };
 
     ui.horizontal(|ui| {
@@ -133,7 +164,7 @@ pub fn ui(
         .iter()
         .filter(|item| item.category.as_deref() == Some("misc"))
         .filter(|item| !db.tracked_only || tracked_ids.contains(&item.id))
-        .filter(|item| !db.redundant_only || surplus_amount(item, &collected, &needs) > 0)
+        .filter(|item| !db.redundant_only || surplus_amount(item, &owned, &needs) > 0)
         .filter(|item| {
             if filter_lc.is_empty() {
                 return true;
@@ -148,13 +179,20 @@ pub fn ui(
         })
         .collect();
 
-    sort_rows(&mut rows, db.sort_by, db.sort_dir, &collected, &needs);
+    sort_rows(
+        &mut rows,
+        db.sort_by,
+        db.sort_dir,
+        &owned,
+        &needs,
+        &containers_by_item,
+    );
 
     // Footer summary: count + grand totals across the visible rows.
     // Computed *after* filtering so the user can use the tracked-only
     // toggle + the search box to scope the "stash value" question to
     // whatever subset they're looking at.
-    let (visible_total_weight, visible_total_value) = visible_totals(&rows, &collected);
+    let (visible_total_weight, visible_total_value) = visible_totals(&rows, &owned);
     ui.horizontal(|ui| {
         ui.label(
             egui::RichText::new(format!("{} item(s)", rows.len()))
@@ -172,8 +210,7 @@ pub fn ui(
             .color(ui.visuals().weak_text_color()),
         );
         ui.add_space(16.0);
-        let (surplus_count, surplus_weight, surplus_value) =
-            surplus_totals(&rows, &collected, &needs);
+        let (surplus_count, surplus_weight, surplus_value) = surplus_totals(&rows, &owned, &needs);
         ui.label(
             egui::RichText::new(format!(
                 "Surplus: {surplus_count} item(s) · {surplus_weight:.2} kg · {} ₽",
@@ -202,6 +239,7 @@ pub fn ui(
         .column(Column::initial(100.0).at_least(70.0)) // unit price
         .column(Column::initial(60.0).at_least(50.0)) // rarity
         .column(Column::initial(60.0).at_least(50.0)) // quantity
+        .column(Column::initial(160.0).at_least(90.0).clip(true)) // containers
         .column(Column::initial(70.0).at_least(50.0)) // surplus
         .column(Column::initial(90.0).at_least(70.0)) // total weight
         .column(Column::remainder().at_least(90.0)) // total value
@@ -215,6 +253,7 @@ pub fn ui(
             header.col(|ui| sort_header(ui, db, SortColumn::Price, "Value"));
             header.col(|ui| sort_header(ui, db, SortColumn::Rarity, "Rarity"));
             header.col(|ui| sort_header(ui, db, SortColumn::Quantity, "Qty"));
+            header.col(|ui| sort_header(ui, db, SortColumn::Containers, "Containers"));
             header.col(|ui| sort_header(ui, db, SortColumn::Surplus, "Surplus"));
             header.col(|ui| sort_header(ui, db, SortColumn::TotalWeight, "Total wt"));
             header.col(|ui| sort_header(ui, db, SortColumn::TotalValue, "Total val"));
@@ -222,7 +261,7 @@ pub fn ui(
         .body(|body| {
             body.rows(row_h, rows.len(), |mut row| {
                 let item = rows[row.index()];
-                let qty = collected.get(&item.id).copied().unwrap_or(0);
+                let qty = owned.get(&item.id).copied().unwrap_or(0);
                 row.col(|ui| {
                     if let Some(tex) = icons.get(ui.ctx(), &item.icon_path) {
                         let size = egui::vec2(28.0, 28.0);
@@ -256,18 +295,33 @@ pub fn ui(
                     ui.label(item.rarity.as_deref().unwrap_or("—"));
                 });
                 row.col(|ui| {
-                    // Zero counts get dimmed so a stash row with
-                    // qty=0 doesn't read as "I have something"
-                    // — the same item also has a 0 in `collected`
-                    // when OCR hasn't seen it yet.
+                    // Combined owned total (stash + every container). Zero
+                    // counts get dimmed so a row with qty=0 doesn't read as
+                    // "I have something" — an item the user has never gathered
+                    // sits at 0 across the whole inventory.
                     let text = egui::RichText::new(qty.to_string());
                     let text = if qty == 0 { text.color(weak) } else { text };
                     ui.label(text);
                 });
                 row.col(|ui| {
+                    // Which secondary containers hold this item (the new
+                    // info). Stash-only items show a dim "—"; the full
+                    // breakdown incl. the stash portion is in the hover.
+                    let label = container_cell_label(containers_by_item.get(&item.id));
+                    if label.is_empty() {
+                        ui.label(egui::RichText::new("—").color(weak));
+                    } else {
+                        ui.add(egui::Label::new(label).wrap_mode(egui::TextWrapMode::Truncate))
+                            .on_hover_text(container_tooltip(
+                                stash.get(&item.id).copied().unwrap_or(0),
+                                containers_by_item.get(&item.id),
+                            ));
+                    }
+                });
+                row.col(|ui| {
                     // Surplus = held minus what the selected horizon needs.
                     // Dim zero so only genuinely redundant rows stand out.
-                    let surplus = surplus_amount(item, &collected, &needs);
+                    let surplus = surplus_amount(item, &owned, &needs);
                     let text = egui::RichText::new(surplus.to_string());
                     let text = if surplus == 0 { text.color(weak) } else { text };
                     ui.label(text);
@@ -320,6 +374,7 @@ fn sort_header(ui: &mut egui::Ui, db: &mut ItemsDbState, col: SortColumn, label:
             // Subcategory, Rarity, etc.) keep the ascending default.
             db.sort_dir = match col {
                 SortColumn::Quantity
+                | SortColumn::Containers
                 | SortColumn::Surplus
                 | SortColumn::TotalWeight
                 | SortColumn::TotalValue => SortDir::Desc,
@@ -335,6 +390,7 @@ fn sort_rows(
     dir: SortDir,
     collected: &HashMap<String, u32>,
     needs: &HashMap<String, u32>,
+    containers_by_item: &HashMap<String, Vec<(String, u32)>>,
 ) {
     rows.sort_by(|a, b| {
         let ord = match col {
@@ -349,6 +405,13 @@ fn sort_rows(
                 let qa = collected.get(&a.id).copied().unwrap_or(0);
                 let qb = collected.get(&b.id).copied().unwrap_or(0);
                 qa.cmp(&qb)
+            }
+            SortColumn::Containers => {
+                // By how many distinct secondary containers hold the item —
+                // most-spread-out first (on the descending default click).
+                let na = containers_by_item.get(&a.id).map_or(0, |v| v.len());
+                let nb = containers_by_item.get(&b.id).map_or(0, |v| v.len());
+                na.cmp(&nb)
             }
             SortColumn::Surplus => {
                 surplus_amount(a, collected, needs).cmp(&surplus_amount(b, collected, needs))
@@ -417,6 +480,41 @@ fn surplus_amount(
     let have = collected.get(&item.id).copied().unwrap_or(0);
     let need = needs.get(&item.id).copied().unwrap_or(0);
     have.saturating_sub(need)
+}
+
+/// The Containers cell text: secondary-container holdings as
+/// "Name ×qty · Name ×qty". Empty when the item lives only in the stash (or
+/// nowhere) — those rows render a dim "—" instead, so the column only draws
+/// attention when there's genuinely container info to show.
+fn container_cell_label(parts: Option<&Vec<(String, u32)>>) -> String {
+    match parts {
+        Some(parts) if !parts.is_empty() => parts
+            .iter()
+            .map(|(name, qty)| format!("{name} ×{qty}"))
+            .collect::<Vec<_>>()
+            .join(" · "),
+        _ => String::new(),
+    }
+}
+
+/// Full where-is-it breakdown for the cell's hover tooltip, including the stash
+/// portion so the user sees the complete split (e.g. "Stash ×2 · Backpack ×3")
+/// even though the cell itself shows only the secondary containers.
+fn container_tooltip(stash: u32, parts: Option<&Vec<(String, u32)>>) -> String {
+    let mut segs: Vec<String> = Vec::new();
+    if stash > 0 {
+        segs.push(format!("Stash ×{stash}"));
+    }
+    if let Some(parts) = parts {
+        for (name, qty) in parts {
+            segs.push(format!("{name} ×{qty}"));
+        }
+    }
+    if segs.is_empty() {
+        "Not stored anywhere yet".to_string()
+    } else {
+        segs.join(" · ")
+    }
 }
 
 /// Count / weight / value reclaimable by clearing the surplus across the
