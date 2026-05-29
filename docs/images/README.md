@@ -1,19 +1,16 @@
 # README screenshots
 
-The files here are referenced by the main [README](../../README.md). They currently ship as **labeled gray placeholders** — replace each one with a real screenshot using the **same filename** and it'll appear automatically (no README edits needed).
+These are the live images shown in the main [README](../../README.md). To refresh one (new wipe, UI change), replace the file in place with the **same name** — no README edits needed.
 
-Suggested capture targets:
+| File | Shows | Format |
+| ---- | ----- | ------ |
+| `desktop-hideout.png` | Desktop **Hideout** tab + the aggregated *Active items* wishlist. Doubles as the hero image. | PNG (crisp UI text) |
+| `desktop-items-db.png` | Desktop **Items DB** tab, sorted by Total Value (the "stash worth" view). | PNG |
+| `settings.png` | The **Settings** dialog. | PNG |
+| `vr-overlay.jpg` | In-headset: the wishlist overlay grid floating in the world. | JPG (photographic) |
+| `ocr-feedback.jpg` | In-headset: the OCR feedback card ("OCR Bitcoin Mine · Lv 2") over the Facility Upgrade panel — captures the whole SPACE-to-read flow in one shot. | JPG |
 
-| File | What it should show | Suggested size |
-| ---- | ------------------- | -------------- |
-| `desktop-hideout.png` | Desktop app, **Hideout** tab — modules with level cells and the presets row on the left, the aggregated wishlist preview on the right. Used twice (hero + Hideout section), so make this the best overview shot. | ~1280×800 |
-| `desktop-items-db.png` | Desktop app, **Items DB** tab — the catalog sorted by **Total Value** so the "stash worth" angle reads clearly. | ~1280×800 |
-| `vr-overlay.png` | In headset — the wishlist overlay as it appears when you look up. A SteamVR mirror grab or photo of the view both work. | ~1280×720 |
-| `ocr-panel.png` | In game — the **Facility Upgrade** panel (the screen the SPACE-key OCR reads). | ~1280×720 |
-| `ocr-feedback.png` | In headset — the OCR feedback card that pops up after a capture, showing the counts it filled in. | ~1280×720 |
-| `settings.png` | The **Settings** dialog (Appearance / Updates / VR Overlay / Screenshot OCR). | ~560×760 |
-
-Tips:
-- PNG keeps UI text crisp; aim for the sizes above so the layout doesn't shift when placeholders are swapped out.
-- `ocr-panel.png` and `ocr-feedback.png` sit side by side in the README, so matching their aspect ratios looks tidy.
-- A real SteamVR mirror capture (rather than a phone photo of the lens) gives the cleanest VR shots.
+Notes:
+- **Desktop UI shots → PNG** (sharp text), **VR/in-game shots → JPG** (small files for photographic content). Keep that split when refreshing.
+- The VR/in-game JPGs are downscaled to ~1600 px wide; the desktop PNGs are native resolution.
+- There's deliberately no separate `ocr-panel` image — the `ocr-feedback` shot already shows the panel behind the card.

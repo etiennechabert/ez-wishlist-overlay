@@ -70,7 +70,7 @@ The **Items DB** tab is a sortable, filterable catalog of the barter items hideo
 Put the headset on and **look up** — the wishlist fades in above you as a SteamVR overlay. It anchors in world space at the spot you raised your gaze to, so you can look back down to read and interact with it without it chasing your eyes. Items grey out as you complete them, and the panel re-renders the instant anything changes on the desktop side.
 
 <p align="center">
-  <img src="docs/images/vr-overlay.png" alt="VR overlay" width="820">
+  <img src="docs/images/vr-overlay.jpg" alt="The VR wishlist overlay seen in-headset" width="820">
 </p>
 
 ### 👆 Tick items off without taking the headset off
@@ -82,8 +82,7 @@ Point a controller at an item in the overlay and pull the trigger to bump its co
 This is the time-saver. Open an upgrade's **Facility Upgrade** panel in-game, and with the desktop window focused press **SPACE**. The app captures what SteamVR is showing, recognizes which upgrade panel it is, reads the owned-count for every required item, and writes those numbers straight into your wishlist — no manual counting. A card pops up in the headset showing exactly what changed. By default it also auto-tracks that upgrade and marks the lower levels done.
 
 <p align="center">
-  <img src="docs/images/ocr-panel.png" alt="In-game Facility Upgrade panel that OCR reads" width="410">
-  <img src="docs/images/ocr-feedback.png" alt="In-headset OCR feedback card" width="410">
+  <img src="docs/images/ocr-feedback.jpg" alt="In-headset OCR feedback card on the Facility Upgrade panel" width="760">
 </p>
 
 > It reads SteamVR's *rendered image* — the same pixels already on your headset display — through OpenVR's public mirror-texture API. It never looks at the game process. See [below](#-how-it-stays-anti-cheat-safe).
