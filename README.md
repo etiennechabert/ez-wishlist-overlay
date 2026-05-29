@@ -21,10 +21,6 @@
   <a href="https://github.com/etiennechabert/ez-wishlist-overlay/actions/workflows/ci.yml"><img src="https://github.com/etiennechabert/ez-wishlist-overlay/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 </p>
 
-<p align="center">
-  <img src="docs/images/desktop-hideout.png" alt="EZ Wishlist Overlay desktop app" width="820">
-</p>
-
 > [!NOTE]
 > **Anti-cheat-safe by design.** The app never touches the game — no reading its memory, files, or network, no injecting, no hooks. It only talks to SteamVR through the public OpenVR API (the same one OVR Toolkit and XSOverlay use). Even the screenshot feature reads SteamVR's own rendered image, not the game. [More on how this works ↓](#-how-it-stays-anti-cheat-safe)
 

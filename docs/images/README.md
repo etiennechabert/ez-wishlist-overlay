@@ -4,7 +4,7 @@ These are the live images shown in the main [README](../../README.md). To refres
 
 | File | Shows | Format |
 | ---- | ----- | ------ |
-| `desktop-hideout.png` | Desktop **Hideout** tab + the aggregated *Active items* wishlist. Doubles as the hero image. | PNG (crisp UI text) |
+| `desktop-hideout.png` | Desktop **Hideout** tab + the aggregated *Active items* wishlist. | PNG (crisp UI text) |
 | `desktop-items-db.png` | Desktop **Items DB** tab, sorted by Total Value (the "stash worth" view). | PNG |
 | `settings.png` | The **Settings** dialog. | PNG |
 | `vr-overlay.jpg` | In-headset: the wishlist overlay grid floating in the world. | JPG (photographic) |
