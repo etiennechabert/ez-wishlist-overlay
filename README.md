@@ -12,8 +12,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/etiennechabert/ez-wishlist-overlay/releases/latest"><img src="https://img.shields.io/github/v/release/etiennechabert/ez-wishlist-overlay?label=download&logo=github&color=2ea043" alt="Latest release"></a>
-  <a href="https://github.com/etiennechabert/ez-wishlist-overlay/releases"><img src="https://img.shields.io/github/downloads/etiennechabert/ez-wishlist-overlay/total?logo=github&color=blue" alt="Total downloads"></a>
+  <a href="https://github.com/etiennechabert/ez-wishlist-overlay/releases/latest"><img src="https://img.shields.io/badge/%E2%AC%87%20Download%20for%20Windows-2ea043?style=for-the-badge&logo=github&logoColor=white" alt="Download for Windows" height="46"></a>
+</p>
+
+<p align="center">
   <img src="https://img.shields.io/badge/Platform-Windows%20%2B%20SteamVR-0078D4.svg?logo=windows&logoColor=white" alt="Platform">
   <a href="https://github.com/etiennechabert/ez-wishlist-overlay/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License"></a>
   <a href="https://github.com/etiennechabert/ez-wishlist-overlay/actions/workflows/ci.yml"><img src="https://github.com/etiennechabert/ez-wishlist-overlay/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
