@@ -5,7 +5,8 @@ use crate::data::{
 };
 use crate::gui::{icon_cache::IconCache, theme, SaveTick};
 use crate::hierarchy::{category_virtual_id, module_category};
-use crate::state::AppState;
+use crate::settings::{HideoutView, Settings};
+use crate::state::{AppState, RecipeKnowledge, UpgradeProgressRow};
 use crossbeam_channel::Sender;
 use parking_lot::RwLock;
 use std::sync::Arc;
@@ -18,6 +19,11 @@ const REQ_GRID_COLS: usize = RECIPE_SLOTS;
 const MODULE_NAME_W: f32 = 190.0;
 const CELL_W: f32 = 210.0;
 const ROW_H: f32 = 24.0;
+/// "By progress" list column widths: the "Module L N" title and the progress
+/// bar. Sized so a typical module name + level fits without truncation and the
+/// bar is wide enough to read the "c / n" overlay.
+const PROGRESS_NAME_W: f32 = 210.0;
+const PROGRESS_BAR_W: f32 = 180.0;
 /// Visual left-indent applied to child rows so the hierarchy is unambiguous
 /// at a glance. ~one toggle-width — child toggle column aligns with the
 /// parent's name column.
@@ -79,33 +85,85 @@ const PICKER_TILE_SPACING: f32 = 6.0;
 const PICKER_WINDOW_W: f32 = 760.0;
 const PICKER_WINDOW_H: f32 = 560.0;
 
+/// Return value of [`ui`]: signals the caller whether a settings field changed
+/// this frame so it can persist `settings.json`. The pane otherwise only ever
+/// touches `state.json` (via `save_tx`), so this is the one channel back up to
+/// `App` for the view-toggle preference.
+#[derive(Default)]
+pub struct HideoutOutcome {
+    pub settings_changed: bool,
+}
+
 pub fn ui(
     ui: &mut egui::Ui,
     state: &Arc<RwLock<AppState>>,
+    settings: &Arc<RwLock<Settings>>,
     icons: &mut IconCache,
     save_tx: &Sender<SaveTick>,
-) {
+) -> HideoutOutcome {
     let data = state.read().data.clone();
+    let mut outcome = HideoutOutcome::default();
 
     presets_row(ui, state, save_tx);
-    header_row(ui);
+    outcome.settings_changed |= view_toggle_row(ui, settings);
     ui.separator();
 
-    let rows = build_hideout_rows(&data.modules);
-    for (idx, row) in rows.iter().enumerate() {
-        match row {
-            HideoutRow::SyntheticHeader(name) => synthetic_header_row(ui, state, save_tx, name),
-            HideoutRow::Module { module, is_child } => {
-                module_row(ui, state, save_tx, idx, module, *is_child);
+    match settings.read().hideout_view {
+        HideoutView::Modules => {
+            header_row(ui);
+            ui.separator();
+            let rows = build_hideout_rows(&data.modules);
+            for (idx, row) in rows.iter().enumerate() {
+                match row {
+                    HideoutRow::SyntheticHeader(name) => {
+                        synthetic_header_row(ui, state, save_tx, name)
+                    }
+                    HideoutRow::Module { module, is_child } => {
+                        module_row(ui, state, save_tx, idx, module, *is_child);
+                    }
+                }
             }
         }
+        HideoutView::Progress => progress_list(ui, state, save_tx),
     }
 
+    // The recipe editor renders in BOTH views off the ctx-memory selection
+    // (keyed SELECTED_ID, layout-independent), so "Edit" works identically
+    // from a grid cell or a progress-list row.
     if let Some(sel) = selected(ui.ctx()) {
         ui.add_space(8.0);
         if let Some((module, upgrade)) = find_upgrade(&data.modules, &sel) {
             editable_recipe_panel(ui, state, save_tx, icons, &module.name, upgrade);
         }
+    }
+
+    outcome
+}
+
+/// Segmented "By module" / "By progress" toggle. Returns `true` when the
+/// choice changed this frame so the caller can persist it. Uses
+/// `selectable_value` — the same widget as the tab strip and the theme/eye
+/// pickers — so it reads as native alongside the preset buttons above it.
+fn view_toggle_row(ui: &mut egui::Ui, settings: &Arc<RwLock<Settings>>) -> bool {
+    let before = settings.read().hideout_view;
+    let mut view = before;
+    ui.horizontal(|ui| {
+        ui.label("View:");
+        ui.selectable_value(&mut view, HideoutView::Modules, "By module")
+            .on_hover_text(
+                "Spatial grid: every module with its level cells — the map of your hideout.",
+            );
+        ui.selectable_value(&mut view, HideoutView::Progress, "By progress")
+            .on_hover_text(
+                "Flat list of tracked upgrades, with ready-to-claim and near-complete \
+                 floated to the top.",
+            );
+    });
+    if view != before {
+        settings.write().hideout_view = view;
+        true
+    } else {
+        false
     }
 }
 
@@ -502,17 +560,15 @@ fn upgrade_cell(
     save_tx: &Sender<SaveTick>,
     upgrade: &Upgrade,
 ) {
-    let (mut tracked, mut done, overridden, ready) = {
+    let (tracked, done, ready, assumed) = {
         let s = state.read();
         (
             s.tracked_upgrades.contains(&upgrade.id),
             s.completed_upgrades.contains(&upgrade.id),
-            s.is_overridden(&upgrade.id),
             s.is_upgrade_ready(&upgrade.id),
+            matches!(s.recipe_knowledge(&upgrade.id), RecipeKnowledge::Assumed),
         )
     };
-    let original_tracked = tracked;
-    let original_done = done;
 
     let dark = ui.visuals().dark_mode;
     let fill = if done {
@@ -525,43 +581,201 @@ fn upgrade_cell(
         egui::Color32::TRANSPARENT
     };
 
-    let is_selected = selected(ui.ctx()).as_deref() == Some(upgrade.id.as_str());
-
-    egui::Frame::group(ui.style())
+    // Assumed (empty) recipes never reach the warm "ready" fill no matter how
+    // much the user collects — correct, but otherwise invisible. A thin brick
+    // stroke marks "this cell is a guess, open Edit" without the loud fills
+    // that tracked/ready/done use.
+    let mut frame = egui::Frame::group(ui.style())
         .fill(fill)
-        .inner_margin(egui::Margin::symmetric(6.0, 1.0))
-        .show(ui, |ui| {
-            ui.horizontal(|ui| {
-                ui.checkbox(&mut tracked, "Track");
-                ui.checkbox(&mut done, "Done");
-                ui.add_space(4.0);
+        .inner_margin(egui::Margin::symmetric(6.0, 1.0));
+    if assumed {
+        frame = frame.stroke(egui::Stroke::new(1.0, theme::assumed_marker(dark)));
+    }
 
-                let label = if is_selected { "Hide" } else { "Edit" };
-                let mut btn = egui::Button::new(label).small();
-                if overridden {
-                    btn = btn.fill(theme::override_marker(dark));
-                }
-                let mut resp = ui.add(btn);
-                if overridden {
-                    resp = resp.on_hover_text("Recipe customized — click to edit");
-                }
-                if resp.clicked() {
-                    if is_selected {
-                        set_selected(ui.ctx(), None);
-                    } else {
-                        set_selected(ui.ctx(), Some(&upgrade.id));
-                    }
-                }
-            });
-        });
+    let resp = frame
+        .show(ui, |ui| {
+            upgrade_controls(ui, state, save_tx, &upgrade.id);
+        })
+        .response;
+    if assumed {
+        resp.on_hover_text(
+            "We don't have this upgrade's recipe yet — its cost is a guess. \
+             Click Edit to fill in what it actually needs.",
+        );
+    }
+}
+
+/// The Track / Done / Edit control cluster shared by the grid cell and the
+/// "By progress" list row, so the two never drift. Reads and self-applies
+/// tracked/completed mutations (+ notify) exactly as the old inline block in
+/// `upgrade_cell` did, and toggles the ctx-memory selection that drives the
+/// recipe editor.
+fn upgrade_controls(
+    ui: &mut egui::Ui,
+    state: &Arc<RwLock<AppState>>,
+    save_tx: &Sender<SaveTick>,
+    upgrade_id: &UpgradeId,
+) {
+    let (mut tracked, mut done, overridden) = {
+        let s = state.read();
+        (
+            s.tracked_upgrades.contains(upgrade_id),
+            s.completed_upgrades.contains(upgrade_id),
+            s.is_overridden(upgrade_id),
+        )
+    };
+    let (original_tracked, original_done) = (tracked, done);
+    let dark = ui.visuals().dark_mode;
+    let is_selected = selected(ui.ctx()).as_deref() == Some(upgrade_id.as_str());
+
+    ui.horizontal(|ui| {
+        ui.checkbox(&mut tracked, "Track");
+        ui.checkbox(&mut done, "Done");
+        ui.add_space(4.0);
+
+        let label = if is_selected { "Hide" } else { "Edit" };
+        let mut btn = egui::Button::new(label).small();
+        if overridden {
+            btn = btn.fill(theme::override_marker(dark));
+        }
+        let mut resp = ui.add(btn);
+        if overridden {
+            resp = resp.on_hover_text("Recipe customized — click to edit");
+        }
+        if resp.clicked() {
+            if is_selected {
+                set_selected(ui.ctx(), None);
+            } else {
+                set_selected(ui.ctx(), Some(upgrade_id.as_str()));
+            }
+        }
+    });
 
     if tracked != original_tracked {
-        state.write().set_tracked_upgrade(&upgrade.id, tracked);
+        state.write().set_tracked_upgrade(upgrade_id, tracked);
         notify(state, save_tx);
     }
     if done != original_done {
-        state.write().set_completed_upgrade(&upgrade.id, done);
+        state.write().set_completed_upgrade(upgrade_id, done);
         notify(state, save_tx);
+    }
+}
+
+/// "By progress" view: tracked upgrades as a flat, sorted list answering
+/// "what should I claim or grind next?". Empty when nothing's tracked.
+fn progress_list(ui: &mut egui::Ui, state: &Arc<RwLock<AppState>>, save_tx: &Sender<SaveTick>) {
+    let rows = state.read().hideout_progress_rows();
+    if rows.is_empty() {
+        ui.add_space(8.0);
+        ui.label(
+            egui::RichText::new(
+                "Nothing tracked yet. Track an upgrade in the \"By module\" view (or apply a \
+                 preset above) and it'll show up here, sorted by how close it is to claimable.",
+            )
+            .italics()
+            .color(ui.visuals().weak_text_color()),
+        );
+        return;
+    }
+    for (idx, row) in rows.iter().enumerate() {
+        progress_row(ui, state, save_tx, idx, row);
+    }
+}
+
+fn progress_row(
+    ui: &mut egui::Ui,
+    state: &Arc<RwLock<AppState>>,
+    save_tx: &Sender<SaveTick>,
+    row_idx: usize,
+    row: &UpgradeProgressRow,
+) {
+    let dark = ui.visuals().dark_mode;
+    let strong = ui.visuals().strong_text_color();
+    // Reserve the background slot before laying out content, then paint into
+    // it once we know the row's rect — the same stripe/hover trick as
+    // `module_row`.
+    let bg_idx = ui.painter().add(egui::Shape::Noop);
+
+    let inner = ui.horizontal(|ui| {
+        ui.set_min_height(ROW_H);
+        ui.allocate_ui_with_layout(
+            egui::vec2(PROGRESS_NAME_W, ROW_H),
+            egui::Layout::left_to_right(egui::Align::Center),
+            |ui| {
+                ui.set_min_size(egui::vec2(PROGRESS_NAME_W, ROW_H));
+                let title = format!("{} L{}", row.module_name, row.level);
+                ui.add(
+                    egui::Label::new(egui::RichText::new(title).strong().color(strong)).truncate(),
+                );
+            },
+        );
+
+        // Same per-item progress widget the preview pane uses, here rolled up
+        // across the whole recipe.
+        let frac = row.progress.fraction();
+        ui.add_sized(
+            egui::vec2(PROGRESS_BAR_W, 18.0),
+            egui::ProgressBar::new(frac).text(format!(
+                "{} / {}",
+                row.progress.collected, row.progress.needed
+            )),
+        );
+
+        progress_badge(ui, row.knowledge, dark);
+
+        ui.add_space(8.0);
+        upgrade_controls(ui, state, save_tx, &row.upgrade_id);
+    });
+
+    // Ready rows get the warm `ready_fill` so readiness pops before the eye
+    // reaches the bar (the grid signals this per-cell; here the row IS the
+    // upgrade). Everything in this list is tracked-and-incomplete by
+    // construction, so there's no tracked/done tint to compete with.
+    let row_rect = inner.response.rect;
+    let hovered = ui.rect_contains_pointer(row_rect);
+    let bg = if row.ready {
+        theme::ready_fill(dark)
+    } else if hovered {
+        theme::row_hover(dark)
+    } else if row_idx % 2 == 1 {
+        theme::row_stripe(dark)
+    } else {
+        egui::Color32::TRANSPARENT
+    };
+    if bg != egui::Color32::TRANSPARENT {
+        ui.painter()
+            .set(bg_idx, egui::epaint::RectShape::filled(row_rect, 2.0, bg));
+    }
+    ui.add_space(2.0);
+}
+
+/// Recipe-confidence badge for a progress-list row. `Bundled` is the quiet
+/// default (no badge); `Assumed`/`Edited` get a small colored tag. No ✎/✓
+/// Dingbat glyphs — neither Ubuntu-Light nor Hack cover that block, so they'd
+/// render as tofu (same trap `module_toggle` documents for ✓/✕).
+fn progress_badge(ui: &mut egui::Ui, knowledge: RecipeKnowledge, dark: bool) {
+    match knowledge {
+        RecipeKnowledge::Bundled => {}
+        RecipeKnowledge::Edited => {
+            ui.label(
+                egui::RichText::new("(edited)")
+                    .small()
+                    .color(theme::override_marker(dark)),
+            )
+            .on_hover_text("You've corrected this recipe via the Edit panel.");
+        }
+        RecipeKnowledge::Assumed => {
+            ui.label(
+                egui::RichText::new("needs recipe")
+                    .small()
+                    .strong()
+                    .color(theme::assumed_marker(dark)),
+            )
+            .on_hover_text(
+                "We don't have this upgrade's recipe yet — its cost is a guess. \
+                 Click Edit to fill in what it actually needs.",
+            );
+        }
     }
 }
 
