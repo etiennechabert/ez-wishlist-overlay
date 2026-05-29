@@ -802,7 +802,24 @@
           "name": "Procurement System",
           "level": 2,
           "description": "More goods",
-          "requirements": []
+          "requirements": [
+            {
+              "item_id": "misc_b_recorder",
+              "quantity": 3
+            },
+            {
+              "item_id": "misc_b_powerbank",
+              "quantity": 2
+            },
+            {
+              "item_id": "misc_b_oldphone",
+              "quantity": 4
+            },
+            {
+              "item_id": "misc_b_militaryusbdrive",
+              "quantity": 2
+            }
+          ]
         }
       ]
     },
@@ -1122,16 +1139,16 @@
           "description": "Character experience gain +5%",
           "requirements": [
             {
+              "item_id": "misc_b_toiletpaper",
+              "quantity": 3
+            },
+            {
               "item_id": "misc_b_beardoil",
               "quantity": 3
             },
             {
-              "item_id": "misc_b_ceramic_adhesive",
+              "item_id": "misc_barcleaner",
               "quantity": 3
-            },
-            {
-              "item_id": "misc_b_rat_poison",
-              "quantity": 1
             },
             {
               "item_id": "misc_b_shampoo",
