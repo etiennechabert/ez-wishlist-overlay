@@ -168,7 +168,6 @@ mod tests {
                 module("Moreitem", "Procurement System", 2),
                 module("StorageZoneLock1", "Storage Room A", 1),
             ],
-            vendors: Vec::new(),
             items: Vec::new(),
         }
     }

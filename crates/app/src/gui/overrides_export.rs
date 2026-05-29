@@ -226,7 +226,6 @@ mod tests {
                     }],
                 }],
             }],
-            vendors: vec![],
             items: vec![Item {
                 id: "nut".into(),
                 name: "Nut".into(),
