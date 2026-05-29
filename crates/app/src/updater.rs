@@ -50,6 +50,31 @@ pub enum CheckStatus {
     Failed { reason: String },
 }
 
+impl CheckStatus {
+    /// `Some(latest_version)` iff the check positively confirmed the running
+    /// build is behind a published release — i.e. *definitively* out of date.
+    /// Every other state returns `None` so callers **fail open**: a build
+    /// that's still checking, offline (`Failed`), ahead of latest (`Ahead`,
+    /// a dev build), up to date, or has the check disabled is never treated
+    /// as stale. The `match` is exhaustive on purpose — a new variant must
+    /// make an explicit out-of-date / not decision here rather than silently
+    /// inheriting a default.
+    ///
+    /// Used to gate "Export corrections": exporting recipe fixes from a stale
+    /// build tends to re-report recipes already corrected upstream, so the
+    /// button is disabled while this returns `Some`.
+    pub fn out_of_date_version(&self) -> Option<&str> {
+        match self {
+            CheckStatus::UpdateAvailable(info) => Some(&info.latest_version),
+            CheckStatus::Disabled
+            | CheckStatus::Checking
+            | CheckStatus::UpToDate { .. }
+            | CheckStatus::Ahead { .. }
+            | CheckStatus::Failed { .. } => None,
+        }
+    }
+}
+
 #[derive(Deserialize)]
 struct LatestRelease {
     tag_name: String,
@@ -205,5 +230,49 @@ mod tests {
         assert!(parse_semver("1.0.0") > parse_semver("0.99.99"));
         assert!(parse_semver("0.2.1") > parse_semver("0.2.0"));
         assert!(parse_semver("0.2.0") == parse_semver("0.2.0"));
+    }
+
+    #[test]
+    fn only_update_available_counts_as_out_of_date() {
+        // The "Export corrections" gate hangs off this: exactly one variant
+        // blocks; the other five must fail open. This is the behavior we
+        // cannot exercise from a dev build (which is always `Ahead`), so it
+        // is pinned here instead.
+        assert_eq!(
+            CheckStatus::UpdateAvailable(UpdateInfo {
+                latest_version: "0.3.0".into(),
+                release_url: "https://example.invalid/r".into(),
+            })
+            .out_of_date_version(),
+            Some("0.3.0"),
+            "a newer published release means out of date → gate closed"
+        );
+
+        // Fail-open states — each must be None so the gate stays open.
+        assert_eq!(CheckStatus::Disabled.out_of_date_version(), None);
+        assert_eq!(CheckStatus::Checking.out_of_date_version(), None);
+        assert_eq!(
+            CheckStatus::UpToDate {
+                latest_version: "0.2.1".into()
+            }
+            .out_of_date_version(),
+            None
+        );
+        assert_eq!(
+            CheckStatus::Ahead {
+                latest_version: "0.2.0".into()
+            }
+            .out_of_date_version(),
+            None,
+            "dev build ahead of latest must NOT be treated as stale"
+        );
+        assert_eq!(
+            CheckStatus::Failed {
+                reason: "offline".into()
+            }
+            .out_of_date_version(),
+            None,
+            "a failed/offline check must fail open, not block the user"
+        );
     }
 }
