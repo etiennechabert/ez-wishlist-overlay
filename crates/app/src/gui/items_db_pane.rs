@@ -9,7 +9,7 @@
 
 use crate::data::Item;
 use crate::gui::IconCache;
-use crate::state::AppState;
+use crate::state::{AppState, NeedHorizon};
 use egui_extras::{Column, TableBuilder};
 use parking_lot::RwLock;
 use std::collections::{HashMap, HashSet};
@@ -23,6 +23,7 @@ pub enum SortColumn {
     Price,
     Rarity,
     Quantity,
+    Surplus,
     TotalWeight,
     TotalValue,
 }
@@ -42,6 +43,13 @@ pub struct ItemsDbState {
     /// `AppState::active_items()`). Useful when the user wants to see
     /// only what's relevant to their current goals.
     pub tracked_only: bool,
+    /// Which upgrade scope the surplus calc treats as "needed" — drives the
+    /// Surplus column and the `redundant_only` filter. See
+    /// [`crate::state::NeedHorizon`].
+    pub horizon: NeedHorizon,
+    /// When true, keep only redundant rows — items held in excess of what
+    /// `horizon` needs (`surplus > 0`), i.e. safe to spend or sell.
+    pub redundant_only: bool,
 }
 
 impl Default for ItemsDbState {
@@ -51,6 +59,11 @@ impl Default for ItemsDbState {
             sort_by: SortColumn::Name,
             sort_dir: SortDir::Asc,
             tracked_only: false,
+            // Default to the middle horizon: protects the next buildable level
+            // of every module without hoarding for deep future levels.
+            // Aggressive (Tracked) and cautious (All future) are a click away.
+            horizon: NeedHorizon::AllNatural,
+            redundant_only: false,
         }
     }
 }
@@ -84,7 +97,35 @@ pub fn ui(
                  currently tracking.",
             );
     });
+    ui.horizontal(|ui| {
+        ui.label("Surplus vs:");
+        ui.selectable_value(&mut db.horizon, NeedHorizon::TrackedOnly, "Tracked")
+            .on_hover_text(
+                "Needed = upgrades you're tracking. Most aggressive — \
+                 everything else counts as redundant.",
+            );
+        ui.selectable_value(&mut db.horizon, NeedHorizon::AllNatural, "Natural")
+            .on_hover_text(
+                "Needed = the next buildable level of every module. \
+                 Balanced default.",
+            );
+        ui.selectable_value(&mut db.horizon, NeedHorizon::AllFuture, "All future")
+            .on_hover_text(
+                "Needed = every remaining level of every module. \
+                 Most conservative.",
+            );
+        ui.add_space(12.0);
+        ui.checkbox(&mut db.redundant_only, "Redundant only")
+            .on_hover_text(
+                "Show only items you hold more of than the selected scope \
+                 needs (surplus > 0) — safe to spend, turn in, or sell.",
+            );
+    });
     ui.separator();
+
+    // Per-item "needed" totals for the chosen horizon. Read after the controls
+    // so a horizon change this frame takes effect immediately.
+    let needs: HashMap<String, u32> = state.read().needed_by_id(db.horizon);
 
     let filter_lc = db.filter.to_lowercase();
     let mut rows: Vec<&Item> = data
@@ -92,6 +133,7 @@ pub fn ui(
         .iter()
         .filter(|item| item.category.as_deref() == Some("misc"))
         .filter(|item| !db.tracked_only || tracked_ids.contains(&item.id))
+        .filter(|item| !db.redundant_only || surplus_amount(item, &collected, &needs) > 0)
         .filter(|item| {
             if filter_lc.is_empty() {
                 return true;
@@ -106,7 +148,7 @@ pub fn ui(
         })
         .collect();
 
-    sort_rows(&mut rows, db.sort_by, db.sort_dir, &collected);
+    sort_rows(&mut rows, db.sort_by, db.sort_dir, &collected, &needs);
 
     // Footer summary: count + grand totals across the visible rows.
     // Computed *after* filtering so the user can use the tracked-only
@@ -129,6 +171,21 @@ pub fn ui(
             .small()
             .color(ui.visuals().weak_text_color()),
         );
+        ui.add_space(16.0);
+        let (surplus_count, surplus_weight, surplus_value) =
+            surplus_totals(&rows, &collected, &needs);
+        ui.label(
+            egui::RichText::new(format!(
+                "Surplus: {surplus_count} item(s) · {surplus_weight:.2} kg · {} ₽",
+                format_price(surplus_value),
+            ))
+            .small()
+            .color(ui.visuals().weak_text_color()),
+        )
+        .on_hover_text(
+            "What you could clear from the visible rows without falling short \
+             of the selected upgrade scope.",
+        );
     });
     ui.add_space(4.0);
 
@@ -145,6 +202,7 @@ pub fn ui(
         .column(Column::initial(100.0).at_least(70.0)) // unit price
         .column(Column::initial(60.0).at_least(50.0)) // rarity
         .column(Column::initial(60.0).at_least(50.0)) // quantity
+        .column(Column::initial(70.0).at_least(50.0)) // surplus
         .column(Column::initial(90.0).at_least(70.0)) // total weight
         .column(Column::remainder().at_least(90.0)) // total value
         .header(22.0, |mut header| {
@@ -157,6 +215,7 @@ pub fn ui(
             header.col(|ui| sort_header(ui, db, SortColumn::Price, "Value"));
             header.col(|ui| sort_header(ui, db, SortColumn::Rarity, "Rarity"));
             header.col(|ui| sort_header(ui, db, SortColumn::Quantity, "Qty"));
+            header.col(|ui| sort_header(ui, db, SortColumn::Surplus, "Surplus"));
             header.col(|ui| sort_header(ui, db, SortColumn::TotalWeight, "Total wt"));
             header.col(|ui| sort_header(ui, db, SortColumn::TotalValue, "Total val"));
         })
@@ -203,6 +262,14 @@ pub fn ui(
                     // when OCR hasn't seen it yet.
                     let text = egui::RichText::new(qty.to_string());
                     let text = if qty == 0 { text.color(weak) } else { text };
+                    ui.label(text);
+                });
+                row.col(|ui| {
+                    // Surplus = held minus what the selected horizon needs.
+                    // Dim zero so only genuinely redundant rows stand out.
+                    let surplus = surplus_amount(item, &collected, &needs);
+                    let text = egui::RichText::new(surplus.to_string());
+                    let text = if surplus == 0 { text.color(weak) } else { text };
                     ui.label(text);
                 });
                 row.col(|ui| match total_weight(item, qty) {
@@ -252,16 +319,23 @@ fn sort_header(ui: &mut egui::Ui, db: &mut ItemsDbState, col: SortColumn, label:
             // wanted ordering. Catalog-property columns (Name,
             // Subcategory, Rarity, etc.) keep the ascending default.
             db.sort_dir = match col {
-                SortColumn::Quantity | SortColumn::TotalWeight | SortColumn::TotalValue => {
-                    SortDir::Desc
-                }
+                SortColumn::Quantity
+                | SortColumn::Surplus
+                | SortColumn::TotalWeight
+                | SortColumn::TotalValue => SortDir::Desc,
                 _ => SortDir::Asc,
             };
         }
     }
 }
 
-fn sort_rows(rows: &mut [&Item], col: SortColumn, dir: SortDir, collected: &HashMap<String, u32>) {
+fn sort_rows(
+    rows: &mut [&Item],
+    col: SortColumn,
+    dir: SortDir,
+    collected: &HashMap<String, u32>,
+    needs: &HashMap<String, u32>,
+) {
     rows.sort_by(|a, b| {
         let ord = match col {
             SortColumn::Name => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
@@ -275,6 +349,9 @@ fn sort_rows(rows: &mut [&Item], col: SortColumn, dir: SortDir, collected: &Hash
                 let qa = collected.get(&a.id).copied().unwrap_or(0);
                 let qb = collected.get(&b.id).copied().unwrap_or(0);
                 qa.cmp(&qb)
+            }
+            SortColumn::Surplus => {
+                surplus_amount(a, collected, needs).cmp(&surplus_amount(b, collected, needs))
             }
             SortColumn::TotalWeight => {
                 let qa = collected.get(&a.id).copied().unwrap_or(0);
@@ -328,6 +405,47 @@ fn visible_totals(rows: &[&Item], collected: &HashMap<String, u32>) -> (f32, u64
         }
     }
     (weight, value)
+}
+
+/// Held quantity minus what the selected need-horizon requires, clamped at 0
+/// — the "safe to spend / redundant" amount for one item.
+fn surplus_amount(
+    item: &Item,
+    collected: &HashMap<String, u32>,
+    needs: &HashMap<String, u32>,
+) -> u32 {
+    let have = collected.get(&item.id).copied().unwrap_or(0);
+    let need = needs.get(&item.id).copied().unwrap_or(0);
+    have.saturating_sub(need)
+}
+
+/// Count / weight / value reclaimable by clearing the surplus across the
+/// visible rows. Weight and value use the *surplus* quantity (not full
+/// holdings), so the readout answers "what does clearing the redundant stock
+/// free up?". Items with unknown weight/price are skipped, matching
+/// [`visible_totals`].
+fn surplus_totals(
+    rows: &[&Item],
+    collected: &HashMap<String, u32>,
+    needs: &HashMap<String, u32>,
+) -> (u32, f32, u64) {
+    let mut count = 0u32;
+    let mut weight = 0.0f32;
+    let mut value = 0u64;
+    for item in rows {
+        let s = surplus_amount(item, collected, needs);
+        if s == 0 {
+            continue;
+        }
+        count = count.saturating_add(s);
+        if let Some(w) = item.weight {
+            weight += w * s as f32;
+        }
+        if let Some(p) = item.price {
+            value = value.saturating_add(p * s as u64);
+        }
+    }
+    (count, weight, value)
 }
 
 /// Keep `None` consistently at the bottom regardless of direction.
