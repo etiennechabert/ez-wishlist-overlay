@@ -65,6 +65,13 @@ pub struct App {
     /// the user turned off the check), gets replaced once the worker
     /// thread reports.
     check_status: CheckStatus,
+    /// Latest release version, set once the check reports a *newer* release
+    /// (`CheckStatus::UpdateAvailable`) and never cleared thereafter. Kept
+    /// separate from `check_status` because `update_banner` collapses that
+    /// back to `UpToDate` when the user dismisses/snoozes the banner — and
+    /// the "Export corrections" gate must stay firm for the whole session,
+    /// not lift the moment an unrelated banner is dismissed.
+    update_available: Option<String>,
     /// Markdown body of the "Export corrections" modal — `Some` while the
     /// dialog is open. Editable so the user can prepend their own context
     /// before copying to the GitHub issue body.
@@ -151,6 +158,7 @@ impl App {
             log_buf,
             update_rx,
             check_status,
+            update_available: None,
             export_body: None,
             export_title: None,
             export_url: None,
@@ -412,10 +420,23 @@ impl App {
 
     /// "Export corrections" pops up a modal with the user's per-recipe edits
     /// rendered as a markdown body, ready to be copied into a new GitHub
-    /// issue. Disabled when no overrides exist.
+    /// issue. Disabled when no overrides exist, or when a newer release is
+    /// available — an out-of-date build bundles stale data, so its
+    /// "corrections" tend to just re-report recipes already fixed upstream.
     fn export_corrections_button(&mut self, ui: &mut egui::Ui) {
         let count = self.state.read().overrides.len();
-        let tooltip = if count == 0 {
+        // `update_available` is latched in `poll_update_check` via
+        // `CheckStatus::out_of_date_version` — `Some` only when the check
+        // positively confirmed a newer release (every other state fails open;
+        // see that method + its test). We gate only on confirmed staleness.
+        let available_update = self.update_available.clone();
+        let enabled = count > 0 && available_update.is_none();
+        let tooltip = if let Some(latest) = &available_update {
+            format!(
+                "Update to v{latest} first — corrections from an out-of-date version \
+                 may duplicate fixes already shipped upstream."
+            )
+        } else if count == 0 {
             "Edit a recipe first (click an upgrade's \"Edit\" button) to enable this.".to_string()
         } else {
             format!(
@@ -424,10 +445,10 @@ impl App {
             )
         };
         let resp = ui
-            .add_enabled(count > 0, egui::Button::new("Export corrections ↗"))
+            .add_enabled(enabled, egui::Button::new("Export corrections ↗"))
             .on_hover_text(&tooltip)
             .on_disabled_hover_text(&tooltip);
-        if resp.clicked() && count > 0 {
+        if resp.clicked() && enabled {
             let snapshot = self.state.read();
             self.export_body = Some(overrides_export::build_issue_body(&snapshot));
             self.export_title = Some(overrides_export::build_issue_title(&snapshot));
@@ -488,6 +509,13 @@ impl App {
         let Some(rx) = &self.update_rx else { return };
         match rx.try_recv() {
             Ok(status) => {
+                // Latch "build is out of date" off the raw result, before
+                // anything (e.g. the banner-dismiss path, which rewrites
+                // `check_status` to `UpToDate`) can mutate it. This is the
+                // authoritative signal the export gate reads.
+                if let Some(latest) = status.out_of_date_version() {
+                    self.update_available = Some(latest.to_string());
+                }
                 self.check_status = status;
                 self.update_rx = None;
             }
