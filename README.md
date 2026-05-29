@@ -159,7 +159,7 @@ The workflow runs on a Windows runner:
 1. Installs LLVM (for `openvr_sys`'s bindgen step) and the WiX toolset.
 2. Builds `cargo build --release -p ez-wishlist-overlay`.
 3. Runs `cargo wix -p ez-wishlist-overlay --no-build` against [`crates/app/wix/main.wxs`](./crates/app/wix/main.wxs) to produce a per-machine MSI.
-4. Attaches both the standalone `ez-wishlist-overlay-<version>-x86_64.exe` (portable) and the `.msi` installer to a GitHub Release.
+4. Attaches both the portable `ez-wishlist-overlay-<version>-x86_64-portable.exe` and the `ez-wishlist-overlay-<version>-x86_64-installer.msi` to a GitHub Release.
 
 The `UpgradeCode` GUID in `main.wxs` is fixed — never change it once a release ships, or upgrades for existing installs break. The `Product/@Id='*'` regenerates per build so each MSI has a unique `ProductCode`.
 
