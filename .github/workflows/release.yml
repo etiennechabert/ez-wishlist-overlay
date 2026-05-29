@@ -81,8 +81,14 @@ jobs:
           }
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           Copy-Item target/release/ez-wishlist-overlay.exe `
-            "dist/ez-wishlist-overlay-$version-x86_64.exe"
-          Copy-Item target/wix/*.msi dist/
+            "dist/ez-wishlist-overlay-$version-portable.exe"
+          # cargo-wix emits ez-wishlist-overlay-<version>-x86_64.msi. We only
+          # ship one Windows x86_64 build, so the arch adds no information —
+          # drop it and tag the MSI `-installer` to pair with the portable
+          # .exe (both keyed off $version so the two names stay in lockstep).
+          $msi = Get-ChildItem -Path target/wix/*.msi | Select-Object -First 1
+          if (-not $msi) { throw "no .msi produced under target/wix/" }
+          Copy-Item $msi.FullName "dist/ez-wishlist-overlay-$version-installer.msi"
 
       - name: Upload artifacts to workflow run
         uses: actions/upload-artifact@v4

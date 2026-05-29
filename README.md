@@ -1,174 +1,139 @@
 <p align="center">
-  <img src="crates/app/assets/icon.png" alt="EZ Wishlist Overlay" width="160">
+  <img src="crates/app/assets/icon.png" alt="EZ Wishlist Overlay" width="140">
 </p>
 
 <h1 align="center">EZ Wishlist Overlay</h1>
 
 <p align="center">
-  A Windows desktop + SteamVR overlay companion for <strong>Contractors Showdown: ExfilZone</strong>.<br>
-  Tracks hideout upgrade and quest-task item requirements, aggregates them into a single wishlist,<br>
-  and surfaces that list in a VR overlay you can glance at by looking up.
+  A free desktop + SteamVR companion for <strong>Contractors Showdown: ExfilZone</strong>.<br>
+  Pick the hideout upgrades you're working toward, and it builds one combined<br>
+  shopping list of every item you still need — on your monitor <em>and</em> floating in VR.<br>
+  Peek at an upgrade panel in-game, tap a key, and it reads your progress straight off the screen.
 </p>
 
 <p align="center">
-  <a href="https://github.com/etiennechabert/ez-wishlist-overlay/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License"></a>
-  <img src="https://img.shields.io/badge/Rust-stable-DEA584.svg?logo=rust&logoColor=white" alt="Rust">
-  <img src="https://img.shields.io/badge/Platform-Windows%20%2B%20SteamVR-0078D4.svg?logo=windows&logoColor=white" alt="Platform">
-  <a href="https://github.com/etiennechabert/ez-wishlist-overlay/actions/workflows/ci.yml"><img src="https://github.com/etiennechabert/ez-wishlist-overlay/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://sonarcloud.io/summary/new_code?id=etiennechabert_ez-wishlist-overlay"><img src="https://sonarcloud.io/api/project_badges/measure?project=etiennechabert_ez-wishlist-overlay&metric=security_rating" alt="Security Rating"></a>
-  <a href="https://sonarcloud.io/summary/new_code?id=etiennechabert_ez-wishlist-overlay"><img src="https://sonarcloud.io/api/project_badges/measure?project=etiennechabert_ez-wishlist-overlay&metric=reliability_rating" alt="Reliability Rating"></a>
-  <a href="https://sonarcloud.io/summary/new_code?id=etiennechabert_ez-wishlist-overlay"><img src="https://sonarcloud.io/api/project_badges/measure?project=etiennechabert_ez-wishlist-overlay&metric=sqale_rating" alt="Maintainability Rating"></a>
+  <a href="https://github.com/etiennechabert/ez-wishlist-overlay/releases/latest"><img src="https://img.shields.io/badge/%E2%AC%87%20Download%20for%20Windows-2ea043?style=for-the-badge&logo=github&logoColor=white" alt="Download for Windows" height="46"></a>
 </p>
 
-> Out-of-process and anti-cheat-safe. The app never touches the game executable, memory, files, or network traffic — it only talks to SteamVR via the public OpenVR API.
+<p align="center">
+  <img src="https://img.shields.io/badge/Platform-Windows%20%2B%20SteamVR-0078D4.svg?logo=windows&logoColor=white" alt="Platform">
+  <a href="https://github.com/etiennechabert/ez-wishlist-overlay/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License"></a>
+  <a href="https://github.com/etiennechabert/ez-wishlist-overlay/actions/workflows/ci.yml"><img src="https://github.com/etiennechabert/ez-wishlist-overlay/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+</p>
 
-See [SPEC.md](./SPEC.md) for the engineering spec and [OPEN_QUESTIONS.md](./OPEN_QUESTIONS.md) for deferred decisions.
-
----
-
-## Current status
-
-- ✅ **Phase 1 — Data pipeline.** `crates/scraper` ingests the upstream [ExfilZone Assistant](https://github.com/zelengeo/exfil-zone-assistant) repo and produces `data.json` + normalized PNG icons.
-- ✅ **Phase 2 — Desktop GUI.** egui app with tabbed Hideout / Tasks panes, aggregated preview pane, atomic persistence, About dialog. Launches and runs.
-- ✅ **Phase 3 — VR overlay.** OpenVR session, pitch-driven show/hide with 350 ms dwell + 150 ms fade, RGBA submission via `SetOverlayRaw`. The overlay anchors in world space at show-time (yaw + position captured from the HMD, pitch/roll dropped) so you can look back down and read it without it following your gaze. Live re-render on state change.
-- ✅ **Phase 4 — VR interaction.** Laser-pointer clicks on cells with controller haptic feedback; +1 per click, cycles back to 0 when the target count is hit. Debounced per item.
-- ⏳ **Phase 5 — Distribution.** MSI installer is shipping via the [`release.yml`](.github/workflows/release.yml) workflow on tag push; PR builds validate the MSI to keep it green. Code signing + auto-update channel still pending.
+> [!NOTE]
+> **Anti-cheat-safe by design.** The app never touches the game — no reading its memory, files, or network, no injecting, no hooks. It only talks to SteamVR through the public OpenVR API (the same one OVR Toolkit and XSOverlay use). Even the screenshot feature reads SteamVR's own rendered image, not the game. [More on how this works ↓](#-how-it-stays-anti-cheat-safe)
 
 ---
 
-## Install (end users)
+## Why you'd want it
 
-1. **Install Steam, then SteamVR through Steam.** SteamVR is what we talk to over OpenVR — without it the desktop app still runs but the overlay does nothing. Install Steam from [store.steampowered.com](https://store.steampowered.com/), then in the Steam client go to *Library → Tools → SteamVR → Install*.
-2. **Download the latest `.msi`** from [Releases](https://github.com/etiennechabert/ez-wishlist-overlay/releases). The portable `.exe` is also there if you'd rather not install — just double-click to run.
-3. **Click through Windows SmartScreen.** The MSI is unsigned in v1, so first launch shows *"Windows protected your PC"*. Click **More info** → **Run anyway**. (Going away once we have a code-signing cert — for now the warning is normal, not malware.)
-4. **Installer:** standard Welcome → License → Install dir → Finish. Tick *"Launch EZ Wishlist Overlay"* on the last page to start it right away.
-5. **First run:** the app opens. If SteamVR isn't running yet, the header shows *"VR: not running"* — start SteamVR (or put on your headset to autolaunch it) and the indicator flips to *"VR: connected"* within a few seconds.
-6. **In headset:** look up past ~60° (tweakable in Settings) to bring up the overlay — it anchors in world space in front of you, so you can look back down to read and interact with it without it following your gaze. Point a controller at a cell and click to bump its collected count (+1 per click, wraps to 0 when the target is reached); a short haptic pulse confirms the input. Desktop-side clicks also work and re-render the overlay within a frame.
+ExfilZone's hideout upgrades each ask for a pile of specific barter items. When you're saving for more than a couple at once, it's hard to remember *what* to pick up and *how many* — so you either over-loot junk or extract without the one thing you needed.
 
-The MSI installs per-machine under `%ProgramFiles%\EZ Wishlist Overlay\`. User state (tracked upgrades, collected counts, settings) lives in `%APPDATA%\etienneb\ez-wishlist-overlay\`. Uninstall via *Settings → Apps* leaves user state in place; delete the `%APPDATA%` folder by hand if you want a fresh start.
+EZ Wishlist Overlay keeps that list for you:
 
----
-
-## Repo layout
-
-```
-crates/
-  app/            # the shipped binary (egui desktop + future VR overlay)
-  scraper/        # build-time tool that pulls + transforms upstream data
-crates/app/src/assets/   # embedded data.json + icons (committed; regenerated by scraper)
-LICENSES/                # third-party license texts we ship
-SPEC.md
-OPEN_QUESTIONS.md
-```
+- **Pick your goals** — check off the hideout upgrades you're chasing.
+- **Get one combined list** — every required item, de-duplicated and summed across all of them, with a `have / need` count.
+- **Check it anywhere** — on your desktop while planning, or floating above you in VR while you loot.
+- **Stop counting by hand** — open an upgrade panel in-game, press a key, and the app reads your owned counts off the screen and fills them in.
 
 ---
 
-## Build
+## Features
 
-### Prerequisites
+### 🏠 Track hideout upgrades
 
-This repo currently builds against `stable-x86_64-pc-windows-gnullvm` with the [LLVM-MinGW](https://github.com/mstorsjo/llvm-mingw) toolchain on PATH. Install with:
+The **Hideout** tab lists every facility module, grouped the way the in-game Facility Upgrade screen groups them (Kitchen, Medical, Storage Zone, Lounge…), with a cell per upgrade level. Tick **Track** on the levels you're saving for, or **Done** on ones you've finished. One-click **presets** — a community *Starter* set and a *Natural progression* set, each with a "how many you already have" counter — track a whole recommended batch at once, and *Deselect all* clears your tracking in one go.
 
-```powershell
-winget install MartinStorsjo.LLVM-MinGW.UCRT
-rustup default stable-x86_64-pc-windows-gnullvm
-```
+<p align="center">
+  <img src="docs/images/desktop-hideout.png" alt="Hideout tab" width="820">
+</p>
 
-(MSVC also works once Visual Studio Build Tools with the C++ workload is installed. There's no toolchain pin — pick whichever you prefer.)
+### 🧾 One combined wishlist
 
-The VR layer depends on the [`openvr`](https://crates.io/crates/openvr) crate, whose `openvr_sys` build script compiles Valve's OpenVR C++ SDK via cmake + bindgen. On Windows that also requires:
+The preview pane on the right is the heart of it: every item across all the upgrades you're tracking, summed together, shown as `collected / needed` with a progress bar and the list of upgrades asking for it. Nudge counts up and down with the `+ / −` buttons, or type an exact number to seed it from what's already in your stash.
 
-```powershell
-winget install Kitware.CMake
-winget install LLVM.LLVM       # for libclang on PATH (bindgen)
-```
+### 📦 Items database & stash value
 
-The VR layer is gated behind `cfg(target_os = "windows")` — macOS and Linux builds skip it entirely and the app falls back to "VR: unavailable on this OS" so the desktop GUI stays iterable cross-platform.
+The **Items DB** tab is a sortable, filterable catalog of the barter items hideout upgrades ask for. Because the *quantity* column is the same count the rest of the app tracks, sorting by **Total Value** turns it into a quick "what's my stash actually worth" view. Flip on **tracked only** to narrow it to items you currently need.
 
-### Run the desktop app
+<p align="center">
+  <img src="docs/images/desktop-items-db.png" alt="Items DB tab" width="820">
+</p>
 
-From a **VS Developer PowerShell**:
+### 🥽 Glance at your list in VR
 
-```powershell
-cargo app           # release build
-cargo app-dev       # debug build, faster compiles for UI iteration
-```
+Put the headset on and **look up** — the wishlist fades in above you as a SteamVR overlay. It anchors in world space at the spot you raised your gaze to, so you can look back down to read and interact with it without it chasing your eyes. Items grey out as you complete them, and the panel re-renders the instant anything changes on the desktop side.
 
-From a **plain PowerShell** (uses the bundled launcher to enter the VS Dev Shell + set `LIBCLANG_PATH`):
+<p align="center">
+  <img src="docs/images/vr-overlay.jpg" alt="The VR wishlist overlay seen in-headset" width="820">
+</p>
 
-```powershell
-./scripts/run-app.ps1            # debug build
-./scripts/run-app.ps1 -Release   # release build
-```
+### 👆 Tick items off without taking the headset off
 
-Both aliases pin the MSVC target — the default gnullvm toolchain can't build `openvr_sys` (it rejects MSVC's `/DWIN32` cxxflag), so VR-enabled builds go through MSVC. See [`scripts/run-app.ps1`](./scripts/run-app.ps1) for the underlying setup.
+Point a controller at an item in the overlay and pull the trigger to bump its collected count (+1 per click, wrapping back to 0 once you hit the target so you can fix an overshoot). A short haptic pulse confirms each tap.
 
-The window opens at 1200×800. State is persisted to `%APPDATA%\etienneb\ez-wishlist-overlay\data\state.json` on Windows, or the platform equivalent (`~/Library/Application Support/...` on macOS) elsewhere.
+### 📸 Read your progress off the screen — one keypress
 
-### Cargo aliases
+This is the time-saver. Open an upgrade's **Facility Upgrade** panel in-game, and with the desktop window focused press **SPACE**. The app captures what SteamVR is showing, recognizes which upgrade panel it is, reads the owned-count for every required item, and writes those numbers straight into your wishlist — no manual counting. A card pops up in the headset showing exactly what changed. By default it also auto-tracks that upgrade and marks the lower levels done.
 
-The workspace ships a set of aliases in [`.cargo/config.toml`](./.cargo/config.toml) so common commands work the same on Windows, macOS, and Linux without any extra tooling:
+<p align="center">
+  <img src="docs/images/ocr-feedback.jpg" alt="In-headset OCR feedback card on the Facility Upgrade panel" width="760">
+</p>
 
-| Alias              | Expands to                                      |
-| ------------------ | ----------------------------------------------- |
-| `cargo app`        | `run -p ez-wishlist-overlay --release --target x86_64-pc-windows-msvc` |
-| `cargo app-dev`    | `run -p ez-wishlist-overlay --target x86_64-pc-windows-msvc`           |
-| `cargo scrape`     | `run -p scraper --release`                      |
-| `cargo t`          | `test --workspace`                              |
-| `cargo c`          | `check --workspace --all-targets`               |
-| `cargo l`          | `clippy --workspace --all-targets -- -D warnings` |
-| `cargo fmt-check`  | `fmt --all -- --check`                          |
+> It reads SteamVR's *rendered image* — the same pixels already on your headset display — through OpenVR's public mirror-texture API. It never looks at the game process. See [below](#-how-it-stays-anti-cheat-safe).
 
----
+### ⚙️ Tune it to your setup
 
-## Refreshing game data (maintainers only)
+A **Settings** dialog covers the things worth adjusting: Dark / Light / System theme, the VR overlay's size and how far up you have to look before it appears, the OCR options (capture eye, how long the feedback card lingers, auto-track on/off), and an "open data folder" shortcut. Sensible defaults mean you can ignore all of it if you'd rather.
 
-The scraper is a separate binary that's run manually when the upstream repo publishes a new wipe's data.
+<p align="center">
+  <img src="docs/images/settings.png" alt="Settings dialog" width="380">
+</p>
 
-```powershell
-# Clones upstream into %TEMP%, parses + transforms, writes assets, then cleans up.
-cargo scrape
+### …and a few niceties
 
-# Or, if you already have a local clone:
-cargo scrape -- --upstream C:\path\to\exfil-zone-assistant
-```
-
-After running the scraper, rebuild the app — `data.json` and `icons/` are embedded via `rust-embed` at compile time.
-
-Output:
-
-- `crates/app/src/assets/data.json`
-- `crates/app/src/assets/icons/<item_id>.png`
-- `crates/app/src/assets/SOURCE.md` (provenance: upstream commit, version, timestamp)
-- `crates/app/src/assets/unparsed-objectives.log` (task-objective strings the regex couldn't split into item + quantity; review these before shipping)
-
-See `cargo run -p scraper -- --help` for full CLI options (`--repo`, `--ref`, `--upstream`, `--no-network`, `--skip-icons`, `--keep-temp`, `--verbose`).
+- **Works offline.** All game data is baked into the app — no servers, no accounts. The only network call is an optional once-per-launch update check, which you can turn off.
+- **Tells you when there's an update.** A quiet banner appears when a newer release is out, with a download link; dismiss it and it won't nag until the *next* version.
+- **Help fix the data.** If an upgrade's recipe is wrong, edit it locally and hit **Export corrections** to get a ready-to-paste GitHub issue so the fix can ship to everyone.
 
 ---
 
-## Releasing
+## Install
 
-Releases are produced by [`.github/workflows/release.yml`](./.github/workflows/release.yml). To cut one:
+1. **Install SteamVR.** It's what the overlay talks to. Get [Steam](https://store.steampowered.com/), then in the Steam client go to *Library → Tools → SteamVR → Install*. (The desktop app runs fine without it — you just won't get the VR overlay or screenshot reading.)
+2. **Download the latest release** from the [**Releases page**](https://github.com/etiennechabert/ez-wishlist-overlay/releases/latest). Grab the installer (**`…-installer.msi`**), or the portable build (**`…-portable.exe`**) if you'd rather not install anything — just double-click it.
+3. **Click past the SmartScreen warning.** The build isn't code-signed yet, so Windows shows *"Windows protected your PC."* Click **More info → Run anyway**. (This goes away once there's a signing cert — for now the warning is expected, not a virus.)
+4. **Run it.** The app opens. Start SteamVR (or put your headset on) and the header flips from *"VR: not running"* to *"VR: connected"* within a few seconds.
+5. **In the headset:** look up to bring the overlay in, point a controller at an item and click to bump its count, and press **SPACE** (with the desktop window focused) while an upgrade panel is open to auto-read your progress.
 
-```bash
-git tag v0.1.0 && git push --tags
-```
-
-The workflow runs on a Windows runner:
-
-1. Installs LLVM (for `openvr_sys`'s bindgen step) and the WiX toolset.
-2. Builds `cargo build --release -p ez-wishlist-overlay`.
-3. Runs `cargo wix -p ez-wishlist-overlay --no-build` against [`crates/app/wix/main.wxs`](./crates/app/wix/main.wxs) to produce a per-machine MSI.
-4. Attaches both the standalone `ez-wishlist-overlay-<version>-x86_64.exe` (portable) and the `.msi` installer to a GitHub Release.
-
-The `UpgradeCode` GUID in `main.wxs` is fixed — never change it once a release ships, or upgrades for existing installs break. The `Product/@Id='*'` regenerates per build so each MSI has a unique `ProductCode`.
-
-`workflow_dispatch` is enabled, so you can fire a dry build from the Actions tab without tagging — artifacts are uploaded to the workflow run but skip the Release upload step.
+Your tracked upgrades, collected counts, and settings live in `%APPDATA%\etienneb\ez-wishlist-overlay\`. Uninstalling leaves that folder in place; delete it by hand for a clean slate.
 
 ---
 
-## Credits
+## 🔒 How it stays anti-cheat-safe
 
-Hideout, task, and item data are sourced from [ExfilZone Assistant](https://www.exfil-zone-assistant.app/) by [pogapwnz](https://ko-fi.com/J3J41GATK0), used under the MIT license. The bundled MIT text is at [`LICENSES/exfil-zone-assistant-MIT.txt`](./LICENSES/exfil-zone-assistant-MIT.txt). If you find this app useful, check theirs too — it covers a lot more than hideout/quests (combat simulators, weapon databases, guides).
+The app is built to never give an anti-cheat any reason to flag it. It runs entirely as its own separate program and **does not**:
 
-Game content © Caveman Studio.
+- open a handle to the game, or read/write its memory
+- inject into the game or hook any of its DLLs or syscalls
+- read or modify game files
+- capture or inspect game network traffic
+
+All it does is talk to **SteamVR** over the public **OpenVR API** — the same supported interface used by overlay apps like OVR Toolkit and XSOverlay. It renders its overlay there and reads the HMD's orientation to know when you're looking up.
+
+The screenshot/OCR feature works the same way: it asks SteamVR for its **compositor mirror texture** — the image SteamVR has *already rendered and is showing on your headset* — and reads that. The game process is never touched; the app only ever sees pixels SteamVR chose to display.
+
+---
+
+## Credits & data
+
+Hideout and item data come from [**ExfilZone Assistant**](https://www.exfil-zone-assistant.app/) by [pogapwnz](https://ko-fi.com/J3J41GATK0), used under the MIT license (bundled at [`LICENSES/exfil-zone-assistant-MIT.txt`](./LICENSES/exfil-zone-assistant-MIT.txt)). It's an excellent companion that covers far more than the hideout data we use — combat simulators, weapon databases, quest guides, maps, and more — so if this app is useful to you, go check theirs out too.
+
+Game content © Caveman Studio. EZ Wishlist Overlay is an unofficial, fan-made tool and isn't affiliated with or endorsed by Caveman Studio.
+
+This project is open source under the [MIT license](./LICENSE).
+
+---
+
+<sub>Building from source, refreshing game data, or cutting a release? See [**docs/DEVELOPMENT.md**](./docs/DEVELOPMENT.md). The original engineering spec lives in [SPEC.md](./SPEC.md).</sub>
