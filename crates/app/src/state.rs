@@ -295,6 +295,99 @@ impl AppState {
             .all(|r| *self.collected.get(&r.item_id).unwrap_or(&0) >= r.quantity)
     }
 
+    /// Collected-vs-needed rollup for one upgrade's *effective* recipe
+    /// (post-override, non-empty slots). Per item we cap the contribution at
+    /// that item's required quantity — over-collecting bolts because three
+    /// other tracked upgrades also want them must not push *this* upgrade past
+    /// its own 100%. Pure read; mutates nothing.
+    pub fn upgrade_progress(&self, upgrade_id: &UpgradeId) -> UpgradeProgress {
+        let mut collected = 0;
+        let mut needed = 0;
+        for req in self.effective_requirements(upgrade_id) {
+            let have = *self.collected.get(&req.item_id).unwrap_or(&0);
+            collected += have.min(req.quantity);
+            needed += req.quantity;
+        }
+        UpgradeProgress { collected, needed }
+    }
+
+    /// How much we trust an upgrade's recipe (drives the confidence badge in
+    /// the Hideout views). `Assumed` wins whenever the effective recipe is
+    /// empty — "we don't know the cost" is the dominant signal, the same
+    /// reason `is_upgrade_ready` refuses to flash empty recipes green.
+    pub fn recipe_knowledge(&self, upgrade_id: &UpgradeId) -> RecipeKnowledge {
+        if self.effective_requirements(upgrade_id).is_empty() {
+            RecipeKnowledge::Assumed
+        } else if self.is_overridden(upgrade_id) {
+            RecipeKnowledge::Edited
+        } else {
+            RecipeKnowledge::Bundled
+        }
+    }
+
+    /// Tracked, not-completed, not-(effectively-)disabled upgrades ordered for
+    /// "what should I claim or grind next?". The filter mirrors `active_items`
+    /// exactly (difference against completed, skip disabled modules) so this
+    /// per-upgrade list and the per-item wishlist always agree on what counts
+    /// as "active". Ordering buckets:
+    ///   0. Ready — every material collected, recipe known. Float to the top.
+    ///   1. In progress (some collected), descending by fraction so the
+    ///      nearest-to-done sits highest.
+    ///   2. Known recipe, nothing collected yet.
+    ///   3. Assumed (empty recipe) — parked last and flagged, because its
+    ///      fraction is a meaningless 0 and the action there is "fill in the
+    ///      recipe", not "go grind".
+    ///
+    /// Tiebreak within a bucket: module name, then level, for a stable order
+    /// that doesn't reshuffle on unrelated clicks.
+    pub fn hideout_progress_rows(&self) -> Vec<UpgradeProgressRow> {
+        let mut rows: Vec<UpgradeProgressRow> = self
+            .tracked_upgrades
+            .difference(&self.completed_upgrades)
+            .filter_map(|id| {
+                let uref = self.index.upgrades_by_id.get(id)?;
+                if self.is_module_effectively_disabled(&uref.module_id) {
+                    return None;
+                }
+                Some(UpgradeProgressRow {
+                    upgrade_id: id.clone(),
+                    module_name: uref.module_name.clone(),
+                    level: uref.upgrade.level,
+                    progress: self.upgrade_progress(id),
+                    knowledge: self.recipe_knowledge(id),
+                    ready: self.is_upgrade_ready(id),
+                })
+            })
+            .collect();
+
+        // Lower rank sorts first. Keying on an explicit bucket (rather than
+        // raw fraction) keeps "ready" and "assumed" from interleaving with the
+        // in-progress band — an assumed recipe and a known-but-untouched one
+        // both have fraction 0, but they belong at opposite ends of the list.
+        fn rank(r: &UpgradeProgressRow) -> u8 {
+            if matches!(r.knowledge, RecipeKnowledge::Assumed) {
+                3
+            } else if r.ready {
+                0
+            } else if r.progress.collected > 0 {
+                1
+            } else {
+                2
+            }
+        }
+
+        rows.sort_by(|a, b| {
+            rank(a)
+                .cmp(&rank(b))
+                // Within the in-progress band, higher fraction first. total_cmp
+                // keeps it panic-free on the f32 (matches house caution).
+                .then_with(|| b.progress.fraction().total_cmp(&a.progress.fraction()))
+                .then_with(|| a.module_name.cmp(&b.module_name))
+                .then_with(|| a.level.cmp(&b.level))
+        });
+        rows
+    }
+
     pub fn is_module_effectively_disabled(&self, module_id: &str) -> bool {
         if self.disabled_modules.contains(module_id) {
             return true;
@@ -521,6 +614,59 @@ pub struct ActiveItem {
     pub sources: Vec<String>,
 }
 
+/// Collected-vs-needed rollup for a single upgrade's effective recipe.
+/// `needed == 0` means the recipe is empty — we don't actually know what the
+/// upgrade costs yet (a placeholder added because a screenshot proved the
+/// level exists). `fraction()` guards that case so an unknown recipe never
+/// reads as complete.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UpgradeProgress {
+    /// Σ min(collected, required) across the recipe — capped per item.
+    pub collected: u32,
+    /// Σ required across the recipe. Zero ⇒ unknown/placeholder recipe.
+    pub needed: u32,
+}
+
+impl UpgradeProgress {
+    /// 0.0..=1.0. An empty recipe (`needed == 0`) returns 0.0: unknown cost
+    /// must not masquerade as 100% done.
+    pub fn fraction(&self) -> f32 {
+        if self.needed == 0 {
+            0.0
+        } else {
+            (self.collected as f32 / self.needed as f32).clamp(0.0, 1.0)
+        }
+    }
+}
+
+/// How much we trust an upgrade's recipe — drives the confidence badge in the
+/// Hideout views. Three-way so "we shipped a recipe the user then corrected"
+/// reads differently from "we shipped it as-is".
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RecipeKnowledge {
+    /// Effective recipe is empty — we don't know the cost. Parked + flagged.
+    Assumed,
+    /// Bundled recipe, used as shipped (no user override).
+    Bundled,
+    /// User has corrected the recipe via the Edit panel.
+    Edited,
+}
+
+/// One row of the Hideout "By progress" list — a per-upgrade view, distinct
+/// from `ActiveItem`'s per-item aggregation (which feeds the VR overlay and
+/// must not change). Carries everything the pane needs so it never re-locks
+/// per row.
+#[derive(Debug, Clone)]
+pub struct UpgradeProgressRow {
+    pub upgrade_id: UpgradeId,
+    pub module_name: String,
+    pub level: u32,
+    pub progress: UpgradeProgress,
+    pub knowledge: RecipeKnowledge,
+    /// `is_upgrade_ready`: tracked, materials complete, recipe known.
+    pub ready: bool,
+}
+
 /// What [`AppState::apply_ocr_progression`] actually changed. Surfaces
 /// the auto-complete + auto-track behavior in the OCR overlay so the
 /// user sees exactly what was promoted, and feeds the tracing logs.
@@ -705,38 +851,56 @@ mod tests {
             scraped_at: "now".into(),
             source_repo: "test".into(),
             source_commit: "deadbeef".into(),
-            modules: vec![HideoutModule {
-                id: "workbench".into(),
-                name: "Workbench".into(),
-                upgrades: vec![
-                    Upgrade {
-                        id: "workbench_lv1".into(),
-                        name: "Workbench".into(),
+            modules: vec![
+                HideoutModule {
+                    id: "workbench".into(),
+                    name: "Workbench".into(),
+                    upgrades: vec![
+                        Upgrade {
+                            id: "workbench_lv1".into(),
+                            name: "Workbench".into(),
+                            level: 1,
+                            description: String::new(),
+                            requirements: vec![
+                                Requirement {
+                                    item_id: "bolts".into(),
+                                    quantity: 5,
+                                },
+                                Requirement {
+                                    item_id: "screws".into(),
+                                    quantity: 3,
+                                },
+                            ],
+                        },
+                        Upgrade {
+                            id: "workbench_lv2".into(),
+                            name: "Workbench".into(),
+                            level: 2,
+                            description: String::new(),
+                            requirements: vec![Requirement {
+                                item_id: "bolts".into(),
+                                quantity: 7,
+                            }],
+                        },
+                    ],
+                },
+                // Second module whose sole upgrade carries an empty recipe — the
+                // "we know this level exists but not its cost" placeholder. Lets
+                // the progress/knowledge tests exercise the `Assumed` paths
+                // without disturbing the workbench module's two-level shape (the
+                // top-level-completion test relies on Lv2 being workbench's top).
+                HideoutModule {
+                    id: "placeholder".into(),
+                    name: "Placeholder".into(),
+                    upgrades: vec![Upgrade {
+                        id: "placeholder_lv1".into(),
+                        name: "Placeholder".into(),
                         level: 1,
                         description: String::new(),
-                        requirements: vec![
-                            Requirement {
-                                item_id: "bolts".into(),
-                                quantity: 5,
-                            },
-                            Requirement {
-                                item_id: "screws".into(),
-                                quantity: 3,
-                            },
-                        ],
-                    },
-                    Upgrade {
-                        id: "workbench_lv2".into(),
-                        name: "Workbench".into(),
-                        level: 2,
-                        description: String::new(),
-                        requirements: vec![Requirement {
-                            item_id: "bolts".into(),
-                            quantity: 7,
-                        }],
-                    },
-                ],
-            }],
+                        requirements: vec![],
+                    }],
+                },
+            ],
             vendors: vec![],
             items: vec![
                 Item {
@@ -1097,6 +1261,109 @@ mod tests {
         assert!(warn.contains("Game data updated"));
         assert!(warn.contains("Dropped 1 tracked upgrade"));
         assert_eq!(*s.collected.get("bolts").unwrap(), 7);
+    }
+
+    #[test]
+    fn upgrade_progress_caps_each_item_at_its_target() {
+        // Collecting more bolts than workbench_lv1 needs (because lv2 also
+        // wants them) must not push lv1 past its own recipe: lv1 needs
+        // bolts×5 + screws×3 = 8, so 10 bolts + 3 screws still reads 8/8.
+        let mut s = AppState::new(fixture());
+        s.set_collected(&"bolts".to_string(), 10);
+        s.set_collected(&"screws".to_string(), 3);
+        let p = s.upgrade_progress(&"workbench_lv1".to_string());
+        assert_eq!(p.needed, 8);
+        assert_eq!(p.collected, 8, "per-item contribution caps at the target");
+        assert_eq!(p.fraction(), 1.0);
+    }
+
+    #[test]
+    fn upgrade_progress_partial_fraction() {
+        let mut s = AppState::new(fixture());
+        s.set_collected(&"bolts".to_string(), 5); // 5 of 8 (screws still 0)
+        let p = s.upgrade_progress(&"workbench_lv1".to_string());
+        assert_eq!((p.collected, p.needed), (5, 8));
+        assert!((p.fraction() - 0.625).abs() < 1e-6);
+    }
+
+    #[test]
+    fn upgrade_progress_empty_recipe_is_zero_not_full() {
+        // placeholder_lv1 has no requirements: unknown cost must read as 0/0,
+        // fraction 0.0, NOT complete — never let a guess look claimable.
+        let s = AppState::new(fixture());
+        let p = s.upgrade_progress(&"placeholder_lv1".to_string());
+        assert_eq!((p.collected, p.needed), (0, 0));
+        assert_eq!(p.fraction(), 0.0);
+    }
+
+    #[test]
+    fn recipe_knowledge_bundled_edited_assumed() {
+        let mut s = AppState::new(fixture());
+        assert_eq!(
+            s.recipe_knowledge(&"workbench_lv1".to_string()),
+            RecipeKnowledge::Bundled
+        );
+        // An override flips it to Edited.
+        let mut slots: [Option<Requirement>; RECIPE_SLOTS] = std::array::from_fn(|_| None);
+        slots[0] = Some(Requirement {
+            item_id: "bolts".into(),
+            quantity: 9,
+        });
+        s.set_recipe_override(&"workbench_lv1".to_string(), RecipeOverride { slots });
+        assert_eq!(
+            s.recipe_knowledge(&"workbench_lv1".to_string()),
+            RecipeKnowledge::Edited
+        );
+        // Empty recipe = Assumed, regardless of tracking.
+        assert_eq!(
+            s.recipe_knowledge(&"placeholder_lv1".to_string()),
+            RecipeKnowledge::Assumed
+        );
+    }
+
+    #[test]
+    fn hideout_progress_rows_floats_ready_then_by_fraction() {
+        let mut s = AppState::new(fixture());
+        s.set_tracked_upgrade(&"workbench_lv1".to_string(), true);
+        s.set_tracked_upgrade(&"workbench_lv2".to_string(), true);
+        // bolts=7 → lv2 fully stocked (7/7, ready); lv1 partial (5/8, no
+        // screws yet).
+        s.set_collected(&"bolts".to_string(), 7);
+        let rows = s.hideout_progress_rows();
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].upgrade_id, "workbench_lv2");
+        assert!(rows[0].ready, "ready upgrade floats to the top");
+        assert_eq!(rows[1].upgrade_id, "workbench_lv1");
+        assert!(!rows[1].ready);
+    }
+
+    #[test]
+    fn hideout_progress_rows_parks_assumed_last() {
+        let mut s = AppState::new(fixture());
+        s.set_tracked_upgrade(&"workbench_lv1".to_string(), true); // known, untouched
+        s.set_tracked_upgrade(&"placeholder_lv1".to_string(), true); // assumed
+        let rows = s.hideout_progress_rows();
+        assert_eq!(rows.len(), 2);
+        assert_eq!(
+            rows[0].upgrade_id, "workbench_lv1",
+            "known not-started sorts above an assumed recipe"
+        );
+        assert_eq!(rows[1].upgrade_id, "placeholder_lv1");
+        assert_eq!(rows[1].knowledge, RecipeKnowledge::Assumed);
+    }
+
+    #[test]
+    fn hideout_progress_rows_excludes_completed_and_disabled() {
+        let mut s = AppState::new(fixture());
+        s.set_tracked_upgrade(&"workbench_lv1".to_string(), true);
+        // Completing lv1 drops it from tracked and auto-tracks lv2.
+        s.set_completed_upgrade(&"workbench_lv1".to_string(), true);
+        let rows = s.hideout_progress_rows();
+        assert!(rows.iter().all(|r| r.upgrade_id != "workbench_lv1"));
+        assert!(rows.iter().any(|r| r.upgrade_id == "workbench_lv2"));
+        // Disabling the module hides its tracked lv2 from the list entirely.
+        s.set_module_disabled(&"workbench".to_string(), true);
+        assert!(s.hideout_progress_rows().is_empty());
     }
 
     #[test]

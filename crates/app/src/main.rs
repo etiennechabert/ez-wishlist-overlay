@@ -242,6 +242,7 @@ fn spawn_ocr_worker(
             // save on every loop iteration. `set_collected` bumps
             // `version` unconditionally, so even a no-op rewrite is
             // otherwise expensive.
+            #[allow(clippy::type_complexity)]
             let mut last_applied: Option<(String, Vec<(String, Option<u32>)>)> = None;
             while let Ok(first) = ocr_job_rx.recv() {
                 // Drain any newer jobs that arrived while we were

@@ -112,3 +112,18 @@ pub fn override_marker(dark: bool) -> Color32 {
         Color32::from_rgb(245, 205, 130)
     }
 }
+
+/// Faint stroke/text tint for upgrades whose recipe is *assumed* — the
+/// effective recipe is empty, so we don't actually know what the upgrade
+/// costs. These cells never turn the "ready" yellow no matter how much the
+/// user collects (correct, but otherwise invisible); this gives a quiet
+/// "this recipe is a guess, open Edit" cue. Deliberately a muted brick rather
+/// than a loud warning color and distinct from `ready_fill`'s warm yellow, so
+/// a grid full of Lv3/Lv4 placeholders doesn't become a wall of alarm.
+pub fn assumed_marker(dark: bool) -> Color32 {
+    if dark {
+        Color32::from_rgb(120, 70, 70)
+    } else {
+        Color32::from_rgb(225, 180, 175)
+    }
+}

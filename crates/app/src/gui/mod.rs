@@ -276,9 +276,20 @@ impl eframe::App for App {
             ui.separator();
             match self.tab {
                 LeftTab::Hideout => {
-                    egui::ScrollArea::vertical().show(ui, |ui| {
-                        hideout_pane::ui(ui, &self.state, &mut self.icons, &self.save_tx)
-                    });
+                    let outcome = egui::ScrollArea::vertical()
+                        .show(ui, |ui| {
+                            hideout_pane::ui(
+                                ui,
+                                &self.state,
+                                &self.settings,
+                                &mut self.icons,
+                                &self.save_tx,
+                            )
+                        })
+                        .inner;
+                    if outcome.settings_changed {
+                        self.persist_settings();
+                    }
                 }
                 LeftTab::Tasks => {
                     egui::ScrollArea::vertical().show(ui, |ui| {

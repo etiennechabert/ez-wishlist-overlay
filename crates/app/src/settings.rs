@@ -41,6 +41,11 @@ pub struct Settings {
     pub vr: VrSettings,
     #[serde(default)]
     pub theme: Theme,
+    /// Hideout tab layout. See [`HideoutView`]. `#[serde(default)]` means old
+    /// settings files (which lack the key) load as `Modules` — no migration
+    /// branch needed, same as the other plain defaulted fields below.
+    #[serde(default)]
+    pub hideout_view: HideoutView,
     #[serde(default = "default_check_for_updates")]
     pub check_for_updates: bool,
     /// Latest release version (e.g. "0.2.0") the user clicked "Dismiss" on.
@@ -153,6 +158,19 @@ pub enum CaptureEye {
     Right,
 }
 
+/// Which layout the Hideout tab shows. `Modules` is the spatial grid
+/// (default — it's the map of the whole hideout); `Progress` is the flat
+/// "what's closest to claimable?" list that floats ready / near-complete
+/// upgrades to the top. Persisted so the choice survives restarts, like the
+/// other view preferences.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum HideoutView {
+    #[default]
+    Modules,
+    Progress,
+}
+
 impl Settings {
     /// Clamp the OCR-side numeric tunables to their declared bounds.
     /// Called on load and after every UI edit so a hand-written
@@ -173,6 +191,7 @@ impl Default for Settings {
             schema_version: SCHEMA_VERSION,
             vr: VrSettings::default(),
             theme: Theme::default(),
+            hideout_view: HideoutView::default(),
             check_for_updates: default_check_for_updates(),
             dismissed_update_version: None,
             ocr_enabled: default_ocr_enabled(),
@@ -421,5 +440,24 @@ mod tests {
         let vr = VrSettings::default();
         assert_eq!(vr.show_pitch_deg, crate::vr::pose::SHOW_PITCH_DEG);
         assert_eq!(vr.hide_pitch_deg, crate::vr::pose::HIDE_PITCH_DEG);
+    }
+
+    #[test]
+    fn hideout_view_defaults_to_modules_when_absent() {
+        // Settings files written before this field existed lack the key;
+        // serde(default) must fill it with the grid view, not error.
+        let s: Settings = serde_json::from_str("{}").unwrap();
+        assert_eq!(s.hideout_view, HideoutView::Modules);
+    }
+
+    #[test]
+    fn hideout_view_round_trips() {
+        let s = Settings {
+            hideout_view: HideoutView::Progress,
+            ..Settings::default()
+        };
+        let json = serde_json::to_string(&s).unwrap();
+        let back: Settings = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.hideout_view, HideoutView::Progress);
     }
 }
