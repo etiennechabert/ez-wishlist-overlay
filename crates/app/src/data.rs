@@ -72,9 +72,30 @@ pub const RECIPE_SLOTS: usize = 4;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RecipeOverride {
     pub slots: [Option<Requirement>; RECIPE_SLOTS],
+    /// True if the bundled recipe was empty — a "missing"/placeholder upgrade
+    /// whose cost we hadn't shipped yet — at the moment this correction was
+    /// made. When a later app update ships an official recipe for that
+    /// upgrade, a correction stamped this way is discarded on load so the
+    /// authoritative data wins (the user was filling a gap we've since
+    /// closed). Corrections to a recipe that already had contents are *not*
+    /// stamped, so a genuine "the shipped recipe is wrong" fix survives
+    /// updates. Defaults to `false` for overrides written before this field
+    /// existed — we can't know their original base, so we keep them.
+    #[serde(default)]
+    pub base_was_empty: bool,
 }
 
 impl RecipeOverride {
+    /// Construct a correction from a 4-slot view. `base_was_empty` starts
+    /// `false`; [`crate::state::AppState::set_recipe_override`] stamps the real
+    /// value from the bundled recipe when the correction is committed.
+    pub fn new(slots: [Option<Requirement>; RECIPE_SLOTS]) -> Self {
+        Self {
+            slots,
+            base_was_empty: false,
+        }
+    }
+
     /// True iff every slot matches the bundled recipe — useful for collapsing
     /// "user edited then put it all back" into a clean unoverridden state.
     pub fn matches_base(&self, base: &Upgrade) -> bool {

@@ -97,13 +97,23 @@ impl AppState {
     /// Persist a 4-slot override. If the slots match the bundled recipe we
     /// drop the entry instead — keeps `overrides.json` minimal and the
     /// "modified" indicator honest.
-    pub fn set_recipe_override(&mut self, upgrade_id: &UpgradeId, new_override: RecipeOverride) {
+    pub fn set_recipe_override(
+        &mut self,
+        upgrade_id: &UpgradeId,
+        mut new_override: RecipeOverride,
+    ) {
         if let Some(uref) = self.index.upgrades_by_id.get(upgrade_id) {
             if new_override.matches_base(&uref.upgrade) {
                 self.overrides.remove(upgrade_id);
                 self.bump();
                 return;
             }
+            // Stamp whether this is a correction to a "missing"/placeholder
+            // upgrade (one we shipped with no recipe). If a future update fills
+            // that recipe in, `PersistedOverrides::merge_into` discards the
+            // correction so the official data wins. Recomputed from the live
+            // bundled recipe every time, so re-editing keeps the flag honest.
+            new_override.base_was_empty = uref.upgrade.requirements.is_empty();
         }
         self.overrides.insert(upgrade_id.clone(), new_override);
         self.bump();
@@ -816,16 +826,32 @@ impl PersistedOverrides {
 
         let mut kept = HashMap::new();
         let mut dropped = 0usize;
+        let mut superseded = 0usize;
         for (id, ov) in self.overrides {
-            if state.index.upgrades_by_id.contains_key(&id) {
-                kept.insert(id, ov);
-            } else {
-                dropped += 1;
+            match state.index.upgrades_by_id.get(&id) {
+                None => dropped += 1,
+                // The user filled in a recipe we'd shipped as a "missing"
+                // placeholder, and an update has since shipped the official
+                // recipe. Discard the local correction — the authoritative
+                // data supersedes it. A correction to a recipe that already
+                // had contents (`base_was_empty == false`) is kept: that's a
+                // deliberate "the shipped recipe is wrong" fix, not gap-filling.
+                Some(uref) if ov.base_was_empty && !uref.upgrade.requirements.is_empty() => {
+                    superseded += 1;
+                }
+                Some(_) => {
+                    kept.insert(id, ov);
+                }
             }
         }
         if dropped > 0 {
             warnings.push(format!(
                 "Dropped {dropped} recipe override(s) for upgrade(s) no longer present."
+            ));
+        }
+        if superseded > 0 {
+            warnings.push(format!(
+                "Discarded {superseded} recipe correction(s) now covered by the official dataset."
             ));
         }
 
@@ -1081,7 +1107,7 @@ mod tests {
         });
         s.set_recipe_override(
             &"workbench_lv1".to_string(),
-            crate::data::RecipeOverride { slots },
+            crate::data::RecipeOverride::new(slots),
         );
 
         let active = s.active_items();
@@ -1112,7 +1138,7 @@ mod tests {
         });
         s.set_recipe_override(
             &"workbench_lv1".to_string(),
-            crate::data::RecipeOverride { slots },
+            crate::data::RecipeOverride::new(slots),
         );
 
         assert!(
@@ -1136,13 +1162,11 @@ mod tests {
             overrides: HashMap::from([
                 (
                     "workbench_lv1".to_string(),
-                    crate::data::RecipeOverride {
-                        slots: slots.clone(),
-                    },
+                    crate::data::RecipeOverride::new(slots.clone()),
                 ),
                 (
                     "ghost_upgrade".to_string(),
-                    crate::data::RecipeOverride { slots },
+                    crate::data::RecipeOverride::new(slots),
                 ),
             ]),
         };
@@ -1152,6 +1176,149 @@ mod tests {
         assert!(warn.contains("Dropped 1 recipe override"));
         assert!(s.overrides.contains_key("workbench_lv1"));
         assert!(!s.overrides.contains_key("ghost_upgrade"));
+    }
+
+    #[test]
+    fn set_recipe_override_stamps_base_was_empty() {
+        // Filling in a placeholder (empty bundled recipe) marks the correction
+        // as gap-filling; correcting a recipe that already had contents does
+        // not. The flag is what lets a later official recipe supersede the
+        // former but not the latter.
+        let mut s = AppState::new(fixture());
+
+        let mut slots: [Option<Requirement>; RECIPE_SLOTS] = std::array::from_fn(|_| None);
+        slots[0] = Some(Requirement {
+            item_id: "bolts".into(),
+            quantity: 2,
+        });
+        s.set_recipe_override(
+            &"placeholder_lv1".to_string(),
+            RecipeOverride::new(slots.clone()),
+        );
+        assert!(
+            s.overrides.get("placeholder_lv1").unwrap().base_was_empty,
+            "correcting an empty placeholder should stamp base_was_empty",
+        );
+
+        // workbench_lv1 ships with a real recipe → a correction is a genuine
+        // fix, not gap-filling.
+        slots[0] = Some(Requirement {
+            item_id: "bolts".into(),
+            quantity: 99,
+        });
+        s.set_recipe_override(&"workbench_lv1".to_string(), RecipeOverride::new(slots));
+        assert!(
+            !s.overrides.get("workbench_lv1").unwrap().base_was_empty,
+            "correcting a populated recipe must NOT stamp base_was_empty",
+        );
+    }
+
+    #[test]
+    fn merge_discards_gap_fill_superseded_by_official_recipe() {
+        // The headline scenario: the user defined a recipe for an upgrade we'd
+        // shipped empty; a later update ships the official recipe. The local
+        // gap-fill (base_was_empty) is discarded — official wins — while a
+        // genuine correction to a populated recipe is kept.
+        let mut s = AppState::new(fixture());
+        let mut slots: [Option<Requirement>; RECIPE_SLOTS] = std::array::from_fn(|_| None);
+        slots[0] = Some(Requirement {
+            item_id: "bolts".into(),
+            quantity: 1,
+        });
+        let gap_fill = RecipeOverride {
+            slots: slots.clone(),
+            base_was_empty: true,
+        };
+        let genuine_fix = RecipeOverride {
+            slots,
+            base_was_empty: false,
+        };
+        let persisted = PersistedOverrides {
+            schema_version: OVERRIDES_SCHEMA_VERSION,
+            data_version: "older".into(),
+            // Both upgrades now carry a non-empty bundled recipe in `fixture()`.
+            overrides: HashMap::from([
+                ("workbench_lv1".to_string(), gap_fill),
+                ("workbench_lv2".to_string(), genuine_fix),
+            ]),
+        };
+        let warn = persisted.merge_into(&mut s).expect("should warn");
+        assert!(
+            warn.contains("Discarded 1 recipe correction"),
+            "superseded gap-fill should be reported: {warn}",
+        );
+        assert!(
+            !s.overrides.contains_key("workbench_lv1"),
+            "gap-fill now covered by the official dataset must be discarded",
+        );
+        assert!(
+            s.overrides.contains_key("workbench_lv2"),
+            "a genuine correction to a populated recipe must survive the update",
+        );
+    }
+
+    #[test]
+    fn merge_keeps_gap_fill_while_recipe_still_missing() {
+        // The official dataset still hasn't shipped a recipe → the user's
+        // gap-fill is the only thing we have; keep it. placeholder_lv1 carries
+        // an empty bundled recipe in `fixture()`.
+        let mut s = AppState::new(fixture());
+        let mut slots: [Option<Requirement>; RECIPE_SLOTS] = std::array::from_fn(|_| None);
+        slots[0] = Some(Requirement {
+            item_id: "bolts".into(),
+            quantity: 4,
+        });
+        let persisted = PersistedOverrides {
+            schema_version: OVERRIDES_SCHEMA_VERSION,
+            data_version: s.data.data_version.clone(),
+            overrides: HashMap::from([(
+                "placeholder_lv1".to_string(),
+                RecipeOverride {
+                    slots,
+                    base_was_empty: true,
+                },
+            )]),
+        };
+        assert!(
+            persisted.merge_into(&mut s).is_none(),
+            "no warning expected"
+        );
+        assert!(
+            s.overrides.contains_key("placeholder_lv1"),
+            "gap-fill must survive while the recipe is still missing upstream",
+        );
+    }
+
+    #[test]
+    fn merge_keeps_legacy_override_without_base_flag() {
+        // Overrides written before `base_was_empty` existed deserialize with it
+        // `false`. We can't know their original base, so we never auto-discard
+        // them even when the bundled recipe is now populated — keeping the
+        // user's data is the safe default.
+        let mut s = AppState::new(fixture());
+        let legacy_json = r#"{
+            "schema_version": 1,
+            "data_version": "older",
+            "overrides": {
+                "workbench_lv1": {
+                    "slots": [{"item_id": "bolts", "quantity": 1}, null, null, null]
+                }
+            }
+        }"#;
+        let persisted: PersistedOverrides = serde_json::from_str(legacy_json).unwrap();
+        assert!(
+            !persisted
+                .overrides
+                .get("workbench_lv1")
+                .unwrap()
+                .base_was_empty,
+            "missing field must default to false",
+        );
+        persisted.merge_into(&mut s);
+        assert!(
+            s.overrides.contains_key("workbench_lv1"),
+            "legacy override (no base flag) must be kept across updates",
+        );
     }
 
     #[test]
@@ -1309,7 +1476,7 @@ mod tests {
             item_id: "bolts".into(),
             quantity: 9,
         });
-        s.set_recipe_override(&"workbench_lv1".to_string(), RecipeOverride { slots });
+        s.set_recipe_override(&"workbench_lv1".to_string(), RecipeOverride::new(slots));
         assert_eq!(
             s.recipe_knowledge(&"workbench_lv1".to_string()),
             RecipeKnowledge::Edited

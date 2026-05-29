@@ -243,9 +243,7 @@ mod tests {
     #[test]
     fn body_lists_each_overridden_slot_difference() {
         let mut state = AppState::new(fixture());
-        let mut ov = RecipeOverride {
-            slots: std::array::from_fn(|_| None),
-        };
+        let mut ov = RecipeOverride::new(std::array::from_fn(|_| None));
         ov.slots[0] = Some(Requirement {
             item_id: "nut".into(),
             quantity: 3,
@@ -295,18 +293,14 @@ mod tests {
         // 1 override → single-name title.
         state.set_recipe_override(
             &"kitchen_lv1".to_string(),
-            RecipeOverride {
-                slots: one_nut.clone(),
-            },
+            RecipeOverride::new(one_nut.clone()),
         );
         assert_eq!(build_issue_title(&state), "Recipe correction: Kitchen Lv1");
 
         // 2 overrides → both named, alphabetical order.
         state.set_recipe_override(
             &"armory_lv2".to_string(),
-            RecipeOverride {
-                slots: one_nut.clone(),
-            },
+            RecipeOverride::new(one_nut.clone()),
         );
         assert_eq!(
             build_issue_title(&state),
@@ -340,12 +334,7 @@ mod tests {
             s
         };
         for id in ["a_lv1", "b_lv1", "c_lv1"] {
-            state.set_recipe_override(
-                &id.to_string(),
-                RecipeOverride {
-                    slots: stub_slots.clone(),
-                },
-            );
+            state.set_recipe_override(&id.to_string(), RecipeOverride::new(stub_slots.clone()));
         }
         assert_eq!(
             build_issue_title(&state),
@@ -358,16 +347,14 @@ mod tests {
         let mut state = AppState::new(fixture());
         state.set_recipe_override(
             &"kitchen_lv1".to_string(),
-            RecipeOverride {
-                slots: {
-                    let mut s: [Option<Requirement>; RECIPE_SLOTS] = std::array::from_fn(|_| None);
-                    s[0] = Some(Requirement {
-                        item_id: "nut".into(),
-                        quantity: 3,
-                    });
-                    s
-                },
-            },
+            RecipeOverride::new({
+                let mut s: [Option<Requirement>; RECIPE_SLOTS] = std::array::from_fn(|_| None);
+                s[0] = Some(Requirement {
+                    item_id: "nut".into(),
+                    quantity: 3,
+                });
+                s
+            }),
         );
         let url = build_issue_url(&state);
         assert!(url.starts_with(NEW_ISSUE_URL));
@@ -412,11 +399,9 @@ mod tests {
         };
         state.set_recipe_override(
             &"kitchen_lv1".to_string(),
-            RecipeOverride {
-                slots: one_nut.clone(),
-            },
+            RecipeOverride::new(one_nut.clone()),
         );
-        state.set_recipe_override(&"armory_lv1".to_string(), RecipeOverride { slots: one_nut });
+        state.set_recipe_override(&"armory_lv1".to_string(), RecipeOverride::new(one_nut));
 
         let body = build_issue_body(&state);
         let armory_idx = body.find("Armory Lv1").unwrap();

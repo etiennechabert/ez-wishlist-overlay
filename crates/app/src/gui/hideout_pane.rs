@@ -883,7 +883,7 @@ fn editable_recipe_panel(
     }
 
     if !slots_match(&slots, &original_slots) {
-        let new_override = RecipeOverride { slots };
+        let new_override = RecipeOverride::new(slots);
         state.write().set_recipe_override(&upgrade.id, new_override);
         notify(state, save_tx);
     }
