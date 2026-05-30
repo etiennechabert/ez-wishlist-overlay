@@ -1187,37 +1187,23 @@ mod tests {
     }
 
     #[test]
-    fn set_recipe_override_stamps_base_was_empty() {
-        // Filling in a placeholder (empty bundled recipe) marks the correction
-        // as gap-filling; correcting a recipe that already had contents does
-        // not. The flag is what lets a later official recipe supersede the
-        // former but not the latter.
+    fn set_recipe_override_stamps_base_hash() {
+        // Committing a correction records the hash of the bundled recipe it was
+        // based on, so a later dataset change can be detected.
         let mut s = AppState::new(fixture());
-
         let mut slots: [Option<Requirement>; RECIPE_SLOTS] = std::array::from_fn(|_| None);
         slots[0] = Some(Requirement {
             item_id: "bolts".into(),
             quantity: 2,
         });
-        s.set_recipe_override(
-            &"placeholder_lv1".to_string(),
-            RecipeOverride::new(slots.clone()),
-        );
-        assert!(
-            s.overrides.get("placeholder_lv1").unwrap().base_was_empty,
-            "correcting an empty placeholder should stamp base_was_empty",
-        );
-
-        // workbench_lv1 ships with a real recipe → a correction is a genuine
-        // fix, not gap-filling.
-        slots[0] = Some(Requirement {
-            item_id: "bolts".into(),
-            quantity: 99,
-        });
         s.set_recipe_override(&"workbench_lv1".to_string(), RecipeOverride::new(slots));
-        assert!(
-            !s.overrides.get("workbench_lv1").unwrap().base_was_empty,
-            "correcting a populated recipe must NOT stamp base_was_empty",
+
+        let expected =
+            crate::data::recipe_hash(&s.index.upgrades_by_id.get("workbench_lv1").unwrap().upgrade);
+        assert_eq!(
+            s.overrides.get("workbench_lv1").unwrap().base_hash,
+            Some(expected),
+            "the bundled recipe's hash should be stamped on the correction",
         );
     }
 
