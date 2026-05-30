@@ -8,12 +8,18 @@
 //! feeds the Items DB Quantity / Surplus columns too. Contents are entered
 //! manually; a future feature will let OCR fill a box from screenshots of its
 //! icon grid.
+//!
+//! Layout: a sortable KPI table — one bigger row per container showing its bag
+//! icon, name, item count, total weight, and total value (default sort: total
+//! value, descending). Click a row's triangle to unfold its item list and the
+//! rename / delete / add-item / icon controls.
 
 use crate::data::ItemId;
 use crate::gui::hideout_pane::{
     collect_filtered_items, picker_tile, PICKER_TILE_SPACING, PICKER_TILE_W, PICKER_WINDOW_H,
     PICKER_WINDOW_W,
 };
+use crate::gui::items_db_pane::format_price;
 use crate::gui::{icon_cache::IconCache, theme, SaveTick};
 use crate::state::{AppState, ContainerId};
 use crossbeam_channel::Sender;
@@ -40,12 +46,50 @@ const CONTAINER_ICONS: &[&str] = &[
 /// Shown for a container that hasn't chosen an icon — a neutral tactical pack.
 const DEFAULT_CONTAINER_ICON: &str = "backpack_3drt";
 
+// KPI-table column widths. Header titles and row cells share these so the
+// columns line up. `LEAD` matches the width of the collapse triangle so the
+// header titles align over the row content that sits after it.
+const ROW_H: f32 = 38.0;
+const LEAD: f32 = 22.0;
+const W_ICON: f32 = 32.0;
+const W_NAME: f32 = 230.0;
+const W_ITEMS: f32 = 70.0;
+const W_WEIGHT: f32 = 95.0;
+const W_VALUE: f32 = 120.0;
+
 fn resolve_icon_key(icon: &Option<String>) -> &str {
     icon.as_deref().unwrap_or(DEFAULT_CONTAINER_ICON)
 }
 
 fn icon_asset_path(key: &str) -> String {
     format!("container_icons/{key}.png")
+}
+
+/// Per-container row data, snapshot once per frame so the table body never
+/// re-locks state. Weight/value are best-effort sums (items with unknown
+/// weight/price are skipped, matching the Items DB footer).
+struct ContainerRow {
+    id: ContainerId,
+    name: String,
+    icon: Option<String>,
+    /// Distinct item types held — matches the historical "(N items)" count.
+    item_count: usize,
+    weight: f32,
+    value: u64,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SortCol {
+    Name,
+    Items,
+    Weight,
+    Value,
+}
+
+#[derive(Clone, Copy)]
+struct Sort {
+    col: SortCol,
+    desc: bool,
 }
 
 pub fn ui(
@@ -70,24 +114,37 @@ pub fn ui(
     new_container_row(ui, state, save_tx);
     ui.separator();
 
-    // Snapshot the container list (id + name + item count + icon) so we don't
-    // hold the lock across the per-container UI; contents are read per section.
-    let containers: Vec<(ContainerId, String, usize, Option<String>)> = {
+    // Snapshot every container + its KPIs in one read lock.
+    let mut rows: Vec<ContainerRow> = {
         let s = state.read();
         s.containers
             .iter()
             .map(|c| {
-                (
-                    c.id.clone(),
-                    c.name.clone(),
-                    c.contents.len(),
-                    c.icon.clone(),
-                )
+                let mut weight = 0.0f32;
+                let mut value = 0u64;
+                for (iid, &qty) in &c.contents {
+                    if let Some(it) = s.index.items_by_id.get(iid) {
+                        if let Some(w) = it.weight {
+                            weight += w * qty as f32;
+                        }
+                        if let Some(p) = it.price {
+                            value = value.saturating_add(p * qty as u64);
+                        }
+                    }
+                }
+                ContainerRow {
+                    id: c.id.clone(),
+                    name: c.name.clone(),
+                    icon: c.icon.clone(),
+                    item_count: c.contents.len(),
+                    weight,
+                    value,
+                }
             })
             .collect()
     };
 
-    if containers.is_empty() {
+    if rows.is_empty() {
         ui.add_space(12.0);
         ui.vertical_centered(|ui| {
             ui.label(
@@ -99,8 +156,14 @@ pub fn ui(
         return;
     }
 
-    for (id, name, item_count, icon) in &containers {
-        container_section(ui, state, icons, save_tx, id, name, *item_count, icon);
+    // Sortable KPI header (may update the persisted sort on click), then sort
+    // the rows by the current selection.
+    sortable_header(ui);
+    let sort = sort_state(ui.ctx());
+    sort_rows(&mut rows, sort);
+
+    for row in &rows {
+        container_row(ui, state, icons, save_tx, row);
     }
 
     // The add-item picker (one container at a time, keyed in egui memory).
@@ -134,59 +197,181 @@ fn new_container_row(ui: &mut egui::Ui, state: &Arc<RwLock<AppState>>, save_tx: 
     });
 }
 
-/// One container as a collapsible section. The header carries the chosen bag
-/// icon + name + item count (visible even when collapsed); the body holds
-/// rename/delete, the contents list with per-item steppers, the add-item
-/// button, and the icon picker.
-#[allow(clippy::too_many_arguments)]
-fn container_section(
+// --- KPI table -------------------------------------------------------------
+
+fn sort_state(ctx: &egui::Context) -> Sort {
+    ctx.data(|d| d.get_temp::<Sort>(egui::Id::new("ctr-sort")))
+        .unwrap_or(Sort {
+            col: SortCol::Value,
+            desc: true,
+        })
+}
+fn set_sort_state(ctx: &egui::Context, s: Sort) {
+    ctx.data_mut(|d| d.insert_temp(egui::Id::new("ctr-sort"), s));
+}
+
+/// Value/quantity columns default to descending (biggest first — the obvious
+/// first click); the Name column defaults to ascending.
+fn default_desc(col: SortCol) -> bool {
+    !matches!(col, SortCol::Name)
+}
+
+fn sort_rows(rows: &mut [ContainerRow], sort: Sort) {
+    rows.sort_by(|a, b| {
+        let ord = match sort.col {
+            SortCol::Name => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
+            SortCol::Items => a.item_count.cmp(&b.item_count),
+            SortCol::Weight => a
+                .weight
+                .partial_cmp(&b.weight)
+                .unwrap_or(std::cmp::Ordering::Equal),
+            SortCol::Value => a.value.cmp(&b.value),
+        }
+        // Stable tiebreak so equal-KPI rows don't shuffle frame to frame.
+        .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+        if sort.desc {
+            ord.reverse()
+        } else {
+            ord
+        }
+    });
+}
+
+fn sortable_header(ui: &mut egui::Ui) {
+    let sort = sort_state(ui.ctx());
+    ui.horizontal(|ui| {
+        ui.add_space(LEAD);
+        header_cell(ui, W_ICON + W_NAME, "Bag", SortCol::Name, sort, false);
+        header_cell(ui, W_ITEMS, "Items", SortCol::Items, sort, true);
+        header_cell(ui, W_WEIGHT, "Weight", SortCol::Weight, sort, true);
+        header_cell(ui, W_VALUE, "Value", SortCol::Value, sort, true);
+    });
+    ui.separator();
+}
+
+fn header_cell(ui: &mut egui::Ui, w: f32, label: &str, col: SortCol, sort: Sort, right: bool) {
+    let active = sort.col == col;
+    let arrow = if active {
+        if sort.desc {
+            " ▼"
+        } else {
+            " ▲"
+        }
+    } else {
+        ""
+    };
+    let layout = if right {
+        egui::Layout::right_to_left(egui::Align::Center)
+    } else {
+        egui::Layout::left_to_right(egui::Align::Center)
+    };
+    let resp = ui
+        .allocate_ui_with_layout(egui::vec2(w, 20.0), layout, |ui| {
+            ui.add(
+                egui::Label::new(egui::RichText::new(format!("{label}{arrow}")).strong())
+                    .sense(egui::Sense::click()),
+            )
+        })
+        .inner;
+    if resp.clicked() {
+        let next = if active {
+            Sort {
+                col,
+                desc: !sort.desc,
+            }
+        } else {
+            Sort {
+                col,
+                desc: default_desc(col),
+            }
+        };
+        set_sort_state(ui.ctx(), next);
+    }
+}
+
+fn cell_left(ui: &mut egui::Ui, w: f32, text: egui::RichText) {
+    ui.allocate_ui_with_layout(
+        egui::vec2(w, ROW_H),
+        egui::Layout::left_to_right(egui::Align::Center),
+        |ui| {
+            ui.add(egui::Label::new(text).truncate());
+        },
+    );
+}
+
+fn cell_right(ui: &mut egui::Ui, w: f32, text: String, strong: bool) {
+    ui.allocate_ui_with_layout(
+        egui::vec2(w, ROW_H),
+        egui::Layout::right_to_left(egui::Align::Center),
+        |ui| {
+            let rt = egui::RichText::new(text);
+            ui.label(if strong { rt.strong() } else { rt });
+        },
+    );
+}
+
+/// One container as a collapsible KPI row. Collapsed, it shows icon + name +
+/// item count + weight + value; the triangle unfolds the editing body.
+fn container_row(
     ui: &mut egui::Ui,
     state: &Arc<RwLock<AppState>>,
     icons: &mut IconCache,
     save_tx: &Sender<SaveTick>,
-    id: &ContainerId,
-    name: &str,
-    item_count: usize,
-    icon: &Option<String>,
+    row: &ContainerRow,
 ) {
     // Clone the header texture so the header closure doesn't borrow `icons`
     // (the body closure needs it mutably right after).
     let header_tex = icons
-        .get(ui.ctx(), &icon_asset_path(resolve_icon_key(icon)))
+        .get(ui.ctx(), &icon_asset_path(resolve_icon_key(&row.icon)))
         .cloned();
-    let title = format!(
-        "{name}  ({item_count} {})",
-        if item_count == 1 { "item" } else { "items" }
-    );
-    let cid = ui.make_persistent_id(("container-collapse", id));
+    let cid = ui.make_persistent_id(("container-row", &row.id));
     egui::collapsing_header::CollapsingState::load_with_default_open(ui.ctx(), cid, false)
         .show_header(ui, |ui| {
-            if let Some(tex) = &header_tex {
-                ui.add(egui::Image::new(tex).fit_to_exact_size(egui::vec2(28.0, 28.0)));
-            }
-            ui.label(egui::RichText::new(title).strong());
+            ui.allocate_ui_with_layout(
+                egui::vec2(W_ICON, ROW_H),
+                egui::Layout::left_to_right(egui::Align::Center),
+                |ui| {
+                    if let Some(tex) = &header_tex {
+                        ui.add(egui::Image::new(tex).fit_to_exact_size(egui::vec2(28.0, 28.0)));
+                    }
+                },
+            );
+            cell_left(ui, W_NAME, egui::RichText::new(&row.name).strong());
+            cell_right(ui, W_ITEMS, row.item_count.to_string(), false);
+            cell_right(ui, W_WEIGHT, format!("{:.2} kg", row.weight), false);
+            cell_right(ui, W_VALUE, format!("{} ₽", format_price(row.value)), true);
         })
-        .body(|ui| {
-            ui.horizontal(|ui| {
-                ui.label("Name:");
-                rename_field(ui, state, save_tx, id, name);
-                ui.separator();
-                delete_control(ui, state, save_tx, id);
-            });
-            ui.add_space(6.0);
-            container_contents(ui, state, icons, save_tx, id);
-            ui.add_space(4.0);
-            if ui
-                .button("+ Add item")
-                .on_hover_text("Search the catalog and add items to this container")
-                .clicked()
-            {
-                set_active_picker(ui.ctx(), Some(id.clone()));
-                set_picker_filter(ui.ctx(), String::new());
-            }
-            ui.add_space(2.0);
-            icon_picker(ui, state, icons, save_tx, id, icon);
-        });
+        .body(|ui| container_body(ui, state, icons, save_tx, row));
+}
+
+/// The unfolded editing controls for one container: rename + delete, the item
+/// list with per-item steppers, an add-item button, and the icon picker.
+fn container_body(
+    ui: &mut egui::Ui,
+    state: &Arc<RwLock<AppState>>,
+    icons: &mut IconCache,
+    save_tx: &Sender<SaveTick>,
+    row: &ContainerRow,
+) {
+    ui.horizontal(|ui| {
+        ui.label("Name:");
+        rename_field(ui, state, save_tx, &row.id, &row.name);
+        ui.separator();
+        delete_control(ui, state, save_tx, &row.id);
+    });
+    ui.add_space(6.0);
+    container_contents(ui, state, icons, save_tx, &row.id);
+    ui.add_space(4.0);
+    if ui
+        .button("+ Add item")
+        .on_hover_text("Search the catalog and add items to this container")
+        .clicked()
+    {
+        set_active_picker(ui.ctx(), Some(row.id.clone()));
+        set_picker_filter(ui.ctx(), String::new());
+    }
+    ui.add_space(2.0);
+    icon_picker(ui, state, icons, save_tx, &row.id, &row.icon);
 }
 
 /// Closed-by-default sub-section: a wrapped grid of the bundled bag icons.
@@ -296,7 +481,7 @@ fn delete_control(
 }
 
 /// The container's items, one row each: icon + name + `[-] qty [+]` stepper +
-/// a remove (✕). Mutations go through the scoped container mutators and bump
+/// a remove (×). Mutations go through the scoped container mutators and bump
 /// `version`, so the save loop and VR overlay pick them up like any other edit.
 fn container_contents(
     ui: &mut egui::Ui,
@@ -347,11 +532,11 @@ fn container_contents(
             ui.add(egui::Label::new(name).wrap_mode(egui::TextWrapMode::Truncate));
 
             // Controls hug the right edge. In a right-to-left layout the
-            // first-added widget sits rightmost, so add ✕, +, qty, − to read
-            // left→right as "[−] qty [+] ✕".
+            // first-added widget sits rightmost, so add ×, +, qty, − to read
+            // left→right as "[−] qty [+] ×".
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui
-                    .button("✕")
+                    .button("×")
                     .on_hover_text("Remove from this container")
                     .clicked()
                 {

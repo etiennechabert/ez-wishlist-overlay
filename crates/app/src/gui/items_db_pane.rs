@@ -597,7 +597,7 @@ fn opt_rarity_cmp(a: Option<&str>, b: Option<&str>) -> std::cmp::Ordering {
     }
 }
 
-fn format_price(p: u64) -> String {
+pub(crate) fn format_price(p: u64) -> String {
     // Thousands separator with spaces; matches the upstream site's style for
     // rouble values without dragging in a localization crate.
     let s = p.to_string();
