@@ -29,6 +29,11 @@ pub struct Container {
     pub name: String,
     #[serde(default)]
     pub contents: HashMap<ItemId, u32>,
+    /// Chosen container-icon key — a file stem under `assets/container_icons/`
+    /// (e.g. `"backpack_rucksack"`). `None` → the UI shows a default bag icon.
+    /// Pure presentation; the data layer never interprets it.
+    #[serde(default)]
+    pub icon: Option<String>,
 }
 
 pub struct AppState {
@@ -511,9 +516,21 @@ impl AppState {
             id: id.clone(),
             name,
             contents: HashMap::new(),
+            icon: None,
         });
         self.bump();
         id
+    }
+
+    /// Set (or clear, with `None`) a container's chosen icon key. No-op if the
+    /// id is unknown or the icon is unchanged.
+    pub fn set_container_icon(&mut self, id: &ContainerId, icon: Option<String>) {
+        if let Some(c) = self.containers.iter_mut().find(|c| &c.id == id) {
+            if c.icon != icon {
+                c.icon = icon;
+                self.bump();
+            }
+        }
     }
 
     /// Rename a container. No-op if the id is unknown or the name is unchanged.
@@ -1626,6 +1643,38 @@ mod tests {
         s.delete_container(&c);
         assert!(s.containers.is_empty());
         assert_eq!(s.owned_total(&"bolts".to_string()), 0);
+    }
+
+    #[test]
+    fn container_icon_set_and_persists() {
+        let mut s = AppState::new(fixture());
+        let c = s.create_container("Backpack".into());
+        assert_eq!(s.containers[0].icon, None, "new containers start icon-less");
+        s.set_container_icon(&c, Some("backpack_rucksack".into()));
+        assert_eq!(s.containers[0].icon.as_deref(), Some("backpack_rucksack"));
+
+        let json = serde_json::to_string(&PersistedState::from_app(&s)).unwrap();
+        let back: PersistedState = serde_json::from_str(&json).unwrap();
+        let mut s2 = AppState::new(s.data.clone());
+        back.merge_into(&mut s2);
+        assert_eq!(s2.containers[0].icon.as_deref(), Some("backpack_rucksack"));
+    }
+
+    #[test]
+    fn container_without_icon_key_deserializes_to_none() {
+        // A container persisted before the icon field existed (no `icon` key)
+        // must load with serde's default (None), not fail.
+        let json = r#"{
+            "schema_version": 1,
+            "data_version": "test",
+            "collected": {},
+            "containers": [{"id": "ctr-1", "name": "Old bag", "contents": {"bolts": 2}}],
+            "next_container_seq": 1
+        }"#;
+        let back: PersistedState = serde_json::from_str(json).unwrap();
+        assert_eq!(back.containers.len(), 1);
+        assert_eq!(back.containers[0].icon, None);
+        assert_eq!(back.containers[0].contents.get("bolts"), Some(&2));
     }
 
     #[test]

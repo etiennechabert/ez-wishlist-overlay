@@ -7,6 +7,7 @@ use rust_embed::RustEmbed;
 #[folder = "src/assets/"]
 #[include = "data.json"]
 #[include = "icons/*"]
+#[include = "container_icons/*"]
 #[include = "vr_actions.json"]
 #[include = "vr_bindings_*.json"]
 #[include = "ocr_templates/*"]

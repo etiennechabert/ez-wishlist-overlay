@@ -14,11 +14,39 @@ use crate::gui::hideout_pane::{
     collect_filtered_items, picker_tile, PICKER_TILE_SPACING, PICKER_TILE_W, PICKER_WINDOW_H,
     PICKER_WINDOW_W,
 };
-use crate::gui::{icon_cache::IconCache, SaveTick};
+use crate::gui::{icon_cache::IconCache, theme, SaveTick};
 use crate::state::{AppState, ContainerId};
 use crossbeam_channel::Sender;
 use parking_lot::RwLock;
 use std::sync::Arc;
+
+/// Bundled bag icons a container can use. Each value is a file stem under
+/// `assets/container_icons/` (sourced from the upstream ExfilZone
+/// gear/Backpacks catalog). Order here is the picker-grid order.
+const CONTAINER_ICONS: &[&str] = &[
+    "backpack_3drt",
+    "backpack_eliteops",
+    "backpack_eliteops_green",
+    "backpack_6sh118",
+    "backpack_robinson",
+    "backpack_hypertec",
+    "backpack_gnjbackpack",
+    "backpack_rucksack",
+    "backpack_sportbag",
+    "backpack_odldos_black",
+    "backpack_odldos_flower",
+];
+
+/// Shown for a container that hasn't chosen an icon — a neutral tactical pack.
+const DEFAULT_CONTAINER_ICON: &str = "backpack_3drt";
+
+fn resolve_icon_key(icon: &Option<String>) -> &str {
+    icon.as_deref().unwrap_or(DEFAULT_CONTAINER_ICON)
+}
+
+fn icon_asset_path(key: &str) -> String {
+    format!("container_icons/{key}.png")
+}
 
 pub fn ui(
     ui: &mut egui::Ui,
@@ -42,13 +70,20 @@ pub fn ui(
     new_container_row(ui, state, save_tx);
     ui.separator();
 
-    // Snapshot the container list (id + name + item count) so we don't hold
-    // the lock across the per-container UI; contents are read per section.
-    let containers: Vec<(ContainerId, String, usize)> = {
+    // Snapshot the container list (id + name + item count + icon) so we don't
+    // hold the lock across the per-container UI; contents are read per section.
+    let containers: Vec<(ContainerId, String, usize, Option<String>)> = {
         let s = state.read();
         s.containers
             .iter()
-            .map(|c| (c.id.clone(), c.name.clone(), c.contents.len()))
+            .map(|c| {
+                (
+                    c.id.clone(),
+                    c.name.clone(),
+                    c.contents.len(),
+                    c.icon.clone(),
+                )
+            })
             .collect()
     };
 
@@ -64,8 +99,8 @@ pub fn ui(
         return;
     }
 
-    for (id, name, item_count) in &containers {
-        container_section(ui, state, icons, save_tx, id, name, *item_count);
+    for (id, name, item_count, icon) in &containers {
+        container_section(ui, state, icons, save_tx, id, name, *item_count, icon);
     }
 
     // The add-item picker (one container at a time, keyed in egui memory).
@@ -99,8 +134,11 @@ fn new_container_row(ui: &mut egui::Ui, state: &Arc<RwLock<AppState>>, save_tx: 
     });
 }
 
-/// One container as a collapsible section: rename + delete controls, the
-/// contents list with per-item steppers, and an "Add item" button.
+/// One container as a collapsible section. The header carries the chosen bag
+/// icon + name + item count (visible even when collapsed); the body holds
+/// rename/delete, the contents list with per-item steppers, the add-item
+/// button, and the icon picker.
+#[allow(clippy::too_many_arguments)]
 fn container_section(
     ui: &mut egui::Ui,
     state: &Arc<RwLock<AppState>>,
@@ -109,15 +147,26 @@ fn container_section(
     id: &ContainerId,
     name: &str,
     item_count: usize,
+    icon: &Option<String>,
 ) {
-    let header = format!(
+    // Clone the header texture so the header closure doesn't borrow `icons`
+    // (the body closure needs it mutably right after).
+    let header_tex = icons
+        .get(ui.ctx(), &icon_asset_path(resolve_icon_key(icon)))
+        .cloned();
+    let title = format!(
         "{name}  ({item_count} {})",
         if item_count == 1 { "item" } else { "items" }
     );
-    egui::CollapsingHeader::new(header)
-        .id_salt(id)
-        .default_open(false)
-        .show(ui, |ui| {
+    let cid = ui.make_persistent_id(("container-collapse", id));
+    egui::collapsing_header::CollapsingState::load_with_default_open(ui.ctx(), cid, false)
+        .show_header(ui, |ui| {
+            if let Some(tex) = &header_tex {
+                ui.add(egui::Image::new(tex).fit_to_exact_size(egui::vec2(28.0, 28.0)));
+            }
+            ui.label(egui::RichText::new(title).strong());
+        })
+        .body(|ui| {
             ui.horizontal(|ui| {
                 ui.label("Name:");
                 rename_field(ui, state, save_tx, id, name);
@@ -135,7 +184,51 @@ fn container_section(
                 set_active_picker(ui.ctx(), Some(id.clone()));
                 set_picker_filter(ui.ctx(), String::new());
             }
+            ui.add_space(2.0);
+            icon_picker(ui, state, icons, save_tx, id, icon);
         });
+}
+
+/// Closed-by-default sub-section: a wrapped grid of the bundled bag icons.
+/// Clicking one assigns it to the container; the current choice is highlighted.
+fn icon_picker(
+    ui: &mut egui::Ui,
+    state: &Arc<RwLock<AppState>>,
+    icons: &mut IconCache,
+    save_tx: &Sender<SaveTick>,
+    id: &ContainerId,
+    icon: &Option<String>,
+) {
+    let current = resolve_icon_key(icon).to_string();
+    egui::CollapsingHeader::new("Icon")
+        .id_salt((id.as_str(), "icon"))
+        .default_open(false)
+        .show(ui, |ui| {
+            ui.horizontal_wrapped(|ui| {
+                for &key in CONTAINER_ICONS {
+                    if icon_choice(ui, icons, key, key == current) {
+                        state.write().set_container_icon(id, Some(key.to_string()));
+                        notify(state, save_tx);
+                    }
+                }
+            });
+        });
+}
+
+/// One selectable icon tile. Returns true if it was clicked this frame.
+fn icon_choice(ui: &mut egui::Ui, icons: &mut IconCache, key: &str, selected: bool) -> bool {
+    let (rect, resp) = ui.allocate_exact_size(egui::vec2(44.0, 44.0), egui::Sense::click());
+    if selected {
+        ui.painter()
+            .rect_filled(rect, 5.0, ui.visuals().selection.bg_fill);
+    } else if resp.hovered() {
+        ui.painter()
+            .rect_filled(rect, 5.0, theme::row_hover(ui.visuals().dark_mode));
+    }
+    if let Some(tex) = icons.get(ui.ctx(), &icon_asset_path(key)) {
+        egui::Image::new(tex).paint_at(ui, rect.shrink(5.0));
+    }
+    resp.on_hover_text(key).clicked()
 }
 
 /// Inline rename. The in-progress edit lives in egui memory (seeded from the
