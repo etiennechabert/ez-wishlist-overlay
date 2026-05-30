@@ -100,6 +100,13 @@ pub struct App {
     /// debug-build "Run OCR on fixture" button so we can exercise the
     /// pipeline + in-headset overlay without a SteamVR session.
     ocr_job_tx: Sender<crate::ocr::OcrJob>,
+    /// One-shot guard flag: has the startup window-geometry sanity check run?
+    /// `eframe`'s `persist_window` can restore an unusable geometry (e.g. a
+    /// window sized across two monitors, saved while maximized on a
+    /// multi-monitor rig) that comes up blank on some GPU/driver combos and
+    /// reads as "the app won't start". Checked once on the first frame that
+    /// has viewport info; see [`App::guard_window_geometry`].
+    window_geometry_checked: bool,
 }
 
 impl App {
@@ -168,6 +175,7 @@ impl App {
             last_capture: None,
             capture_toast_shown_at: None,
             ocr_job_tx,
+            window_geometry_checked: false,
         }
     }
 
@@ -186,6 +194,49 @@ impl App {
             tracing::warn!(error = %e, "failed to persist settings.json");
         }
     }
+
+    /// One-shot startup guard against an unusable restored window geometry.
+    /// `eframe`'s `persist_window` faithfully restores whatever size/position
+    /// was saved last — including a window sized across *two* monitors (saved
+    /// while maximized on a multi-monitor rig). On some GPU/driver combos such
+    /// a window comes up blank, so the app looks like it "won't start" when in
+    /// fact only the desktop window is unusable. If the restored window is
+    /// larger than the monitor it's on (i.e. it spans beyond one screen), snap
+    /// it back to a sane default near the top-left so it's visible again.
+    ///
+    /// Returns `true` once it had viewport info to evaluate (so the caller
+    /// stops re-checking); `false` on the first frame(s) before eframe has
+    /// populated `outer_rect` / `monitor_size`.
+    fn guard_window_geometry(&self, ctx: &egui::Context) -> bool {
+        let (outer, monitor) = ctx.input(|i| {
+            let vp = i.viewport();
+            (vp.outer_rect, vp.monitor_size)
+        });
+        let (Some(outer), Some(monitor)) = (outer, monitor) else {
+            return false;
+        };
+        // Slop covers a normal maximized window, whose borders sit a few px
+        // past each monitor edge — that must not trip the guard.
+        const SLOP: f32 = 16.0;
+        let spans_beyond_monitor =
+            outer.width() > monitor.x + SLOP || outer.height() > monitor.y + SLOP;
+        if spans_beyond_monitor {
+            let size = egui::vec2(
+                1200.0_f32.min(monitor.x - 80.0),
+                800.0_f32.min(monitor.y - 80.0),
+            );
+            tracing::warn!(
+                restored_w = outer.width(),
+                restored_h = outer.height(),
+                monitor_w = monitor.x,
+                monitor_h = monitor.y,
+                "restored window spans beyond the current monitor; resetting to a visible default"
+            );
+            ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(size));
+            ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(egui::pos2(40.0, 40.0)));
+        }
+        true
+    }
 }
 
 impl eframe::App for App {
@@ -194,6 +245,12 @@ impl eframe::App for App {
         // surface even without user input. egui otherwise sleeps until the
         // next event.
         ctx.request_repaint_after(std::time::Duration::from_secs(1));
+
+        // One-shot: rescue an unusable restored window geometry before it
+        // reads as "the app won't start". See the field + method docs.
+        if !self.window_geometry_checked && self.guard_window_geometry(ctx) {
+            self.window_geometry_checked = true;
+        }
 
         // Spacebar = "take a VR screenshot" while the desktop window has
         // focus. Clicking a button is impractical with the headset on, so
