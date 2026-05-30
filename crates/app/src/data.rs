@@ -52,15 +52,69 @@ pub const RECIPE_SLOTS: usize = 4;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RecipeOverride {
     pub slots: [Option<Requirement>; RECIPE_SLOTS],
+    /// Hash of the bundled recipe at the moment this correction was made
+    /// ([`recipe_hash`]). When a later app update changes the official recipe
+    /// for this upgrade — whether filling in a previously-empty "missing"
+    /// upgrade or fixing a wrong one — the stored hash no longer matches, and
+    /// the correction is discarded on load so the authoritative data wins. The
+    /// user was correcting a recipe we've since changed; their fix may now be
+    /// stale or already incorporated. `None` for overrides written before this
+    /// field existed: we can't know their original base, so we keep them.
+    #[serde(default)]
+    pub base_hash: Option<u64>,
 }
 
 impl RecipeOverride {
+    /// Construct a correction from a 4-slot view. `base_hash` starts `None`;
+    /// [`crate::state::AppState::set_recipe_override`] stamps the real hash of
+    /// the bundled recipe when the correction is committed.
+    pub fn new(slots: [Option<Requirement>; RECIPE_SLOTS]) -> Self {
+        Self {
+            slots,
+            base_hash: None,
+        }
+    }
+
     /// True iff every slot matches the bundled recipe — useful for collapsing
     /// "user edited then put it all back" into a clean unoverridden state.
     pub fn matches_base(&self, base: &Upgrade) -> bool {
         let base_slots = base_slots(base);
         slots_equal(&self.slots, &base_slots)
     }
+}
+
+/// Stable hash of an upgrade's bundled recipe, used to detect when an app
+/// update has changed the official recipe out from under a user's correction.
+///
+/// Hand-rolled FNV-1a over a canonical encoding of the 4-slot base view, *not*
+/// `std::hash::DefaultHasher`: the std hasher's output isn't guaranteed stable
+/// across Rust versions, and this value is persisted in `overrides.json` and
+/// compared on a later run (possibly built with a newer toolchain). Encoding
+/// the fixed 4-slot shape — with a per-slot present/empty tag and an explicit
+/// separator between item id and quantity — keeps positional meaning and
+/// avoids field-boundary collisions.
+pub fn recipe_hash(upgrade: &Upgrade) -> u64 {
+    const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
+    const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
+    fn mix(h: &mut u64, bytes: &[u8]) {
+        for &b in bytes {
+            *h ^= b as u64;
+            *h = h.wrapping_mul(FNV_PRIME);
+        }
+    }
+    let mut h = FNV_OFFSET;
+    for slot in base_slots(upgrade).iter() {
+        match slot {
+            None => mix(&mut h, &[0x00]),
+            Some(req) => {
+                mix(&mut h, &[0x01]);
+                mix(&mut h, req.item_id.as_bytes());
+                mix(&mut h, &[0x1f]); // unit separator: ("ab",x)+("c",y) ≠ ("a",x)+("bc",y)
+                mix(&mut h, &req.quantity.to_le_bytes());
+            }
+        }
+    }
+    h
 }
 
 /// Lift a recipe out of its `Vec<Requirement>` shape into a fixed 4-slot view,
