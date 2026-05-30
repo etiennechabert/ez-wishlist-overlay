@@ -9,7 +9,6 @@ pub mod ocr_feedback;
 mod overrides_export;
 mod preview_pane;
 mod settings_dialog;
-mod tasks_pane;
 pub mod theme;
 
 pub use ocr_feedback::{OcrFeedback, OcrFeedbackKind, OcrItemDelta};
@@ -35,7 +34,6 @@ pub struct SaveTick {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum LeftTab {
     Hideout,
-    Tasks,
     ItemsDb,
 }
 
@@ -50,7 +48,6 @@ pub struct App {
     show_debug: bool,
     settings_dirty: bool,
     confirm_reset: bool,
-    tasks_filter: String,
     items_db: items_db_pane::ItemsDbState,
     status_banner: Option<String>,
     vr: Arc<crate::vr::Runtime>,
@@ -149,7 +146,6 @@ impl App {
             show_debug: false,
             settings_dirty: false,
             confirm_reset: false,
-            tasks_filter: String::new(),
             items_db: items_db_pane::ItemsDbState::default(),
             status_banner: banner,
             vr,
@@ -270,7 +266,6 @@ impl eframe::App for App {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.selectable_value(&mut self.tab, LeftTab::Hideout, "Hideout");
-                ui.selectable_value(&mut self.tab, LeftTab::Tasks, "Tasks");
                 ui.selectable_value(&mut self.tab, LeftTab::ItemsDb, "Items DB");
             });
             ui.separator();
@@ -290,11 +285,6 @@ impl eframe::App for App {
                     if outcome.settings_changed {
                         self.persist_settings();
                     }
-                }
-                LeftTab::Tasks => {
-                    egui::ScrollArea::vertical().show(ui, |ui| {
-                        tasks_pane::ui(ui, &self.state, &mut self.tasks_filter, &self.save_tx)
-                    });
                 }
                 LeftTab::ItemsDb => {
                     // TableBuilder ships its own vertical scrolling; nesting

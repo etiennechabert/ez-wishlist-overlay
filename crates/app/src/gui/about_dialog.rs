@@ -22,12 +22,12 @@ pub fn show(ctx: &egui::Context, open: &mut bool, data: &GameData, check_status:
             ));
             ui.add_space(8.0);
             ui.label("A free, open-source companion for Contractors Showdown: ExfilZone.");
-            ui.label("Tracks hideout upgrades and quest tasks across desktop and VR.");
+            ui.label("Tracks hideout upgrades across desktop and VR.");
 
             ui.add_space(12.0);
             ui.heading("Credits");
             ui.label(
-                "Hideout, task, and item data are sourced from ExfilZone Assistant by pogapwnz, \
+                "Hideout and item data are sourced from ExfilZone Assistant by pogapwnz, \
                  used under the MIT license. ExfilZone Assistant is an excellent web companion \
                  covering combat simulators, weapon databases, guides, and more. If you find \
                  this app useful, check theirs too.",

@@ -51,10 +51,6 @@ struct UpstreamItemImages {
 
 #[derive(Debug, Deserialize, Default)]
 struct UpstreamItemStats {
-    /// Present on task-items: which tasks require this item.
-    #[serde(default)]
-    #[serde(rename = "taskIds")]
-    task_ids: Vec<String>,
     #[serde(default)]
     price: Option<u64>,
     #[serde(default)]
@@ -67,10 +63,6 @@ pub struct ItemCatalog {
     /// All items, keyed by upstream id. The id is also our `ItemId` (we
     /// preserve upstream slugs 1:1).
     pub items: HashMap<ItemId, ItemRecord>,
-    /// Reverse lookup: lowercased item name → list of matching ids. Names are
-    /// not always unique; callers should disambiguate (e.g. prefer task-items
-    /// for task contexts).
-    pub by_name: HashMap<String, Vec<ItemId>>,
 }
 
 #[derive(Debug, Clone)]
@@ -79,8 +71,6 @@ pub struct ItemRecord {
     pub name: String,
     /// Upstream path, e.g. `/images/items/misc/foo.webp`.
     pub upstream_icon: Option<String>,
-    /// Task IDs this item is required by (only populated for task-items).
-    pub task_ids: Vec<String>,
     pub category: Option<String>,
     pub subcategory: Option<String>,
     pub price: Option<u64>,
@@ -91,7 +81,6 @@ pub struct ItemRecord {
 impl ItemCatalog {
     pub fn from_upstream(public_data: &Path) -> Result<Self> {
         let mut items = HashMap::new();
-        let mut by_name: HashMap<String, Vec<ItemId>> = HashMap::new();
         let mut missing = Vec::new();
 
         for &fname in CATALOGS {
@@ -111,17 +100,12 @@ impl ItemCatalog {
                     id: u.id.clone(),
                     name: u.name.clone(),
                     upstream_icon: icon,
-                    task_ids: stats.task_ids,
                     category: u.category,
                     subcategory: u.subcategory,
                     price: stats.price,
                     weight: stats.weight,
                     rarity: stats.rarity,
                 };
-                by_name
-                    .entry(u.name.to_lowercase())
-                    .or_default()
-                    .push(u.id.clone());
                 items.insert(u.id, rec);
             }
         }
@@ -131,7 +115,7 @@ impl ItemCatalog {
         }
         tracing::info!(count = items.len(), "loaded item catalog");
 
-        Ok(Self { items, by_name })
+        Ok(Self { items })
     }
 
     /// Build the `Item` list for our `data.json`, scoped to upstream `misc`
