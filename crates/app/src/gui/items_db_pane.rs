@@ -42,7 +42,7 @@ pub struct ItemsDbState {
     pub sort_by: SortColumn,
     pub sort_dir: SortDir,
     /// When true, hide rows whose item id isn't currently required by
-    /// any tracked upgrade or task (i.e. anything not in
+    /// any tracked upgrade (i.e. anything not in
     /// `AppState::active_items()`). Useful when the user wants to see
     /// only what's relevant to their current goals.
     pub tracked_only: bool,
@@ -124,7 +124,7 @@ pub fn ui(
         ui.add_space(12.0);
         ui.checkbox(&mut db.tracked_only, "Tracked only")
             .on_hover_text(
-                "Show only items required by an upgrade or task you're \
+                "Show only items required by an upgrade you're \
                  currently tracking.",
             );
     });

@@ -36,7 +36,6 @@ fn main() -> Result<()> {
     tracing::info!(
         version = %data.data_version,
         modules = data.modules.len(),
-        vendors = data.vendors.len(),
         items = data.items.len(),
         "game data loaded",
     );

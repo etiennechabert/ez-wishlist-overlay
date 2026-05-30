@@ -5,9 +5,7 @@
 
 use serde::{Deserialize, Serialize};
 
-pub type TaskId = String;
 pub type ItemId = String;
-pub type VendorId = String;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GameData {
@@ -21,31 +19,7 @@ pub struct GameData {
     /// it as opaque JSON here — that way fields like `cost` (added later by
     /// the skill) round-trip without us having to grow this struct.
     pub modules: serde_json::Value,
-    pub vendors: Vec<Vendor>,
     pub items: Vec<Item>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Vendor {
-    pub id: VendorId,
-    pub name: String,
-    pub tasks: Vec<Task>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Task {
-    pub id: TaskId,
-    pub name: String,
-    pub vendor_id: VendorId,
-    pub prerequisites: Vec<TaskId>,
-    pub requirements: Vec<Requirement>,
-    pub source_url: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Requirement {
-    pub item_id: ItemId,
-    pub quantity: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
