@@ -1,18 +1,19 @@
-//! Left tab: manage secondary containers (backpacks, item cases).
+//! Left tab: manage the stash + secondary containers (backpacks, item cases).
 //!
-//! The stash (`AppState::collected`) is the implicit *primary* container,
-//! edited from the preview pane / VR / OCR. This tab manages the *secondary*
-//! containers whose contents sum into owned totals via
-//! [`crate::state::AppState::owned_total`] — so adding an item here can flip a
-//! hideout upgrade to "ready" exactly like collecting it in the stash, and it
-//! feeds the Items DB Quantity / Surplus columns too. Contents are entered
-//! manually; a future feature will let OCR fill a box from screenshots of its
-//! icon grid.
+//! The stash (`AppState::collected`) is the *primary* container — also edited
+//! from the preview pane / VR / OCR. This tab pins it on top and lets you
+//! manage *secondary* containers below it. Every container's contents sum into
+//! owned totals via [`crate::state::AppState::owned_total`] — so adding an item
+//! here can flip a hideout upgrade to "ready" exactly like collecting it in the
+//! stash, and it feeds the Items DB Quantity / Surplus columns too. Contents
+//! are entered manually; a future feature will let OCR fill a box from
+//! screenshots of its icon grid.
 //!
-//! Layout: a sortable KPI table — one bigger row per container showing its bag
-//! icon, name, item count, total weight, and total value (default sort: total
-//! value, descending). Click a row's triangle to unfold its item list and the
-//! rename / delete / add-item / icon controls.
+//! Layout: a sortable KPI table — one bigger row per container showing its
+//! icon, name, item count, total weight, and total value. The Stash row is
+//! pinned first; secondary containers follow, sorted (default: total value,
+//! descending). Click a row's triangle to unfold its item list and editing
+//! controls.
 
 use crate::data::ItemId;
 use crate::gui::hideout_pane::{
@@ -24,6 +25,7 @@ use crate::gui::{icon_cache::IconCache, theme, SaveTick};
 use crate::state::{AppState, ContainerId};
 use crossbeam_channel::Sender;
 use parking_lot::RwLock;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 /// Bundled bag icons a container can use. Each value is a file stem under
@@ -45,6 +47,8 @@ const CONTAINER_ICONS: &[&str] = &[
 
 /// Shown for a container that hasn't chosen an icon — a neutral tactical pack.
 const DEFAULT_CONTAINER_ICON: &str = "backpack_3drt";
+/// Fixed icon for the pinned primary Stash row.
+const STASH_ICON: &str = "stash";
 
 // KPI-table column widths. Header titles and row cells share these so the
 // columns line up. `LEAD` matches the width of the collapse triangle so the
@@ -65,12 +69,37 @@ fn icon_asset_path(key: &str) -> String {
     format!("container_icons/{key}.png")
 }
 
-/// Per-container row data, snapshot once per frame so the table body never
-/// re-locks state. Weight/value are best-effort sums (items with unknown
-/// weight/price are skipped, matching the Items DB footer).
-struct ContainerRow {
-    id: ContainerId,
+/// Which store a Containers-tab row edits: the primary stash
+/// (`AppState::collected`) or a secondary container by id. Lets the contents
+/// editor, steppers, and add-item picker share one code path.
+#[derive(Clone)]
+enum Target {
+    Stash,
+    Container(ContainerId),
+}
+
+impl Target {
+    /// Stable per-row key for egui ids (collapse state, etc.).
+    fn key(&self) -> &str {
+        match self {
+            Target::Stash => "stash",
+            Target::Container(id) => id.as_str(),
+        }
+    }
+    fn is_stash(&self) -> bool {
+        matches!(self, Target::Stash)
+    }
+}
+
+/// One KPI row, snapshot once per frame so the table body never re-locks state.
+/// Weight/value are best-effort sums (items with unknown weight/price are
+/// skipped, matching the Items DB footer).
+struct Row {
+    target: Target,
     name: String,
+    /// Icon key to render in the header.
+    display_icon: String,
+    /// The container's stored icon choice (None = default). Unused for the stash.
     icon: Option<String>,
     /// Distinct item types held — matches the historical "(N items)" count.
     item_count: usize,
@@ -92,6 +121,23 @@ struct Sort {
     desc: bool,
 }
 
+/// Sum (distinct-item count, total weight, total value) over a contents map.
+fn compute_kpis(s: &AppState, contents: &HashMap<ItemId, u32>) -> (usize, f32, u64) {
+    let mut weight = 0.0f32;
+    let mut value = 0u64;
+    for (iid, &qty) in contents {
+        if let Some(it) = s.index.items_by_id.get(iid) {
+            if let Some(w) = it.weight {
+                weight += w * qty as f32;
+            }
+            if let Some(p) = it.price {
+                value = value.saturating_add(p * qty as u64);
+            }
+        }
+    }
+    (contents.len(), weight, value)
+}
+
 pub fn ui(
     ui: &mut egui::Ui,
     state: &Arc<RwLock<AppState>>,
@@ -99,12 +145,11 @@ pub fn ui(
     save_tx: &Sender<SaveTick>,
 ) {
     ui.add_space(4.0);
-    ui.heading("Secondary containers");
+    ui.heading("Containers");
     ui.label(
         egui::RichText::new(
-            "Backpacks and boxes you keep items in outside the stash. Their \
-             contents count toward hideout-upgrade readiness and the Items DB \
-             totals, just like the stash.",
+            "Your stash, plus any backpacks and boxes you keep items in. All of \
+             it counts toward hideout-upgrade readiness and the Items DB totals.",
         )
         .small()
         .color(ui.visuals().weak_text_color()),
@@ -114,59 +159,60 @@ pub fn ui(
     new_container_row(ui, state, save_tx);
     ui.separator();
 
-    // Snapshot every container + its KPIs in one read lock.
-    let mut rows: Vec<ContainerRow> = {
+    // Snapshot the stash row + every container row in one read lock.
+    let (stash_row, mut rows) = {
         let s = state.read();
-        s.containers
+        let (sc, sw, sv) = compute_kpis(&s, &s.collected);
+        let stash_row = Row {
+            target: Target::Stash,
+            name: "Stash".to_string(),
+            display_icon: STASH_ICON.to_string(),
+            icon: None,
+            item_count: sc,
+            weight: sw,
+            value: sv,
+        };
+        let rows: Vec<Row> = s
+            .containers
             .iter()
             .map(|c| {
-                let mut weight = 0.0f32;
-                let mut value = 0u64;
-                for (iid, &qty) in &c.contents {
-                    if let Some(it) = s.index.items_by_id.get(iid) {
-                        if let Some(w) = it.weight {
-                            weight += w * qty as f32;
-                        }
-                        if let Some(p) = it.price {
-                            value = value.saturating_add(p * qty as u64);
-                        }
-                    }
-                }
-                ContainerRow {
-                    id: c.id.clone(),
+                let (count, weight, value) = compute_kpis(&s, &c.contents);
+                Row {
+                    target: Target::Container(c.id.clone()),
                     name: c.name.clone(),
+                    display_icon: resolve_icon_key(&c.icon).to_string(),
                     icon: c.icon.clone(),
-                    item_count: c.contents.len(),
+                    item_count: count,
                     weight,
                     value,
                 }
             })
-            .collect()
+            .collect();
+        (stash_row, rows)
     };
 
-    if rows.is_empty() {
-        ui.add_space(12.0);
-        ui.vertical_centered(|ui| {
-            ui.label(
-                egui::RichText::new("No containers yet — create one above.")
-                    .italics()
-                    .color(ui.visuals().weak_text_color()),
-            );
-        });
-        return;
-    }
-
-    // Sortable KPI header (may update the persisted sort on click), then sort
-    // the rows by the current selection.
     sortable_header(ui);
+
+    // Stash pinned on top, always — never sorted into the list below.
+    container_row(ui, state, icons, save_tx, &stash_row);
+
+    // Secondary containers follow, sorted by the chosen KPI.
     let sort = sort_state(ui.ctx());
     sort_rows(&mut rows, sort);
-
-    for row in &rows {
-        container_row(ui, state, icons, save_tx, row);
+    if rows.is_empty() {
+        ui.add_space(8.0);
+        ui.label(
+            egui::RichText::new("No secondary containers yet — create one above.")
+                .italics()
+                .color(ui.visuals().weak_text_color()),
+        );
+    } else {
+        for row in &rows {
+            container_row(ui, state, icons, save_tx, row);
+        }
     }
 
-    // The add-item picker (one container at a time, keyed in egui memory).
+    // The add-item picker (one target at a time, keyed in egui memory).
     item_picker_modal(ui.ctx(), state, icons, save_tx);
 }
 
@@ -216,7 +262,7 @@ fn default_desc(col: SortCol) -> bool {
     !matches!(col, SortCol::Name)
 }
 
-fn sort_rows(rows: &mut [ContainerRow], sort: Sort) {
+fn sort_rows(rows: &mut [Row], sort: Sort) {
     rows.sort_by(|a, b| {
         let ord = match sort.col {
             SortCol::Name => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
@@ -241,7 +287,7 @@ fn sortable_header(ui: &mut egui::Ui) {
     let sort = sort_state(ui.ctx());
     ui.horizontal(|ui| {
         ui.add_space(LEAD);
-        header_cell(ui, W_ICON + W_NAME, "Bag", SortCol::Name, sort, false);
+        header_cell(ui, W_ICON + W_NAME, "Container", SortCol::Name, sort, false);
         header_cell(ui, W_ITEMS, "Items", SortCol::Items, sort, true);
         header_cell(ui, W_WEIGHT, "Weight", SortCol::Weight, sort, true);
         header_cell(ui, W_VALUE, "Value", SortCol::Value, sort, true);
@@ -317,14 +363,14 @@ fn container_row(
     state: &Arc<RwLock<AppState>>,
     icons: &mut IconCache,
     save_tx: &Sender<SaveTick>,
-    row: &ContainerRow,
+    row: &Row,
 ) {
     // Clone the header texture so the header closure doesn't borrow `icons`
     // (the body closure needs it mutably right after).
     let header_tex = icons
-        .get(ui.ctx(), &icon_asset_path(resolve_icon_key(&row.icon)))
+        .get(ui.ctx(), &icon_asset_path(&row.display_icon))
         .cloned();
-    let cid = ui.make_persistent_id(("container-row", &row.id));
+    let cid = ui.make_persistent_id(("container-row", row.target.key()));
     egui::collapsing_header::CollapsingState::load_with_default_open(ui.ctx(), cid, false)
         .show_header(ui, |ui| {
             ui.allocate_ui_with_layout(
@@ -344,34 +390,52 @@ fn container_row(
         .body(|ui| container_body(ui, state, icons, save_tx, row));
 }
 
-/// The unfolded editing controls for one container: rename + delete, the item
-/// list with per-item steppers, an add-item button, and the icon picker.
+/// The unfolded editing controls. The stash shows only its contents + add-item
+/// (it's the fixed primary — no rename / delete / icon). Secondary containers
+/// also get rename + delete + an icon picker.
 fn container_body(
     ui: &mut egui::Ui,
     state: &Arc<RwLock<AppState>>,
     icons: &mut IconCache,
     save_tx: &Sender<SaveTick>,
-    row: &ContainerRow,
+    row: &Row,
 ) {
-    ui.horizontal(|ui| {
-        ui.label("Name:");
-        rename_field(ui, state, save_tx, &row.id, &row.name);
-        ui.separator();
-        delete_control(ui, state, save_tx, &row.id);
-    });
-    ui.add_space(6.0);
-    container_contents(ui, state, icons, save_tx, &row.id);
+    if let Target::Container(id) = &row.target {
+        ui.horizontal(|ui| {
+            ui.label("Name:");
+            rename_field(ui, state, save_tx, id, &row.name);
+            ui.separator();
+            delete_control(ui, state, save_tx, id);
+        });
+        ui.add_space(6.0);
+    } else {
+        ui.label(
+            egui::RichText::new(
+                "Loose items in the main stash. Also updated by the preview pane \
+                 and OCR.",
+            )
+            .small()
+            .color(ui.visuals().weak_text_color()),
+        );
+        ui.add_space(6.0);
+    }
+
+    contents_editor(ui, state, icons, save_tx, &row.target);
+
     ui.add_space(4.0);
     if ui
         .button("+ Add item")
-        .on_hover_text("Search the catalog and add items to this container")
+        .on_hover_text("Search the catalog and add items here")
         .clicked()
     {
-        set_active_picker(ui.ctx(), Some(row.id.clone()));
+        set_active_picker(ui.ctx(), Some(row.target.clone()));
         set_picker_filter(ui.ctx(), String::new());
     }
-    ui.add_space(2.0);
-    icon_picker(ui, state, icons, save_tx, &row.id, &row.icon);
+
+    if let Target::Container(id) = &row.target {
+        ui.add_space(2.0);
+        icon_picker(ui, state, icons, save_tx, id, &row.icon);
+    }
 }
 
 /// Closed-by-default sub-section: a wrapped grid of the bundled bag icons.
@@ -444,8 +508,6 @@ fn rename_field(
             state.write().rename_container(id, trimmed.to_string());
             notify(state, save_tx);
         }
-        // Drop the scratch buffer so the field re-seeds from the live name
-        // next frame (the committed value, or the unchanged old name).
         ui.data_mut(|d| d.remove::<String>(key));
     }
 }
@@ -480,36 +542,61 @@ fn delete_control(
     }
 }
 
-/// The container's items, one row each: icon + name + `[-] qty [+]` stepper +
-/// a remove (×). Mutations go through the scoped container mutators and bump
-/// `version`, so the save loop and VR overlay pick them up like any other edit.
-fn container_contents(
+/// Set the quantity of `item` in `target` (stash or a container). 0 removes it.
+fn target_set_item(state: &Arc<RwLock<AppState>>, target: &Target, item: &ItemId, value: u32) {
+    let mut w = state.write();
+    match target {
+        Target::Stash => w.set_collected(item, value),
+        Target::Container(id) => w.set_container_item(id, item, value),
+    }
+}
+
+/// Adjust the quantity of `item` in `target` by `delta`, clamped at 0.
+fn target_adjust_item(state: &Arc<RwLock<AppState>>, target: &Target, item: &ItemId, delta: i64) {
+    let mut w = state.write();
+    match target {
+        Target::Stash => w.adjust_collected(item, delta),
+        Target::Container(id) => w.adjust_container_item(id, item, delta),
+    }
+}
+
+/// Read a snapshot of a target's contents as (item id, name, icon, qty).
+fn target_contents(s: &AppState, target: &Target) -> Vec<(ItemId, String, String, u32)> {
+    let map: Option<&HashMap<ItemId, u32>> = match target {
+        Target::Stash => Some(&s.collected),
+        Target::Container(id) => s
+            .containers
+            .iter()
+            .find(|c| &c.id == id)
+            .map(|c| &c.contents),
+    };
+    let Some(map) = map else {
+        return Vec::new();
+    };
+    map.iter()
+        .map(|(iid, &qty)| {
+            let (name, icon) = s
+                .index
+                .items_by_id
+                .get(iid)
+                .map(|it| (it.name.clone(), it.icon_path.clone()))
+                .unwrap_or_else(|| (iid.clone(), String::new()));
+            (iid.clone(), name, icon, qty)
+        })
+        .collect()
+}
+
+/// The target's items, one row each: icon + name + `[-] qty [+]` stepper + a
+/// remove (×). Mutations bump `version`, so the save loop and VR overlay pick
+/// them up like any other edit.
+fn contents_editor(
     ui: &mut egui::Ui,
     state: &Arc<RwLock<AppState>>,
     icons: &mut IconCache,
     save_tx: &Sender<SaveTick>,
-    id: &ContainerId,
+    target: &Target,
 ) {
-    // Snapshot (item id, name, icon, qty) for this container, alphabetised.
-    let mut items: Vec<(ItemId, String, String, u32)> = {
-        let s = state.read();
-        match s.containers.iter().find(|c| &c.id == id) {
-            Some(c) => c
-                .contents
-                .iter()
-                .map(|(iid, &qty)| {
-                    let (name, icon) = s
-                        .index
-                        .items_by_id
-                        .get(iid)
-                        .map(|it| (it.name.clone(), it.icon_path.clone()))
-                        .unwrap_or_else(|| (iid.clone(), String::new()));
-                    (iid.clone(), name, icon, qty)
-                })
-                .collect(),
-            None => Vec::new(),
-        }
-    };
+    let mut items = target_contents(&state.read(), target);
     items.sort_by_key(|a| a.1.to_lowercase());
 
     if items.is_empty() {
@@ -521,6 +608,12 @@ fn container_contents(
         );
         return;
     }
+
+    let remove_tip = if target.is_stash() {
+        "Remove from the stash"
+    } else {
+        "Remove from this container"
+    };
 
     for (item_id, name, icon, qty) in &items {
         ui.horizontal(|ui| {
@@ -535,16 +628,12 @@ fn container_contents(
             // first-added widget sits rightmost, so add ×, +, qty, − to read
             // left→right as "[−] qty [+] ×".
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui
-                    .button("×")
-                    .on_hover_text("Remove from this container")
-                    .clicked()
-                {
-                    state.write().set_container_item(id, item_id, 0);
+                if ui.button("×").on_hover_text(remove_tip).clicked() {
+                    target_set_item(state, target, item_id, 0);
                     notify(state, save_tx);
                 }
                 if ui.small_button("+").clicked() {
-                    state.write().adjust_container_item(id, item_id, 1);
+                    target_adjust_item(state, target, item_id, 1);
                     notify(state, save_tx);
                 }
                 let mut q = *qty;
@@ -552,14 +641,14 @@ fn container_contents(
                     .add(egui::DragValue::new(&mut q).range(0..=9999).speed(0.1))
                     .changed()
                 {
-                    state.write().set_container_item(id, item_id, q);
+                    target_set_item(state, target, item_id, q);
                     notify(state, save_tx);
                 }
                 if ui
                     .add_enabled(*qty > 0, egui::Button::new("-").small())
                     .clicked()
                 {
-                    state.write().adjust_container_item(id, item_id, -1);
+                    target_adjust_item(state, target, item_id, -1);
                     notify(state, save_tx);
                 }
             });
@@ -568,9 +657,9 @@ fn container_contents(
 }
 
 /// Centered modal: search bar + scrollable tile grid of all catalog items.
-/// Clicking a tile adds one of that item to the active container (so clicking
-/// N times sets qty N); the modal stays open for bulk entry until the user
-/// closes it. Reuses the hideout picker's item list + tile rendering.
+/// Clicking a tile adds one of that item to the active target (so clicking N
+/// times sets qty N); the modal stays open for bulk entry until the user closes
+/// it. Reuses the hideout picker's item list + tile rendering.
 fn item_picker_modal(
     ctx: &egui::Context,
     state: &Arc<RwLock<AppState>>,
@@ -580,23 +669,24 @@ fn item_picker_modal(
     let Some(active) = active_picker(ctx) else {
         return;
     };
-    // The container could have been deleted while the picker was open.
-    let Some(container_name) = state
-        .read()
-        .containers
-        .iter()
-        .find(|c| c.id == active)
-        .map(|c| c.name.clone())
-    else {
-        set_active_picker(ctx, None);
-        return;
+    // Resolve the title; a container could have been deleted while the picker
+    // was open, in which case we bail. The stash always exists.
+    let title_name = match &active {
+        Target::Stash => "Stash".to_string(),
+        Target::Container(id) => match state.read().containers.iter().find(|c| &c.id == id) {
+            Some(c) => c.name.clone(),
+            None => {
+                set_active_picker(ctx, None);
+                return;
+            }
+        },
     };
 
     let mut open = true;
     let mut filter = picker_filter(ctx);
     let mut chosen: Option<ItemId> = None;
 
-    egui::Window::new(format!("Add items to {container_name}"))
+    egui::Window::new(format!("Add items to {title_name}"))
         .open(&mut open)
         .collapsible(false)
         .resizable(true)
@@ -655,7 +745,7 @@ fn item_picker_modal(
         });
 
     if let Some(item_id) = chosen {
-        state.write().adjust_container_item(&active, &item_id, 1);
+        target_adjust_item(state, &active, &item_id, 1);
         notify(state, save_tx);
     }
     if !open {
@@ -677,14 +767,14 @@ fn set_pending_delete(ctx: &egui::Context, v: Option<ContainerId>) {
     }
 }
 
-fn active_picker(ctx: &egui::Context) -> Option<ContainerId> {
-    ctx.data(|d| d.get_temp::<ContainerId>(egui::Id::new("ctr-picker-active")))
+fn active_picker(ctx: &egui::Context) -> Option<Target> {
+    ctx.data(|d| d.get_temp::<Target>(egui::Id::new("ctr-picker-active")))
 }
-fn set_active_picker(ctx: &egui::Context, v: Option<ContainerId>) {
+fn set_active_picker(ctx: &egui::Context, v: Option<Target>) {
     let key = egui::Id::new("ctr-picker-active");
     match v {
-        Some(id) => ctx.data_mut(|d| d.insert_temp(key, id)),
-        None => ctx.data_mut(|d| d.remove::<ContainerId>(key)),
+        Some(t) => ctx.data_mut(|d| d.insert_temp(key, t)),
+        None => ctx.data_mut(|d| d.remove::<Target>(key)),
     }
 }
 
