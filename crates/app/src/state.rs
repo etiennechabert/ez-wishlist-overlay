@@ -1208,86 +1208,85 @@ mod tests {
     }
 
     #[test]
-    fn merge_discards_gap_fill_superseded_by_official_recipe() {
-        // The headline scenario: the user defined a recipe for an upgrade we'd
-        // shipped empty; a later update ships the official recipe. The local
-        // gap-fill (base_was_empty) is discarded — official wins — while a
-        // genuine correction to a populated recipe is kept.
-        let mut s = AppState::new(fixture());
+    fn merge_discards_correction_when_official_recipe_changed() {
+        // The headline scenario, generalized: the user corrected a recipe, then
+        // an app update changed the official recipe for that upgrade. The stored
+        // base hash no longer matches, so the now-stale correction is discarded
+        // and the official data wins. A correction whose base is unchanged
+        // survives. Covers both a once-empty placeholder that got filled in and
+        // a wrong recipe that got fixed — both are just "the base changed".
+        let mut s1 = AppState::new(fixture());
         let mut slots: [Option<Requirement>; RECIPE_SLOTS] = std::array::from_fn(|_| None);
         slots[0] = Some(Requirement {
             item_id: "bolts".into(),
             quantity: 1,
         });
-        let gap_fill = RecipeOverride {
-            slots: slots.clone(),
-            base_was_empty: true,
-        };
-        let genuine_fix = RecipeOverride {
-            slots,
-            base_was_empty: false,
-        };
-        let persisted = PersistedOverrides {
-            schema_version: OVERRIDES_SCHEMA_VERSION,
-            data_version: "older".into(),
-            // Both upgrades now carry a non-empty bundled recipe in `fixture()`.
-            overrides: HashMap::from([
-                ("workbench_lv1".to_string(), gap_fill),
-                ("workbench_lv2".to_string(), genuine_fix),
-            ]),
-        };
-        let warn = persisted.merge_into(&mut s).expect("should warn");
+        s1.set_recipe_override(
+            &"workbench_lv1".to_string(),
+            RecipeOverride::new(slots.clone()),
+        );
+        s1.set_recipe_override(&"workbench_lv2".to_string(), RecipeOverride::new(slots));
+        let persisted = PersistedOverrides::from_app(&s1);
+
+        // Simulate an app update: workbench_lv1's official recipe changes;
+        // workbench_lv2's stays exactly as the correction was based on.
+        let mut data2 = (*fixture()).clone();
+        for m in &mut data2.modules {
+            for u in &mut m.upgrades {
+                if u.id == "workbench_lv1" {
+                    u.requirements[0].quantity = 6; // was 5
+                }
+            }
+        }
+        let mut s2 = AppState::new(Arc::new(data2));
+
+        let warn = persisted.merge_into(&mut s2).expect("should warn");
         assert!(
             warn.contains("Discarded 1 recipe correction"),
-            "superseded gap-fill should be reported: {warn}",
+            "the superseded correction should be reported: {warn}",
         );
         assert!(
-            !s.overrides.contains_key("workbench_lv1"),
-            "gap-fill now covered by the official dataset must be discarded",
+            !s2.overrides.contains_key("workbench_lv1"),
+            "a correction whose official recipe changed must be discarded",
         );
         assert!(
-            s.overrides.contains_key("workbench_lv2"),
-            "a genuine correction to a populated recipe must survive the update",
+            s2.overrides.contains_key("workbench_lv2"),
+            "a correction whose official recipe is unchanged must survive",
         );
     }
 
     #[test]
-    fn merge_keeps_gap_fill_while_recipe_still_missing() {
-        // The official dataset still hasn't shipped a recipe → the user's
-        // gap-fill is the only thing we have; keep it. placeholder_lv1 carries
-        // an empty bundled recipe in `fixture()`.
-        let mut s = AppState::new(fixture());
+    fn merge_keeps_correction_when_base_unchanged() {
+        // No dataset change between save and load → every correction's base
+        // hash still matches, so all are kept with no warning. Includes a
+        // gap-fill on an empty placeholder (its empty base is unchanged).
+        let mut s1 = AppState::new(fixture());
         let mut slots: [Option<Requirement>; RECIPE_SLOTS] = std::array::from_fn(|_| None);
         slots[0] = Some(Requirement {
             item_id: "bolts".into(),
             quantity: 4,
         });
-        let persisted = PersistedOverrides {
-            schema_version: OVERRIDES_SCHEMA_VERSION,
-            data_version: s.data.data_version.clone(),
-            overrides: HashMap::from([(
-                "placeholder_lv1".to_string(),
-                RecipeOverride {
-                    slots,
-                    base_was_empty: true,
-                },
-            )]),
-        };
+        s1.set_recipe_override(
+            &"placeholder_lv1".to_string(),
+            RecipeOverride::new(slots.clone()),
+        );
+        s1.set_recipe_override(&"workbench_lv1".to_string(), RecipeOverride::new(slots));
+        let persisted = PersistedOverrides::from_app(&s1);
+
+        let mut s2 = AppState::new(fixture());
         assert!(
-            persisted.merge_into(&mut s).is_none(),
+            persisted.merge_into(&mut s2).is_none(),
             "no warning expected"
         );
-        assert!(
-            s.overrides.contains_key("placeholder_lv1"),
-            "gap-fill must survive while the recipe is still missing upstream",
-        );
+        assert!(s2.overrides.contains_key("placeholder_lv1"));
+        assert!(s2.overrides.contains_key("workbench_lv1"));
     }
 
     #[test]
-    fn merge_keeps_legacy_override_without_base_flag() {
-        // Overrides written before `base_was_empty` existed deserialize with it
-        // `false`. We can't know their original base, so we never auto-discard
-        // them even when the bundled recipe is now populated — keeping the
+    fn merge_keeps_legacy_override_without_base_hash() {
+        // Overrides written before `base_hash` existed deserialize with it
+        // `None`. We can't know their original base, so we never auto-discard
+        // them even when the bundled recipe has since changed — keeping the
         // user's data is the safe default.
         let mut s = AppState::new(fixture());
         let legacy_json = r#"{
@@ -1300,18 +1299,15 @@ mod tests {
             }
         }"#;
         let persisted: PersistedOverrides = serde_json::from_str(legacy_json).unwrap();
-        assert!(
-            !persisted
-                .overrides
-                .get("workbench_lv1")
-                .unwrap()
-                .base_was_empty,
-            "missing field must default to false",
+        assert_eq!(
+            persisted.overrides.get("workbench_lv1").unwrap().base_hash,
+            None,
+            "missing field must default to None",
         );
         persisted.merge_into(&mut s);
         assert!(
             s.overrides.contains_key("workbench_lv1"),
-            "legacy override (no base flag) must be kept across updates",
+            "legacy override (no base hash) must be kept across updates",
         );
     }
 
