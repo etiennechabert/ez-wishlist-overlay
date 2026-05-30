@@ -385,6 +385,15 @@ fn spawn_ocr_worker(
                                         w.set_collected(item_id, *value);
                                     }
                                 }
+                                // Automatic OCR upgrades deliberately DON'T
+                                // consume recipe items (unlike the manual
+                                // completion modal): the cells above already
+                                // wrote each item's true post-build stash count
+                                // read straight off the screen, so subtracting
+                                // the recipe again would double-count. Skipping
+                                // consumption here is exactly what keeps the
+                                // collected inventory in sync with the game.
+                                //
                                 // Prior-level completion is a state inference
                                 // ("game showed Lv N, therefore Lv (N-1) is
                                 // done") — always apply it. Auto-tracking the

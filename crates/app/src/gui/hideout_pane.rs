@@ -13,6 +13,13 @@ use std::sync::Arc;
 
 const MAX_LEVELS: usize = 4;
 const SELECTED_ID: &str = "hideout-selected-upgrade";
+/// ctx-memory key holding the id of the upgrade whose completion modal is
+/// currently open (`""` / absent ⇒ no modal). One slot is enough — the modal
+/// is application-modal, so only ever one upgrade awaits confirmation.
+const PENDING_COMPLETION_ID: &str = "hideout-pending-completion";
+/// Recipe-row icon size inside the upgrade-completion modal — smaller than the
+/// editor's `REQ_ICON_SIZE` since these rows are a compact have/need list.
+const COMPLETE_ICON_SIZE: f32 = 28.0;
 const REQ_ICON_SIZE: f32 = 48.0;
 const REQ_TILE_WIDTH: f32 = 170.0;
 const REQ_GRID_COLS: usize = RECIPE_SLOTS;
@@ -136,6 +143,11 @@ pub fn ui(
             editable_recipe_panel(ui, state, save_tx, icons, &module.name, upgrade);
         }
     }
+
+    // Upgrade-completion modal — driven by ctx memory (set when any "Done"
+    // checkbox is ticked, in either view), so a single instance covers the
+    // whole pane regardless of which row triggered it.
+    upgrade_completion_modal(ui, state, save_tx, icons, &data.modules);
 
     outcome
 }
@@ -656,9 +668,179 @@ fn upgrade_controls(
         notify(state, save_tx);
     }
     if done != original_done {
-        state.write().set_completed_upgrade(upgrade_id, done);
+        if done {
+            // Ticking "Done" is the user telling us "I just built this in the
+            // game". Rather than complete it immediately we stage a pending
+            // completion and let the modal (rendered once in `ui`) ask whether
+            // to also burn the recipe's items from the tracked inventory. The
+            // checkbox snaps back to unchecked next frame (state still reads
+            // not-completed) until the user confirms — the modal IS the commit.
+            set_pending_completion(ui.ctx(), Some(upgrade_id.as_str()));
+        } else {
+            // Un-completing has no consumption decision to make — restoring the
+            // spent items would be guesswork — so apply it straight away.
+            state.write().set_completed_upgrade(upgrade_id, false);
+            notify(state, save_tx);
+        }
+    }
+}
+
+/// What the user picked in the upgrade-completion modal.
+enum CompletionAction {
+    /// Mark done, leave `collected` alone.
+    Skip,
+    /// Mark done and subtract the recipe from `collected`.
+    Consume,
+    /// Close without completing — the upgrade stays not-done.
+    Cancel,
+}
+
+/// Centered modal shown when the user ticks an upgrade's "Done" box. Confirms
+/// the build and asks whether to also burn the recipe's items from the tracked
+/// inventory — "Consume items required" keeps our counts in sync with the game,
+/// "Skip item consumption" just marks it built. Consumption is disabled (and
+/// the missing items flagged) when the stash is short. No-op when no completion
+/// is pending.
+fn upgrade_completion_modal(
+    ui: &mut egui::Ui,
+    state: &Arc<RwLock<AppState>>,
+    save_tx: &Sender<SaveTick>,
+    icons: &mut IconCache,
+    modules: &[HideoutModule],
+) {
+    let Some(upgrade_id) = pending_completion(ui.ctx()) else {
+        return;
+    };
+    // Resolve for the title + recipe rows. If the upgrade vanished (data
+    // drifted out from under a lingering modal), drop the pending state.
+    let Some((module, upgrade)) = find_upgrade(modules, &upgrade_id) else {
+        set_pending_completion(ui.ctx(), None);
+        return;
+    };
+
+    let (reqs, can_consume) = {
+        let s = state.read();
+        (
+            s.effective_requirements(&upgrade_id),
+            s.can_consume_materials(&upgrade_id),
+        )
+    };
+
+    let weak = ui.visuals().weak_text_color();
+    let strong = ui.visuals().strong_text_color();
+
+    let mut open = true;
+    let mut action: Option<CompletionAction> = None;
+
+    let title = format!("Apply upgrade — {} L{}", module.name, upgrade.level);
+    egui::Window::new(title)
+        .open(&mut open)
+        .collapsible(false)
+        .resizable(false)
+        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+        .show(ui.ctx(), |ui| {
+            ui.label("Mark this upgrade as built. Did you spend its materials in-game?");
+            ui.add_space(6.0);
+
+            if reqs.is_empty() {
+                ui.label(
+                    egui::RichText::new("No recipe on file for this upgrade — nothing to consume.")
+                        .italics()
+                        .color(weak),
+                );
+            } else {
+                // Per-item have / need list. Short items render weak (matching
+                // the slot editor's satisfied=strong / short=weak convention)
+                // so it's obvious at a glance why "Consume" may be disabled.
+                let s = state.read();
+                for req in &reqs {
+                    let have = *s.collected.get(&req.item_id).unwrap_or(&0);
+                    let (name, icon_path) = s
+                        .index
+                        .items_by_id
+                        .get(&req.item_id)
+                        .map(|i| (i.name.clone(), i.icon_path.clone()))
+                        .unwrap_or_else(|| (req.item_id.clone(), String::new()));
+                    let enough = have >= req.quantity;
+                    ui.horizontal(|ui| {
+                        if !icon_path.is_empty() {
+                            if let Some(tex) = icons.get(ui.ctx(), &icon_path) {
+                                ui.add(egui::Image::new(tex).fit_to_exact_size(egui::vec2(
+                                    COMPLETE_ICON_SIZE,
+                                    COMPLETE_ICON_SIZE,
+                                )));
+                            }
+                        }
+                        ui.add(egui::Label::new(egui::RichText::new(&name).color(strong)));
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            let color = if enough { strong } else { weak };
+                            ui.label(
+                                egui::RichText::new(format!("{} / {}", have, req.quantity))
+                                    .strong()
+                                    .color(color),
+                            );
+                        });
+                    });
+                }
+            }
+
+            ui.add_space(10.0);
+            ui.horizontal(|ui| {
+                if ui
+                    .button("Skip item consumption")
+                    .on_hover_text(
+                        "Mark the upgrade built but leave your collected counts \
+                         untouched.",
+                    )
+                    .clicked()
+                {
+                    action = Some(CompletionAction::Skip);
+                }
+
+                let consume_tip = if can_consume {
+                    "Mark the upgrade built and subtract its items from your \
+                     collected counts, keeping your inventory in sync with the game."
+                        .to_string()
+                } else if reqs.is_empty() {
+                    "No recipe on file — there's nothing to consume. Fill in the \
+                     recipe via Edit first, or just skip."
+                        .to_string()
+                } else {
+                    "You haven't collected enough of every required item to \
+                     consume the recipe."
+                        .to_string()
+                };
+                let resp = ui
+                    .add_enabled(can_consume, egui::Button::new("Consume items required"))
+                    .on_hover_text(&consume_tip)
+                    .on_disabled_hover_text(&consume_tip);
+                if resp.clicked() {
+                    action = Some(CompletionAction::Consume);
+                }
+
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui.button("Cancel").clicked() {
+                        action = Some(CompletionAction::Cancel);
+                    }
+                });
+            });
+        });
+
+    let consume = match action {
+        Some(CompletionAction::Skip) => Some(false),
+        Some(CompletionAction::Consume) => Some(true),
+        // Explicit Cancel, or title-bar X / Esc (`open` flipped to false) —
+        // both leave the upgrade not-done and just dismiss the modal.
+        Some(CompletionAction::Cancel) => None,
+        None if !open => None,
+        None => return, // Still open, no choice yet.
+    };
+
+    if let Some(consume) = consume {
+        state.write().complete_upgrade(&upgrade_id, consume);
         notify(state, save_tx);
     }
+    set_pending_completion(ui.ctx(), None);
 }
 
 /// "By progress" view: tracked upgrades as a flat, sorted list answering
@@ -1290,6 +1472,22 @@ fn set_selected(ctx: &egui::Context, value: Option<&str>) {
     ctx.memory_mut(|m| {
         m.data
             .insert_temp(selected_key(), value.unwrap_or("").to_string())
+    });
+}
+
+fn pending_completion_key() -> egui::Id {
+    egui::Id::new(PENDING_COMPLETION_ID)
+}
+
+fn pending_completion(ctx: &egui::Context) -> Option<String> {
+    ctx.memory(|m| m.data.get_temp::<String>(pending_completion_key()))
+        .filter(|s| !s.is_empty())
+}
+
+fn set_pending_completion(ctx: &egui::Context, value: Option<&str>) {
+    ctx.memory_mut(|m| {
+        m.data
+            .insert_temp(pending_completion_key(), value.unwrap_or("").to_string())
     });
 }
 
