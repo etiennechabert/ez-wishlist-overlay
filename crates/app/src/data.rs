@@ -5,10 +5,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 pub type UpgradeId = String;
-pub type TaskId = String;
 pub type ItemId = String;
 pub type ModuleId = String;
-pub type VendorId = String;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GameData {
@@ -17,7 +15,6 @@ pub struct GameData {
     pub source_repo: String,
     pub source_commit: String,
     pub modules: Vec<HideoutModule>,
-    pub vendors: Vec<Vendor>,
     pub items: Vec<Item>,
 }
 
@@ -36,23 +33,6 @@ pub struct Upgrade {
     #[serde(default)]
     pub description: String,
     pub requirements: Vec<Requirement>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Vendor {
-    pub id: VendorId,
-    pub name: String,
-    pub tasks: Vec<Task>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Task {
-    pub id: TaskId,
-    pub name: String,
-    pub vendor_id: VendorId,
-    pub prerequisites: Vec<TaskId>,
-    pub requirements: Vec<Requirement>,
-    pub source_url: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -185,7 +165,6 @@ pub struct Item {
 pub struct DataIndex {
     pub items_by_id: HashMap<ItemId, Item>,
     pub upgrades_by_id: HashMap<UpgradeId, UpgradeRef>,
-    pub tasks_by_id: HashMap<TaskId, TaskRef>,
 }
 
 #[derive(Clone)]
@@ -194,14 +173,6 @@ pub struct UpgradeRef {
     pub module_id: ModuleId,
     pub module_name: String,
     pub upgrade: Upgrade,
-}
-
-#[derive(Clone)]
-pub struct TaskRef {
-    #[allow(dead_code)] // Used by the future VR overlay renderer.
-    pub vendor_id: VendorId,
-    pub vendor_name: String,
-    pub task: Task,
 }
 
 impl DataIndex {
@@ -226,24 +197,9 @@ impl DataIndex {
             }
         }
 
-        let mut tasks_by_id = HashMap::new();
-        for vendor in &data.vendors {
-            for task in &vendor.tasks {
-                tasks_by_id.insert(
-                    task.id.clone(),
-                    TaskRef {
-                        vendor_id: vendor.id.clone(),
-                        vendor_name: vendor.name.clone(),
-                        task: task.clone(),
-                    },
-                );
-            }
-        }
-
         Self {
             items_by_id,
             upgrades_by_id,
-            tasks_by_id,
         }
     }
 }

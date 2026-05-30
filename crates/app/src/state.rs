@@ -5,8 +5,8 @@
 //! duration of the mutation.
 
 use crate::data::{
-    base_slots, DataIndex, GameData, ItemId, ModuleId, RecipeOverride, Requirement, TaskId,
-    UpgradeId, RECIPE_SLOTS,
+    base_slots, DataIndex, GameData, ItemId, ModuleId, RecipeOverride, Requirement, UpgradeId,
+    RECIPE_SLOTS,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -20,8 +20,6 @@ pub struct AppState {
     pub index: Arc<DataIndex>,
     pub tracked_upgrades: HashSet<UpgradeId>,
     pub completed_upgrades: HashSet<UpgradeId>,
-    pub tracked_tasks: HashSet<TaskId>,
-    pub completed_tasks: HashSet<TaskId>,
     pub collected: HashMap<ItemId, u32>,
     /// Modules the user has marked as unavailable (e.g. quest-locked). Their
     /// tracked upgrades stay tracked but don't contribute to `active_items`,
@@ -62,8 +60,6 @@ impl AppState {
             index,
             tracked_upgrades: HashSet::new(),
             completed_upgrades: HashSet::new(),
-            tracked_tasks: HashSet::new(),
-            completed_tasks: HashSet::new(),
             collected: HashMap::new(),
             disabled_modules: HashSet::new(),
             overrides: HashMap::new(),
@@ -412,26 +408,6 @@ impl AppState {
         false
     }
 
-    pub fn set_tracked_task(&mut self, id: &TaskId, on: bool) {
-        if on {
-            self.tracked_tasks.insert(id.clone());
-            self.completed_tasks.remove(id);
-        } else {
-            self.tracked_tasks.remove(id);
-        }
-        self.bump();
-    }
-
-    pub fn set_completed_task(&mut self, id: &TaskId, on: bool) {
-        if on {
-            self.completed_tasks.insert(id.clone());
-            self.tracked_tasks.remove(id);
-        } else {
-            self.completed_tasks.remove(id);
-        }
-        self.bump();
-    }
-
     pub fn set_collected(&mut self, item: &ItemId, value: u32) {
         if value == 0 {
             self.collected.remove(item);
@@ -469,15 +445,13 @@ impl AppState {
     pub fn reset_all(&mut self) {
         self.tracked_upgrades.clear();
         self.completed_upgrades.clear();
-        self.tracked_tasks.clear();
-        self.completed_tasks.clear();
         self.collected.clear();
         self.disabled_modules.clear();
         self.bump();
     }
 
-    /// Aggregate every tracked-but-not-completed upgrade and task into a
-    /// flat per-item view.
+    /// Aggregate every tracked-but-not-completed upgrade into a flat per-item
+    /// view.
     pub fn active_items(&self) -> Vec<ActiveItem> {
         let mut totals: BTreeMap<ItemId, (u32, Vec<String>)> = BTreeMap::new();
 
@@ -497,20 +471,6 @@ impl AppState {
                 )
             };
             for req in self.effective_requirements(id) {
-                let entry = totals
-                    .entry(req.item_id.clone())
-                    .or_insert_with(|| (0, Vec::new()));
-                entry.0 += req.quantity;
-                entry.1.push(label.clone());
-            }
-        }
-
-        for id in self.tracked_tasks.difference(&self.completed_tasks) {
-            let Some(tref) = self.index.tasks_by_id.get(id) else {
-                continue;
-            };
-            let label = format!("Task: {} ({})", tref.task.name, tref.vendor_name);
-            for req in &tref.task.requirements {
                 let entry = totals
                     .entry(req.item_id.clone())
                     .or_insert_with(|| (0, Vec::new()));
@@ -604,7 +564,7 @@ impl AppState {
     /// Total quantity of each item required across the upgrade set implied by
     /// `horizon`. The single source of truth for the surplus / redundant-items
     /// view in the Items DB. Applies recipe overrides via
-    /// [`Self::effective_requirements`]; hideout-only (never consults tasks).
+    /// [`Self::effective_requirements`].
     pub fn needed_by_id(&self, horizon: NeedHorizon) -> HashMap<ItemId, u32> {
         let mut totals: HashMap<ItemId, u32> = HashMap::new();
         for upgrade_id in self.upgrades_for_horizon(horizon) {
@@ -700,10 +660,6 @@ pub struct PersistedState {
     #[serde(default)]
     pub completed_upgrades: HashSet<UpgradeId>,
     #[serde(default)]
-    pub tracked_tasks: HashSet<TaskId>,
-    #[serde(default)]
-    pub completed_tasks: HashSet<TaskId>,
-    #[serde(default)]
     pub collected: HashMap<ItemId, u32>,
     #[serde(default)]
     pub disabled_modules: HashSet<ModuleId>,
@@ -716,8 +672,6 @@ impl PersistedState {
             data_version: state.data.data_version.clone(),
             tracked_upgrades: state.tracked_upgrades.clone(),
             completed_upgrades: state.completed_upgrades.clone(),
-            tracked_tasks: state.tracked_tasks.clone(),
-            completed_tasks: state.completed_tasks.clone(),
             collected: state.collected.clone(),
             disabled_modules: state.disabled_modules.clone(),
         }
@@ -737,33 +691,21 @@ impl PersistedState {
         }
 
         let upgrades_index = &state.index.upgrades_by_id;
-        let tasks_index = &state.index.tasks_by_id;
 
         let (kept_upgrades, dropped_upgrades) =
             filter_known(self.tracked_upgrades, |id| upgrades_index.contains_key(id));
         let (kept_done_upgrades, _) = filter_known(self.completed_upgrades, |id| {
             upgrades_index.contains_key(id)
         });
-        let (kept_tasks, dropped_tasks) =
-            filter_known(self.tracked_tasks, |id| tasks_index.contains_key(id));
-        let (kept_done_tasks, _) =
-            filter_known(self.completed_tasks, |id| tasks_index.contains_key(id));
 
         if dropped_upgrades > 0 {
             warnings.push(format!(
                 "Dropped {dropped_upgrades} tracked upgrade(s) no longer present in data."
             ));
         }
-        if dropped_tasks > 0 {
-            warnings.push(format!(
-                "Dropped {dropped_tasks} tracked task(s) no longer present in data."
-            ));
-        }
 
         state.tracked_upgrades = kept_upgrades;
         state.completed_upgrades = kept_done_upgrades;
-        state.tracked_tasks = kept_tasks;
-        state.completed_tasks = kept_done_tasks;
         // Drop disabled-module entries that no longer match any module — keeps
         // the set tidy across data-version bumps that rename modules.
         let known_modules: HashSet<&ModuleId> = state.data.modules.iter().map(|m| &m.id).collect();
@@ -935,7 +877,6 @@ mod tests {
                     }],
                 },
             ],
-            vendors: vec![],
             items: vec![
                 Item {
                     id: "bolts".into(),
@@ -1087,6 +1028,35 @@ mod tests {
         back.merge_into(&mut s2);
         assert!(s2.tracked_upgrades.contains("workbench_lv1"));
         assert_eq!(*s2.collected.get("bolts").unwrap(), 3);
+    }
+
+    #[test]
+    fn loads_pre_73_state_with_task_fields_without_error() {
+        // Quest-task tracking was removed in #73. A `state.json` written by an
+        // older build still carries `tracked_tasks` / `completed_tasks` keys.
+        // `PersistedState` doesn't set `deny_unknown_fields`, so serde must
+        // silently ignore them — no crash, no migration — while hideout
+        // progress and collected counts survive intact.
+        let legacy = r#"{
+            "schema_version": 1,
+            "data_version": "test",
+            "tracked_upgrades": ["workbench_lv1"],
+            "completed_upgrades": [],
+            "tracked_tasks": ["ark_11"],
+            "completed_tasks": ["ark_07"],
+            "collected": {"bolts": 4}
+        }"#;
+        let parsed: PersistedState =
+            serde_json::from_str(legacy).expect("legacy state with task fields must still parse");
+
+        let mut s = AppState::new(fixture());
+        let warn = parsed.merge_into(&mut s);
+        assert!(
+            warn.is_none(),
+            "matching data_version + resolvable upgrade should not warn, got {warn:?}"
+        );
+        assert!(s.tracked_upgrades.contains("workbench_lv1"));
+        assert_eq!(*s.collected.get("bolts").unwrap(), 4);
     }
 
     #[test]
@@ -1409,8 +1379,6 @@ mod tests {
             data_version: "older".into(),
             tracked_upgrades: HashSet::from(["nonexistent_upgrade".to_string()]),
             completed_upgrades: HashSet::new(),
-            tracked_tasks: HashSet::new(),
-            completed_tasks: HashSet::new(),
             collected: HashMap::from([("bolts".to_string(), 7)]),
             disabled_modules: HashSet::new(),
         };
