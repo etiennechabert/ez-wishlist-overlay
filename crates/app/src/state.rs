@@ -108,12 +108,14 @@ impl AppState {
                 self.bump();
                 return;
             }
-            // Stamp whether this is a correction to a "missing"/placeholder
-            // upgrade (one we shipped with no recipe). If a future update fills
-            // that recipe in, `PersistedOverrides::merge_into` discards the
-            // correction so the official data wins. Recomputed from the live
-            // bundled recipe every time, so re-editing keeps the flag honest.
-            new_override.base_was_empty = uref.upgrade.requirements.is_empty();
+            // Stamp the hash of the bundled recipe this correction is based
+            // on. If a future update changes the official recipe, the stored
+            // hash stops matching and `PersistedOverrides::merge_into` discards
+            // the correction so the official data wins — whether it filled a
+            // previously-empty placeholder or fixed a wrong recipe. Recomputed
+            // from the live bundled recipe every time, so re-editing on top of
+            // a fresh dataset re-bases the correction.
+            new_override.base_hash = Some(crate::data::recipe_hash(&uref.upgrade));
         }
         self.overrides.insert(upgrade_id.clone(), new_override);
         self.bump();
@@ -830,13 +832,19 @@ impl PersistedOverrides {
         for (id, ov) in self.overrides {
             match state.index.upgrades_by_id.get(&id) {
                 None => dropped += 1,
-                // The user filled in a recipe we'd shipped as a "missing"
-                // placeholder, and an update has since shipped the official
-                // recipe. Discard the local correction — the authoritative
-                // data supersedes it. A correction to a recipe that already
-                // had contents (`base_was_empty == false`) is kept: that's a
-                // deliberate "the shipped recipe is wrong" fix, not gap-filling.
-                Some(uref) if ov.base_was_empty && !uref.upgrade.requirements.is_empty() => {
+                // The official recipe has changed since the user made this
+                // correction (stored base hash no longer matches the bundled
+                // recipe). Discard the local correction — the authoritative
+                // data supersedes it. Covers both a once-empty placeholder
+                // that's since been filled in and a wrong recipe that's since
+                // been fixed. A correction whose base still matches is kept, as
+                // is a legacy correction with no stored hash (`None`): we can't
+                // tell whether its base changed, so we keep the user's data.
+                Some(uref)
+                    if ov
+                        .base_hash
+                        .is_some_and(|h| h != crate::data::recipe_hash(&uref.upgrade)) =>
+                {
                     superseded += 1;
                 }
                 Some(_) => {
