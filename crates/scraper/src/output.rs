@@ -28,7 +28,7 @@ pub fn write_data_json(out_dir: &Path, data: &GameData) -> Result<()> {
     Ok(())
 }
 
-pub fn write_source_md(out_dir: &Path, data: &GameData, unparsed_count: usize) -> Result<()> {
+pub fn write_source_md(out_dir: &Path, data: &GameData) -> Result<()> {
     let body = format!(
         "# Source provenance\n\
         \n\
@@ -36,7 +36,6 @@ pub fn write_source_md(out_dir: &Path, data: &GameData, unparsed_count: usize) -
         - **Commit:** `{commit}`\n\
         - **Game/data version:** `{version}`\n\
         - **Scraped at:** {ts}\n\
-        - **Unparsed task objectives:** {unparsed}\n\
         \n\
         Regenerate with:\n\
         \n\
@@ -47,7 +46,6 @@ pub fn write_source_md(out_dir: &Path, data: &GameData, unparsed_count: usize) -
         commit = data.source_commit,
         version = data.data_version,
         ts = data.scraped_at,
-        unparsed = unparsed_count,
         out = out_dir.display(),
     );
     let path = out_dir.join("SOURCE.md");

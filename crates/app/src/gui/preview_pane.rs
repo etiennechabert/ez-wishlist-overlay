@@ -26,7 +26,7 @@ pub fn ui(
 
     ui.heading("Active items");
     ui.label(
-        egui::RichText::new("Aggregated across every tracked upgrade and task.")
+        egui::RichText::new("Aggregated across every tracked upgrade.")
             .small()
             .color(weak),
     );
@@ -37,7 +37,7 @@ pub fn ui(
         ui.vertical_centered(|ui| {
             ui.label("Nothing tracked yet.");
             ui.label(
-                egui::RichText::new("Open the Hideout or Tasks tab and check 'Track' on a row.")
+                egui::RichText::new("Open the Hideout tab and check 'Track' on a row.")
                     .small()
                     .color(weak),
             );

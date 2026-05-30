@@ -9,9 +9,9 @@ This spec is the source of truth. If something here is ambiguous, prefer the sim
 ## 1. Goals & Non-Goals
 
 ### Goals
-- Track multiple hideout upgrades and quest tasks simultaneously, aggregate their item requirements into a unified wishlist
-- Desktop GUI to enable/disable tracking and mark items complete, with separate views for hideout upgrades and quest tasks
-- SteamVR overlay showing remaining items across both categories, viewable by looking up
+- Track multiple hideout upgrades simultaneously, aggregate their item requirements into a unified wishlist
+- Desktop GUI to enable/disable tracking and mark items complete, with a hideout-upgrade view and an item catalog (Items DB)
+- SteamVR overlay showing remaining items, viewable by looking up
 - Click icons in the overlay to increment collected count (cycle back to 0 at target)
 - Single-binary distribution on Windows with an MSI installer
 - Zero interaction with the game process — fully out-of-process and anti-cheat-safe
@@ -20,8 +20,7 @@ This spec is the source of truth. If something here is ambiguous, prefer the sim
 - Screen capture or OCR of in-game inventory
 - Network interception of game traffic
 - Reading game memory or files
-- Tracking non-collection task objectives (kill counts, tracker placements, area reaches) — only item-collection requirements are tracked. Tasks without item requirements are excluded from the scraped dataset.
-- Enforcing task prerequisites (we show them as info, but let the user track whatever they want)
+- Quest-task / vendor tracking — the app is focused on hideout upgrades only. (Task tracking was dropped in [#73](https://github.com/etiennechabert/ez-wishlist-overlay/issues/73); the upstream task data never parsed cleanly into structured requirements, whereas hideout coverage is complete and screenshot-validated.)
 - Mac / Linux support (Rust portability is preserved, but Windows is the only release target)
 - Voice input
 - Cloud sync between machines
@@ -78,11 +77,11 @@ ez-wishlist-overlay/
 │   │   └── src/
 │   │       ├── main.rs
 │   │       ├── state.rs        # AppState, persistence
-│   │       ├── data.rs         # types: Upgrade, Task, Item, etc.
+│   │       ├── data.rs         # types: Upgrade, Item, etc.
 │   │       ├── gui/
 │   │       │   ├── mod.rs
 │   │       │   ├── hideout_pane.rs
-│   │       │   ├── tasks_pane.rs
+│   │       │   ├── items_db_pane.rs
 │   │       │   ├── preview_pane.rs
 │   │       │   └── about_dialog.rs
 │   │       ├── vr/
@@ -114,10 +113,8 @@ The `scraper` is a separate binary intentionally — it's only run by maintainer
 
 ```rust
 pub type UpgradeId = String;    // e.g. "workbench_lvl2"
-pub type TaskId = String;       // e.g. "ark_11" (matches Assistant's URL slugs)
 pub type ItemId = String;       // stable slug, e.g. "bolts"
 pub type ModuleId = String;     // e.g. "workbench", "medstation"
-pub type VendorId = String;     // e.g. "handshake", "lab_rat"
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GameData {
@@ -125,7 +122,6 @@ pub struct GameData {
     pub scraped_at: String,     // RFC3339
     pub source: String,         // URL we scraped from
     pub modules: Vec<HideoutModule>,
-    pub vendors: Vec<Vendor>,
     pub items: Vec<Item>,
 }
 
@@ -145,23 +141,6 @@ pub struct Upgrade {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Vendor {
-    pub id: VendorId,
-    pub name: String,           // e.g. "Handshake", "Lab Rat"
-    pub tasks: Vec<Task>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Task {
-    pub id: TaskId,
-    pub name: String,
-    pub vendor_id: VendorId,
-    pub prerequisites: Vec<TaskId>,   // shown in UI as info, not enforced
-    pub requirements: Vec<Requirement>, // only item-collection objectives
-    pub source_url: String,           // link back to Assistant page
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Requirement {
     pub item_id: ItemId,
     pub quantity: u32,
@@ -175,8 +154,6 @@ pub struct Item {
 }
 ```
 
-Tasks with empty `requirements` (pure kill/plant/extract objectives) are excluded from the scraped dataset. They have nothing to track.
-
 ### 4.2 Runtime state (in `crates/app/src/state.rs`)
 
 ```rust
@@ -184,14 +161,12 @@ pub struct AppState {
     pub data: Arc<GameData>,                  // immutable, loaded once
     pub tracked_upgrades: HashSet<UpgradeId>,
     pub completed_upgrades: HashSet<UpgradeId>,
-    pub tracked_tasks: HashSet<TaskId>,
-    pub completed_tasks: HashSet<TaskId>,
     pub collected: HashMap<ItemId, u32>,
     pub version: u64,                          // bumped on every mutation
 }
 ```
 
-`collected` is shared across both categories — collecting 5 bolts contributes toward both a tracked upgrade and a tracked task that need them. This is correct: in the game, an item in your stash counts toward anything.
+`collected` is shared across every tracked upgrade — collecting 5 bolts contributes toward each upgrade that needs them. This is correct: in the game, an item in your stash counts toward anything.
 
 Wrap in `Arc<RwLock<AppState>>`. Both the GUI thread (toggle tracking/done, +/- buttons) and the VR thread (clicks on overlay) mutate state; both must take the write lock briefly. The `version` counter lets the VR thread decide cheaply whether to re-render the overlay texture.
 
@@ -206,13 +181,11 @@ struct PersistedState {
     data_version: String,        // for compat checking
     tracked_upgrades: HashSet<UpgradeId>,
     completed_upgrades: HashSet<UpgradeId>,
-    tracked_tasks: HashSet<TaskId>,
-    completed_tasks: HashSet<TaskId>,
     collected: HashMap<ItemId, u32>,
 }
 ```
 
-On load: if `data_version` mismatches the bundled data, drop orphaned tracked/completed entries (IDs that don't resolve to a current upgrade or task), surface a warning in the GUI's header bar. Keep `collected` counts as-is — items rarely get renamed, user effort shouldn't vanish on a wipe.
+On load: if `data_version` mismatches the bundled data, drop orphaned tracked/completed entries (IDs that don't resolve to a current upgrade), surface a warning in the GUI's header bar. Keep `collected` counts as-is — items rarely get renamed, user effort shouldn't vanish on a wipe. Pre-#73 `state.json` files may still carry `tracked_tasks` / `completed_tasks` keys; `PersistedState` doesn't set `deny_unknown_fields`, so serde silently ignores them — no migration needed.
 
 ### 4.4 Derived view
 
@@ -221,9 +194,9 @@ pub struct ActiveItem {
     pub item_id: ItemId,
     pub icon_path: String,
     pub name: String,
-    pub needed: u32,           // sum across all tracked, not-completed sources
+    pub needed: u32,           // sum across all tracked, not-completed upgrades
     pub collected: u32,
-    pub sources: Vec<String>,  // e.g. ["Workbench L2", "Task: Tracking Device"]
+    pub sources: Vec<String>,  // e.g. ["Workbench L2"]
                                // shown as tooltip in GUI, hidden in VR overlay
 }
 
@@ -232,7 +205,6 @@ impl AppState {
         // For each upgrade in tracked_upgrades but NOT in completed_upgrades:
         //   For each requirement: add quantity to a per-item total.
         //   Append upgrade name to that item's sources list.
-        // Same loop for tracked_tasks / completed_tasks.
         // Build ActiveItem list with collected counts pulled from self.collected.
         // Sort: incomplete first (by name), then completed (grayed, by name).
     }
@@ -245,7 +217,7 @@ Recompute on demand. Cheap (max a few hundred entries). No caching.
 
 ## 5. Data Pipeline
 
-**Critical update on data acquisition:** ExfilZone Assistant is open source at `github.com/zelengeo/exfil-zone-assistant` under the **MIT license**. The hideout upgrade and task data live as TypeScript/JSON files in `src/lib/`, with icons in `public/images/`. **We do not scrape HTML.** We pull source files directly from the upstream repo. This is vastly more robust, immune to website redesigns, and explicitly permitted by their MIT license (with attribution).
+**Critical update on data acquisition:** ExfilZone Assistant is open source at `github.com/zelengeo/exfil-zone-assistant` under the **MIT license**. The hideout upgrade and item data live as TypeScript/JSON files in `src/lib/`, with icons in `public/images/`. **We do not scrape HTML.** We pull source files directly from the upstream repo. This is vastly more robust, immune to website redesigns, and explicitly permitted by their MIT license (with attribution).
 
 The data pipeline is a **standalone binary** (`crates/scraper`), run manually by maintainers when the upstream repo updates (typically once per wipe). It writes `data.json` + `icons/` into `crates/app/src/assets/`, which the app binary then embeds at compile time via `rust-embed`. The app does no network requests at runtime.
 
@@ -253,33 +225,16 @@ The data pipeline is a **standalone binary** (`crates/scraper`), run manually by
 
 Confirmed paths in `github.com/zelengeo/exfil-zone-assistant` (MIT licensed, maintained by pogapwnz) as of investigation:
 
-- **Hideout upgrades:** `src/data/hideout-upgrades.ts` — a single TypeScript `export const hideoutUpgrades = { ... }` object literal. Keys are `<AreaId>Lv<level>`. Each upgrade has `areaId`, `categoryId`, `level`, `upgradeName`, `upgradeDesc`, `price`, `exchange: { item_id: qty, ... }` (the structured requirements we want), `levelConditions`, `relatedQuests`, `levelUpIcon`.
-- **Tasks:** `src/data/tasks.ts` — `export const tasksData: TasksDatabase = { ... }` keyed by task id (e.g. `"ark_11"`). Each task has `id`, `name`, `gameId`, `description`, `objectives: string[]` (free-text), `corpId`, `type: TaskType[]`, `map`, `reward`, `preReward`, `requiredTasks` (prerequisites), `requiredLevel`, `tips`, `videoGuides`, `order`. **CRITICAL:** there is no structured `requirements` field for submission tasks — the items + quantities only appear in the human-readable `objectives` strings (e.g. `"Turn in 9 Intel Items Found In Raid"`).
-- **Corps (vendors):** also in `src/data/tasks.ts`, `export const corps: Record<string, Corp>`. `corpId` on each task maps here.
-- **Item catalogs:** `public/data/{ammunition,armor,attachments,backpacks,face-shields,grenades,helmets,holsters,keys,magazines,medical,misc,provisions,task-items,weapons}.json` — already JSON. Each entry has `id`, `name`, `category`, `subcategory`, `images.icon` (path under `public/`), `stats.{price,weight,rarity,...}`. Task items additionally have `stats.taskIds: string[]` linking them back to the tasks they belong to.
-- **Icons:** `public/images/items/<category>/<filename>.webp` (referenced by `images.icon`); hideout icons under `public/images/hideout/`; task/corp icons under `public/images/tasks/`.
+- **Hideout upgrades:** `src/data/hideout-upgrades.ts` — a single TypeScript `export const hideoutUpgrades = { ... }` object literal. Keys are `<AreaId>Lv<level>`. Each upgrade has `areaId`, `categoryId`, `level`, `upgradeName`, `upgradeDesc`, `price`, `exchange: { item_id: qty, ... }` (the structured requirements we want), `levelConditions`, `relatedQuests`, `levelUpIcon`. **Note:** hideout module data is now hand-validated against in-game screenshots (see `hideout_screenshots/`) and carried over verbatim by the scraper rather than re-parsed from upstream.
+- **Item catalogs:** `public/data/{ammunition,armor,attachments,backpacks,face-shields,grenades,helmets,holsters,keys,magazines,medical,misc,provisions,task-items,weapons}.json` — already JSON. Each entry has `id`, `name`, `category`, `subcategory`, `images.icon` (path under `public/`), `stats.{price,weight,rarity,...}`. (`task-items.json` is read purely as an item-identification source — names + icons — not for any task linkage.)
+- **Icons:** `public/images/items/<category>/<filename>.webp` (referenced by `images.icon`); hideout icons under `public/images/hideout/`.
 - **Game version / data version:** check `package.json` (`version` field) and the most recent commit timestamp. There is no game-version constant we can scrape; we use `<package_version>+<commit_short>` as our `data_version`.
-
-#### Task-requirement extraction strategy (v1)
-
-Because the upstream doesn't store structured submission requirements, the scraper must parse `objectives` strings. Strategy:
-
-1. **Direct link via `task-items`:** for every item in `task-items.json` with non-empty `stats.taskIds`, that item is required by each listed task with quantity 1 (or the number parsed from the matching objective if found).
-2. **Regex parse for quantities:** apply patterns like `^(?:Turn in|Submit|Deliver|Find|Collect|Retrieve|Provide)\s+(\d+)\s+(.+?)(?:\s+(?:Items?|in raid|Found In Raid))?$` (case-insensitive) to each objective string. If the matched item-name fuzzy-matches a known item from any catalog, record `(item_id, qty)`.
-3. **Fallback:** if no quantity, default to 1. If no item-name match, log a parse warning and skip that requirement.
-4. **Coverage report:** the scraper prints, at the end, "Parsed N submission tasks; M required items extracted; K objectives unparsed (logged to scraper.log)". This lets the maintainer review coverage before shipping.
-5. Tasks whose `type` contains only non-submission verbs (`eliminate`, `extract`, `reach`, `mark`, `place`, `photo`, `signal`) AND that yielded zero parsed requirements after step 1-3 are dropped from the dataset (nothing to track).
-
-Document any objective strings the regex misses in `OPEN_QUESTIONS.md` for follow-up.
 
 ### Process
 1. Sparse-clone or shallow-clone the upstream repo into a temp directory (`git clone --depth=1 https://github.com/zelengeo/exfil-zone-assistant.git`), or pull individual files via `https://raw.githubusercontent.com/zelengeo/exfil-zone-assistant/master/<path>` for surgical updates
-2. Locate the data files by inspecting `src/lib/` — find the hideout upgrade and task data structures
-3. Parse the data. Strategy depends on what's there:
-   - If it's a JSON file (e.g. a Mongo seed): parse with `serde_json` directly
-   - If it's a TypeScript file with plain object literals: use a small JS evaluator (e.g. `boa_engine` crate) or extract the relevant object via regex + careful parsing. As a last resort, write a small `node` script that imports the TS module and dumps JSON to stdout — call it from the Rust scraper binary.
-4. Filter tasks: drop any with zero item-collection requirements (kill/plant/extract-only objectives)
-5. Map upstream item / upgrade / task IDs to our internal IDs (prefer 1:1 mapping; document any rule)
+2. Locate the item catalogs under `public/data/`
+3. Parse the data. Item catalogs are plain JSON — parse with `serde_json` directly. Hideout modules are read back from the existing committed `data.json` (hand-authored) and passed through unchanged.
+4. Map upstream item / upgrade IDs to our internal IDs (prefer 1:1 mapping; document any rule)
 6. Copy each unique icon from `public/images/` to `crates/app/src/assets/icons/<item_id>.png`. Re-encode through the `image` crate to normalize format and strip metadata.
 7. Write `crates/app/src/assets/data.json` (pretty-printed, sorted keys, for diff readability)
 8. Record the upstream commit hash and game version (from `next.config.ts` or similar) in `data.json` as `source_commit` and `game_version`
@@ -308,13 +263,13 @@ Window title: "EZ Wishlist Overlay". Default size: 1200×800. Resizable, min 800
 ┌─────────────────────────────────────────────────────────────────┐
 │ Header: data version │ status │ open data folder │ about │ reset│
 ├──────────────────────────────────┬──────────────────────────────┤
-│ [Hideout]  [Tasks]               │ Preview pane (right, 40%)    │
+│ [Hideout]  [Items DB]            │ Preview pane (right, 40%)    │
 │                                  │                              │
 │ — Hideout tab content —          │ Active items in overlay:     │
 │ ▼ Workbench                      │                              │
 │   ☐ Track ☐ Done  Level 1        │ [icon] Bolts        12/20    │
-│     ▸ 5× Bolts, 3× Screws        │   ↳ Workbench L2,            │
-│   ☐ Track ☐ Done  Level 2        │     Task: Tracking Device    │
+│     ▸ 5× Bolts, 3× Screws        │   ↳ Workbench L2             │
+│   ☐ Track ☐ Done  Level 2        │                              │
 │ ▼ Medstation                     │ [icon] Screws        8/15    │
 │   ...                            │ [icon] Wire         0/3      │
 │                                  │ ...                          │
@@ -322,7 +277,7 @@ Window title: "EZ Wishlist Overlay". Default size: 1200×800. Resizable, min 800
 ```
 
 ### Left pane: tabbed
-Two tabs at the top: **Hideout Upgrades** and **Tasks**. Tab state is purely UI (not persisted). Both feed the same preview pane and overlay.
+Two tabs at the top: **Hideout** and **Items DB**. Tab state is purely UI (not persisted). The Hideout tab feeds the preview pane and overlay.
 
 #### Hideout tab (`gui/hideout_pane.rs`)
 - Collapsible group per `HideoutModule`
@@ -330,18 +285,15 @@ Two tabs at the top: **Hideout Upgrades** and **Tasks**. Tab state is purely UI 
 - Below each upgrade row, a one-line summary of required items (collapsed; expandable for detail)
 - Track and Done are mutually exclusive in display, both stored: marking Done auto-unchecks Track and vice versa
 
-#### Tasks tab (`gui/tasks_pane.rs`)
-- Collapsible group per `Vendor`
-- Search/filter box at the top (filter task names — useful since the task list is long)
-- Each `Task`: two checkboxes (Track / Done), task name, vendor tag
-- Below each row, a one-line summary of required items + prerequisites list (e.g. "Requires: Tracking Device")
-- An "Open in browser" small link icon → opens `task.source_url` (the Assistant page) for full walkthrough
-- Prerequisites are info-only — we don't prevent tracking a task whose prereqs aren't done
+#### Items DB tab (`gui/items_db_pane.rs`)
+- Sortable / filterable catalog of every item in `data.json`
+- A "Tracked only" toggle narrows the table to items required by an upgrade you're currently tracking
+- A surplus column with a selectable need-horizon flags items held in excess of what your goals require
 
 ### Preview pane (`gui/preview_pane.rs`)
-- Shows exactly what `active_items()` returns — aggregated across upgrades AND tasks
+- Shows exactly what `active_items()` returns — aggregated across every tracked upgrade
 - Each row: icon (32×32), name, `collected/needed` with progress bar
-- Below each item, a small grey caption listing sources (e.g. "Workbench L2 • Task: Tracking Device") so the user can see why it's on the list
+- Below each item, a small grey caption listing sources (e.g. "Workbench L2") so the user can see why it's on the list
 - Fully-collected items shown grayed at the bottom
 - `+`/`-` buttons next to each row to adjust collected count from the desktop (useful for testing without VR, and for setting a starting count from your existing stash)
 - Click count text to type a specific value
@@ -362,11 +314,11 @@ EZ Wishlist Overlay v<X.Y.Z>
 Data version: <game_version> (synced from upstream <commit_short>)
 
 A free, open-source companion for Contractors Showdown: ExfilZone.
-Tracks hideout upgrades and quest tasks across desktop and VR.
+Tracks hideout upgrades across desktop and VR.
 
 — Credits —
 
-Hideout, task, and item data are sourced from ExfilZone Assistant
+Hideout and item data are sourced from ExfilZone Assistant
 by pogapwnz, used under the MIT license. ExfilZone Assistant is
 an excellent web companion covering combat simulators, weapon
 databases, guides, and more. If you find this app useful, check
@@ -506,17 +458,15 @@ Channels (`crossbeam::channel` or `tokio::sync::mpsc`) for cross-thread notifica
 
 1. **SteamVR not running at startup** — GUI fully functional, VR thread retries.
 2. **SteamVR closes mid-session** — VR thread detects, marks status, retries.
-3. **Same item required by multiple tracked sources** — quantities sum in `active_items()`. The `sources` field lets users see what's contributing.
+3. **Same item required by multiple tracked upgrades** — quantities sum in `active_items()`. The `sources` field lets users see what's contributing.
 4. **User over-collects** — not possible via VR clicks (cycle resets to 0 at target). Possible via desktop +/- buttons; if it happens, `collected` may exceed `needed`. Display clamps to `needed` in the overlay; preview pane shows actual value.
-5. **Upgrade or task marked done after partial collection** — items disappear from active view if no other tracked source needs them; collected counts persist.
-6. **Data version change after wipe** — load drops orphaned tracked/completed IDs (both upgrades and tasks), surfaces warning, keeps collected counts.
+5. **Upgrade marked done after partial collection** — items disappear from active view if no other tracked upgrade needs them; collected counts persist.
+6. **Data version change after wipe** — load drops orphaned tracked/completed upgrade IDs, surfaces warning, keeps collected counts.
 7. **Corrupt state.json** — backed up with timestamp, fresh start, banner shows backup path.
-8. **No tracked upgrades or tasks** — overlay shows a placeholder ("Nothing tracked. Enable upgrades or tasks in the desktop app.") instead of an empty grid.
+8. **No tracked upgrades** — overlay shows a placeholder ("Nothing tracked. Enable upgrades in the desktop app.") instead of an empty grid.
 9. **Many tracked items → grid overflows** — paginate or scroll. v1: cap visible cells at 36, show "+N more" indicator and a paging button (controller bumper).
 10. **User clicks an item already at target** — cycle resets `collected` to 0 (intentional, lets user recover from accidents). Distinct haptic pattern confirms the reset.
 11. **HMD pose stale or invalid** — treat as "not looking up", hide overlay.
-12. **Task with no item requirements appears in scraped data** — scraper bug; the scraper must exclude these. If one slips through, the app filters it at load time and logs a warning.
-13. **Task prerequisites not met** — not enforced; user can track any task. UI shows the prerequisite list as info.
 
 ---
 
@@ -553,10 +503,10 @@ OPTIONS:
   --keep-temp         Don't delete the cloned upstream directory on success.
   --skip-icons        Skip icon copying (data.json only). Faster for iteration.
   --no-network        Require --upstream; refuse to clone. CI-friendly.
-  -v, --verbose       Verbose logging (parse warnings, per-task decisions).
+  -v, --verbose       Verbose logging (parse warnings, per-item decisions).
 ```
 
-The tool exits non-zero on hard failures (clone fail, unreadable files, no upgrades found). Per-task parse failures are reported as warnings and counted in the final summary, not fatal.
+The tool exits non-zero on hard failures (clone fail, unreadable files, no items found). Per-item parse failures are reported as warnings and counted in the final summary, not fatal.
 
 ### Release
 - `cargo-dist` configured for `x86_64-pc-windows-msvc` only (v1)
@@ -579,19 +529,17 @@ Each phase ends with a runnable, demoable artifact. Don't skip phases or merge t
 
 ### Phase 1 — Datasync + data shape
 - Build the `scraper` binary
-- Clone the upstream ExfilZone Assistant repo, locate and parse the hideout + tasks data
-- Filter task list to only item-collection tasks
+- Clone the upstream ExfilZone Assistant repo, parse the item catalogs; carry over the hand-authored hideout modules
 - Produce `data.json` + icons committed to repo
 - Bundle `LICENSES/exfil-zone-assistant-MIT.txt`
 - Validate by writing a CLI test command in the app that pretty-prints the loaded data
 - **Deliverable:** committed data files, scraper README explaining how to re-sync after upstream updates
 
 ### Phase 2 — Desktop GUI, no VR
-- egui app with tabbed left pane (Hideout / Tasks), preview pane, about dialog
-- Search/filter for tasks
+- egui app with tabbed left pane (Hideout / Items DB), preview pane, about dialog
 - Persistence working (save/load/debounce)
 - All edge cases for data versioning handled
-- **Deliverable:** standalone desktop app, fully usable as a manual tracker for both hideout upgrades and tasks
+- **Deliverable:** standalone desktop app, fully usable as a manual hideout-upgrade tracker
 
 ### Phase 3 — VR overlay, read-only
 - OpenVR init, overlay creation, pose-driven show/hide
@@ -650,7 +598,7 @@ No CI-driven VR testing — OpenVR can't be mocked usefully. Manual checklist is
 - Stash value calculator
 - Trade route calculator
 - Map / key location features
-- Non-collection task objectives (kills, planting, area reaches)
+- Quest-task / vendor tracking (removed in #73)
 - Mac/Linux builds
 
 If a feature isn't in this spec, push back to the spec rather than adding it inline.

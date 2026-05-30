@@ -9,8 +9,6 @@
 mod items;
 mod model;
 mod output;
-mod parse_ts;
-mod tasks;
 mod upstream;
 
 use anyhow::{Context, Result};
@@ -80,10 +78,8 @@ fn main() -> Result<()> {
     };
 
     let public_data = upstream.root.join("public").join("data");
-    let tasks_ts = upstream.root.join("src").join("data").join("tasks.ts");
 
     let catalog = items::ItemCatalog::from_upstream(&public_data)?;
-    let tasks = tasks::parse(&tasks_ts, &catalog).context("tasks parse")?;
 
     // Hideout module data is hand-validated against in-game screenshots (see
     // hideout_screenshots/CLAUDE.md). The scraper must never overwrite it,
@@ -106,14 +102,13 @@ fn main() -> Result<()> {
         source_repo: args.repo.clone(),
         source_commit: upstream.commit.clone(),
         modules: existing_modules,
-        vendors: tasks.vendors,
         items: items_out,
     };
 
     std::fs::create_dir_all(&args.output)
         .with_context(|| format!("creating {}", args.output.display()))?;
     output::write_data_json(&args.output, &data)?;
-    output::write_source_md(&args.output, &data, tasks.unparsed_objectives.len())?;
+    output::write_source_md(&args.output, &data)?;
 
     let icons_written = if !args.skip_icons {
         let outcome = output::copy_icons(&args.output, &upstream.root, &catalog, &emitted_ids)?;
@@ -127,17 +122,6 @@ fn main() -> Result<()> {
     } else {
         0
     };
-
-    if !tasks.unparsed_objectives.is_empty() {
-        let log_path = args.output.join("unparsed-objectives.log");
-        let lines: Vec<String> = tasks
-            .unparsed_objectives
-            .iter()
-            .map(|u| format!("[{}] {} :: {}", u.task_id, u.objective, u.reason))
-            .collect();
-        std::fs::write(&log_path, lines.join("\n"))?;
-        tracing::info!(path = %log_path.display(), "wrote unparsed-objectives log");
-    }
 
     println!();
     let module_count = data.modules.as_array().map(|a| a.len()).unwrap_or(0);
@@ -159,14 +143,8 @@ fn main() -> Result<()> {
     println!("  data version : {}", data.data_version);
     println!("  modules      : {}", module_count);
     println!("  upgrades     : {}", upgrade_count);
-    println!("  vendors      : {}", data.vendors.len());
-    println!(
-        "  tasks        : {}",
-        data.vendors.iter().map(|v| v.tasks.len()).sum::<usize>()
-    );
     println!("  items        : {}", data.items.len());
     println!("  icons        : {}", icons_written);
-    println!("  unparsed obj : {}", tasks.unparsed_objectives.len());
     println!("  output       : {}", args.output.display());
 
     if !args.keep_temp {

@@ -36,16 +36,6 @@ Current rule: clicking an item already at target resets to 0 with a distinct hap
 
 ## Data pipeline
 
-### Task objective parsing — remaining coverage
-
-After the regex passes, 65 task objectives don't resolve to a structured `(item_id, quantity)` requirement (see `crates/app/src/assets/unparsed-objectives.log`). The bulk fall into two categories:
-
-1. **Category submissions** ("Turn in 3 Electric Items", "Turn in 9 Intel Items") — the game accepts any item from a category, not a specific item. Modeling these requires either a virtual "category item" abstraction or per-task allow-lists derived from `subcategory`. **Suggested approach:** add a `category_alias` map in `crates/scraper/src/tasks.rs` for the ~10 known categories ("Electric", "Intel", "Household", etc.) that maps to the upstream item `subcategory` value, and treat the requirement as "any item with subcategory X, qty N". The app's `active_items()` would need a small extension.
-
-2. **Specific-key submissions** ("Turn in hotel 208 Key") — these are real items but the names don't lowercase-match because the upstream catalog uses different capitalization or short codes. **Suggested approach:** extend `resolve_item_name` with a fuzzy match (Levenshtein) gated to keys (`subcategory == "Key"`) so we don't over-match elsewhere.
-
-Neither is urgent — tasks without resolved requirements are dropped, the user simply can't track those specific quests via the overlay. Hideout coverage is complete.
-
 ### In-app data refresh
 
 Currently the data is baked in at compile time. After a wipe, users must download a new release. Acceptable for v1 but worth revisiting: a `--data-from <path>` runtime override would let power-users pre-test new data without a release cut.

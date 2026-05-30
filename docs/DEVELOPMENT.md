@@ -16,7 +16,7 @@ Build-from-source, data-refresh, and release notes for EZ Wishlist Overlay. For 
 Shipping as of v0.2.0:
 
 - **Data pipeline** — `crates/scraper` ingests the upstream [ExfilZone Assistant](https://github.com/zelengeo/exfil-zone-assistant) repo and produces `data.json` + normalized PNG icons, committed into the app crate.
-- **Desktop GUI** — egui app with a Hideout tab and an Items DB catalog, the aggregated wishlist preview pane, recipe overrides + "Export corrections", Settings, and an in-app update check. (A quest-Tasks tab still ships in v0.2.0 but is being removed in [#73](https://github.com/etiennechabert/ez-wishlist-overlay/issues/73) to refocus the app on hideout upgrades only.)
+- **Desktop GUI** — egui app with a Hideout tab and an Items DB catalog, the aggregated wishlist preview pane, recipe overrides + "Export corrections", Settings, and an in-app update check.
 - **VR overlay** — OpenVR session with pitch-driven show/hide, world-space anchoring, controller laser-pointer clicks + haptics, and live re-render on state change.
 - **Screenshot OCR** — captures the SteamVR compositor mirror texture, identifies the Facility Upgrade panel, reads owned counts via per-digit template matching, and writes them back to the wishlist with an in-headset feedback overlay.
 - **Distribution** — MSI installer + portable exe ship via [`release.yml`](../.github/workflows/release.yml) on tag push; PR builds validate the MSI to keep it green. Code signing + an auto-update channel are still pending (the SmartScreen prompt documented in the README is a consequence of the missing signature).
@@ -119,7 +119,6 @@ Output:
 - `crates/app/src/assets/data.json`
 - `crates/app/src/assets/icons/<item_id>.png`
 - `crates/app/src/assets/SOURCE.md` (provenance: upstream commit, version, timestamp)
-- `crates/app/src/assets/unparsed-objectives.log` (task-objective strings the regex couldn't split into item + quantity; review these before shipping)
 
 See `cargo run -p scraper -- --help` for full CLI options (`--repo`, `--ref`, `--upstream`, `--no-network`, `--skip-icons`, `--keep-temp`, `--verbose`).
 
