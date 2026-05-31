@@ -248,12 +248,15 @@ const NEW_NAME_KEY: &str = "ctr-new-name";
 const NEW_ICON_KEY: &str = "ctr-new-icon";
 const NEW_OPEN_KEY: &str = "ctr-new-open";
 const NEW_FOCUS_KEY: &str = "ctr-new-focus";
+/// When present, the modal is editing this existing container (Save writes to
+/// it) rather than creating a new one.
+const NEW_EDIT_KEY: &str = "ctr-new-edit-id";
 
-/// Open the modal: mark it open, reset the in-progress name/icon, and request
-/// focus on the name field for the first frame.
+/// Open the modal in *create* mode: blank name, default icon, focus the field.
 fn open_new_container_modal(ctx: &egui::Context) {
     ctx.data_mut(|d| {
         d.insert_temp(egui::Id::new(NEW_OPEN_KEY), true);
+        d.remove::<String>(egui::Id::new(NEW_EDIT_KEY));
         d.insert_temp(egui::Id::new(NEW_NAME_KEY), String::new());
         d.insert_temp(
             egui::Id::new(NEW_ICON_KEY),
@@ -263,9 +266,22 @@ fn open_new_container_modal(ctx: &egui::Context) {
     });
 }
 
+/// Open the modal in *edit* mode: pre-fill the given container's name + icon;
+/// Save writes back to it.
+fn open_edit_container_modal(ctx: &egui::Context, id: &ContainerId, name: &str, icon: &str) {
+    ctx.data_mut(|d| {
+        d.insert_temp(egui::Id::new(NEW_OPEN_KEY), true);
+        d.insert_temp(egui::Id::new(NEW_EDIT_KEY), id.clone());
+        d.insert_temp(egui::Id::new(NEW_NAME_KEY), name.to_string());
+        d.insert_temp(egui::Id::new(NEW_ICON_KEY), icon.to_string());
+        d.insert_temp(egui::Id::new(NEW_FOCUS_KEY), true);
+    });
+}
+
 fn close_new_container_modal(ctx: &egui::Context) {
     ctx.data_mut(|d| {
         d.insert_temp(egui::Id::new(NEW_OPEN_KEY), false);
+        d.remove::<ContainerId>(egui::Id::new(NEW_EDIT_KEY));
         d.remove::<String>(egui::Id::new(NEW_NAME_KEY));
         d.remove::<String>(egui::Id::new(NEW_ICON_KEY));
     });
@@ -298,12 +314,20 @@ fn new_container_modal(
     let want_focus = ctx
         .data(|d| d.get_temp::<bool>(egui::Id::new(NEW_FOCUS_KEY)))
         .unwrap_or(false);
+    let edit_id = ctx.data(|d| d.get_temp::<ContainerId>(egui::Id::new(NEW_EDIT_KEY)));
+    let editing = edit_id.is_some();
+    let title = if editing {
+        "Edit container"
+    } else {
+        "New container"
+    };
+    let submit_label = if editing { "Save" } else { "Create" };
 
     let mut open = true; // window-chrome close button → cancel
     let mut do_create = false;
     let mut do_cancel = false;
 
-    egui::Window::new("New container")
+    egui::Window::new(title)
         .open(&mut open)
         .collapsible(false)
         .resizable(false)
@@ -345,7 +369,7 @@ fn new_container_modal(
             let has_name = !name.trim().is_empty();
             ui.horizontal(|ui| {
                 if ui
-                    .add_enabled(has_name, egui::Button::new("Create"))
+                    .add_enabled(has_name, egui::Button::new(submit_label))
                     .clicked()
                 {
                     do_create = true;
@@ -355,7 +379,7 @@ fn new_container_modal(
                 }
                 if !has_name {
                     ui.label(
-                        egui::RichText::new("Enter a name to create")
+                        egui::RichText::new("Enter a name")
                             .small()
                             .color(ui.visuals().weak_text_color()),
                     );
@@ -370,8 +394,19 @@ fn new_container_modal(
     });
 
     if do_create && !name.trim().is_empty() {
-        let id = state.write().create_container(name.trim().to_string());
-        state.write().set_container_icon(&id, Some(chosen_icon));
+        let trimmed = name.trim().to_string();
+        match &edit_id {
+            Some(id) => {
+                // Edit mode: write back to the existing container.
+                let mut w = state.write();
+                w.rename_container(id, trimmed);
+                w.set_container_icon(id, Some(chosen_icon));
+            }
+            None => {
+                let id = state.write().create_container(trimmed);
+                state.write().set_container_icon(&id, Some(chosen_icon));
+            }
+        }
         notify(state, save_tx);
         close_new_container_modal(ctx);
     } else if do_cancel || !open {
@@ -545,46 +580,59 @@ fn container_row(
         egui::collapsing_header::CollapsingState::load_with_default_open(ui.ctx(), cid, false);
     let is_open = collapse.is_open();
 
-    // --- Header row: one clickable strip, manual fixed columns. ---
-    let header_resp = ui
-        .scope(|ui| {
-            ui.spacing_mut().item_spacing.x = 0.0;
-            ui.horizontal(|ui| {
-                // Triangle column (paint our own so the width is exactly LEAD).
-                let (tri_rect, _) =
-                    ui.allocate_exact_size(egui::vec2(LEAD, ROW_H), egui::Sense::hover());
-                let tri = if is_open { "▼" } else { "▶" };
-                ui.painter().text(
-                    tri_rect.center(),
-                    egui::Align2::CENTER_CENTER,
-                    tri,
-                    egui::FontId::proportional(12.0),
-                    ui.visuals().weak_text_color(),
-                );
-                // Icon column.
-                ui.allocate_ui_with_layout(
-                    egui::vec2(W_ICON, ROW_H),
-                    egui::Layout::centered_and_justified(egui::Direction::LeftToRight),
-                    |ui| {
-                        if let Some(tex) = &header_tex {
-                            ui.add(egui::Image::new(tex).fit_to_exact_size(egui::vec2(28.0, 28.0)));
-                        }
-                    },
-                );
-                cell_left(ui, W_NAME, egui::RichText::new(&row.name).strong());
-                cell_right(ui, W_ITEMS, row.item_count.to_string(), false);
-                cell_right(ui, W_WEIGHT, format!("{:.2} kg", row.weight), false);
-                cell_right(
-                    ui,
-                    W_VALUE,
-                    format!("{} RUB", format_price(row.value)),
-                    true,
-                );
-            });
-        })
-        .response
-        .interact(egui::Sense::click())
-        .on_hover_cursor(egui::CursorIcon::PointingHand);
+    // --- Header row: the ENTIRE strip is one click target. ---
+    // Reserve a full-width row rect and sense the click on it *first*, then
+    // paint the columns into a child UI placed at that rect. The cells are
+    // plain (non-interactive) labels, so nothing inside steals the click —
+    // clicking anywhere on the row (triangle, icon, name, numbers, gaps)
+    // toggles the fold.
+    let full_w = ui.available_width();
+    let (row_rect, header_resp) =
+        ui.allocate_exact_size(egui::vec2(full_w, ROW_H), egui::Sense::click());
+    let header_resp = header_resp.on_hover_cursor(egui::CursorIcon::PointingHand);
+    if ui.is_rect_visible(row_rect) {
+        // Subtle hover highlight over the whole row.
+        if header_resp.hovered() {
+            ui.painter()
+                .rect_filled(row_rect, 3.0, theme::row_hover(ui.visuals().dark_mode));
+        }
+        let mut cell_ui = ui.new_child(
+            egui::UiBuilder::new()
+                .max_rect(row_rect)
+                .layout(egui::Layout::left_to_right(egui::Align::Center)),
+        );
+        cell_ui.spacing_mut().item_spacing.x = 0.0;
+        let ui = &mut cell_ui;
+        // Triangle column (painted; width exactly LEAD).
+        let (tri_rect, _) = ui.allocate_exact_size(egui::vec2(LEAD, ROW_H), egui::Sense::hover());
+        let tri = if is_open { "▼" } else { "▶" };
+        ui.painter().text(
+            tri_rect.center(),
+            egui::Align2::CENTER_CENTER,
+            tri,
+            egui::FontId::proportional(12.0),
+            ui.visuals().weak_text_color(),
+        );
+        // Icon column.
+        ui.allocate_ui_with_layout(
+            egui::vec2(W_ICON, ROW_H),
+            egui::Layout::centered_and_justified(egui::Direction::LeftToRight),
+            |ui| {
+                if let Some(tex) = &header_tex {
+                    ui.add(egui::Image::new(tex).fit_to_exact_size(egui::vec2(28.0, 28.0)));
+                }
+            },
+        );
+        cell_left(ui, W_NAME, egui::RichText::new(&row.name).strong());
+        cell_right(ui, W_ITEMS, row.item_count.to_string(), false);
+        cell_right(ui, W_WEIGHT, format!("{:.2} kg", row.weight), false);
+        cell_right(
+            ui,
+            W_VALUE,
+            format!("{} RUB", format_price(row.value)),
+            true,
+        );
+    }
 
     if header_resp.clicked() {
         collapse.toggle(ui);
@@ -598,8 +646,9 @@ fn container_row(
 }
 
 /// The unfolded editing controls. The stash shows only its contents + add-item
-/// (it's the fixed primary — no rename / delete / icon). Secondary containers
-/// also get rename + delete + an icon picker.
+/// (it's the fixed primary — no edit / delete). Secondary containers get an
+/// "Edit" button (reopens the create modal in edit mode to change name + icon)
+/// next to "Delete".
 fn container_body(
     ui: &mut egui::Ui,
     state: &Arc<RwLock<AppState>>,
@@ -609,66 +658,46 @@ fn container_body(
 ) {
     if let Target::Container(id) = &row.target {
         ui.horizontal(|ui| {
-            ui.label("Name:");
-            rename_field(ui, state, save_tx, id, &row.name);
+            ui.add_space(LEAD);
+            if ui
+                .button("Edit")
+                .on_hover_text("Rename and change the icon")
+                .clicked()
+            {
+                open_edit_container_modal(ui.ctx(), id, &row.name, resolve_icon_key(&row.icon));
+            }
             ui.separator();
             delete_control(ui, state, save_tx, id);
         });
         ui.add_space(6.0);
     } else {
-        ui.label(
-            egui::RichText::new(
-                "Loose items in the main stash. Also updated by the preview pane \
-                 and OCR.",
-            )
-            .small()
-            .color(ui.visuals().weak_text_color()),
-        );
+        ui.horizontal(|ui| {
+            ui.add_space(LEAD);
+            ui.label(
+                egui::RichText::new(
+                    "Loose items in the main stash. Also updated by the preview pane and OCR.",
+                )
+                .small()
+                .color(ui.visuals().weak_text_color()),
+            );
+        });
         ui.add_space(6.0);
     }
 
     contents_editor(ui, state, icons, save_tx, &row.target);
 
     ui.add_space(4.0);
-    if ui
-        .button("+ Add item")
-        .on_hover_text("Search the catalog and add items here")
-        .clicked()
-    {
-        set_active_picker(ui.ctx(), Some(row.target.clone()));
-        set_picker_filter(ui.ctx(), String::new());
-    }
-
-    if let Target::Container(id) = &row.target {
-        ui.add_space(2.0);
-        icon_picker(ui, state, icons, save_tx, id, &row.icon);
-    }
-}
-
-/// Closed-by-default sub-section: a wrapped grid of the bundled bag icons.
-/// Clicking one assigns it to the container; the current choice is highlighted.
-fn icon_picker(
-    ui: &mut egui::Ui,
-    state: &Arc<RwLock<AppState>>,
-    icons: &mut IconCache,
-    save_tx: &Sender<SaveTick>,
-    id: &ContainerId,
-    icon: &Option<String>,
-) {
-    let current = resolve_icon_key(icon).to_string();
-    egui::CollapsingHeader::new("Icon")
-        .id_salt((id.as_str(), "icon"))
-        .default_open(false)
-        .show(ui, |ui| {
-            ui.horizontal_wrapped(|ui| {
-                for &key in CONTAINER_ICONS {
-                    if icon_choice(ui, icons, key, key == current, 64.0) {
-                        state.write().set_container_icon(id, Some(key.to_string()));
-                        notify(state, save_tx);
-                    }
-                }
-            });
-        });
+    ui.horizontal(|ui| {
+        ui.add_space(LEAD);
+        if ui
+            .button("+ Add item")
+            .on_hover_text("Search the catalog and add items here")
+            .clicked()
+        {
+            set_active_picker(ui.ctx(), Some(row.target.clone()));
+            set_picker_filter(ui.ctx(), String::new());
+        }
+    });
 }
 
 /// One selectable square icon tile of the given size. Returns true if it was
@@ -694,38 +723,6 @@ fn icon_choice(
         egui::Image::new(tex).paint_at(ui, rect.shrink(size * 0.12));
     }
     resp.on_hover_text(key).clicked()
-}
-
-/// Inline rename. The in-progress edit lives in egui memory (seeded from the
-/// live name) so clearing the field mid-edit doesn't get clobbered by a
-/// re-seed; it commits on focus loss and ignores a blank name.
-fn rename_field(
-    ui: &mut egui::Ui,
-    state: &Arc<RwLock<AppState>>,
-    save_tx: &Sender<SaveTick>,
-    id: &ContainerId,
-    live_name: &str,
-) {
-    let key = egui::Id::new(("ctr-rename-buf", id.as_str()));
-    let mut buf = ui
-        .data(|d| d.get_temp::<String>(key))
-        .unwrap_or_else(|| live_name.to_string());
-    let resp = ui.add(
-        egui::TextEdit::singleline(&mut buf)
-            .desired_width(220.0)
-            .id_salt(("ctr-rename", id.as_str())),
-    );
-    if resp.changed() {
-        ui.data_mut(|d| d.insert_temp(key, buf.clone()));
-    }
-    if resp.lost_focus() {
-        let trimmed = buf.trim();
-        if !trimmed.is_empty() {
-            state.write().rename_container(id, trimmed.to_string());
-            notify(state, save_tx);
-        }
-        ui.data_mut(|d| d.remove::<String>(key));
-    }
 }
 
 /// "Delete" with an inline two-step confirm (no separate dialog) so an
