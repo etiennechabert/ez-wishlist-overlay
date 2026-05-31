@@ -46,6 +46,11 @@ pub struct Settings {
     /// branch needed, same as the other plain defaulted fields below.
     #[serde(default)]
     pub hideout_view: HideoutView,
+    /// Sort order for the desktop "Active items" preview pane. Desktop-only;
+    /// never affects the VR overlay order. Defaulted like `hideout_view`, so a
+    /// settings file written before this field loads as `Overlay`.
+    #[serde(default)]
+    pub preview_sort: PreviewSort,
     #[serde(default = "default_check_for_updates")]
     pub check_for_updates: bool,
     /// Latest release version (e.g. "0.2.0") the user clicked "Dismiss" on.
@@ -171,6 +176,23 @@ pub enum HideoutView {
     Progress,
 }
 
+/// How the desktop "Active items" preview pane is ordered. **Desktop-only** —
+/// the VR overlay always keeps its own stable order (see
+/// [`crate::state::AppState::active_items`]); these modes re-sort a local copy
+/// for planning, never the overlay. Persisted like [`HideoutView`], so an old
+/// settings file without the key loads as `Overlay`.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum PreviewSort {
+    /// Exactly the VR overlay order (pinned first, then by target quantity).
+    #[default]
+    Overlay,
+    /// Most still-needed (needed − collected) first.
+    Remaining,
+    /// Highest rouble value of the remaining units (price × remaining) first.
+    Value,
+}
+
 impl Settings {
     /// Clamp the OCR-side numeric tunables to their declared bounds.
     /// Called on load and after every UI edit so a hand-written
@@ -192,6 +214,7 @@ impl Default for Settings {
             vr: VrSettings::default(),
             theme: Theme::default(),
             hideout_view: HideoutView::default(),
+            preview_sort: PreviewSort::default(),
             check_for_updates: default_check_for_updates(),
             dismissed_update_version: None,
             ocr_enabled: default_ocr_enabled(),
@@ -459,5 +482,24 @@ mod tests {
         let json = serde_json::to_string(&s).unwrap();
         let back: Settings = serde_json::from_str(&json).unwrap();
         assert_eq!(back.hideout_view, HideoutView::Progress);
+    }
+
+    #[test]
+    fn preview_sort_defaults_to_overlay_when_absent() {
+        // Settings files written before this field lack the key; serde(default)
+        // must fill it with the overlay-mirroring order, not error.
+        let s: Settings = serde_json::from_str("{}").unwrap();
+        assert_eq!(s.preview_sort, PreviewSort::Overlay);
+    }
+
+    #[test]
+    fn preview_sort_round_trips() {
+        let s = Settings {
+            preview_sort: PreviewSort::Value,
+            ..Settings::default()
+        };
+        let json = serde_json::to_string(&s).unwrap();
+        let back: Settings = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.preview_sort, PreviewSort::Value);
     }
 }

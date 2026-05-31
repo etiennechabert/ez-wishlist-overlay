@@ -95,6 +95,31 @@ pub fn ready_fill(dark: bool) -> Color32 {
     }
 }
 
+/// Muted amber for "nearly ready" tracked upgrades — only 1–2 distinct items
+/// short of claimable. Sits deliberately *between* `tracked_fill` (cool blue,
+/// "on your list") and `ready_fill` (warm yellow, "claim it now"), so the grid
+/// reads as a warmth gradient tracked → nearly → ready. Kept dimmer than
+/// `ready_fill` so a near-complete cell isn't mistaken for a claimable one.
+pub fn nearly_ready_fill(dark: bool) -> Color32 {
+    if dark {
+        Color32::from_rgb(85, 72, 30)
+    } else {
+        Color32::from_rgb(243, 230, 170)
+    }
+}
+
+/// Violet accent for pinned (user-prioritized) upgrades — drawn as a left
+/// stripe on the By-progress row. Deliberately cool/violet, distinct from every
+/// warm marker (ready yellow, override/assumed browns) and from the tracked
+/// blue, so "this is a priority" never reads as a readiness or warning cue.
+pub fn pinned_accent(dark: bool) -> Color32 {
+    if dark {
+        Color32::from_rgb(150, 120, 210)
+    } else {
+        Color32::from_rgb(120, 85, 195)
+    }
+}
+
 pub fn source_text(dark: bool) -> Color32 {
     if dark {
         Color32::from_gray(160)
