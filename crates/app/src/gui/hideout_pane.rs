@@ -685,14 +685,14 @@ fn upgrade_controls(
     }
 }
 
-/// What the user picked in the upgrade-completion modal.
+/// What the user picked in the upgrade-completion modal. Dismissing without a
+/// choice (title-bar X / Esc) isn't a variant — it surfaces as the window's
+/// `open` flag flipping to false, handled where the action is consumed.
 enum CompletionAction {
     /// Mark done, leave `collected` alone.
     Skip,
     /// Mark done and subtract the recipe from `collected`.
     Consume,
-    /// Close without completing — the upgrade stays not-done.
-    Cancel,
 }
 
 /// Centered modal shown when the user ticks an upgrade's "Done" box. Confirms
@@ -728,6 +728,7 @@ fn upgrade_completion_modal(
 
     let weak = ui.visuals().weak_text_color();
     let strong = ui.visuals().strong_text_color();
+    let dark = ui.visuals().dark_mode;
 
     let mut open = true;
     let mut action: Option<CompletionAction> = None;
@@ -739,6 +740,10 @@ fn upgrade_completion_modal(
         .resizable(false)
         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
         .show(ui.ctx(), |ui| {
+            // Stable minimum width so the enlarged action buttons below sit at
+            // opposite edges with a gap between, rather than bunching. Tune
+            // alongside `button_min` if the dialog feels too wide / narrow.
+            ui.set_min_width(440.0);
             ui.label("Mark this upgrade as built. Did you spend its materials in-game?");
             ui.add_space(6.0);
 
@@ -786,8 +791,20 @@ fn upgrade_completion_modal(
 
             ui.add_space(10.0);
             ui.horizontal(|ui| {
+                // Enlarge both action buttons + pad their interiors so they're
+                // easy to hit when the user drives the desktop app from inside
+                // a VR headset — via SteamVR's desktop view (a virtual monitor),
+                // not our own overlay — where pointing is far coarser than a
+                // mouse. Scoped to this row via `spacing_mut` (the nested
+                // right_to_left ui inherits the style), so the rest of the pane
+                // keeps its compact controls. `button_min` + the dialog's
+                // `set_min_width` are the knobs to tune.
+                ui.spacing_mut().button_padding = egui::vec2(20.0, 14.0);
+                let button_min = egui::vec2(180.0, 48.0);
+
+                // Neutral "mark it built, leave inventory alone" on the leading edge.
                 if ui
-                    .button("Skip item consumption")
+                    .add(egui::Button::new("Skip item consumption").min_size(button_min))
                     .on_hover_text(
                         "Mark the upgrade built but leave your collected counts \
                          untouched.",
@@ -810,17 +827,22 @@ fn upgrade_completion_modal(
                      consume the recipe."
                         .to_string()
                 };
-                let resp = ui
-                    .add_enabled(can_consume, egui::Button::new("Consume items required"))
-                    .on_hover_text(&consume_tip)
-                    .on_disabled_hover_text(&consume_tip);
-                if resp.clicked() {
-                    action = Some(CompletionAction::Consume);
-                }
-
+                // Recommended action on the trailing edge, where a confirm
+                // button is expected. Tinted green so the eye lands on it —
+                // but only while it's actionable: a disabled (can't-afford)
+                // button keeps egui's greyed-out look, since a green disabled
+                // button would read as "go" when it can't.
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.button("Cancel").clicked() {
-                        action = Some(CompletionAction::Cancel);
+                    let mut consume_btn = egui::Button::new("Consume items required");
+                    if can_consume {
+                        consume_btn = consume_btn.fill(theme::primary_action_fill(dark));
+                    }
+                    let resp = ui
+                        .add_enabled(can_consume, consume_btn)
+                        .on_hover_text(&consume_tip)
+                        .on_disabled_hover_text(&consume_tip);
+                    if resp.clicked() {
+                        action = Some(CompletionAction::Consume);
                     }
                 });
             });
@@ -829,9 +851,8 @@ fn upgrade_completion_modal(
     let consume = match action {
         Some(CompletionAction::Skip) => Some(false),
         Some(CompletionAction::Consume) => Some(true),
-        // Explicit Cancel, or title-bar X / Esc (`open` flipped to false) —
-        // both leave the upgrade not-done and just dismiss the modal.
-        Some(CompletionAction::Cancel) => None,
+        // Title-bar X / Esc flipped `open` to false — dismiss the modal and
+        // leave the upgrade not-done.
         None if !open => None,
         None => return, // Still open, no choice yet.
     };
