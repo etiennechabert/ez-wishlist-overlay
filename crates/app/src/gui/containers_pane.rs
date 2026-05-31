@@ -156,7 +156,16 @@ pub fn ui(
     );
     ui.add_space(8.0);
 
-    new_container_row(ui, state, save_tx);
+    // Prominent call-to-action; the actual create flow lives in a modal.
+    if ui
+        .add(egui::Button::new(
+            egui::RichText::new("➕  New container").strong(),
+        ))
+        .on_hover_text("Create a backpack or box: name it and pick an icon")
+        .clicked()
+    {
+        open_new_container_modal(ui.ctx());
+    }
     ui.separator();
 
     // Snapshot the stash row + every container row in one read lock.
@@ -214,33 +223,146 @@ pub fn ui(
 
     // The add-item picker (one target at a time, keyed in egui memory).
     item_picker_modal(ui.ctx(), state, icons, save_tx);
+
+    // The "New container" modal (name + icon grid), when open.
+    new_container_modal(ui.ctx(), state, icons, save_tx);
 }
 
-/// "New container: [name] [Add]". Add is disabled until a non-blank name is
-/// typed; Enter in the field submits too. The in-progress name lives in egui
-/// memory so it survives re-paints.
-fn new_container_row(ui: &mut egui::Ui, state: &Arc<RwLock<AppState>>, save_tx: &Sender<SaveTick>) {
-    let key = egui::Id::new("ctr-new-name");
-    let mut name = ui.data(|d| d.get_temp::<String>(key)).unwrap_or_default();
-    ui.horizontal(|ui| {
-        ui.label("New container:");
-        let resp = ui.add(
-            egui::TextEdit::singleline(&mut name)
-                .hint_text("e.g. Backpack, Item case")
-                .desired_width(220.0),
+// --- "New container" modal -------------------------------------------------
+
+const NEW_NAME_KEY: &str = "ctr-new-name";
+const NEW_ICON_KEY: &str = "ctr-new-icon";
+const NEW_OPEN_KEY: &str = "ctr-new-open";
+const NEW_FOCUS_KEY: &str = "ctr-new-focus";
+
+/// Open the modal: mark it open, reset the in-progress name/icon, and request
+/// focus on the name field for the first frame.
+fn open_new_container_modal(ctx: &egui::Context) {
+    ctx.data_mut(|d| {
+        d.insert_temp(egui::Id::new(NEW_OPEN_KEY), true);
+        d.insert_temp(egui::Id::new(NEW_NAME_KEY), String::new());
+        d.insert_temp(
+            egui::Id::new(NEW_ICON_KEY),
+            DEFAULT_CONTAINER_ICON.to_string(),
         );
-        if resp.changed() {
-            ui.data_mut(|d| d.insert_temp(key, name.clone()));
-        }
-        let has_name = !name.trim().is_empty();
-        let submit_key = resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
-        let add = ui.add_enabled(has_name, egui::Button::new("Add")).clicked();
-        if has_name && (add || submit_key) {
-            state.write().create_container(name.trim().to_string());
-            notify(state, save_tx);
-            ui.data_mut(|d| d.remove::<String>(key));
-        }
+        d.insert_temp(egui::Id::new(NEW_FOCUS_KEY), true);
     });
+}
+
+fn close_new_container_modal(ctx: &egui::Context) {
+    ctx.data_mut(|d| {
+        d.insert_temp(egui::Id::new(NEW_OPEN_KEY), false);
+        d.remove::<String>(egui::Id::new(NEW_NAME_KEY));
+        d.remove::<String>(egui::Id::new(NEW_ICON_KEY));
+    });
+}
+
+/// Centered modal to create a container: a name field plus a grid of large
+/// icon tiles, with Create / Cancel. Create is disabled until a non-blank name
+/// is typed (Enter in the field also submits). Reuses [`icon_choice`] at a
+/// bigger tile size than the inline per-container picker.
+fn new_container_modal(
+    ctx: &egui::Context,
+    state: &Arc<RwLock<AppState>>,
+    icons: &mut IconCache,
+    save_tx: &Sender<SaveTick>,
+) {
+    let is_open = ctx.data(|d| {
+        d.get_temp::<bool>(egui::Id::new(NEW_OPEN_KEY))
+            .unwrap_or(false)
+    });
+    if !is_open {
+        return;
+    }
+
+    let mut name = ctx
+        .data(|d| d.get_temp::<String>(egui::Id::new(NEW_NAME_KEY)))
+        .unwrap_or_default();
+    let mut chosen_icon = ctx
+        .data(|d| d.get_temp::<String>(egui::Id::new(NEW_ICON_KEY)))
+        .unwrap_or_else(|| DEFAULT_CONTAINER_ICON.to_string());
+    let want_focus = ctx
+        .data(|d| d.get_temp::<bool>(egui::Id::new(NEW_FOCUS_KEY)))
+        .unwrap_or(false);
+
+    let mut open = true; // window-chrome close button → cancel
+    let mut do_create = false;
+    let mut do_cancel = false;
+
+    egui::Window::new("New container")
+        .open(&mut open)
+        .collapsible(false)
+        .resizable(false)
+        .default_width(420.0)
+        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+        .show(ctx, |ui| {
+            ui.add_space(2.0);
+            ui.horizontal(|ui| {
+                ui.label("Name:");
+                let resp = ui.add(
+                    egui::TextEdit::singleline(&mut name)
+                        .hint_text("e.g. Backpack, Item case")
+                        .desired_width(280.0),
+                );
+                if want_focus {
+                    resp.request_focus();
+                    ui.ctx()
+                        .data_mut(|d| d.remove::<bool>(egui::Id::new(NEW_FOCUS_KEY)));
+                }
+                if resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                    do_create = true;
+                }
+            });
+
+            ui.add_space(10.0);
+            ui.label("Icon:");
+            ui.add_space(4.0);
+            ui.horizontal_wrapped(|ui| {
+                for &key in CONTAINER_ICONS {
+                    if icon_choice(ui, icons, key, key == chosen_icon, 64.0) {
+                        chosen_icon = key.to_string();
+                    }
+                }
+            });
+
+            ui.add_space(12.0);
+            ui.separator();
+            ui.add_space(4.0);
+            let has_name = !name.trim().is_empty();
+            ui.horizontal(|ui| {
+                if ui
+                    .add_enabled(has_name, egui::Button::new("Create"))
+                    .clicked()
+                {
+                    do_create = true;
+                }
+                if ui.button("Cancel").clicked() {
+                    do_cancel = true;
+                }
+                if !has_name {
+                    ui.label(
+                        egui::RichText::new("Enter a name to create")
+                            .small()
+                            .color(ui.visuals().weak_text_color()),
+                    );
+                }
+            });
+        });
+
+    // Persist the in-progress edits for the next frame.
+    ctx.data_mut(|d| {
+        d.insert_temp(egui::Id::new(NEW_NAME_KEY), name.clone());
+        d.insert_temp(egui::Id::new(NEW_ICON_KEY), chosen_icon.clone());
+    });
+
+    if do_create && !name.trim().is_empty() {
+        let id = state.write().create_container(name.trim().to_string());
+        state.write().set_container_icon(&id, Some(chosen_icon));
+        notify(state, save_tx);
+        close_new_container_modal(ctx);
+    } else if do_cancel || !open {
+        close_new_container_modal(ctx);
+    }
 }
 
 // --- KPI table -------------------------------------------------------------
@@ -455,7 +577,7 @@ fn icon_picker(
         .show(ui, |ui| {
             ui.horizontal_wrapped(|ui| {
                 for &key in CONTAINER_ICONS {
-                    if icon_choice(ui, icons, key, key == current) {
+                    if icon_choice(ui, icons, key, key == current, 56.0) {
                         state.write().set_container_icon(id, Some(key.to_string()));
                         notify(state, save_tx);
                     }
@@ -464,18 +586,27 @@ fn icon_picker(
         });
 }
 
-/// One selectable icon tile. Returns true if it was clicked this frame.
-fn icon_choice(ui: &mut egui::Ui, icons: &mut IconCache, key: &str, selected: bool) -> bool {
-    let (rect, resp) = ui.allocate_exact_size(egui::vec2(44.0, 44.0), egui::Sense::click());
+/// One selectable square icon tile of the given size. Returns true if it was
+/// clicked this frame. Padding scales with the tile so the icon fills it the
+/// same way at any size.
+fn icon_choice(
+    ui: &mut egui::Ui,
+    icons: &mut IconCache,
+    key: &str,
+    selected: bool,
+    size: f32,
+) -> bool {
+    let (rect, resp) = ui.allocate_exact_size(egui::vec2(size, size), egui::Sense::click());
+    let rounding = size * 0.11;
     if selected {
         ui.painter()
-            .rect_filled(rect, 5.0, ui.visuals().selection.bg_fill);
+            .rect_filled(rect, rounding, ui.visuals().selection.bg_fill);
     } else if resp.hovered() {
         ui.painter()
-            .rect_filled(rect, 5.0, theme::row_hover(ui.visuals().dark_mode));
+            .rect_filled(rect, rounding, theme::row_hover(ui.visuals().dark_mode));
     }
     if let Some(tex) = icons.get(ui.ctx(), &icon_asset_path(key)) {
-        egui::Image::new(tex).paint_at(ui, rect.shrink(5.0));
+        egui::Image::new(tex).paint_at(ui, rect.shrink(size * 0.12));
     }
     resp.on_hover_text(key).clicked()
 }
