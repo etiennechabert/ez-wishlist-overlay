@@ -71,6 +71,19 @@ pub struct App {
     /// the "Export corrections" gate must stay firm for the whole session,
     /// not lift the moment an unrelated banner is dismissed.
     update_available: Option<String>,
+    /// In-app MSI update lifecycle (download → verify → launch installer).
+    /// `Idle` until the user clicks "Update now"; the download worker streams
+    /// progress over [`Self::apply_rx`]. Separate from `check_status`, which
+    /// only ever reflects the *check*, not the *apply*.
+    update_apply: crate::updater::UpdateApplyStatus,
+    /// Channel from the download worker — `Some` once "Update now" is clicked,
+    /// cleared on the first terminal state. Drained each frame by
+    /// `poll_update_apply`.
+    apply_rx: Option<Receiver<crate::updater::UpdateApplyStatus>>,
+    /// Whether this build was installed via the MSI (so it can self-apply
+    /// updates) or is a portable exe (browser-link only). Computed once at
+    /// startup; see [`crate::platform::install_kind`].
+    install_kind: crate::platform::InstallKind,
     /// Markdown body of the "Export corrections" modal — `Some` while the
     /// dialog is open. Editable so the user can prepend their own context
     /// before copying to the GitHub issue body.
@@ -164,6 +177,9 @@ impl App {
             update_rx,
             check_status,
             update_available: None,
+            update_apply: crate::updater::UpdateApplyStatus::Idle,
+            apply_rx: None,
+            install_kind: crate::platform::install_kind(),
             export_body: None,
             export_title: None,
             export_url: None,
@@ -286,6 +302,7 @@ impl eframe::App for App {
         egui::TopBottomPanel::top("header").show(ctx, |ui| self.header(ui));
 
         self.poll_update_check();
+        self.poll_update_apply(ctx);
         self.update_banner(ctx);
 
         if let Some(msg) = &self.status_banner.clone() {
@@ -607,23 +624,112 @@ impl App {
         }
     }
 
+    /// Drain the in-app update download channel. Mirrors `poll_update_check`:
+    /// the worker sends progress then exactly one terminal state. On
+    /// `ReadyToInstall` we hand the staged `.msi` to `msiexec` and close the
+    /// app so the installer can swap the binary (it relaunches us from its
+    /// Finish dialog). On failure we keep the banner up — it shows the error
+    /// and the browser-download fallback.
+    fn poll_update_apply(&mut self, ctx: &egui::Context) {
+        let Some(rx) = &self.apply_rx else { return };
+        // Drain to the most recent message, noting a disconnect. The worker
+        // sends progress then one terminal state. Any mutation of
+        // `self.apply_rx` is deferred until *after* this loop so it doesn't
+        // clash with the borrow `rx` holds.
+        let mut latest = None;
+        let mut disconnected = false;
+        loop {
+            match rx.try_recv() {
+                Ok(s) => latest = Some(s),
+                Err(crossbeam_channel::TryRecvError::Empty) => break,
+                Err(crossbeam_channel::TryRecvError::Disconnected) => {
+                    disconnected = true;
+                    break;
+                }
+            }
+        }
+
+        if let Some(status) = latest {
+            match status {
+                crate::updater::UpdateApplyStatus::ReadyToInstall { path } => {
+                    match crate::platform::run_msi_installer(&path) {
+                        Ok(()) => {
+                            // Installer launched; close so it can replace our
+                            // binary. Its Finish dialog offers to relaunch.
+                            self.update_apply = crate::updater::UpdateApplyStatus::Launching;
+                            self.apply_rx = None;
+                            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                        }
+                        Err(e) => {
+                            self.update_apply = crate::updater::UpdateApplyStatus::Failed {
+                                reason: format!("could not launch installer: {e}"),
+                            };
+                            self.apply_rx = None;
+                        }
+                    }
+                }
+                terminal @ crate::updater::UpdateApplyStatus::Failed { .. } => {
+                    self.update_apply = terminal;
+                    self.apply_rx = None;
+                }
+                progress => self.update_apply = progress,
+            }
+        }
+
+        // Channel closed without delivering a terminal message (worker panicked
+        // mid-flight) — fail safe rather than spin on a dead receiver.
+        if disconnected && self.apply_rx.is_some() {
+            if matches!(
+                self.update_apply,
+                crate::updater::UpdateApplyStatus::Downloading { .. }
+                    | crate::updater::UpdateApplyStatus::Verifying
+            ) {
+                self.update_apply = crate::updater::UpdateApplyStatus::Failed {
+                    reason: "download thread stopped unexpectedly".into(),
+                };
+            }
+            self.apply_rx = None;
+        }
+
+        // Keep repainting while a download is live so the progress bar moves —
+        // egui otherwise sleeps until the next input event.
+        if matches!(
+            self.update_apply,
+            crate::updater::UpdateApplyStatus::Downloading { .. }
+                | crate::updater::UpdateApplyStatus::Verifying
+        ) {
+            ctx.request_repaint();
+        }
+    }
+
     fn update_banner(&mut self, ctx: &egui::Context) {
         let CheckStatus::UpdateAvailable(info) = self.check_status.clone() else {
             return;
         };
 
+        use crate::updater::UpdateApplyStatus as Apply;
+
         // If the user already dismissed this exact version, stay quiet — but
         // a newer release that comes out later will have a different
-        // `latest_version` string and will re-show the banner.
+        // `latest_version` string and will re-show the banner. A download in
+        // flight (apply != Idle) overrides the dismissal so its progress is
+        // never hidden.
         let dismissed = self.settings.read().dismissed_update_version.as_deref()
             == Some(info.latest_version.as_str());
-        if dismissed {
+        let idle = matches!(self.update_apply, Apply::Idle);
+        if dismissed && idle {
             return;
         }
 
         let current = env!("CARGO_PKG_VERSION");
+        let apply = self.update_apply.clone();
+        // Offer in-app install only to MSI builds whose release actually ships
+        // an .msi; everyone else gets the browser link (the graceful fallback).
+        let can_self_update =
+            self.install_kind == crate::platform::InstallKind::Msi && info.msi.is_some();
         let mut clear = false;
         let mut dismiss = false;
+        let mut start_download: Option<crate::updater::ReleaseAsset> = None;
         egui::TopBottomPanel::top("update_banner")
             .frame(
                 egui::Frame::default()
@@ -640,27 +746,88 @@ impl App {
                         .color(egui::Color32::WHITE)
                         .strong(),
                     );
-                    if ui.button("Download ↗").clicked() {
-                        let _ = crate::platform::open(&info.release_url);
-                    }
-                    if ui.small_button("Dismiss").clicked() {
-                        dismiss = true;
-                        clear = true;
-                    }
-                    if ui.small_button("Later").clicked() {
-                        clear = true;
+                    match &apply {
+                        Apply::Idle => {
+                            // MSI builds: one-click download + install. Portable
+                            // builds skip straight to the manual link below.
+                            if can_self_update {
+                                if let Some(msi) = &info.msi {
+                                    if ui.button("Update now").clicked() {
+                                        start_download = Some(msi.clone());
+                                    }
+                                }
+                            }
+                            if ui.button("Download ↗").clicked() {
+                                let _ = crate::platform::open(&info.release_url);
+                            }
+                            if ui.small_button("Dismiss").clicked() {
+                                dismiss = true;
+                                clear = true;
+                            }
+                            if ui.small_button("Later").clicked() {
+                                clear = true;
+                            }
+                        }
+                        Apply::Downloading { received, total } => {
+                            let frac = if *total > 0 {
+                                (*received as f32 / *total as f32).clamp(0.0, 1.0)
+                            } else {
+                                0.0
+                            };
+                            let pct = (frac * 100.0).round() as u32;
+                            ui.add(
+                                egui::ProgressBar::new(frac)
+                                    .desired_width(180.0)
+                                    .text(format!("Downloading update… {pct}%")),
+                            );
+                        }
+                        Apply::Verifying | Apply::ReadyToInstall { .. } | Apply::Launching => {
+                            ui.add(egui::Spinner::new().size(14.0));
+                            ui.label(
+                                egui::RichText::new("Starting installer…")
+                                    .color(egui::Color32::WHITE),
+                            );
+                        }
+                        Apply::Failed { reason } => {
+                            // Degrade gracefully: show the error and fall back
+                            // to the browser link the user can always use.
+                            ui.label(
+                                egui::RichText::new(format!("Update failed: {reason}"))
+                                    .color(egui::Color32::from_rgb(255, 210, 140))
+                                    .strong(),
+                            );
+                            if ui.button("Download ↗").clicked() {
+                                let _ = crate::platform::open(&info.release_url);
+                            }
+                            if ui.small_button("Dismiss").clicked() {
+                                dismiss = true;
+                                clear = true;
+                            }
+                            if ui.small_button("Later").clicked() {
+                                clear = true;
+                            }
+                        }
                     }
                 });
             });
 
+        if let Some(msi) = start_download {
+            self.update_apply = Apply::Downloading {
+                received: 0,
+                total: msi.size,
+            };
+            self.apply_rx = Some(crate::updater::spawn_msi_download(msi));
+        }
         if dismiss {
             self.settings.write().dismissed_update_version = Some(info.latest_version.clone());
             self.persist_settings();
         }
         if clear {
             // User dismissed/snoozed the banner — collapse to an "up to date"-
-            // style status so the header indicator doesn't keep advertising
-            // an upgrade until the next app start.
+            // style status so the header indicator doesn't keep advertising an
+            // upgrade until the next app start, and reset the apply state so a
+            // later re-show starts clean.
+            self.update_apply = Apply::Idle;
             self.check_status = CheckStatus::UpToDate {
                 latest_version: info.latest_version.clone(),
             };
