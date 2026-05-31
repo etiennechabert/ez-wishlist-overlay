@@ -132,6 +132,10 @@ fn row_controls(
         state.write().adjust_collected(&item.item_id, -1);
         notify(state, save_tx);
     }
+    // Shows the combined owned total but edits the stash: apply the change as
+    // a delta so dragging the number nudges the loose/stash count, never the
+    // container contents (managed on the Containers tab). `adjust_collected`
+    // clamps at 0, so it can't pull the total below what containers hold.
     let mut value = item.collected;
     if ui
         .add_sized(
@@ -140,29 +144,41 @@ fn row_controls(
         )
         .changed()
     {
-        state.write().set_collected(&item.item_id, value);
+        let delta = value as i64 - item.collected as i64;
+        state.write().adjust_collected(&item.item_id, delta);
         notify(state, save_tx);
     }
     if ui.add(round_button("+", 36.0)).clicked() {
         state.write().adjust_collected(&item.item_id, 1);
         notify(state, save_tx);
     }
-    // One button that flips between "Done" (jump to the target so the row
-    // reads as ready) and "Reset" (drop back to 0). Saves a button slot —
-    // once you've hit the target the only meaningful next action is reset.
+    // One button that flips between "Done" (top up to the target so the row
+    // reads as ready) and "Reset" (drop the stash back to 0). Both act on the
+    // stash; items declared in a secondary container stay put (manage those on
+    // the Containers tab), so after "Reset" the bar only falls as far as the
+    // container holdings.
     let done = item.needed > 0 && item.collected >= item.needed;
     let (label, tooltip) = if done {
-        ("Reset", "Reset progress to 0")
+        (
+            "Reset",
+            "Clear the stash count for this item (containers untouched)",
+        )
     } else {
-        ("Done", "Mark fully collected (sets to target)")
+        ("Done", "Top up the stash so the total meets the target")
     };
     if ui
         .add(round_button(label, 64.0))
         .on_hover_text(tooltip)
         .clicked()
     {
-        let new_value = if done { 0 } else { item.needed };
-        state.write().set_collected(&item.item_id, new_value);
+        if done {
+            state.write().set_collected(&item.item_id, 0);
+        } else {
+            let shortfall = item.needed.saturating_sub(item.collected);
+            state
+                .write()
+                .adjust_collected(&item.item_id, shortfall as i64);
+        }
         notify(state, save_tx);
     }
 }

@@ -85,12 +85,12 @@ fn build_hideout_rows(modules: &[HideoutModule]) -> Vec<HideoutRow<'_>> {
     }
     rows
 }
-const PICKER_TILE_W: f32 = 110.0;
+pub(crate) const PICKER_TILE_W: f32 = 110.0;
 const PICKER_TILE_H: f32 = 92.0;
 const PICKER_TILE_ICON: f32 = 40.0;
-const PICKER_TILE_SPACING: f32 = 6.0;
-const PICKER_WINDOW_W: f32 = 760.0;
-const PICKER_WINDOW_H: f32 = 560.0;
+pub(crate) const PICKER_TILE_SPACING: f32 = 6.0;
+pub(crate) const PICKER_WINDOW_W: f32 = 760.0;
+pub(crate) const PICKER_WINDOW_H: f32 = 560.0;
 
 /// Return value of [`ui`]: signals the caller whether a settings field changed
 /// this frame so it can persist `settings.json`. The pane otherwise only ever
@@ -1180,7 +1180,7 @@ fn slot_editor(
                 // Quantity row: [-] big number [+], spread across the slot's
                 // full width so the count is the dominant element.
                 if let Some(req) = slot.as_mut() {
-                    let collected = *state.read().collected.get(&req.item_id).unwrap_or(&0);
+                    let collected = state.read().owned_total(&req.item_id);
                     ui.horizontal(|ui| {
                         let dec_enabled = req.quantity > 1;
                         if ui
@@ -1197,10 +1197,11 @@ fn slot_editor(
 
                         // Center the stock/required pair in whatever's left
                         // after the two 28px buttons + spacing. Stock is the
-                        // user's global collected count for this item; it'll
-                        // exceed `req.quantity` if other tracked upgrades also
-                        // need it and the user has gathered enough for them
-                        // too, which is fine — the display caps at the target.
+                        // user's total owned count for this item (stash + every
+                        // secondary container); it'll exceed `req.quantity` if
+                        // other tracked upgrades also need it and the user has
+                        // gathered enough for them too, which is fine — the
+                        // display caps at the target.
                         let center_w = (ui.available_width() - 32.0).max(0.0);
                         let satisfied = collected >= req.quantity;
                         let stock_color = if satisfied {
@@ -1396,7 +1397,12 @@ fn item_picker_modal(
 
 /// One clickable tile in the picker grid. Frame + icon + name; click sense on
 /// the whole frame so the user doesn't have to aim at the label specifically.
-fn picker_tile(ui: &mut egui::Ui, icons: &mut IconCache, item: &ItemListEntry) -> egui::Response {
+/// Shared with the Containers pane's add-item picker.
+pub(crate) fn picker_tile(
+    ui: &mut egui::Ui,
+    icons: &mut IconCache,
+    item: &ItemListEntry,
+) -> egui::Response {
     let dark = ui.visuals().dark_mode;
     let inner = egui::Frame::group(ui.style())
         .inner_margin(egui::Margin::same(4.0))
@@ -1434,13 +1440,18 @@ fn picker_tile(ui: &mut egui::Ui, icons: &mut IconCache, item: &ItemListEntry) -
 }
 
 #[derive(Clone)]
-struct ItemListEntry {
-    id: ItemId,
-    name: String,
-    icon_path: String,
+pub(crate) struct ItemListEntry {
+    pub(crate) id: ItemId,
+    pub(crate) name: String,
+    pub(crate) icon_path: String,
 }
 
-fn collect_filtered_items(state: &Arc<RwLock<AppState>>, filter: &str) -> Vec<ItemListEntry> {
+/// All catalog items whose name contains `filter` (case-insensitive),
+/// alphabetised. Shared with the Containers pane's add-item picker.
+pub(crate) fn collect_filtered_items(
+    state: &Arc<RwLock<AppState>>,
+    filter: &str,
+) -> Vec<ItemListEntry> {
     let needle = filter.trim().to_lowercase();
     let mut out: Vec<ItemListEntry> = state
         .read()

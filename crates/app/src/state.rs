@@ -15,12 +15,41 @@ use std::sync::Arc;
 pub const STATE_SCHEMA_VERSION: u32 = 1;
 pub const OVERRIDES_SCHEMA_VERSION: u32 = 1;
 
+pub type ContainerId = String;
+
+/// A user-defined secondary container — a backpack, item case, etc. Its
+/// contents count toward owned totals for upgrade readiness, progress,
+/// surplus, and the owned-items list exactly like the stash, but it's named
+/// and managed separately on the Containers tab. The stash itself stays
+/// modeled as [`AppState::collected`] — the implicit "primary container" — so
+/// the quick +/- and VR-click edits keep targeting it.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Container {
+    pub id: ContainerId,
+    pub name: String,
+    #[serde(default)]
+    pub contents: HashMap<ItemId, u32>,
+    /// Chosen container-icon key — a file stem under `assets/container_icons/`
+    /// (e.g. `"backpack_rucksack"`). `None` → the UI shows a default bag icon.
+    /// Pure presentation; the data layer never interprets it.
+    #[serde(default)]
+    pub icon: Option<String>,
+}
+
 pub struct AppState {
     pub data: Arc<GameData>,
     pub index: Arc<DataIndex>,
     pub tracked_upgrades: HashSet<UpgradeId>,
     pub completed_upgrades: HashSet<UpgradeId>,
     pub collected: HashMap<ItemId, u32>,
+    /// User-defined secondary containers (backpacks, item cases). Their
+    /// contents sum with `collected` via [`AppState::owned_total`] for every
+    /// "how many do I own?" computation. `collected` stays the implicit
+    /// primary container and the target of the quick +/- / VR-click edits.
+    pub containers: Vec<Container>,
+    /// Monotonic id source for `containers`; persisted so a deleted
+    /// container's id is never reused while anything still references it.
+    pub next_container_seq: u64,
     /// Modules the user has marked as unavailable (e.g. quest-locked). Their
     /// tracked upgrades stay tracked but don't contribute to `active_items`,
     /// so the wishlist hides items the user can't act on yet.
@@ -61,6 +90,8 @@ impl AppState {
             tracked_upgrades: HashSet::new(),
             completed_upgrades: HashSet::new(),
             collected: HashMap::new(),
+            containers: Vec::new(),
+            next_container_seq: 0,
             disabled_modules: HashSet::new(),
             overrides: HashMap::new(),
             version: 0,
@@ -300,7 +331,7 @@ impl AppState {
             return false;
         }
         reqs.iter()
-            .all(|r| *self.collected.get(&r.item_id).unwrap_or(&0) >= r.quantity)
+            .all(|r| self.owned_total(&r.item_id) >= r.quantity)
     }
 
     /// True iff every item in this upgrade's *effective* recipe is currently
@@ -353,7 +384,7 @@ impl AppState {
         let mut collected = 0;
         let mut needed = 0;
         for req in self.effective_requirements(upgrade_id) {
-            let have = *self.collected.get(&req.item_id).unwrap_or(&0);
+            let have = self.owned_total(&req.item_id);
             collected += have.min(req.quantity);
             needed += req.quantity;
         }
@@ -483,10 +514,107 @@ impl AppState {
         }
     }
 
+    // --- Secondary containers ----------------------------------------------
+
+    /// Total owned quantity of `item_id` across the stash (`collected`) AND
+    /// every secondary container. This is the figure that drives upgrade
+    /// readiness, progress, surplus, and the owned-items list — "do I have
+    /// enough?" always counts the whole inventory. The quick +/- controls and
+    /// VR-click cycling deliberately still target only the stash
+    /// (`set_collected` / `adjust_collected` / `cycle_collected`); secondary
+    /// containers are edited from the Containers tab.
+    pub fn owned_total(&self, item_id: &ItemId) -> u32 {
+        let mut total = self.collected.get(item_id).copied().unwrap_or(0);
+        for c in &self.containers {
+            total = total.saturating_add(c.contents.get(item_id).copied().unwrap_or(0));
+        }
+        total
+    }
+
+    /// Mint a fresh, collision-proof container id. The counter is persisted,
+    /// so ids are never reused even after a container is deleted.
+    fn mint_container_id(&mut self) -> ContainerId {
+        self.next_container_seq += 1;
+        format!("ctr-{}", self.next_container_seq)
+    }
+
+    /// Create a new secondary container, returning its freshly minted id.
+    pub fn create_container(&mut self, name: String) -> ContainerId {
+        let id = self.mint_container_id();
+        self.containers.push(Container {
+            id: id.clone(),
+            name,
+            contents: HashMap::new(),
+            icon: None,
+        });
+        self.bump();
+        id
+    }
+
+    /// Set (or clear, with `None`) a container's chosen icon key. No-op if the
+    /// id is unknown or the icon is unchanged.
+    pub fn set_container_icon(&mut self, id: &ContainerId, icon: Option<String>) {
+        if let Some(c) = self.containers.iter_mut().find(|c| &c.id == id) {
+            if c.icon != icon {
+                c.icon = icon;
+                self.bump();
+            }
+        }
+    }
+
+    /// Rename a container. No-op if the id is unknown or the name is unchanged.
+    pub fn rename_container(&mut self, id: &ContainerId, name: String) {
+        if let Some(c) = self.containers.iter_mut().find(|c| &c.id == id) {
+            if c.name != name {
+                c.name = name;
+                self.bump();
+            }
+        }
+    }
+
+    /// Delete a container and everything it held. No-op if the id is unknown.
+    pub fn delete_container(&mut self, id: &ContainerId) {
+        let before = self.containers.len();
+        self.containers.retain(|c| &c.id != id);
+        if self.containers.len() != before {
+            self.bump();
+        }
+    }
+
+    /// Set the quantity of `item` inside container `id`. Zero removes the
+    /// entry (mirrors `set_collected`). No-op if the container id is unknown.
+    pub fn set_container_item(&mut self, id: &ContainerId, item: &ItemId, value: u32) {
+        if let Some(c) = self.containers.iter_mut().find(|c| &c.id == id) {
+            if value == 0 {
+                c.contents.remove(item);
+            } else {
+                c.contents.insert(item.clone(), value);
+            }
+            self.bump();
+        }
+    }
+
+    /// Adjust the quantity of `item` inside container `id` by `delta`, clamped
+    /// at 0. Mirrors `adjust_collected` but scoped to one container.
+    pub fn adjust_container_item(&mut self, id: &ContainerId, item: &ItemId, delta: i64) {
+        let cur = self
+            .containers
+            .iter()
+            .find(|c| &c.id == id)
+            .and_then(|c| c.contents.get(item).copied())
+            .unwrap_or(0) as i64;
+        let next = (cur + delta).max(0) as u32;
+        self.set_container_item(id, item, next);
+    }
+
     pub fn reset_all(&mut self) {
         self.tracked_upgrades.clear();
         self.completed_upgrades.clear();
         self.collected.clear();
+        // Clear secondary containers too — "Reset progress" wipes the whole
+        // inventory. `next_container_seq` stays monotonic (not reset) so a
+        // recreated container can never reuse a just-cleared id.
+        self.containers.clear();
         self.disabled_modules.clear();
         self.bump();
     }
@@ -524,7 +652,7 @@ impl AppState {
             .into_iter()
             .filter_map(|(item_id, (needed, sources))| {
                 let item = self.index.items_by_id.get(&item_id)?;
-                let collected = *self.collected.get(&item_id).unwrap_or(&0);
+                let collected = self.owned_total(&item_id);
                 Some(ActiveItem {
                     item_id,
                     name: item.name.clone(),
@@ -704,6 +832,13 @@ pub struct PersistedState {
     pub collected: HashMap<ItemId, u32>,
     #[serde(default)]
     pub disabled_modules: HashSet<ModuleId>,
+    /// Secondary containers. `#[serde(default)]` means a `state.json` written
+    /// before this feature (no `containers` key) loads as an empty list, so
+    /// existing users see no behavior change.
+    #[serde(default)]
+    pub containers: Vec<Container>,
+    #[serde(default)]
+    pub next_container_seq: u64,
 }
 
 impl PersistedState {
@@ -715,6 +850,8 @@ impl PersistedState {
             completed_upgrades: state.completed_upgrades.clone(),
             collected: state.collected.clone(),
             disabled_modules: state.disabled_modules.clone(),
+            containers: state.containers.clone(),
+            next_container_seq: state.next_container_seq,
         }
     }
 
@@ -758,6 +895,13 @@ impl PersistedState {
         // Keep collected counts as-is — items rarely get renamed and we don't
         // want a wipe to nuke the user's effort.
         state.collected = self.collected;
+        // Secondary containers carry over verbatim, same "never nuke the
+        // user's effort" stance as `collected`. An item id that vanished from
+        // the dataset simply sums into no recipe; it does no harm sitting in a
+        // container. The id counter comes along so future mints can't collide
+        // with a surviving container.
+        state.containers = self.containers;
+        state.next_container_seq = self.next_container_seq;
         state.bump();
 
         if warnings.is_empty() {
@@ -1422,6 +1566,8 @@ mod tests {
             completed_upgrades: HashSet::new(),
             collected: HashMap::from([("bolts".to_string(), 7)]),
             disabled_modules: HashSet::new(),
+            containers: Vec::new(),
+            next_container_seq: 0,
         };
         let warn = persisted.merge_into(&mut s).expect("should warn");
         assert!(warn.contains("Game data updated"));
@@ -1652,5 +1798,171 @@ mod tests {
         // Even an explicitly tracked upgrade in a disabled module drops out.
         s.set_tracked_upgrade(&"workbench_lv1".to_string(), true);
         assert!(s.needed_by_id(NeedHorizon::TrackedOnly).is_empty());
+    }
+
+    #[test]
+    fn owned_total_sums_stash_and_containers() {
+        let mut s = AppState::new(fixture());
+        s.set_collected(&"bolts".to_string(), 3);
+        let c = s.create_container("Backpack".into());
+        s.set_container_item(&c, &"bolts".to_string(), 4);
+        assert_eq!(s.owned_total(&"bolts".to_string()), 7);
+        // An item only in the stash is unaffected by container summing.
+        s.set_collected(&"screws".to_string(), 2);
+        assert_eq!(s.owned_total(&"screws".to_string()), 2);
+        // Unknown item → 0, never panics.
+        assert_eq!(s.owned_total(&"ghost".to_string()), 0);
+    }
+
+    #[test]
+    fn upgrade_ready_counts_container_stock() {
+        // workbench_lv2 needs bolts × 7. Split 4 in the stash + 3 in a
+        // container — neither alone is enough, but together they satisfy it.
+        let mut s = AppState::new(fixture());
+        s.set_tracked_upgrade(&"workbench_lv2".to_string(), true);
+        s.set_collected(&"bolts".to_string(), 4);
+        assert!(!s.is_upgrade_ready(&"workbench_lv2".to_string()));
+        let c = s.create_container("Backpack".into());
+        s.set_container_item(&c, &"bolts".to_string(), 3);
+        assert!(
+            s.is_upgrade_ready(&"workbench_lv2".to_string()),
+            "stash + container together should satisfy the recipe"
+        );
+        // Deleting the container drops readiness back.
+        s.delete_container(&c);
+        assert!(!s.is_upgrade_ready(&"workbench_lv2".to_string()));
+    }
+
+    #[test]
+    fn upgrade_progress_includes_containers() {
+        // workbench_lv1 needs bolts×5 + screws×3 = 8, all stocked in one
+        // container — progress must read 8/8 from container contents alone.
+        let mut s = AppState::new(fixture());
+        let c = s.create_container("Item case".into());
+        s.set_container_item(&c, &"bolts".to_string(), 5);
+        s.set_container_item(&c, &"screws".to_string(), 3);
+        let p = s.upgrade_progress(&"workbench_lv1".to_string());
+        assert_eq!((p.collected, p.needed), (8, 8));
+        assert_eq!(p.fraction(), 1.0);
+    }
+
+    #[test]
+    fn active_items_collected_includes_containers() {
+        // The aggregated wishlist (and thus the VR overlay + preview pane,
+        // which read ActiveItem.collected) must reflect the combined total.
+        let mut s = AppState::new(fixture());
+        s.set_tracked_upgrade(&"workbench_lv2".to_string(), true);
+        s.set_collected(&"bolts".to_string(), 2);
+        let c = s.create_container("Backpack".into());
+        s.set_container_item(&c, &"bolts".to_string(), 3);
+        let active = s.active_items();
+        let bolts = active.iter().find(|a| a.item_id == "bolts").unwrap();
+        assert_eq!(bolts.collected, 5, "combined stash + container total");
+        assert_eq!(bolts.needed, 7);
+    }
+
+    #[test]
+    fn adjust_container_item_clamps_at_zero_and_removes() {
+        let mut s = AppState::new(fixture());
+        let c = s.create_container("Backpack".into());
+        s.adjust_container_item(&c, &"bolts".to_string(), 3);
+        assert_eq!(s.owned_total(&"bolts".to_string()), 3);
+        s.adjust_container_item(&c, &"bolts".to_string(), -10);
+        assert_eq!(s.owned_total(&"bolts".to_string()), 0);
+        // Zero removes the entry entirely (mirrors set_collected).
+        assert!(!s.containers[0].contents.contains_key("bolts"));
+    }
+
+    #[test]
+    fn rename_and_delete_container() {
+        let mut s = AppState::new(fixture());
+        let c = s.create_container("Bagpack".into());
+        s.rename_container(&c, "Backpack".into());
+        assert_eq!(s.containers[0].name, "Backpack");
+        s.set_container_item(&c, &"bolts".to_string(), 5);
+        assert_eq!(s.owned_total(&"bolts".to_string()), 5);
+        s.delete_container(&c);
+        assert!(s.containers.is_empty());
+        assert_eq!(s.owned_total(&"bolts".to_string()), 0);
+    }
+
+    #[test]
+    fn container_icon_set_and_persists() {
+        let mut s = AppState::new(fixture());
+        let c = s.create_container("Backpack".into());
+        assert_eq!(s.containers[0].icon, None, "new containers start icon-less");
+        s.set_container_icon(&c, Some("backpack_rucksack".into()));
+        assert_eq!(s.containers[0].icon.as_deref(), Some("backpack_rucksack"));
+
+        let json = serde_json::to_string(&PersistedState::from_app(&s)).unwrap();
+        let back: PersistedState = serde_json::from_str(&json).unwrap();
+        let mut s2 = AppState::new(s.data.clone());
+        back.merge_into(&mut s2);
+        assert_eq!(s2.containers[0].icon.as_deref(), Some("backpack_rucksack"));
+    }
+
+    #[test]
+    fn container_without_icon_key_deserializes_to_none() {
+        // A container persisted before the icon field existed (no `icon` key)
+        // must load with serde's default (None), not fail.
+        let json = r#"{
+            "schema_version": 1,
+            "data_version": "test",
+            "collected": {},
+            "containers": [{"id": "ctr-1", "name": "Old bag", "contents": {"bolts": 2}}],
+            "next_container_seq": 1
+        }"#;
+        let back: PersistedState = serde_json::from_str(json).unwrap();
+        assert_eq!(back.containers.len(), 1);
+        assert_eq!(back.containers[0].icon, None);
+        assert_eq!(back.containers[0].contents.get("bolts"), Some(&2));
+    }
+
+    #[test]
+    fn container_round_trip_persist() {
+        let mut s = AppState::new(fixture());
+        let c = s.create_container("Backpack".into());
+        s.set_container_item(&c, &"bolts".to_string(), 4);
+        let persisted = PersistedState::from_app(&s);
+        let json = serde_json::to_string(&persisted).unwrap();
+        let back: PersistedState = serde_json::from_str(&json).unwrap();
+
+        let mut s2 = AppState::new(s.data.clone());
+        back.merge_into(&mut s2);
+        assert_eq!(s2.containers.len(), 1);
+        assert_eq!(s2.containers[0].name, "Backpack");
+        assert_eq!(s2.containers[0].contents.get("bolts"), Some(&4));
+        assert_eq!(s2.owned_total(&"bolts".to_string()), 4);
+        // The id counter survives so a freshly minted id can't collide with
+        // the restored container.
+        assert_eq!(s2.next_container_seq, 1);
+        let c2 = s2.create_container("Item case".into());
+        assert_ne!(c2, c);
+    }
+
+    #[test]
+    fn old_state_json_without_containers_loads_empty() {
+        // Exactly the shape today's state.json has — no `containers` /
+        // `next_container_seq` keys. Must deserialize via serde defaults and
+        // merge cleanly with no warning and all existing data intact.
+        let json = r#"{
+            "schema_version": 1,
+            "data_version": "test",
+            "tracked_upgrades": ["workbench_lv1"],
+            "completed_upgrades": [],
+            "tracked_tasks": [],
+            "completed_tasks": [],
+            "collected": {"bolts": 2},
+            "disabled_modules": []
+        }"#;
+        let back: PersistedState = serde_json::from_str(json).unwrap();
+        assert!(back.containers.is_empty());
+        assert_eq!(back.next_container_seq, 0);
+        let mut s = AppState::new(fixture());
+        let warn = back.merge_into(&mut s);
+        assert!(warn.is_none(), "same data version + known ids → no warning");
+        assert!(s.containers.is_empty());
+        assert!(s.tracked_upgrades.contains("workbench_lv1"));
+        assert_eq!(*s.collected.get("bolts").unwrap(), 2);
     }
 }
