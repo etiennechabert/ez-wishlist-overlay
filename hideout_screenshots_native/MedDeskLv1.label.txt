@@ -1,5 +1,5 @@
 # MedDeskLv1 — ground truth (owned / needed)
 misc_b_bottledglucose  2/1
 misc_b_aspire          2/1
-misc_b_valve           1/1
+misc_b_pipeline        1/1
 misc_b_socket          0/2

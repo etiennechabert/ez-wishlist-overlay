@@ -362,7 +362,7 @@
           "cost": 80000,
           "requirements": [
             {
-              "item_id": "misc_b_valve",
+              "item_id": "misc_b_pipeline",
               "quantity": 2
             },
             {
@@ -605,7 +605,7 @@
               "quantity": 1
             },
             {
-              "item_id": "misc_b_valve",
+              "item_id": "misc_b_pipeline",
               "quantity": 1
             },
             {
@@ -917,7 +917,7 @@
               "quantity": 2
             },
             {
-              "item_id": "misc_b_valve",
+              "item_id": "misc_b_pipeline",
               "quantity": 1
             },
             {
@@ -1171,7 +1171,7 @@
               "quantity": 3
             },
             {
-              "item_id": "misc_b_valve",
+              "item_id": "misc_b_pipeline",
               "quantity": 5
             },
             {
@@ -1592,7 +1592,7 @@
           "cost": 50000,
           "requirements": [
             {
-              "item_id": "misc_b_valve",
+              "item_id": "misc_b_pipeline",
               "quantity": 5
             },
             {
