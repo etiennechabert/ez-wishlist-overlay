@@ -145,7 +145,13 @@ pub fn ui(
     save_tx: &Sender<SaveTick>,
 ) {
     ui.add_space(4.0);
-    ui.heading("Containers");
+    ui.label(
+        egui::RichText::new("Containers")
+            .heading()
+            .strong()
+            .size(26.0)
+            .color(ui.visuals().strong_text_color()),
+    );
     ui.label(
         egui::RichText::new(
             "Your stash, plus any backpacks and boxes you keep items in. All of \
@@ -190,23 +196,13 @@ pub fn ui(
 
     // --- Primary table: the stash, on its own. ---
     ui.add_space(2.0);
-    ui.label(
-        egui::RichText::new("PRIMARY")
-            .small()
-            .strong()
-            .color(ui.visuals().weak_text_color()),
-    );
+    section_title(ui, "Primary");
     column_header(ui, false);
     container_row(ui, state, icons, save_tx, &stash_row);
 
     // --- Vertical gap, then the secondary table with its own sortable header. ---
     ui.add_space(18.0);
-    ui.label(
-        egui::RichText::new("SECONDARY")
-            .small()
-            .strong()
-            .color(ui.visuals().weak_text_color()),
-    );
+    section_title(ui, "Secondary");
     column_header(ui, true);
     let sort = sort_state(ui.ctx());
     sort_rows(&mut rows, sort);
@@ -531,6 +527,17 @@ fn put_left(ui: &mut egui::Ui, rect: egui::Rect, text: egui::RichText) {
     );
     c.set_clip_rect(inner);
     c.add(egui::Label::new(text).selectable(false).truncate());
+}
+
+/// Prominent "Primary" / "Secondary" section heading above each table.
+fn section_title(ui: &mut egui::Ui, text: &str) {
+    ui.label(
+        egui::RichText::new(text)
+            .strong()
+            .size(17.0)
+            .color(ui.visuals().strong_text_color()),
+    );
+    ui.add_space(2.0);
 }
 
 /// Column header row, aligned to the same [`cols`] geometry as the data rows.
