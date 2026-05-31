@@ -5,9 +5,10 @@
 //! manage *secondary* containers below it. Every container's contents sum into
 //! owned totals via [`crate::state::AppState::owned_total`] — so adding an item
 //! here can flip a hideout upgrade to "ready" exactly like collecting it in the
-//! stash, and it feeds the Items DB Quantity / Surplus columns too. Contents
-//! are entered manually; a future feature will let OCR fill a box from
-//! screenshots of its icon grid.
+//! stash, and it feeds the Items DB Quantity / Surplus columns too. Bags and
+//! cases are entered by hand; "Box"-type containers can also be filled by
+//! scanning their in-game contents screen — a series of scrolling screenshots
+//! stitched into one item list (see [`crate::ocr::box_scan`]).
 //!
 //! Layout: a sortable KPI table — one bigger row per container showing its
 //! icon, name, item count, total weight, and total value. The Stash row is
@@ -23,7 +24,7 @@ use crate::gui::hideout_pane::{
 use crate::gui::items_db_pane::format_price;
 use crate::gui::{icon_cache::IconCache, theme, SaveTick};
 use crate::ocr::{BoxCommand, BoxScanStatus, BoxScanUpdate};
-use crate::state::{AppState, ContainerId};
+use crate::state::{AppState, ContainerId, ContainerKind};
 use crossbeam_channel::Sender;
 use parking_lot::RwLock;
 use std::collections::HashMap;
@@ -130,6 +131,8 @@ struct Row {
     display_icon: String,
     /// The container's stored icon choice (None = default). Unused for the stash.
     icon: Option<String>,
+    /// Bag vs box. The stash is always `Bag` (it never offers a scan).
+    kind: ContainerKind,
     /// Distinct item types held — matches the historical "(N items)" count.
     item_count: usize,
     weight: f32,
@@ -208,6 +211,7 @@ pub fn ui(
             name: "Stash".to_string(),
             display_icon: STASH_ICON.to_string(),
             icon: None,
+            kind: ContainerKind::Bag,
             item_count: sc,
             weight: sw,
             value: sv,
@@ -222,6 +226,7 @@ pub fn ui(
                     name: c.name.clone(),
                     display_icon: resolve_icon_key(&c.icon).to_string(),
                     icon: c.icon.clone(),
+                    kind: c.kind,
                     item_count: count,
                     weight,
                     value,
@@ -280,6 +285,8 @@ const NEW_FOCUS_KEY: &str = "ctr-new-focus";
 /// When present, the modal is editing this existing container (Save writes to
 /// it) rather than creating a new one.
 const NEW_EDIT_KEY: &str = "ctr-new-edit-id";
+/// Chosen [`ContainerKind`] in the create/edit modal.
+const NEW_KIND_KEY: &str = "ctr-new-kind";
 
 /// Open the modal in *create* mode: blank name, default icon, focus the field.
 fn open_new_container_modal(ctx: &egui::Context) {
@@ -291,18 +298,26 @@ fn open_new_container_modal(ctx: &egui::Context) {
             egui::Id::new(NEW_ICON_KEY),
             DEFAULT_CONTAINER_ICON.to_string(),
         );
+        d.insert_temp(egui::Id::new(NEW_KIND_KEY), ContainerKind::default());
         d.insert_temp(egui::Id::new(NEW_FOCUS_KEY), true);
     });
 }
 
-/// Open the modal in *edit* mode: pre-fill the given container's name + icon;
-/// Save writes back to it.
-fn open_edit_container_modal(ctx: &egui::Context, id: &ContainerId, name: &str, icon: &str) {
+/// Open the modal in *edit* mode: pre-fill the given container's name, icon, and
+/// kind; Save writes back to it.
+fn open_edit_container_modal(
+    ctx: &egui::Context,
+    id: &ContainerId,
+    name: &str,
+    icon: &str,
+    kind: ContainerKind,
+) {
     ctx.data_mut(|d| {
         d.insert_temp(egui::Id::new(NEW_OPEN_KEY), true);
         d.insert_temp(egui::Id::new(NEW_EDIT_KEY), id.clone());
         d.insert_temp(egui::Id::new(NEW_NAME_KEY), name.to_string());
         d.insert_temp(egui::Id::new(NEW_ICON_KEY), icon.to_string());
+        d.insert_temp(egui::Id::new(NEW_KIND_KEY), kind);
         d.insert_temp(egui::Id::new(NEW_FOCUS_KEY), true);
     });
 }
@@ -313,6 +328,7 @@ fn close_new_container_modal(ctx: &egui::Context) {
         d.remove::<ContainerId>(egui::Id::new(NEW_EDIT_KEY));
         d.remove::<String>(egui::Id::new(NEW_NAME_KEY));
         d.remove::<String>(egui::Id::new(NEW_ICON_KEY));
+        d.remove::<ContainerKind>(egui::Id::new(NEW_KIND_KEY));
     });
 }
 
@@ -340,6 +356,9 @@ fn new_container_modal(
     let mut chosen_icon = ctx
         .data(|d| d.get_temp::<String>(egui::Id::new(NEW_ICON_KEY)))
         .unwrap_or_else(|| DEFAULT_CONTAINER_ICON.to_string());
+    let mut kind = ctx
+        .data(|d| d.get_temp::<ContainerKind>(egui::Id::new(NEW_KIND_KEY)))
+        .unwrap_or_default();
     let want_focus = ctx
         .data(|d| d.get_temp::<bool>(egui::Id::new(NEW_FOCUS_KEY)))
         .unwrap_or(false);
@@ -382,6 +401,17 @@ fn new_container_modal(
             });
 
             ui.add_space(10.0);
+            ui.horizontal(|ui| {
+                ui.label("Type:");
+                ui.selectable_value(&mut kind, ContainerKind::Bag, "Bag / case")
+                    .on_hover_text("A backpack or item case — contents entered by hand");
+                ui.selectable_value(&mut kind, ContainerKind::Box, "Box")
+                    .on_hover_text(
+                        "A box with a contents screen — fill it by scanning screenshots",
+                    );
+            });
+
+            ui.add_space(10.0);
             ui.label("Icon:");
             ui.add_space(4.0);
             ui.horizontal_wrapped(|ui| {
@@ -420,6 +450,7 @@ fn new_container_modal(
     ctx.data_mut(|d| {
         d.insert_temp(egui::Id::new(NEW_NAME_KEY), name.clone());
         d.insert_temp(egui::Id::new(NEW_ICON_KEY), chosen_icon.clone());
+        d.insert_temp(egui::Id::new(NEW_KIND_KEY), kind);
     });
 
     if do_create && !name.trim().is_empty() {
@@ -430,10 +461,13 @@ fn new_container_modal(
                 let mut w = state.write();
                 w.rename_container(id, trimmed);
                 w.set_container_icon(id, Some(chosen_icon));
+                w.set_container_kind(id, kind);
             }
             None => {
                 let id = state.write().create_container(trimmed);
-                state.write().set_container_icon(&id, Some(chosen_icon));
+                let mut w = state.write();
+                w.set_container_icon(&id, Some(chosen_icon));
+                w.set_container_kind(&id, kind);
             }
         }
         notify(state, save_tx);
@@ -736,6 +770,7 @@ fn container_row(
                 id,
                 &row.name,
                 resolve_icon_key(&row.icon),
+                row.kind,
             );
         }
     }
@@ -761,13 +796,14 @@ fn row_actions(
     id: &ContainerId,
     name: &str,
     icon_key: &str,
+    kind: ContainerKind,
 ) {
     if ui
         .button("Edit")
-        .on_hover_text("Rename and change the icon")
+        .on_hover_text("Rename, change the icon, or switch type")
         .clicked()
     {
-        open_edit_container_modal(ui.ctx(), id, name, icon_key);
+        open_edit_container_modal(ui.ctx(), id, name, icon_key, kind);
     }
     if pending_delete(ui.ctx()).as_deref() == Some(id.as_str()) {
         if ui
@@ -815,11 +851,13 @@ fn container_body(
         ui.add_space(6.0);
     }
 
-    // Box-scan controls (secondary containers only): a "Scan from box screen"
-    // button, or the live session panel while this container is being scanned.
+    // Box-scan controls — only Box-type containers have an in-game contents
+    // screen, so only they offer the scan; bags/cases are entered by hand.
     if let Target::Container(id) = &row.target {
-        box_scan_section(ui, state, id, &row.name, scan);
-        ui.add_space(4.0);
+        if row.kind == ContainerKind::Box {
+            box_scan_section(ui, state, id, &row.name, scan);
+            ui.add_space(4.0);
+        }
     }
 
     contents_editor(ui, state, icons, save_tx, &row.target);

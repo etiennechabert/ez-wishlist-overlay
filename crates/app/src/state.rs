@@ -17,6 +17,18 @@ pub const OVERRIDES_SCHEMA_VERSION: u32 = 1;
 
 pub type ContainerId = String;
 
+/// What kind of secondary container this is. Only [`ContainerKind::Box`]
+/// containers have an in-game contents screen, so only they support the
+/// screenshot/OCR scan; bags and cases are entered by hand.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum ContainerKind {
+    /// A backpack, pouch, or item case — no screen; contents entered manually.
+    #[default]
+    Bag,
+    /// A box with a contents screen — supports the scroll-and-stitch OCR scan.
+    Box,
+}
+
 /// A user-defined secondary container — a backpack, item case, etc. Its
 /// contents count toward owned totals for upgrade readiness, progress,
 /// surplus, and the owned-items list exactly like the stash, but it's named
@@ -34,6 +46,11 @@ pub struct Container {
     /// Pure presentation; the data layer never interprets it.
     #[serde(default)]
     pub icon: Option<String>,
+    /// Whether this is a plain bag/case or a box with a scannable screen.
+    /// Defaults to `Bag` so containers saved before this field existed load
+    /// unchanged.
+    #[serde(default)]
+    pub kind: ContainerKind,
 }
 
 pub struct AppState {
@@ -646,6 +663,7 @@ impl AppState {
             name,
             contents: HashMap::new(),
             icon: None,
+            kind: ContainerKind::default(),
         });
         self.bump();
         id
@@ -657,6 +675,17 @@ impl AppState {
         if let Some(c) = self.containers.iter_mut().find(|c| &c.id == id) {
             if c.icon != icon {
                 c.icon = icon;
+                self.bump();
+            }
+        }
+    }
+
+    /// Set a container's kind (bag vs box). No-op if the id is unknown or
+    /// unchanged.
+    pub fn set_container_kind(&mut self, id: &ContainerId, kind: ContainerKind) {
+        if let Some(c) = self.containers.iter_mut().find(|c| &c.id == id) {
+            if c.kind != kind {
+                c.kind = kind;
                 self.bump();
             }
         }
@@ -2080,6 +2109,7 @@ mod tests {
         let mut s = AppState::new(fixture());
         let c = s.create_container("Backpack".into());
         s.set_container_item(&c, &"bolts".to_string(), 4);
+        s.set_container_kind(&c, ContainerKind::Box);
         let persisted = PersistedState::from_app(&s);
         let json = serde_json::to_string(&persisted).unwrap();
         let back: PersistedState = serde_json::from_str(&json).unwrap();
@@ -2089,6 +2119,7 @@ mod tests {
         assert_eq!(s2.containers.len(), 1);
         assert_eq!(s2.containers[0].name, "Backpack");
         assert_eq!(s2.containers[0].contents.get("bolts"), Some(&4));
+        assert_eq!(s2.containers[0].kind, ContainerKind::Box);
         assert_eq!(s2.owned_total(&"bolts".to_string()), 4);
         // The id counter survives so a freshly minted id can't collide with
         // the restored container.
