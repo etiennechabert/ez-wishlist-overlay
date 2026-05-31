@@ -157,8 +157,7 @@ pub fn ui(
             "Your stash, plus any backpacks and boxes you keep items in. All of \
              it counts toward hideout-upgrade readiness and the Items DB totals.",
         )
-        .small()
-        .color(ui.visuals().weak_text_color()),
+        .color(ui.visuals().text_color()),
     );
     ui.add_space(8.0);
 
