@@ -1,5 +1,5 @@
 # PlantingLv1 — ground truth (owned / needed)
 misc_b_disinfectingwipes  2/2
-misc_b_valve              2/1
+misc_b_pipeline           2/1
 misc_b_lightbulb          1/2
 misc_b_insulatingtape     0/1

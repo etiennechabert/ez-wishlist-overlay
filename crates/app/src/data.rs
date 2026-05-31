@@ -203,3 +203,49 @@ impl DataIndex {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashSet;
+
+    /// Referential integrity: every hideout recipe requirement must point at an
+    /// item that exists in the bundled catalog.
+    ///
+    /// `data.json` has two halves that evolve independently — the `modules`
+    /// recipes are hand-authored from in-game observation, while the `items`
+    /// catalog is regenerated from upstream (filtered to `category == "misc"`).
+    /// Nothing else verifies that a requirement's `item_id` actually exists in
+    /// the catalog, so a stale, mistyped, or wrong-category id ships silently
+    /// and renders as the raw id in the UI instead of a display name (issue #89
+    /// `misc_b_valve`, issue #96 `taskitem_radio`). This test is the ratchet
+    /// that catches that whole class of drift at PR time. Fix a failure by
+    /// pointing the requirement at the correct upstream slug in `data.json` —
+    /// patch the data, never add a synonym/fallback shim in code.
+    #[test]
+    fn every_requirement_item_id_resolves_in_catalog() {
+        let raw = include_str!("assets/data.json");
+        let data: GameData = serde_json::from_str(raw).expect("data.json deserializes");
+        let ids: HashSet<&str> = data.items.iter().map(|i| i.id.as_str()).collect();
+
+        let mut orphans: Vec<String> = Vec::new();
+        for module in &data.modules {
+            for upgrade in &module.upgrades {
+                for req in &upgrade.requirements {
+                    if !ids.contains(req.item_id.as_str()) {
+                        orphans.push(format!("{} requires '{}'", upgrade.id, req.item_id));
+                    }
+                }
+            }
+        }
+
+        assert!(
+            orphans.is_empty(),
+            "{} hideout requirement(s) reference an item_id with no catalog entry \
+             (they render as raw ids in the UI — point them at the correct upstream \
+             slug in data.json):\n  {}",
+            orphans.len(),
+            orphans.join("\n  ")
+        );
+    }
+}

@@ -41,6 +41,11 @@ pub struct Settings {
     pub vr: VrSettings,
     #[serde(default)]
     pub theme: Theme,
+    /// Status-color palette for the hideout grid (and the panes that share its
+    /// readiness colors). See [`ColorScheme`]. `#[serde(default)]` loads an old
+    /// settings file (which lacks the key) as the hand-tuned `Default` palette.
+    #[serde(default)]
+    pub color_scheme: ColorScheme,
     /// Hideout tab layout. See [`HideoutView`]. `#[serde(default)]` means old
     /// settings files (which lack the key) load as `Modules` — no migration
     /// branch needed, same as the other plain defaulted fields below.
@@ -213,6 +218,7 @@ impl Default for Settings {
             schema_version: SCHEMA_VERSION,
             vr: VrSettings::default(),
             theme: Theme::default(),
+            color_scheme: ColorScheme::default(),
             hideout_view: HideoutView::default(),
             preview_sort: PreviewSort::default(),
             check_for_updates: default_check_for_updates(),
@@ -235,6 +241,27 @@ pub enum Theme {
     Dark,
     Light,
     System,
+}
+
+/// Which palette paints the hideout status colors (tracked / nearly-ready /
+/// ready / done / pinned / customized / assumed). `Default` is the app's
+/// hand-tuned set; the other two are colorblind-safe palettes the user can
+/// switch to from Settings → Appearance:
+///   - `OkabeIto`: the Color-Universal-Design palette (Wong, *Nature Methods*
+///     2011) — the de-facto standard for colorblind-safe categorical colors.
+///   - `Ibm`: IBM Design Language's accessible 5-color palette.
+///
+/// Both keep the *readiness* states (the four cell fills) distinct under the
+/// common red-green deficiencies. Stored kebab-case for clean JSON
+/// (`"okabe-ito"`); a file written before this field existed loads as
+/// `Default` via the struct's `#[serde(default)]`.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "kebab-case")]
+pub enum ColorScheme {
+    #[default]
+    Default,
+    OkabeIto,
+    Ibm,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -501,5 +528,26 @@ mod tests {
         let json = serde_json::to_string(&s).unwrap();
         let back: Settings = serde_json::from_str(&json).unwrap();
         assert_eq!(back.preview_sort, PreviewSort::Value);
+    }
+
+    #[test]
+    fn color_scheme_defaults_to_default_when_absent() {
+        // Settings files written before this field lack the key; serde(default)
+        // must fill it with the hand-tuned palette, not error.
+        let s: Settings = serde_json::from_str("{}").unwrap();
+        assert_eq!(s.color_scheme, ColorScheme::Default);
+    }
+
+    #[test]
+    fn color_scheme_round_trips() {
+        let s = Settings {
+            color_scheme: ColorScheme::OkabeIto,
+            ..Settings::default()
+        };
+        let json = serde_json::to_string(&s).unwrap();
+        // Kebab-case multi-word variant must serialize cleanly.
+        assert!(json.contains("\"okabe-ito\""));
+        let back: Settings = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.color_scheme, ColorScheme::OkabeIto);
     }
 }
