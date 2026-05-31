@@ -52,6 +52,46 @@ const DEFAULT_CONTAINER_ICON: &str = "backpack_3drt";
 /// Fixed icon for the pinned primary Stash row.
 const STASH_ICON: &str = "stash";
 
+/// Box-style icons offered when the container's type is `Box`. Only the two
+/// Collection Boxes are listed: they're the boxes that store MISC items — what
+/// this tracker cares about — whereas the other in-game boxes (mag/attachment,
+/// medical, paint) hold specific non-misc categories. Generated flat-3D crate
+/// art (upstream has no images for these). Order here is the picker-grid order.
+const BOX_ICONS: &[&str] = &["box_collection", "box_collection_small"];
+/// Default icon for a newly-created Box container.
+const DEFAULT_BOX_ICON: &str = "box_collection";
+
+/// The default icon key for a container of the given kind.
+fn default_icon_for(kind: ContainerKind) -> &'static str {
+    match kind {
+        ContainerKind::Box => DEFAULT_BOX_ICON,
+        ContainerKind::Bag => DEFAULT_CONTAINER_ICON,
+    }
+}
+
+/// Short display name for an icon key, shown under each tile in the picker so
+/// the user can tell them apart. Box names match the in-game boxes.
+fn icon_label(key: &str) -> &'static str {
+    match key {
+        // Boxes (the two MISC-storing Collection Boxes).
+        "box_collection" => "Collection",
+        "box_collection_small" => "Collection small",
+        // Bags / cases.
+        "backpack_3drt" => "3DRT",
+        "backpack_eliteops" => "Elite Ops",
+        "backpack_eliteops_green" => "Elite Ops (grn)",
+        "backpack_6sh118" => "6Sh118",
+        "backpack_robinson" => "Robinson",
+        "backpack_hypertec" => "Hypertec",
+        "backpack_gnjbackpack" => "GNJ",
+        "backpack_rucksack" => "Rucksack",
+        "backpack_sportbag" => "Sport bag",
+        "backpack_odldos_black" => "Odldos",
+        "backpack_odldos_flower" => "Odldos (fl.)",
+        _ => "",
+    }
+}
+
 // KPI-table column widths. Header titles and row cells share these so the
 // columns line up. `LEAD` matches the width of the collapse triangle so the
 // header titles align over the row content that sits after it.
@@ -411,14 +451,31 @@ fn new_container_modal(
                     );
             });
 
+            // Icon set follows the (possibly just-changed) type. If the current
+            // selection isn't valid for the new set, snap to that set's default.
+            let icon_set: &[&str] = if kind == ContainerKind::Box {
+                BOX_ICONS
+            } else {
+                CONTAINER_ICONS
+            };
+            if !icon_set.contains(&chosen_icon.as_str()) {
+                chosen_icon = default_icon_for(kind).to_string();
+            }
             ui.add_space(10.0);
             ui.label("Icon:");
             ui.add_space(4.0);
             ui.horizontal_wrapped(|ui| {
-                for &key in CONTAINER_ICONS {
-                    if icon_choice(ui, icons, key, key == chosen_icon, 88.0) {
-                        chosen_icon = key.to_string();
-                    }
+                for &key in icon_set {
+                    ui.allocate_ui_with_layout(
+                        egui::vec2(104.0, 126.0),
+                        egui::Layout::top_down(egui::Align::Center),
+                        |ui| {
+                            if icon_choice(ui, icons, key, key == chosen_icon, 88.0) {
+                                chosen_icon = key.to_string();
+                            }
+                            ui.label(egui::RichText::new(icon_label(key)).small());
+                        },
+                    );
                 }
             });
 
