@@ -292,7 +292,14 @@ impl eframe::App for App {
         // worker sends OcrFeedback messages to the VR thread; nothing
         // surfaces on the desktop except the tracing logs.
 
-        let desired_theme = self.settings.read().theme;
+        let (desired_theme, desired_scheme) = {
+            let s = self.settings.read();
+            (s.theme, s.color_scheme)
+        };
+        // Status-color palette: cheap thread-local write, refreshed every frame
+        // so toggling it in Settings recolors the panes immediately. The visual
+        // (dark/light) is heavier and only re-applied when it actually changes.
+        theme::set_scheme(desired_scheme);
         if self.applied_theme != Some(desired_theme) {
             theme::apply(ctx, desired_theme);
             self.applied_theme = Some(desired_theme);

@@ -1,6 +1,6 @@
 //! Modal dialog for user-tunable settings.
 
-use crate::settings::{bounds, CaptureEye, Settings, Theme, VrSettings};
+use crate::settings::{bounds, CaptureEye, ColorScheme, Settings, Theme, VrSettings};
 use parking_lot::RwLock;
 use std::path::Path;
 use std::sync::Arc;
@@ -25,7 +25,7 @@ pub fn show(
             let before = settings.read().clone();
             let mut working = before.clone();
 
-            appearance_section(ui, &mut working.theme);
+            appearance_section(ui, &mut working.theme, &mut working.color_scheme);
 
             ui.add_space(12.0);
             updates_section(ui, &mut working.check_for_updates);
@@ -83,7 +83,7 @@ pub struct Outcome {
     pub closed: bool,
 }
 
-fn appearance_section(ui: &mut egui::Ui, theme: &mut Theme) {
+fn appearance_section(ui: &mut egui::Ui, theme: &mut Theme, color_scheme: &mut ColorScheme) {
     ui.heading("Appearance");
     ui.add_space(4.0);
     ui.horizontal(|ui| {
@@ -91,6 +91,22 @@ fn appearance_section(ui: &mut egui::Ui, theme: &mut Theme) {
         ui.selectable_value(theme, Theme::Dark, "Dark");
         ui.selectable_value(theme, Theme::Light, "Light");
         ui.selectable_value(theme, Theme::System, "System");
+    });
+
+    ui.add_space(6.0);
+    ui.horizontal(|ui| {
+        ui.label("Color scheme").on_hover_text(
+            "Palette for the hideout status colors (tracked / nearly ready / \
+             ready / done / pinned). Okabe-Ito and IBM are colorblind-safe \
+             palettes that keep those states distinct under red-green color \
+             vision deficiency. The legend above the hideout grid updates to \
+             match your choice.",
+        );
+        ui.selectable_value(color_scheme, ColorScheme::Default, "Default");
+        ui.selectable_value(color_scheme, ColorScheme::OkabeIto, "Okabe-Ito")
+            .on_hover_text("Color Universal Design palette (Wong 2011).");
+        ui.selectable_value(color_scheme, ColorScheme::Ibm, "IBM")
+            .on_hover_text("IBM Design Language accessible palette.");
     });
 }
 
