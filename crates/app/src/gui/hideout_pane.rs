@@ -113,6 +113,7 @@ pub fn ui(
 
     presets_row(ui, state, save_tx);
     outcome.settings_changed |= view_toggle_row(ui, settings);
+    legend_row(ui);
     ui.separator();
 
     match settings.read().hideout_view {
@@ -177,6 +178,106 @@ fn view_toggle_row(ui: &mut egui::Ui, settings: &Arc<RwLock<Settings>>) -> bool 
     } else {
         false
     }
+}
+
+/// Always-visible key for the grid's status colors, sitting just under the view
+/// toggle. Every swatch is painted with the *live* theme color, so the legend
+/// tracks the active palette (Default / Okabe-Ito / IBM) and the dark/light
+/// theme automatically — switch the scheme in Settings and these update too.
+fn legend_row(ui: &mut egui::Ui) {
+    let dark = ui.visuals().dark_mode;
+    ui.horizontal_wrapped(|ui| {
+        ui.spacing_mut().item_spacing.x = 6.0;
+        ui.label(
+            egui::RichText::new("Legend:")
+                .small()
+                .strong()
+                .color(ui.visuals().weak_text_color()),
+        );
+        legend_swatch(
+            ui,
+            theme::tracked_fill(dark),
+            "Tracked",
+            "On your list — you're working toward it.",
+            false,
+        );
+        legend_swatch(
+            ui,
+            theme::nearly_ready_fill(dark),
+            "Nearly",
+            "Tracked and only 1–2 items short of claimable.",
+            false,
+        );
+        legend_swatch(
+            ui,
+            theme::ready_fill(dark),
+            "Ready",
+            "Every required item collected — claim it in-game.",
+            false,
+        );
+        legend_swatch(
+            ui,
+            theme::done_fill(dark),
+            "Done",
+            "Built / completed.",
+            false,
+        );
+        legend_swatch(
+            ui,
+            theme::pinned_accent(dark),
+            "Pinned",
+            "Prioritized — floats to the top of the By-progress list.",
+            false,
+        );
+        legend_swatch(
+            ui,
+            theme::override_marker(dark),
+            "Customized",
+            "Recipe you've edited away from the bundled default.",
+            false,
+        );
+        legend_swatch(
+            ui,
+            theme::assumed_marker(dark),
+            "Assumed",
+            "Recipe unknown — its cost is a guess. Open Edit to fill it in.",
+            false,
+        );
+        legend_swatch(
+            ui,
+            theme::selected_outline(dark),
+            "Editing",
+            "The cell currently open in the recipe editor below.",
+            true,
+        );
+    });
+}
+
+/// One legend entry: a small rounded swatch followed by its label. `outline`
+/// draws the swatch as a ring (matching the "Editing" focus cue) rather than a
+/// solid chip.
+fn legend_swatch(ui: &mut egui::Ui, color: egui::Color32, label: &str, tip: &str, outline: bool) {
+    const SW: f32 = 13.0;
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(SW, SW), egui::Sense::hover());
+    if ui.is_rect_visible(rect) {
+        let border = ui.visuals().weak_text_color();
+        if outline {
+            // Ring: paint the color, then knock out the centre with the panel
+            // fill so only a ~2px border remains. Avoids depending on a
+            // specific `rect_stroke` signature across egui versions.
+            ui.painter().rect_filled(rect, 3.0, color);
+            ui.painter()
+                .rect_filled(rect.shrink(2.0), 2.0, ui.visuals().panel_fill);
+        } else {
+            // Hairline border behind the chip so pale fills still read as a
+            // distinct swatch against the panel in either theme.
+            ui.painter().rect_filled(rect.expand(1.0), 3.5, border);
+            ui.painter().rect_filled(rect, 3.0, color);
+        }
+    }
+    ui.add(egui::Label::new(egui::RichText::new(label).small()).selectable(false))
+        .on_hover_text(tip);
+    ui.add_space(4.0);
 }
 
 /// Compact "is this module available right now?" toggle that sits at the left
@@ -584,6 +685,7 @@ fn upgrade_cell(
     };
 
     let dark = ui.visuals().dark_mode;
+    let is_selected = selected(ui.ctx()).as_deref() == Some(upgrade.id.as_str());
     // Warmth gradient: tracked (blue) → nearly (amber) → ready (yellow) → done
     // (green). `nearly` slots just below `ready` so a cell 1–2 items short reads
     // as "almost" without being mistaken for claimable.
@@ -606,7 +708,14 @@ fn upgrade_cell(
     let mut frame = egui::Frame::group(ui.style())
         .fill(fill)
         .inner_margin(egui::Margin::symmetric(6.0, 1.0));
-    if assumed {
+    // The cell open in the recipe editor gets a bright neutral ring so "the one
+    // I'm editing" is unmistakable — focus has no readiness color of its own,
+    // which is exactly what made it blur into the warm fills. The ring wins over
+    // the faint assumed stroke (focus is the louder, transient cue; the
+    // assumed-ness still surfaces via the hover text below).
+    if is_selected {
+        frame = frame.stroke(egui::Stroke::new(2.0, theme::selected_outline(dark)));
+    } else if assumed {
         frame = frame.stroke(egui::Stroke::new(1.0, theme::assumed_marker(dark)));
     }
 
