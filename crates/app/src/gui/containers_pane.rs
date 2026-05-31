@@ -293,7 +293,7 @@ fn new_container_modal(
         .open(&mut open)
         .collapsible(false)
         .resizable(false)
-        .default_width(420.0)
+        .default_width(560.0)
         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
         .show(ctx, |ui| {
             ui.add_space(2.0);
@@ -319,7 +319,7 @@ fn new_container_modal(
             ui.add_space(4.0);
             ui.horizontal_wrapped(|ui| {
                 for &key in CONTAINER_ICONS {
-                    if icon_choice(ui, icons, key, key == chosen_icon, 64.0) {
+                    if icon_choice(ui, icons, key, key == chosen_icon, 88.0) {
                         chosen_icon = key.to_string();
                     }
                 }
@@ -458,13 +458,17 @@ fn header_cell(ui: &mut egui::Ui, w: f32, label: &str, col: SortCol, sort: Sort,
 }
 
 fn cell_left(ui: &mut egui::Ui, w: f32, text: egui::RichText) {
-    ui.allocate_ui_with_layout(
-        egui::vec2(w, ROW_H),
-        egui::Layout::left_to_right(egui::Align::Center),
-        |ui| {
-            ui.add(egui::Label::new(text).truncate());
-        },
+    // Hard-bound the cell to `w` and clip to it, so a long container name
+    // truncates with an ellipsis instead of pushing the KPI columns rightward
+    // and breaking the table alignment.
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(w, ROW_H), egui::Sense::hover());
+    let mut cell = ui.new_child(
+        egui::UiBuilder::new()
+            .max_rect(rect)
+            .layout(egui::Layout::left_to_right(egui::Align::Center)),
     );
+    cell.set_clip_rect(rect);
+    cell.add(egui::Label::new(text).truncate());
 }
 
 fn cell_right(ui: &mut egui::Ui, w: f32, text: String, strong: bool) {
@@ -507,7 +511,12 @@ fn container_row(
             cell_left(ui, W_NAME, egui::RichText::new(&row.name).strong());
             cell_right(ui, W_ITEMS, row.item_count.to_string(), false);
             cell_right(ui, W_WEIGHT, format!("{:.2} kg", row.weight), false);
-            cell_right(ui, W_VALUE, format!("{} ₽", format_price(row.value)), true);
+            cell_right(
+                ui,
+                W_VALUE,
+                format!("{} RUB", format_price(row.value)),
+                true,
+            );
         })
         .body(|ui| container_body(ui, state, icons, save_tx, row));
 }
@@ -577,7 +586,7 @@ fn icon_picker(
         .show(ui, |ui| {
             ui.horizontal_wrapped(|ui| {
                 for &key in CONTAINER_ICONS {
-                    if icon_choice(ui, icons, key, key == current, 56.0) {
+                    if icon_choice(ui, icons, key, key == current, 64.0) {
                         state.write().set_container_icon(id, Some(key.to_string()));
                         notify(state, save_tx);
                     }

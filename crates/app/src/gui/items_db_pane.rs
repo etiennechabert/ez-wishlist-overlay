@@ -188,42 +188,51 @@ pub fn ui(
         &containers_by_item,
     );
 
-    // Footer summary: count + grand totals across the visible rows.
-    // Computed *after* filtering so the user can use the tracked-only
-    // toggle + the search box to scope the "stash value" question to
-    // whatever subset they're looking at.
+    // Footer summary. Computed *after* filtering so the tracked-only toggle +
+    // search box scope the totals to whatever subset is visible. The headline
+    // KPIs describe what you OWN (qty > 0) — the row count next to weight/value
+    // would otherwise read as "you own 150 items" when it's really the catalog
+    // size, so owned-count and the catalog row count are shown separately.
     let (visible_total_weight, visible_total_value) = visible_totals(&rows, &owned);
+    let owned_count = rows
+        .iter()
+        .filter(|item| owned.get(&item.id).copied().unwrap_or(0) > 0)
+        .count();
+    let (surplus_count, surplus_weight, surplus_value) = surplus_totals(&rows, &owned, &needs);
     ui.horizontal(|ui| {
-        ui.label(
-            egui::RichText::new(format!("{} item(s)", rows.len()))
-                .small()
-                .color(ui.visuals().weak_text_color()),
-        );
-        ui.add_space(16.0);
+        // Prominent owned-inventory KPI line (not dimmed/small).
         ui.label(
             egui::RichText::new(format!(
-                "Total weight: {:.2} kg   ·   Total value: {} ₽",
-                visible_total_weight,
+                "Owned: {owned_count} item(s)   ·   {visible_total_weight:.2} kg   ·   {} RUB",
                 format_price(visible_total_value),
             ))
-            .small()
-            .color(ui.visuals().weak_text_color()),
-        );
-        ui.add_space(16.0);
-        let (surplus_count, surplus_weight, surplus_value) = surplus_totals(&rows, &owned, &needs);
-        ui.label(
-            egui::RichText::new(format!(
-                "Surplus: {surplus_count} item(s) · {surplus_weight:.2} kg · {} ₽",
-                format_price(surplus_value),
-            ))
-            .small()
-            .color(ui.visuals().weak_text_color()),
+            .strong()
+            .size(15.0),
         )
         .on_hover_text(
-            "What you could clear from the visible rows without falling short \
-             of the selected upgrade scope.",
+            "Items you hold (qty > 0) across the stash and every container, \
+             with their combined weight and value.",
         );
+        ui.add_space(10.0);
+        ui.label(
+            egui::RichText::new(format!("({} shown)", rows.len()))
+                .small()
+                .color(ui.visuals().weak_text_color()),
+        )
+        .on_hover_text("Catalog rows currently visible after filters.");
     });
+    ui.label(
+        egui::RichText::new(format!(
+            "Surplus: {surplus_count} item(s)  ·  {surplus_weight:.2} kg  ·  {} RUB",
+            format_price(surplus_value),
+        ))
+        .small()
+        .color(ui.visuals().weak_text_color()),
+    )
+    .on_hover_text(
+        "What you could clear from the visible rows without falling short \
+         of the selected upgrade scope.",
+    );
     ui.add_space(4.0);
 
     let row_h = 36.0;
