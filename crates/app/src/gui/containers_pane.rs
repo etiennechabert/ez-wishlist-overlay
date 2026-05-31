@@ -200,18 +200,32 @@ pub fn ui(
         (stash_row, rows)
     };
 
-    sortable_header(ui);
-
-    // Stash pinned on top, always — never sorted into the list below.
+    // --- Primary table: the stash, on its own. ---
+    ui.add_space(2.0);
+    ui.label(
+        egui::RichText::new("PRIMARY")
+            .small()
+            .strong()
+            .color(ui.visuals().weak_text_color()),
+    );
+    column_header(ui, false);
     container_row(ui, state, icons, save_tx, &stash_row);
 
-    // Secondary containers follow, sorted by the chosen KPI.
+    // --- Vertical gap, then the secondary table with its own sortable header. ---
+    ui.add_space(18.0);
+    ui.label(
+        egui::RichText::new("SECONDARY")
+            .small()
+            .strong()
+            .color(ui.visuals().weak_text_color()),
+    );
+    column_header(ui, true);
     let sort = sort_state(ui.ctx());
     sort_rows(&mut rows, sort);
     if rows.is_empty() {
         ui.add_space(8.0);
         ui.label(
-            egui::RichText::new("No secondary containers yet — create one above.")
+            egui::RichText::new("No secondary containers yet — create one with “+ New container”.")
                 .italics()
                 .color(ui.visuals().weak_text_color()),
         );
@@ -405,16 +419,44 @@ fn sort_rows(rows: &mut [Row], sort: Sort) {
     });
 }
 
-fn sortable_header(ui: &mut egui::Ui) {
+/// Column header row. When `sortable` the cells toggle the persisted sort on
+/// click (secondary-containers table); otherwise they're plain labels (the
+/// single-row primary/stash table, where sorting is meaningless). Uses the
+/// same zero-x-spacing + fixed widths as the data rows so columns line up.
+fn column_header(ui: &mut egui::Ui, sortable: bool) {
     let sort = sort_state(ui.ctx());
-    ui.horizontal(|ui| {
-        ui.add_space(LEAD);
-        header_cell(ui, W_ICON + W_NAME, "Container", SortCol::Name, sort, false);
-        header_cell(ui, W_ITEMS, "Items", SortCol::Items, sort, true);
-        header_cell(ui, W_WEIGHT, "Weight", SortCol::Weight, sort, true);
-        header_cell(ui, W_VALUE, "Value", SortCol::Value, sort, true);
+    ui.scope(|ui| {
+        ui.spacing_mut().item_spacing.x = 0.0;
+        ui.horizontal(|ui| {
+            // Triangle + icon columns have no header text; reserve their width
+            // so "Container" sits over the name and the numbers line up.
+            ui.add_space(LEAD + W_ICON);
+            if sortable {
+                header_cell(ui, W_NAME, "Container", SortCol::Name, sort, false);
+                header_cell(ui, W_ITEMS, "Items", SortCol::Items, sort, true);
+                header_cell(ui, W_WEIGHT, "Weight", SortCol::Weight, sort, true);
+                header_cell(ui, W_VALUE, "Value", SortCol::Value, sort, true);
+            } else {
+                plain_header_cell(ui, W_NAME, "Container", false);
+                plain_header_cell(ui, W_ITEMS, "Items", true);
+                plain_header_cell(ui, W_WEIGHT, "Weight", true);
+                plain_header_cell(ui, W_VALUE, "Value", true);
+            }
+        });
     });
     ui.separator();
+}
+
+/// A non-interactive column header label, same geometry as [`header_cell`].
+fn plain_header_cell(ui: &mut egui::Ui, w: f32, label: &str, right: bool) {
+    let layout = if right {
+        egui::Layout::right_to_left(egui::Align::Center)
+    } else {
+        egui::Layout::left_to_right(egui::Align::Center)
+    };
+    ui.allocate_ui_with_layout(egui::vec2(w, 20.0), layout, |ui| {
+        ui.add(egui::Label::new(egui::RichText::new(label).strong()).selectable(false));
+    });
 }
 
 fn header_cell(ui: &mut egui::Ui, w: f32, label: &str, col: SortCol, sort: Sort, right: bool) {
@@ -482,8 +524,12 @@ fn cell_right(ui: &mut egui::Ui, w: f32, text: String, strong: bool) {
     );
 }
 
-/// One container as a collapsible KPI row. Collapsed, it shows icon + name +
-/// item count + weight + value; the triangle unfolds the editing body.
+/// One container as a collapsible KPI row showing triangle, icon, name, item
+/// count, weight, and value; the triangle unfolds the editing body. The header
+/// is laid out manually (painted triangle, zero x-spacing, fixed column widths)
+/// so it lines up exactly with [`column_header`]. egui's built-in
+/// `CollapsingState::show_header` injects its own triangle width and
+/// inter-widget spacing that don't match our hand-rolled header.
 fn container_row(
     ui: &mut egui::Ui,
     state: &Arc<RwLock<AppState>>,
@@ -491,34 +537,64 @@ fn container_row(
     save_tx: &Sender<SaveTick>,
     row: &Row,
 ) {
-    // Clone the header texture so the header closure doesn't borrow `icons`
-    // (the body closure needs it mutably right after).
     let header_tex = icons
         .get(ui.ctx(), &icon_asset_path(&row.display_icon))
         .cloned();
     let cid = ui.make_persistent_id(("container-row", row.target.key()));
-    egui::collapsing_header::CollapsingState::load_with_default_open(ui.ctx(), cid, false)
-        .show_header(ui, |ui| {
-            ui.allocate_ui_with_layout(
-                egui::vec2(W_ICON, ROW_H),
-                egui::Layout::left_to_right(egui::Align::Center),
-                |ui| {
-                    if let Some(tex) = &header_tex {
-                        ui.add(egui::Image::new(tex).fit_to_exact_size(egui::vec2(28.0, 28.0)));
-                    }
-                },
-            );
-            cell_left(ui, W_NAME, egui::RichText::new(&row.name).strong());
-            cell_right(ui, W_ITEMS, row.item_count.to_string(), false);
-            cell_right(ui, W_WEIGHT, format!("{:.2} kg", row.weight), false);
-            cell_right(
-                ui,
-                W_VALUE,
-                format!("{} RUB", format_price(row.value)),
-                true,
-            );
+    let mut collapse =
+        egui::collapsing_header::CollapsingState::load_with_default_open(ui.ctx(), cid, false);
+    let is_open = collapse.is_open();
+
+    // --- Header row: one clickable strip, manual fixed columns. ---
+    let header_resp = ui
+        .scope(|ui| {
+            ui.spacing_mut().item_spacing.x = 0.0;
+            ui.horizontal(|ui| {
+                // Triangle column (paint our own so the width is exactly LEAD).
+                let (tri_rect, _) =
+                    ui.allocate_exact_size(egui::vec2(LEAD, ROW_H), egui::Sense::hover());
+                let tri = if is_open { "▼" } else { "▶" };
+                ui.painter().text(
+                    tri_rect.center(),
+                    egui::Align2::CENTER_CENTER,
+                    tri,
+                    egui::FontId::proportional(12.0),
+                    ui.visuals().weak_text_color(),
+                );
+                // Icon column.
+                ui.allocate_ui_with_layout(
+                    egui::vec2(W_ICON, ROW_H),
+                    egui::Layout::centered_and_justified(egui::Direction::LeftToRight),
+                    |ui| {
+                        if let Some(tex) = &header_tex {
+                            ui.add(egui::Image::new(tex).fit_to_exact_size(egui::vec2(28.0, 28.0)));
+                        }
+                    },
+                );
+                cell_left(ui, W_NAME, egui::RichText::new(&row.name).strong());
+                cell_right(ui, W_ITEMS, row.item_count.to_string(), false);
+                cell_right(ui, W_WEIGHT, format!("{:.2} kg", row.weight), false);
+                cell_right(
+                    ui,
+                    W_VALUE,
+                    format!("{} RUB", format_price(row.value)),
+                    true,
+                );
+            });
         })
-        .body(|ui| container_body(ui, state, icons, save_tx, row));
+        .response
+        .interact(egui::Sense::click())
+        .on_hover_cursor(egui::CursorIcon::PointingHand);
+
+    if header_resp.clicked() {
+        collapse.toggle(ui);
+    }
+    collapse.store(ui.ctx());
+
+    // Body: editing controls, only while expanded.
+    if is_open {
+        container_body(ui, state, icons, save_tx, row);
+    }
 }
 
 /// The unfolded editing controls. The stash shows only its contents + add-item
@@ -755,37 +831,59 @@ fn contents_editor(
         "Remove from this container"
     };
 
+    // Comfortable hit targets for the stepper + remove controls.
+    const BTN: egui::Vec2 = egui::vec2(30.0, 28.0);
+    const QTY_W: f32 = 46.0;
+
     for (item_id, name, icon, qty) in &items {
         ui.horizontal(|ui| {
+            ui.add_space(LEAD); // indent contents under the row's name column
             if !icon.is_empty() {
                 if let Some(tex) = icons.get(ui.ctx(), icon) {
-                    ui.add(egui::Image::new(tex).fit_to_exact_size(egui::vec2(24.0, 24.0)));
+                    ui.add(egui::Image::new(tex).fit_to_exact_size(egui::vec2(28.0, 28.0)));
                 }
             }
             ui.add(egui::Label::new(name).wrap_mode(egui::TextWrapMode::Truncate));
 
             // Controls hug the right edge. In a right-to-left layout the
             // first-added widget sits rightmost, so add ×, +, qty, − to read
-            // left→right as "[−] qty [+] ×".
+            // left→right as "[−] qty [+]   ×".
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button("×").on_hover_text(remove_tip).clicked() {
+                if ui
+                    .add_sized(BTN, egui::Button::new(egui::RichText::new("×").strong()))
+                    .on_hover_text(remove_tip)
+                    .clicked()
+                {
                     target_set_item(state, target, item_id, 0);
                     notify(state, save_tx);
                 }
-                if ui.small_button("+").clicked() {
+                ui.add_space(8.0);
+                if ui
+                    .add_sized(BTN, egui::Button::new(egui::RichText::new("+").strong()))
+                    .on_hover_text("Add one")
+                    .clicked()
+                {
                     target_adjust_item(state, target, item_id, 1);
                     notify(state, save_tx);
                 }
                 let mut q = *qty;
                 if ui
-                    .add(egui::DragValue::new(&mut q).range(0..=9999).speed(0.1))
+                    .add_sized(
+                        egui::vec2(QTY_W, BTN.y),
+                        egui::DragValue::new(&mut q).range(0..=9999).speed(0.1),
+                    )
+                    .on_hover_text("Drag or type a quantity")
                     .changed()
                 {
                     target_set_item(state, target, item_id, q);
                     notify(state, save_tx);
                 }
                 if ui
-                    .add_enabled(*qty > 0, egui::Button::new("-").small())
+                    .add_enabled(
+                        *qty > 0,
+                        egui::Button::new(egui::RichText::new("−").strong()).min_size(BTN),
+                    )
+                    .on_hover_text("Remove one")
                     .clicked()
                 {
                     target_adjust_item(state, target, item_id, -1);
@@ -793,6 +891,7 @@ fn contents_editor(
                 }
             });
         });
+        ui.add_space(2.0);
     }
 }
 
