@@ -572,21 +572,27 @@ fn upgrade_cell(
     save_tx: &Sender<SaveTick>,
     upgrade: &Upgrade,
 ) {
-    let (tracked, done, ready, assumed) = {
+    let (tracked, done, ready, nearly, assumed) = {
         let s = state.read();
         (
             s.tracked_upgrades.contains(&upgrade.id),
             s.completed_upgrades.contains(&upgrade.id),
             s.is_upgrade_ready(&upgrade.id),
+            s.is_upgrade_nearly_ready(&upgrade.id),
             matches!(s.recipe_knowledge(&upgrade.id), RecipeKnowledge::Assumed),
         )
     };
 
     let dark = ui.visuals().dark_mode;
+    // Warmth gradient: tracked (blue) → nearly (amber) → ready (yellow) → done
+    // (green). `nearly` slots just below `ready` so a cell 1–2 items short reads
+    // as "almost" without being mistaken for claimable.
     let fill = if done {
         theme::done_fill(dark)
     } else if ready {
         theme::ready_fill(dark)
+    } else if nearly {
+        theme::nearly_ready_fill(dark)
     } else if tracked {
         theme::tracked_fill(dark)
     } else {
@@ -606,7 +612,7 @@ fn upgrade_cell(
 
     let resp = frame
         .show(ui, |ui| {
-            upgrade_controls(ui, state, save_tx, &upgrade.id);
+            upgrade_controls(ui, state, save_tx, &upgrade.id, false);
         })
         .response;
     if assumed {
@@ -617,32 +623,50 @@ fn upgrade_cell(
     }
 }
 
-/// The Track / Done / Edit control cluster shared by the grid cell and the
-/// "By progress" list row, so the two never drift. Reads and self-applies
-/// tracked/completed mutations (+ notify) exactly as the old inline block in
-/// `upgrade_cell` did, and toggles the ctx-memory selection that drives the
+/// The Track / Done / (Pin) / Edit control cluster shared by the grid cell and
+/// the "By progress" list row, so the two never drift. Reads and self-applies
+/// tracked/completed/pinned mutations (+ notify) exactly as the old inline block
+/// in `upgrade_cell` did, and toggles the ctx-memory selection that drives the
 /// recipe editor.
+///
+/// `show_pin` gates the Pin checkbox: only the By-progress list passes `true`.
+/// The grid cell is capped at `CELL_W` (210px) and a third checkbox would
+/// overflow it — and pinning is a prioritization action that belongs in the
+/// list view anyway, not the spatial map.
 fn upgrade_controls(
     ui: &mut egui::Ui,
     state: &Arc<RwLock<AppState>>,
     save_tx: &Sender<SaveTick>,
     upgrade_id: &UpgradeId,
+    show_pin: bool,
 ) {
-    let (mut tracked, mut done, overridden) = {
+    let (mut tracked, mut done, mut pinned, overridden) = {
         let s = state.read();
         (
             s.tracked_upgrades.contains(upgrade_id),
             s.completed_upgrades.contains(upgrade_id),
+            s.is_upgrade_pinned(upgrade_id),
             s.is_overridden(upgrade_id),
         )
     };
-    let (original_tracked, original_done) = (tracked, done);
+    let (original_tracked, original_done, original_pinned) = (tracked, done, pinned);
     let dark = ui.visuals().dark_mode;
     let is_selected = selected(ui.ctx()).as_deref() == Some(upgrade_id.as_str());
 
     ui.horizontal(|ui| {
         ui.checkbox(&mut tracked, "Track");
         ui.checkbox(&mut done, "Done");
+        // Pin only makes sense for a live target — a tracked, not-yet-completed
+        // upgrade. Hidden otherwise so the control never implies you can
+        // prioritize something you're not working toward. (A pin set earlier
+        // survives untracking inertly; it just isn't editable here until the
+        // upgrade is tracked again.)
+        if show_pin && tracked && !done {
+            ui.checkbox(&mut pinned, "Pin").on_hover_text(
+                "Prioritize: float this upgrade to the top of the list and its \
+                 items to the front of the overlay.",
+            );
+        }
         ui.add_space(4.0);
 
         let label = if is_selected { "Hide" } else { "Edit" };
@@ -682,6 +706,10 @@ fn upgrade_controls(
             state.write().set_completed_upgrade(upgrade_id, false);
             notify(state, save_tx);
         }
+    }
+    if pinned != original_pinned {
+        state.write().set_pinned_upgrade(upgrade_id, pinned);
+        notify(state, save_tx);
     }
 }
 
@@ -894,10 +922,12 @@ fn progress_row(
 ) {
     let dark = ui.visuals().dark_mode;
     let strong = ui.visuals().strong_text_color();
-    // Reserve the background slot before laying out content, then paint into
-    // it once we know the row's rect — the same stripe/hover trick as
-    // `module_row`.
+    // Two slots reserved before content, painted once we know the row rect:
+    // `bg_idx` for the full-row readiness tint (the stripe/hover trick from
+    // `module_row`) and `accent_idx` for a thin pinned-priority stripe drawn
+    // over the bg.
     let bg_idx = ui.painter().add(egui::Shape::Noop);
+    let accent_idx = ui.painter().add(egui::Shape::Noop);
 
     let inner = ui.horizontal(|ui| {
         ui.set_min_height(ROW_H);
@@ -924,20 +954,25 @@ fn progress_row(
             )),
         );
 
+        progress_status_chip(ui, row);
         progress_badge(ui, row.knowledge, dark);
 
         ui.add_space(8.0);
-        upgrade_controls(ui, state, save_tx, &row.upgrade_id);
+        upgrade_controls(ui, state, save_tx, &row.upgrade_id, true);
     });
 
-    // Ready rows get the warm `ready_fill` so readiness pops before the eye
-    // reaches the bar (the grid signals this per-cell; here the row IS the
-    // upgrade). Everything in this list is tracked-and-incomplete by
-    // construction, so there's no tracked/done tint to compete with.
+    // Ready rows get the warm `ready_fill`; nearly-ready rows the dimmer amber.
+    // So closeness-to-claimable pops before the eye reaches the bar (the grid
+    // signals this per-cell; here the row IS the upgrade). Everything in this
+    // list is tracked-and-incomplete by construction, so there's no tracked/done
+    // tint to compete with.
     let row_rect = inner.response.rect;
     let hovered = ui.rect_contains_pointer(row_rect);
+    let nearly = !row.ready && (1..=2).contains(&row.shortfall.items_missing);
     let bg = if row.ready {
         theme::ready_fill(dark)
+    } else if nearly {
+        theme::nearly_ready_fill(dark)
     } else if hovered {
         theme::row_hover(dark)
     } else if row_idx % 2 == 1 {
@@ -949,7 +984,39 @@ fn progress_row(
         ui.painter()
             .set(bg_idx, egui::epaint::RectShape::filled(row_rect, 2.0, bg));
     }
+    // Pinned rows get a thin violet left stripe — a priority cue independent of
+    // the readiness tint, painted over the bg.
+    if row.pinned {
+        let stripe =
+            egui::Rect::from_min_size(row_rect.left_top(), egui::vec2(3.0, row_rect.height()));
+        ui.painter().set(
+            accent_idx,
+            egui::epaint::RectShape::filled(stripe, 0.0, theme::pinned_accent(dark)),
+        );
+    }
     ui.add_space(2.0);
+}
+
+/// Small status chip on a By-progress row: "ready" once every material is in,
+/// or "N item(s) to go" for a nearly-ready upgrade (1–2 distinct items short).
+/// Quiet for everything else — the progress bar already carries the unit count
+/// and the bucket order already groups them. Strong text contrasts with the
+/// row's readiness tint in both themes; no glyphs (the bundled fonts render
+/// ✓/★ as tofu — see `progress_badge`).
+fn progress_status_chip(ui: &mut egui::Ui, row: &UpgradeProgressRow) {
+    let strong = ui.visuals().strong_text_color();
+    if row.ready {
+        ui.label(egui::RichText::new("ready").small().strong().color(strong));
+    } else if (1..=2).contains(&row.shortfall.items_missing) {
+        let n = row.shortfall.items_missing;
+        let noun = if n == 1 { "item" } else { "items" };
+        ui.label(
+            egui::RichText::new(format!("{n} {noun} to go"))
+                .small()
+                .strong()
+                .color(strong),
+        );
+    }
 }
 
 /// Recipe-confidence badge for a progress-list row. `Bundled` is the quiet

@@ -1,9 +1,14 @@
-//! Right pane: aggregated active-items view, mirrors what the VR overlay shows.
+//! Right pane: the aggregated active-items wishlist. By default it shows the
+//! exact order the VR overlay uses; the sort selector can re-order it for
+//! desktop planning (by remaining, or by value) WITHOUT touching the overlay,
+//! which always keeps its own stable order.
 
 use crate::gui::{icon_cache::IconCache, theme, SaveTick};
-use crate::state::AppState;
+use crate::settings::{PreviewSort, Settings};
+use crate::state::{ActiveItem, AppState};
 use crossbeam_channel::Sender;
 use parking_lot::RwLock;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 const ICON_SIZE: f32 = 48.0;
@@ -15,21 +20,61 @@ const ICON_SIZE: f32 = 48.0;
 const BTN_H: f32 = 32.0;
 const BTN_RADIUS: f32 = 16.0;
 
+/// Return value of [`ui`]: signals the caller whether the preview-sort
+/// preference changed this frame so it can persist `settings.json`. Mirrors
+/// `HideoutOutcome`; otherwise the pane only ever touches `state.json` via
+/// `save_tx`.
+#[derive(Default)]
+pub struct PreviewOutcome {
+    pub settings_changed: bool,
+}
+
 pub fn ui(
     ui: &mut egui::Ui,
     state: &Arc<RwLock<AppState>>,
+    settings: &Arc<RwLock<Settings>>,
     icons: &mut IconCache,
     save_tx: &Sender<SaveTick>,
-) {
-    let active = state.read().active_items();
+) -> PreviewOutcome {
+    let mut outcome = PreviewOutcome::default();
     let weak = ui.visuals().weak_text_color();
 
+    // Snapshot the wishlist AND the prices the value-sort needs under a single
+    // read lock (`ActiveItem` carries no price). The map is keyed only by items
+    // actually on the wishlist, so it stays small.
+    let (mut active, prices) = {
+        let s = state.read();
+        let active = s.active_items();
+        let prices: HashMap<String, Option<u64>> = active
+            .iter()
+            .map(|a| {
+                (
+                    a.item_id.clone(),
+                    s.index.items_by_id.get(&a.item_id).and_then(|i| i.price),
+                )
+            })
+            .collect();
+        (active, prices)
+    };
+    let sort = settings.read().preview_sort;
+    apply_preview_sort(&mut active, sort, &prices);
+
     ui.heading("Active items");
-    ui.label(
-        egui::RichText::new("Aggregated across every tracked upgrade.")
-            .small()
-            .color(weak),
-    );
+    // The default mode reproduces the overlay; the others say so explicitly, so
+    // the pane never silently stops mirroring the headset.
+    let subtitle = match sort {
+        PreviewSort::Overlay => {
+            "Aggregated across every tracked upgrade — same order as the overlay."
+        }
+        PreviewSort::Remaining => {
+            "Aggregated across every tracked upgrade · by remaining (desktop only; overlay unaffected)."
+        }
+        PreviewSort::Value => {
+            "Aggregated across every tracked upgrade · by value (desktop only; overlay unaffected)."
+        }
+    };
+    ui.label(egui::RichText::new(subtitle).small().color(weak));
+    outcome.settings_changed |= sort_selector(ui, settings);
     ui.separator();
 
     if active.is_empty() {
@@ -42,7 +87,7 @@ pub fn ui(
                     .color(weak),
             );
         });
-        return;
+        return outcome;
     }
 
     egui::ScrollArea::vertical().show(ui, |ui| {
@@ -50,6 +95,73 @@ pub fn ui(
             row(ui, state, icons, save_tx, item);
         }
     });
+    outcome
+}
+
+/// Compact segmented control choosing how the desktop list is ordered. Returns
+/// true when the choice changed so the caller persists `settings.json`. The VR
+/// overlay is unaffected — it always renders `active_items()`'s stable order.
+fn sort_selector(ui: &mut egui::Ui, settings: &Arc<RwLock<Settings>>) -> bool {
+    let before = settings.read().preview_sort;
+    let mut sort = before;
+    ui.horizontal(|ui| {
+        ui.label("Sort:");
+        ui.selectable_value(&mut sort, PreviewSort::Overlay, "Overlay")
+            .on_hover_text("Same order the VR overlay shows (pinned first, then biggest grinds).");
+        ui.selectable_value(&mut sort, PreviewSort::Remaining, "Remaining")
+            .on_hover_text("Most still-needed (needed − collected) first.");
+        ui.selectable_value(&mut sort, PreviewSort::Value, "Value")
+            .on_hover_text("Highest rouble value of the missing units (price × remaining) first.");
+    });
+    if sort != before {
+        settings.write().preview_sort = sort;
+        true
+    } else {
+        false
+    }
+}
+
+/// Re-sort the desktop preview list in place. `Overlay` leaves the overlay
+/// order untouched; the other modes are desktop-only planning views. Done items
+/// (collected ≥ needed) always sink so the eye lands on what's still needed,
+/// then the mode's key, then name for stability.
+fn apply_preview_sort(
+    items: &mut [ActiveItem],
+    sort: PreviewSort,
+    prices: &HashMap<String, Option<u64>>,
+) {
+    fn remaining(a: &ActiveItem) -> u32 {
+        a.needed.saturating_sub(a.collected)
+    }
+    fn done(a: &ActiveItem) -> bool {
+        a.collected >= a.needed
+    }
+    match sort {
+        // Already in overlay order (pinned-first, needed-desc) from active_items().
+        PreviewSort::Overlay => {}
+        PreviewSort::Remaining => items.sort_by(|a, b| {
+            done(a)
+                .cmp(&done(b))
+                .then_with(|| remaining(b).cmp(&remaining(a)))
+                .then_with(|| a.name.cmp(&b.name))
+        }),
+        PreviewSort::Value => {
+            let value = |a: &ActiveItem| {
+                prices
+                    .get(&a.item_id)
+                    .copied()
+                    .flatten()
+                    .unwrap_or(0)
+                    .saturating_mul(remaining(a) as u64)
+            };
+            items.sort_by(|a, b| {
+                done(a)
+                    .cmp(&done(b))
+                    .then_with(|| value(b).cmp(&value(a)))
+                    .then_with(|| a.name.cmp(&b.name))
+            });
+        }
+    }
 }
 
 fn row(
@@ -79,7 +191,7 @@ fn row(
                     // Without this the chunky VR-sized controls would push the
                     // row taller than the previous compact layout.
                     ui.spacing_mut().item_spacing.y = 1.0;
-                    row_name(ui, &item.name, done, dark);
+                    row_name(ui, &item.name, done, item.pinned, dark);
                     ui.horizontal(|ui| row_controls(ui, state, save_tx, item));
                     row_sources(ui, &item.sources, dark);
                 });
@@ -99,13 +211,26 @@ fn row_icon(ui: &mut egui::Ui, icons: &mut IconCache, icon_path: &str, dark: boo
     }
 }
 
-fn row_name(ui: &mut egui::Ui, name: &str, done: bool, dark: bool) {
+fn row_name(ui: &mut egui::Ui, name: &str, done: bool, pinned: bool, dark: bool) {
     let color = if done {
         theme::done_text(dark)
     } else {
         ui.visuals().strong_text_color()
     };
-    ui.label(egui::RichText::new(name).color(color));
+    ui.horizontal(|ui| {
+        ui.label(egui::RichText::new(name).color(color));
+        if pinned {
+            // Small priority tag — this item leads the overlay because one of
+            // its source upgrades is pinned. No star glyph (tofu in our fonts).
+            ui.label(
+                egui::RichText::new("pinned")
+                    .small()
+                    .strong()
+                    .color(theme::pinned_accent(dark)),
+            )
+            .on_hover_text("A pinned upgrade needs this item, so it leads the overlay.");
+        }
+    });
 }
 
 fn row_controls(
