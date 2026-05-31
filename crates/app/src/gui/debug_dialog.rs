@@ -189,6 +189,7 @@ fn render_ocr_fixture_runner(ui: &mut egui::Ui, ocr_job_tx: &Sender<OcrJob>, wea
                             Ok(img) => OcrJob {
                                 image: img,
                                 source_path: Some(fixture.clone()),
+                                kind: crate::ocr::JobKind::UpgradePanel,
                             },
                             Err(e) => {
                                 tracing::warn!(

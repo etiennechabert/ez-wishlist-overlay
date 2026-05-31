@@ -31,6 +31,13 @@ pub mod debug_dump;
 pub mod engine;
 #[cfg(target_os = "windows")]
 pub mod match_upgrade;
+// Box-container screen OCR + scroll-stitch. The stitch core (`stitch`/`tally`)
+// is platform-independent and unit-tested on every target; the OCR geometry
+// (`process_box_image`) is Windows-gated inside the module.
+pub mod box_scan;
+// Tile-label → `Item.id` fuzzy matcher (sibling of `match_upgrade`), kept
+// platform-independent so it's CI-testable.
+pub mod match_item;
 pub mod pipeline;
 #[cfg(target_os = "windows")]
 pub mod prep;
@@ -38,6 +45,20 @@ pub mod prep;
 pub mod templates;
 
 pub use pipeline::process_image;
+
+/// Which in-game screen a capture targets — selects the pipeline the worker
+/// runs and how it treats the queue.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum JobKind {
+    /// The hideout Facility Upgrade panel (default). The worker keeps only the
+    /// latest queued shot and applies the read to `AppState.collected`.
+    #[default]
+    UpgradePanel,
+    /// A box container's contents screen. Every capture is a distinct scroll
+    /// position, so the worker processes them all in order (no stale-drain) and
+    /// stitches them into the active box-scan session.
+    BoxScan,
+}
 
 /// One unit of OCR work the VR thread hands to the worker.
 ///
@@ -63,6 +84,10 @@ pub struct OcrJob {
     /// sidecar are skipped automatically because they need a path
     /// to write next to.
     pub source_path: Option<std::path::PathBuf>,
+    /// Which screen this capture targets. The VR capture path sets it from the
+    /// active mode (box-scan vs the default upgrade panel); the OCR worker
+    /// routes on it.
+    pub kind: JobKind,
 }
 
 /// Pixel-space bounding box from the OCR engine. Float coordinates because
@@ -147,4 +172,43 @@ pub enum OcrPipelineResult {
         /// is what the user's next upgrade level would be minus one.
         current_level: u32,
     },
+}
+
+/// GUI → OCR worker: drive a box-scan session.
+#[derive(Clone, Debug)]
+pub enum BoxCommand {
+    /// Begin scanning into container `target`, discarding any prior session.
+    Start { target: crate::state::ContainerId },
+    /// Finish: the GUI writes the final tally to the container; the worker just
+    /// drops its accumulator.
+    Finish,
+    /// Abandon the session without writing.
+    Cancel,
+}
+
+/// Outcome of the most recent box-scan capture, for the live preview.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BoxScanStatus {
+    /// Merged cleanly (or a no-op re-capture / scroll-up).
+    Ok,
+    /// No confident overlap with what we've scanned so far — the user should
+    /// re-take this shot with more overlap (scroll up a little).
+    NeedsRecapture,
+    /// The capture recognized no item tiles (not on the box screen, or OCR
+    /// missed everything).
+    NoTiles,
+}
+
+/// OCR worker → GUI: running state of the active box-scan session, emitted
+/// after each capture. The GUI shows it as a live tally and, on Finish, writes
+/// it into the target container.
+#[derive(Clone, Debug)]
+pub struct BoxScanUpdate {
+    pub target: crate::state::ContainerId,
+    pub captures: u32,
+    pub tally: std::collections::HashMap<crate::data::ItemId, u32>,
+    pub unrecognized: usize,
+    /// The box's total-weight readout, for the "computed vs observed" checksum.
+    pub observed_weight: Option<f32>,
+    pub status: BoxScanStatus,
 }

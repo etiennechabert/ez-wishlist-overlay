@@ -85,6 +85,11 @@ pub struct Runtime {
     /// VR render loop polls this each tick; the GUI flips it via
     /// [`Runtime::set_auto_capture`].
     auto_capture: Arc<AtomicBool>,
+    /// Ephemeral box-scan mode switch. While `true`, SPACE captures are tagged
+    /// [`crate::ocr::JobKind::BoxScan`] and the auto-capture loop is suppressed
+    /// (the two modes are mutually exclusive). Not persisted — always starts
+    /// `false`. The GUI flips it via [`Runtime::set_box_scan_mode`].
+    box_scan_mode: Arc<AtomicBool>,
     _join: std::thread::JoinHandle<()>,
 }
 
@@ -136,6 +141,8 @@ impl Runtime {
         let (capture_tx, capture_rx) = crossbeam_channel::bounded::<()>(4);
         let auto_capture = Arc::new(AtomicBool::new(false));
         let auto_capture_worker = auto_capture.clone();
+        let box_scan_mode = Arc::new(AtomicBool::new(false));
+        let box_scan_mode_worker = box_scan_mode.clone();
         let join = std::thread::Builder::new()
             .name("ez-wishlist-vr".into())
             .spawn(move || {
@@ -149,6 +156,7 @@ impl Runtime {
                     ocr_tx,
                     ocr_feedback_rx,
                     auto_capture_worker,
+                    box_scan_mode_worker,
                 )
             })
             .expect("spawn VR thread");
@@ -157,6 +165,7 @@ impl Runtime {
             capture_tx,
             last_capture,
             auto_capture,
+            box_scan_mode,
             _join: join,
         }
     }
@@ -189,6 +198,17 @@ impl Runtime {
     pub fn auto_capture_enabled(&self) -> bool {
         self.auto_capture.load(Ordering::Relaxed)
     }
+
+    /// Enter/leave box-scan mode. Ephemeral — never persisted. While on, SPACE
+    /// captures feed the box-scan session and the auto-capture loop is
+    /// suppressed. The Containers tab flips this around a "Scan box" session.
+    pub fn set_box_scan_mode(&self, on: bool) {
+        self.box_scan_mode.store(on, Ordering::Relaxed);
+    }
+
+    pub fn box_scan_enabled(&self) -> bool {
+        self.box_scan_mode.load(Ordering::Relaxed)
+    }
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -203,6 +223,7 @@ fn run(
     _ocr_tx: Sender<OcrJob>,
     _ocr_feedback_rx: Receiver<crate::gui::OcrFeedback>,
     _auto_capture: Arc<AtomicBool>,
+    _box_scan_mode: Arc<AtomicBool>,
 ) {
     // Status is already Unsupported. Nothing else to do — park the thread.
     *status.write() = VrStatus::Unsupported;
@@ -221,6 +242,7 @@ fn run(
     ocr_tx: Sender<OcrJob>,
     ocr_feedback_rx: Receiver<crate::gui::OcrFeedback>,
     auto_capture: Arc<AtomicBool>,
+    box_scan_mode: Arc<AtomicBool>,
 ) {
     use super::overlay::OverlaySession;
 
@@ -253,6 +275,7 @@ fn run(
                     &ocr_tx,
                     &ocr_feedback_rx,
                     &auto_capture,
+                    &box_scan_mode,
                 );
                 if let Err(e) = lost {
                     tracing::warn!(error = %e, "VR session lost");
@@ -284,6 +307,7 @@ fn render_loop(
     ocr_tx: &Sender<OcrJob>,
     ocr_feedback_rx: &Receiver<crate::gui::OcrFeedback>,
     auto_capture: &Arc<AtomicBool>,
+    box_scan_mode: &Arc<AtomicBool>,
 ) -> anyhow::Result<()> {
     use super::input::Debouncer;
     use super::pose::{Visibility, VisibilityFsm};
@@ -375,11 +399,12 @@ fn render_loop(
             frame_start,
         );
 
-        // Manual capture requests (SPACE hotkey). Drain the queue and
-        // grab once — the OCR worker only keeps the latest shot anyway,
-        // so N queued presses don't need N readbacks. `beep = true` gives
-        // audible in-headset confirmation. The capture work itself lives
-        // in `capture_and_forward` (shared with the auto loop below).
+        // Manual capture requests (SPACE hotkey). Drain the queue and grab
+        // once — multiple presses within a single ~11 ms frame can only be
+        // accidental, so coalescing them is correct even in box-scan mode
+        // (distinct scroll positions are always whole frames apart). `beep =
+        // true` gives audible in-headset confirmation. The capture work itself
+        // lives in `capture_and_forward` (shared with the auto loop below).
         let mut manual_requested = false;
         while capture_rx.try_recv().is_ok() {
             manual_requested = true;
@@ -393,6 +418,7 @@ fn render_loop(
                 last_capture,
                 &mut ocr_state,
                 true,
+                box_scan_mode.load(Ordering::Relaxed),
             );
         }
 
@@ -400,8 +426,10 @@ fn render_loop(
         // comparisons in this ~90 Hz loop, single-flight via
         // `capture_in_flight`, and silent (no per-loop beep). The mode
         // flag is ephemeral, so it always starts off (see
-        // `Runtime::set_auto_capture`).
-        let auto_on = auto_capture.load(Ordering::Relaxed);
+        // `Runtime::set_auto_capture`). Suppressed entirely while a box scan is
+        // active — the two capture modes are mutually exclusive.
+        let auto_on =
+            auto_capture.load(Ordering::Relaxed) && !box_scan_mode.load(Ordering::Relaxed);
         if auto_on && !prev_auto_on {
             // Rising edge: make the first capture eligible immediately.
             last_auto_done = None;
@@ -441,6 +469,7 @@ fn render_loop(
                     last_capture,
                     &mut ocr_state,
                     false,
+                    false, // auto-capture is upgrade-panel only
                 ) {
                     capture_in_flight = true;
                     auto_dispatched_at = Some(frame_start);
@@ -838,6 +867,10 @@ fn next_screenshot_path(paths: &PersistPaths) -> PathBuf {
 /// when a bitmap was actually dispatched to the worker, `false` on
 /// capture error — the auto loop uses this to decide whether to arm its
 /// single-flight latch.
+///
+/// `box_scan` tags the job [`crate::ocr::JobKind::BoxScan`] and switches the
+/// dispatch to a *blocking* send, because every scroll capture is load-bearing
+/// — dropping one would leave a gap in the stitched list.
 #[cfg(target_os = "windows")]
 #[allow(clippy::too_many_arguments)]
 fn capture_and_forward(
@@ -848,6 +881,7 @@ fn capture_and_forward(
     last_capture: &Arc<RwLock<Option<CaptureResult>>>,
     ocr_state: &mut Option<OcrOverlayState>,
     beep: bool,
+    box_scan: bool,
 ) -> bool {
     if ocr_state.is_some() {
         if let Err(e) = session.set_ocr_alpha(0.0) {
@@ -869,14 +903,25 @@ fn capture_and_forward(
     };
     let (result, dispatched) = match capture_result {
         Ok(img) => {
-            // Best-effort forward to OCR. If the channel is full (worker
-            // busy on a previous shot) we drop this one silently — the
-            // VR render loop must not block.
             let job = OcrJob {
                 image: img,
                 source_path: png_path.clone(),
+                kind: if box_scan {
+                    crate::ocr::JobKind::BoxScan
+                } else {
+                    crate::ocr::JobKind::UpgradePanel
+                },
             };
-            let _ = ocr_tx.try_send(job);
+            // Upgrade captures: best-effort `try_send` — if the worker is busy
+            // we drop this shot (it only keeps the latest anyway) so the render
+            // loop never blocks. Box-scan captures: blocking `send`, because a
+            // dropped scroll position would gap the stitched list. Safe to
+            // block here — box captures are deliberate and seconds apart.
+            if box_scan {
+                let _ = ocr_tx.send(job);
+            } else {
+                let _ = ocr_tx.try_send(job);
+            }
             if beep {
                 super::capture::play_capture_done_beep(true);
             }
