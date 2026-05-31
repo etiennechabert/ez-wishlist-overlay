@@ -156,18 +156,6 @@ pub fn ui(
     );
     ui.add_space(8.0);
 
-    // Prominent call-to-action; the actual create flow lives in a modal.
-    if ui
-        .add(egui::Button::new(
-            egui::RichText::new("➕  New container").strong(),
-        ))
-        .on_hover_text("Create a backpack or box: name it and pick an icon")
-        .clicked()
-    {
-        open_new_container_modal(ui.ctx());
-    }
-    ui.separator();
-
     // Snapshot the stash row + every container row in one read lock.
     let (stash_row, mut rows) = {
         let s = state.read();
@@ -222,17 +210,22 @@ pub fn ui(
     column_header(ui, true);
     let sort = sort_state(ui.ctx());
     sort_rows(&mut rows, sort);
-    if rows.is_empty() {
-        ui.add_space(8.0);
-        ui.label(
-            egui::RichText::new("No secondary containers yet — create one with “+ New container”.")
-                .italics()
-                .color(ui.visuals().weak_text_color()),
-        );
-    } else {
-        for row in &rows {
-            container_row(ui, state, icons, save_tx, row);
-        }
+    for row in &rows {
+        container_row(ui, state, icons, save_tx, row);
+    }
+
+    // "New container" lives at the bottom of the Secondary section — it's the
+    // action that adds a row here, so it sits where the next row would go
+    // (and stands in for an empty-state message when there are none).
+    ui.add_space(6.0);
+    if ui
+        .add(egui::Button::new(
+            egui::RichText::new("➕  New container").strong(),
+        ))
+        .on_hover_text("Create a backpack or box: name it and pick an icon")
+        .clicked()
+    {
+        open_new_container_modal(ui.ctx());
     }
 
     // The add-item picker (one target at a time, keyed in egui memory).
@@ -454,117 +447,179 @@ fn sort_rows(rows: &mut [Row], sort: Sort) {
     });
 }
 
-/// Column header row. When `sortable` the cells toggle the persisted sort on
-/// click (secondary-containers table); otherwise they're plain labels (the
-/// single-row primary/stash table, where sorting is meaningless). Uses the
-/// same zero-x-spacing + fixed widths as the data rows so columns line up.
-fn column_header(ui: &mut egui::Ui, sortable: bool) {
-    let sort = sort_state(ui.ctx());
-    ui.scope(|ui| {
-        ui.spacing_mut().item_spacing.x = 0.0;
-        ui.horizontal(|ui| {
-            // Triangle + icon columns have no header text; reserve their width
-            // so "Container" sits over the name and the numbers line up.
-            ui.add_space(LEAD + W_ICON);
-            if sortable {
-                header_cell(ui, W_NAME, "Container", SortCol::Name, sort, false);
-                header_cell(ui, W_ITEMS, "Items", SortCol::Items, sort, true);
-                header_cell(ui, W_WEIGHT, "Weight", SortCol::Weight, sort, true);
-                header_cell(ui, W_VALUE, "Value", SortCol::Value, sort, true);
-            } else {
-                plain_header_cell(ui, W_NAME, "Container", false);
-                plain_header_cell(ui, W_ITEMS, "Items", true);
-                plain_header_cell(ui, W_WEIGHT, "Weight", true);
-                plain_header_cell(ui, W_VALUE, "Value", true);
-            }
-        });
-    });
-    ui.separator();
+/// Horizontal padding inside numeric cells so values aren't flush against the
+/// next column or the window edge. Applied identically to header and rows.
+const CELL_PAD: f32 = 8.0;
+
+/// Absolute column rectangles for one table row, derived from the row's full
+/// rect. Both the header and the data rows place their content at these exact
+/// positions via `ui.put`, so alignment can't drift no matter the spacing — the
+/// recurring bug with hand-rolled `horizontal` layouts.
+struct Cols {
+    tri: egui::Rect,
+    icon: egui::Rect,
+    name: egui::Rect,
+    items: egui::Rect,
+    weight: egui::Rect,
+    value: egui::Rect,
+    /// Everything right of Value, for the Edit/Delete buttons.
+    actions: egui::Rect,
+    /// Triangle..Value inclusive — the fold/unfold click target (excludes the
+    /// actions column so its buttons handle their own clicks).
+    toggle: egui::Rect,
 }
 
-/// A non-interactive column header label, same geometry as [`header_cell`].
-fn plain_header_cell(ui: &mut egui::Ui, w: f32, label: &str, right: bool) {
-    let layout = if right {
-        egui::Layout::right_to_left(egui::Align::Center)
-    } else {
-        egui::Layout::left_to_right(egui::Align::Center)
-    };
-    ui.allocate_ui_with_layout(egui::vec2(w, 20.0), layout, |ui| {
-        ui.add(egui::Label::new(egui::RichText::new(label).strong()).selectable(false));
-    });
-}
-
-fn header_cell(ui: &mut egui::Ui, w: f32, label: &str, col: SortCol, sort: Sort, right: bool) {
-    let active = sort.col == col;
-    let arrow = if active {
-        if sort.desc {
-            " ▼"
-        } else {
-            " ▲"
-        }
-    } else {
-        ""
-    };
-    let layout = if right {
-        egui::Layout::right_to_left(egui::Align::Center)
-    } else {
-        egui::Layout::left_to_right(egui::Align::Center)
-    };
-    let resp = ui
-        .allocate_ui_with_layout(egui::vec2(w, 20.0), layout, |ui| {
-            ui.add(
-                egui::Label::new(egui::RichText::new(format!("{label}{arrow}")).strong())
-                    .sense(egui::Sense::click()),
-            )
-        })
-        .inner;
-    if resp.clicked() {
-        let next = if active {
-            Sort {
-                col,
-                desc: !sort.desc,
-            }
-        } else {
-            Sort {
-                col,
-                desc: default_desc(col),
-            }
-        };
-        set_sort_state(ui.ctx(), next);
+fn cols(row: egui::Rect) -> Cols {
+    let (t, b) = (row.top(), row.bottom());
+    let mk = |x: f32, w: f32| egui::Rect::from_min_max(egui::pos2(x, t), egui::pos2(x + w, b));
+    let tri = mk(row.left(), LEAD);
+    let icon = mk(tri.right(), W_ICON);
+    let name = mk(icon.right(), W_NAME);
+    let items = mk(name.right(), W_ITEMS);
+    let weight = mk(items.right(), W_WEIGHT);
+    let value = mk(weight.right(), W_VALUE);
+    let actions = egui::Rect::from_min_max(
+        egui::pos2(value.right(), t),
+        egui::pos2(row.right().max(value.right()), b),
+    );
+    let toggle = egui::Rect::from_min_max(row.left_top(), value.right_bottom());
+    Cols {
+        tri,
+        icon,
+        name,
+        items,
+        weight,
+        value,
+        actions,
+        toggle,
     }
 }
 
-fn cell_left(ui: &mut egui::Ui, w: f32, text: egui::RichText) {
-    // Hard-bound the cell to `w` and clip to it, so a long container name
-    // truncates with an ellipsis instead of pushing the KPI columns rightward
-    // and breaking the table alignment.
-    let (rect, _) = ui.allocate_exact_size(egui::vec2(w, ROW_H), egui::Sense::hover());
-    let mut cell = ui.new_child(
+/// Right-aligned text in `rect` (with cell padding). Optionally clickable
+/// (header sort) and/or strong; returns the response.
+fn put_right(
+    ui: &mut egui::Ui,
+    rect: egui::Rect,
+    text: &str,
+    strong: bool,
+    click: bool,
+) -> egui::Response {
+    let mut t = egui::RichText::new(text);
+    if strong {
+        t = t.strong();
+    }
+    let mut label = egui::Label::new(t).selectable(false);
+    if click {
+        label = label.sense(egui::Sense::click());
+    }
+    let inner = rect.shrink2(egui::vec2(CELL_PAD, 0.0));
+    let mut c = ui.new_child(
         egui::UiBuilder::new()
-            .max_rect(rect)
-            .layout(egui::Layout::left_to_right(egui::Align::Center)),
+            .max_rect(inner)
+            .layout(egui::Layout::right_to_left(egui::Align::Center)),
     );
-    cell.set_clip_rect(rect);
-    cell.add(egui::Label::new(text).truncate());
+    c.add(label)
 }
 
-fn cell_right(ui: &mut egui::Ui, w: f32, text: String, strong: bool) {
-    ui.allocate_ui_with_layout(
-        egui::vec2(w, ROW_H),
-        egui::Layout::right_to_left(egui::Align::Center),
-        |ui| {
-            let rt = egui::RichText::new(text);
-            ui.label(if strong { rt.strong() } else { rt });
-        },
+/// Left-aligned, clipped, truncating text in `rect` (with cell padding).
+fn put_left(ui: &mut egui::Ui, rect: egui::Rect, text: egui::RichText) {
+    let inner = rect.shrink2(egui::vec2(CELL_PAD, 0.0));
+    let mut c = ui.new_child(
+        egui::UiBuilder::new()
+            .max_rect(inner)
+            .layout(egui::Layout::left_to_right(egui::Align::Center)),
     );
+    c.set_clip_rect(inner);
+    c.add(egui::Label::new(text).selectable(false).truncate());
+}
+
+/// Column header row, aligned to the same [`cols`] geometry as the data rows.
+/// When `sortable`, the KPI cells toggle the persisted sort on click.
+fn column_header(ui: &mut egui::Ui, sortable: bool) {
+    let sort = sort_state(ui.ctx());
+    let full_w = ui.available_width();
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(full_w, 20.0), egui::Sense::hover());
+    let c = cols(rect);
+
+    // "Container" header — left-aligned, and sortable-by-name when this is the
+    // secondary table.
+    {
+        let active = sortable && sort.col == SortCol::Name;
+        let arrow = if active {
+            if sort.desc {
+                " ▼"
+            } else {
+                " ▲"
+            }
+        } else {
+            ""
+        };
+        let inner = c.name.shrink2(egui::vec2(CELL_PAD, 0.0));
+        let mut nc = ui.new_child(
+            egui::UiBuilder::new()
+                .max_rect(inner)
+                .layout(egui::Layout::left_to_right(egui::Align::Center)),
+        );
+        let mut label = egui::Label::new(egui::RichText::new(format!("Container{arrow}")).strong())
+            .selectable(false);
+        if sortable {
+            label = label.sense(egui::Sense::click());
+        }
+        if nc.add(label).clicked() && sortable {
+            let next = if sort.col == SortCol::Name {
+                Sort {
+                    col: SortCol::Name,
+                    desc: !sort.desc,
+                }
+            } else {
+                Sort {
+                    col: SortCol::Name,
+                    desc: default_desc(SortCol::Name),
+                }
+            };
+            set_sort_state(ui.ctx(), next);
+        }
+    }
+
+    let mut header = |rect: egui::Rect, label: &str, col: SortCol| {
+        let active = sortable && sort.col == col;
+        let arrow = if active {
+            if sort.desc {
+                " ▼"
+            } else {
+                " ▲"
+            }
+        } else {
+            ""
+        };
+        let resp = put_right(ui, rect, &format!("{label}{arrow}"), true, sortable);
+        if sortable && resp.clicked() {
+            let next = if sort.col == col {
+                Sort {
+                    col,
+                    desc: !sort.desc,
+                }
+            } else {
+                Sort {
+                    col,
+                    desc: default_desc(col),
+                }
+            };
+            set_sort_state(ui.ctx(), next);
+        }
+    };
+    header(c.items, "Items", SortCol::Items);
+    header(c.weight, "Weight", SortCol::Weight);
+    header(c.value, "Value", SortCol::Value);
+    ui.separator();
 }
 
 /// One container as a collapsible KPI row showing triangle, icon, name, item
-/// count, weight, and value; the triangle unfolds the editing body. The header
-/// is laid out manually (painted triangle, zero x-spacing, fixed column widths)
-/// so it lines up exactly with [`column_header`]. egui's built-in
-/// `CollapsingState::show_header` injects its own triangle width and
-/// inter-widget spacing that don't match our hand-rolled header.
+/// count, weight, value, and (for secondary containers) Edit/Delete actions.
+/// All columns are placed at absolute [`cols`] rects shared with
+/// [`column_header`], so alignment can't drift. The triangle..Value span is the
+/// fold/unfold click target; the actions column to its right is always visible
+/// (folded or unfolded) and handles its own button clicks.
 fn container_row(
     ui: &mut egui::Ui,
     state: &Arc<RwLock<AppState>>,
@@ -580,75 +635,116 @@ fn container_row(
         egui::collapsing_header::CollapsingState::load_with_default_open(ui.ctx(), cid, false);
     let is_open = collapse.is_open();
 
-    // --- Header row: the ENTIRE strip is one click target. ---
-    // Reserve a full-width row rect and sense the click on it *first*, then
-    // paint the columns into a child UI placed at that rect. The cells are
-    // plain (non-interactive) labels, so nothing inside steals the click —
-    // clicking anywhere on the row (triangle, icon, name, numbers, gaps)
-    // toggles the fold.
     let full_w = ui.available_width();
-    let (row_rect, header_resp) =
-        ui.allocate_exact_size(egui::vec2(full_w, ROW_H), egui::Sense::click());
-    let header_resp = header_resp.on_hover_cursor(egui::CursorIcon::PointingHand);
+    let (row_rect, _) = ui.allocate_exact_size(egui::vec2(full_w, ROW_H), egui::Sense::hover());
+    let c = cols(row_rect);
+
+    // Fold/unfold click target: triangle..Value (not the actions column).
+    let toggle_resp = ui
+        .interact(c.toggle, cid.with("toggle"), egui::Sense::click())
+        .on_hover_cursor(egui::CursorIcon::PointingHand);
+
     if ui.is_rect_visible(row_rect) {
-        // Subtle hover highlight over the whole row.
-        if header_resp.hovered() {
+        if toggle_resp.hovered() {
             ui.painter()
-                .rect_filled(row_rect, 3.0, theme::row_hover(ui.visuals().dark_mode));
+                .rect_filled(c.toggle, 3.0, theme::row_hover(ui.visuals().dark_mode));
         }
-        let mut cell_ui = ui.new_child(
-            egui::UiBuilder::new()
-                .max_rect(row_rect)
-                .layout(egui::Layout::left_to_right(egui::Align::Center)),
-        );
-        cell_ui.spacing_mut().item_spacing.x = 0.0;
-        let ui = &mut cell_ui;
-        // Triangle column (painted; width exactly LEAD).
-        let (tri_rect, _) = ui.allocate_exact_size(egui::vec2(LEAD, ROW_H), egui::Sense::hover());
-        let tri = if is_open { "▼" } else { "▶" };
+        // Triangle.
         ui.painter().text(
-            tri_rect.center(),
+            c.tri.center(),
             egui::Align2::CENTER_CENTER,
-            tri,
+            if is_open { "▼" } else { "▶" },
             egui::FontId::proportional(12.0),
             ui.visuals().weak_text_color(),
         );
-        // Icon column.
-        ui.allocate_ui_with_layout(
-            egui::vec2(W_ICON, ROW_H),
-            egui::Layout::centered_and_justified(egui::Direction::LeftToRight),
-            |ui| {
-                if let Some(tex) = &header_tex {
-                    ui.add(egui::Image::new(tex).fit_to_exact_size(egui::vec2(28.0, 28.0)));
-                }
-            },
-        );
-        cell_left(ui, W_NAME, egui::RichText::new(&row.name).strong());
-        cell_right(ui, W_ITEMS, row.item_count.to_string(), false);
-        cell_right(ui, W_WEIGHT, format!("{:.2} kg", row.weight), false);
-        cell_right(
+        // Icon.
+        if let Some(tex) = &header_tex {
+            let icon_rect = egui::Rect::from_center_size(c.icon.center(), egui::vec2(28.0, 28.0));
+            egui::Image::new(tex).paint_at(ui, icon_rect);
+        }
+        put_left(ui, c.name, egui::RichText::new(&row.name).strong());
+        put_right(ui, c.items, &row.item_count.to_string(), false, false);
+        put_right(ui, c.weight, &format!("{:.2} kg", row.weight), false, false);
+        put_right(
             ui,
-            W_VALUE,
-            format!("{} RUB", format_price(row.value)),
+            c.value,
+            &format!("{} RUB", format_price(row.value)),
             true,
+            false,
         );
+
+        // Actions column (secondary containers only): Edit + Delete, always
+        // visible. Lives outside the toggle rect so its buttons don't fold.
+        if let Target::Container(id) = &row.target {
+            let mut a = ui.new_child(
+                egui::UiBuilder::new()
+                    .max_rect(c.actions.shrink2(egui::vec2(CELL_PAD, 4.0)))
+                    .layout(egui::Layout::left_to_right(egui::Align::Center)),
+            );
+            row_actions(
+                &mut a,
+                state,
+                save_tx,
+                id,
+                &row.name,
+                resolve_icon_key(&row.icon),
+            );
+        }
     }
 
-    if header_resp.clicked() {
+    if toggle_resp.clicked() {
         collapse.toggle(ui);
     }
     collapse.store(ui.ctx());
 
-    // Body: editing controls, only while expanded.
+    // Body: the item list + add-item, only while expanded.
     if is_open {
         container_body(ui, state, icons, save_tx, row);
     }
 }
 
-/// The unfolded editing controls. The stash shows only its contents + add-item
-/// (it's the fixed primary — no edit / delete). Secondary containers get an
-/// "Edit" button (reopens the create modal in edit mode to change name + icon)
-/// next to "Delete".
+/// Edit + Delete buttons for a secondary container, shown in the row's actions
+/// column. Delete uses a two-step inline confirm so a stray click can't wipe
+/// contents; Edit reopens the create modal in edit mode.
+fn row_actions(
+    ui: &mut egui::Ui,
+    state: &Arc<RwLock<AppState>>,
+    save_tx: &Sender<SaveTick>,
+    id: &ContainerId,
+    name: &str,
+    icon_key: &str,
+) {
+    if ui
+        .button("Edit")
+        .on_hover_text("Rename and change the icon")
+        .clicked()
+    {
+        open_edit_container_modal(ui.ctx(), id, name, icon_key);
+    }
+    if pending_delete(ui.ctx()).as_deref() == Some(id.as_str()) {
+        if ui
+            .add(egui::Button::new("Confirm").fill(egui::Color32::DARK_RED))
+            .clicked()
+        {
+            state.write().delete_container(id);
+            notify(state, save_tx);
+            set_pending_delete(ui.ctx(), None);
+        }
+        if ui.button("Cancel").clicked() {
+            set_pending_delete(ui.ctx(), None);
+        }
+    } else if ui
+        .button("Delete")
+        .on_hover_text("Delete this container")
+        .clicked()
+    {
+        set_pending_delete(ui.ctx(), Some(id.clone()));
+    }
+}
+
+/// The expanded body: a one-line hint for the stash, then the item list and
+/// the add-item button. Edit/Delete live in the row's actions column (always
+/// visible), not here.
 fn container_body(
     ui: &mut egui::Ui,
     state: &Arc<RwLock<AppState>>,
@@ -656,21 +752,7 @@ fn container_body(
     save_tx: &Sender<SaveTick>,
     row: &Row,
 ) {
-    if let Target::Container(id) = &row.target {
-        ui.horizontal(|ui| {
-            ui.add_space(LEAD);
-            if ui
-                .button("Edit")
-                .on_hover_text("Rename and change the icon")
-                .clicked()
-            {
-                open_edit_container_modal(ui.ctx(), id, &row.name, resolve_icon_key(&row.icon));
-            }
-            ui.separator();
-            delete_control(ui, state, save_tx, id);
-        });
-        ui.add_space(6.0);
-    } else {
+    if row.target.is_stash() {
         ui.horizontal(|ui| {
             ui.add_space(LEAD);
             ui.label(
@@ -723,36 +805,6 @@ fn icon_choice(
         egui::Image::new(tex).paint_at(ui, rect.shrink(size * 0.12));
     }
     resp.on_hover_text(key).clicked()
-}
-
-/// "Delete" with an inline two-step confirm (no separate dialog) so an
-/// accidental click can't wipe a container's contents.
-fn delete_control(
-    ui: &mut egui::Ui,
-    state: &Arc<RwLock<AppState>>,
-    save_tx: &Sender<SaveTick>,
-    id: &ContainerId,
-) {
-    if pending_delete(ui.ctx()).as_deref() == Some(id.as_str()) {
-        ui.label(
-            egui::RichText::new("Delete?")
-                .small()
-                .color(ui.visuals().warn_fg_color),
-        );
-        if ui
-            .add(egui::Button::new("Confirm").fill(egui::Color32::DARK_RED))
-            .clicked()
-        {
-            state.write().delete_container(id);
-            notify(state, save_tx);
-            set_pending_delete(ui.ctx(), None);
-        }
-        if ui.button("Cancel").clicked() {
-            set_pending_delete(ui.ctx(), None);
-        }
-    } else if ui.button("Delete").clicked() {
-        set_pending_delete(ui.ctx(), Some(id.clone()));
-    }
 }
 
 /// Set the quantity of `item` in `target` (stash or a container). 0 removes it.
