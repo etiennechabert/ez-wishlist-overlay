@@ -310,16 +310,32 @@ pub fn process_image(
 
         let recog = templates::recognize_with_known_needed(&gray, templates, req.quantity);
         let parsed = templates::split_progress(&recog.recognised);
-        // Reject the parse unless Y matches the known required quantity.
-        // The template matcher CAN return an "X/Y" shape with the wrong
-        // Y (slash-forcing only fixes the slash position, not the Y
-        // digit's template match), and that's a sign the read is
-        // standing on icon noise rather than the digit row. Treating
-        // those as UNREAD preserves the user's existing count instead
-        // of overwriting it with a confidently-wrong X value (e.g.
-        // IntelligentLv2 cell 0 parsing "84/6" when needed=4 — X=84
-        // would otherwise land in AppState.collected).
-        let owned_opt = parsed.and_then(|(o, y)| (y == req.quantity).then_some(o));
+        // Apply the read only when BOTH hold:
+        //
+        //   (a) Y matches the known requirement quantity. The template
+        //       matcher CAN return an "X/Y" shape with the wrong Y
+        //       (slash-forcing only fixes the slash position, not the Y
+        //       digit's template match), a sign the read is standing on
+        //       icon noise rather than the digit row (e.g. IntelligentLv2
+        //       cell 0 parsing "84/6" when needed=4).
+        //
+        //   (b) Every owned/needed digit clears the same confidence floor
+        //       the strip-Y picker uses to *select* a cell's geometry
+        //       ([`digits_clear_confidence`]). The picker enforces this
+        //       gate when choosing the strip, but a cell it could NOT
+        //       confirm reverts to base geometry — and without this gate
+        //       the main loop re-recognised that base strip and applied
+        //       the result on a Y-match alone, writing a low-confidence X
+        //       digit. Canonical case: StorageZoneLock3 Gunpowder, whose
+        //       narrow owned "1" mis-scores as '2'=0.611 (< 0.65), turning
+        //       a correct 1/10 into a confidently-wrong 2/10 in
+        //       AppState.collected. Gating here turns those into UNREAD.
+        //
+        // Either failure preserves the user's existing collected count.
+        let owned_opt = parsed
+            .filter(|&(_, y)| y == req.quantity)
+            .filter(|_| digits_clear_confidence(&recog, req.quantity))
+            .map(|(o, _)| o);
         items.push((req.item_id.clone(), owned_opt));
         if owned_opt.is_none() {
             tracing::warn!(
@@ -387,6 +403,62 @@ pub fn process_image(
         upgrade_name: module.name.clone(),
         items,
     }))
+}
+
+/// Minimum per-digit template-match score for a recognised `X/Y` strip
+/// to be trusted. Applied to every NON-slash component (the `/` glyph is
+/// a narrow vertical bar that legitimately scores low against digit
+/// templates, so it's exempt — its position is force-assigned by
+/// [`templates::recognize_with_known_needed`]).
+///
+/// Why the floor exists. Without it, components that template-matched
+/// noise into an "X/Y" shape slip through:
+///
+/// - WaterCollectorLv2 cell 2 captured the "FROM RAID" letters and they
+///   happened to score "8/6" (Y=6 matched `needed=6`).
+/// - CryptoMining cell 0 caught half of a leading "0" that
+///   template-matched "3" with a mediocre score (Y=4 matched).
+/// - StorageZoneLock3 Gunpowder's narrow owned "1" scores '2'=0.611,
+///   turning a correct 1/10 into 2/10.
+///
+/// Requiring every digit to clear ~0.65 rejects all three (FROM-RAID
+/// letters and clipped half-digits score ~0.55-0.65 against digit
+/// templates). Tuned to leave the observed minimum correct-match score
+/// (~0.696 for narrow "1" glyphs) inside the accept band.
+#[cfg(target_os = "windows")]
+const MIN_DIGIT_CONFIDENCE: f32 = 0.65;
+
+/// Does every owned/needed digit in a recognised strip clear
+/// [`MIN_DIGIT_CONFIDENCE`]? Shared by the strip-Y picker (when *selecting*
+/// a cell's geometry) and the main pipeline loop (when *applying* the
+/// read), so a cell can't be written with a digit the picker would have
+/// rejected. Returns `false` when there are too few components to form a
+/// `/<Y>` tail — that's a sign the strip is on the wrong row.
+#[cfg(target_os = "windows")]
+fn digits_clear_confidence(recog: &crate::ocr::templates::RecognizeDebug, needed: u32) -> bool {
+    let y_n = needed.to_string().chars().count();
+    let total = recog.kept_components.len();
+    if total < y_n + 1 {
+        return false;
+    }
+    // Layout is `<X digits> / <Y digits>`; the slash sits just left of the
+    // Y digits. Exempt it — only digits must clear the floor.
+    let slash_idx = total - y_n - 1;
+    for (i, k) in recog.kept_components.iter().enumerate() {
+        if i == slash_idx {
+            continue;
+        }
+        let best = k
+            .scores
+            .iter()
+            .find(|(c, _)| *c != '/')
+            .map(|(_, s)| *s)
+            .unwrap_or(0.0);
+        if best < MIN_DIGIT_CONFIDENCE {
+            return false;
+        }
+    }
+    true
 }
 
 /// Sweep candidate strip-Y positions across the plausible digit-row
@@ -487,43 +559,15 @@ fn pick_best_strip_y(
         if parsed_y != req_q {
             return None;
         }
-
-        // Confidence floor on every non-slash digit's best template
-        // match. Without this gate the picker confirms variants that
-        // accidentally template-match noise into an "X/Y" shape:
-        //   - WaterCollectorLv2 cell 2 captured the "FROM RAID"
-        //     letters and they happened to score "8/6" — Y=6 matched
-        //     `needed=6` so the picker accepted X=8 as the owned
-        //     count for Nails (actual value was very different).
-        //   - CryptoMining cell 0 caught half of the leading "0"
-        //     digit which template-matched as "3" with a mediocre
-        //     score — Y=4 matched `needed=4` so X=3 stuck.
-        // Requiring every digit to clear ~0.65 against its assigned
-        // template rejects both cases (FROM-RAID letters score
-        // ~0.55-0.65 against digit templates; clipped half-digits
-        // score similarly low). Threshold tuned to leave the
-        // observed minimum correct-match score (~0.696 for narrow
-        // "1" glyphs) inside the accept band.
-        const MIN_DIGIT_CONFIDENCE: f32 = 0.65;
-        let y_n = req_q.to_string().chars().count();
-        let total = recog.kept_components.len();
-        if total < y_n + 1 {
+        // Every non-slash digit must clear the confidence floor — see
+        // [`digits_clear_confidence`]. This rejects variants that
+        // template-matched FROM-RAID letters or clipped half-digits into
+        // an "X/Y" shape whose Y happened to match `needed`. The same
+        // gate runs again in the main pipeline loop when the read is
+        // applied, so a reverted-to-base cell can't sneak a low-
+        // confidence digit into AppState.
+        if !digits_clear_confidence(&recog, req_q) {
             return None;
-        }
-        let slash_idx = total - y_n - 1;
-        for (i, k) in recog.kept_components.iter().enumerate() {
-            if i == slash_idx {
-                continue;
-            }
-            let best = k
-                .scores
-                .iter()
-                .find(|(c, _)| *c != '/')
-                .map(|(_, s)| *s)
-                .unwrap_or(0.0);
-            if best < MIN_DIGIT_CONFIDENCE {
-                return None;
-            }
         }
 
         // Higher tier for 1-digit X (the common case); a positive base
