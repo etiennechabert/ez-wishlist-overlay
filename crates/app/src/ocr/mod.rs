@@ -174,13 +174,22 @@ pub enum OcrPipelineResult {
     },
 }
 
+/// Where a box-scan reads into — the primary stash or a secondary container.
+/// The worker only carries it through (and echoes it in updates); the GUI maps
+/// it back to the store it writes on Finish.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ScanTarget {
+    Stash,
+    Container(crate::state::ContainerId),
+}
+
 /// GUI → OCR worker: drive a box-scan session.
 #[derive(Clone, Debug)]
 pub enum BoxCommand {
-    /// Begin scanning into container `target`, discarding any prior session.
-    Start { target: crate::state::ContainerId },
-    /// Finish: the GUI writes the final tally to the container; the worker just
-    /// drops its accumulator.
+    /// Begin scanning into `target`, discarding any prior session.
+    Start { target: ScanTarget },
+    /// Finish: the GUI writes the final tally to the target store; the worker
+    /// just drops its accumulator.
     Finish,
     /// Abandon the session without writing.
     Cancel,
@@ -201,10 +210,10 @@ pub enum BoxScanStatus {
 
 /// OCR worker → GUI: running state of the active box-scan session, emitted
 /// after each capture. The GUI shows it as a live tally and, on Finish, writes
-/// it into the target container.
+/// it into the target store.
 #[derive(Clone, Debug)]
 pub struct BoxScanUpdate {
-    pub target: crate::state::ContainerId,
+    pub target: ScanTarget,
     pub captures: u32,
     pub tally: std::collections::HashMap<crate::data::ItemId, u32>,
     pub unrecognized: usize,

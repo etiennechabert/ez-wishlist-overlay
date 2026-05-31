@@ -27,6 +27,9 @@ pub enum ContainerKind {
     Bag,
     /// A box with a contents screen — supports the scroll-and-stitch OCR scan.
     Box,
+    /// A shelf (hideout storage furniture) — declarative/manual like a bag, but
+    /// its own category. One is seeded by default on first run.
+    Shelf,
 }
 
 /// A user-defined secondary container — a backpack, item case, etc. Its
@@ -76,6 +79,10 @@ pub struct AppState {
     /// Monotonic id source for `containers`; persisted so a deleted
     /// container's id is never reused while anything still references it.
     pub next_container_seq: u64,
+    /// Set once the built-in default Shelf has been created. Persisted so the
+    /// shelf is seeded exactly once per profile (fresh *or* pre-existing) and a
+    /// later deletion doesn't bring it back.
+    pub default_shelf_seeded: bool,
     /// Modules the user has marked as unavailable (e.g. quest-locked). Their
     /// tracked upgrades stay tracked but don't contribute to `active_items`,
     /// so the wishlist hides items the user can't act on yet.
@@ -119,6 +126,7 @@ impl AppState {
             collected: HashMap::new(),
             containers: Vec::new(),
             next_container_seq: 0,
+            default_shelf_seeded: false,
             disabled_modules: HashSet::new(),
             overrides: HashMap::new(),
             version: 0,
@@ -1016,6 +1024,11 @@ pub struct PersistedState {
     pub containers: Vec<Container>,
     #[serde(default)]
     pub next_container_seq: u64,
+    /// Whether the built-in default Shelf has been seeded. `#[serde(default)]`
+    /// → a `state.json` predating this feature loads as `false`, so the shelf
+    /// is created once on the next launch.
+    #[serde(default)]
+    pub default_shelf_seeded: bool,
 }
 
 impl PersistedState {
@@ -1030,6 +1043,7 @@ impl PersistedState {
             disabled_modules: state.disabled_modules.clone(),
             containers: state.containers.clone(),
             next_container_seq: state.next_container_seq,
+            default_shelf_seeded: state.default_shelf_seeded,
         }
     }
 
@@ -1087,6 +1101,7 @@ impl PersistedState {
         // with a surviving container.
         state.containers = self.containers;
         state.next_container_seq = self.next_container_seq;
+        state.default_shelf_seeded = self.default_shelf_seeded;
         state.bump();
 
         if warnings.is_empty() {
@@ -1754,6 +1769,7 @@ mod tests {
             disabled_modules: HashSet::new(),
             containers: Vec::new(),
             next_container_seq: 0,
+            default_shelf_seeded: false,
         };
         let warn = persisted.merge_into(&mut s).expect("should warn");
         assert!(warn.contains("Game data updated"));
@@ -2414,6 +2430,7 @@ mod tests {
             disabled_modules: HashSet::new(),
             containers: Vec::new(),
             next_container_seq: 0,
+            default_shelf_seeded: false,
         };
         // Pruning an orphaned pin is silent — only dropped *tracked* upgrades warn.
         let warn = persisted.merge_into(&mut s);

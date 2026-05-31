@@ -23,7 +23,7 @@ use crate::gui::hideout_pane::{
 };
 use crate::gui::items_db_pane::format_price;
 use crate::gui::{icon_cache::IconCache, theme, SaveTick};
-use crate::ocr::{BoxCommand, BoxScanStatus, BoxScanUpdate};
+use crate::ocr::{BoxCommand, BoxScanStatus, BoxScanUpdate, ScanTarget};
 use crate::state::{AppState, ContainerId, ContainerKind};
 use crossbeam_channel::Sender;
 use parking_lot::RwLock;
@@ -61,11 +61,26 @@ const BOX_ICONS: &[&str] = &["box_collection", "box_collection_small"];
 /// Default icon for a newly-created Box container.
 const DEFAULT_BOX_ICON: &str = "box_collection";
 
+/// Shelf icons (declarative furniture). One for now.
+const SHELF_ICONS: &[&str] = &["shelf_basic"];
+/// Default icon for a Shelf container.
+const DEFAULT_SHELF_ICON: &str = "shelf_basic";
+
 /// The default icon key for a container of the given kind.
 fn default_icon_for(kind: ContainerKind) -> &'static str {
     match kind {
         ContainerKind::Box => DEFAULT_BOX_ICON,
+        ContainerKind::Shelf => DEFAULT_SHELF_ICON,
         ContainerKind::Bag => DEFAULT_CONTAINER_ICON,
+    }
+}
+
+/// The icon set offered in the picker for a container of the given kind.
+fn icon_set_for(kind: ContainerKind) -> &'static [&'static str] {
+    match kind {
+        ContainerKind::Box => BOX_ICONS,
+        ContainerKind::Shelf => SHELF_ICONS,
+        ContainerKind::Bag => CONTAINER_ICONS,
     }
 }
 
@@ -76,6 +91,8 @@ fn icon_label(key: &str) -> &'static str {
         // Boxes (the two MISC-storing Collection Boxes).
         "box_collection" => "Collection",
         "box_collection_small" => "Collection small",
+        // Shelf.
+        "shelf_basic" => "Shelf",
         // Bags / cases.
         "backpack_3drt" => "3DRT",
         "backpack_eliteops" => "Elite Ops",
@@ -139,13 +156,13 @@ pub enum BoxScanUi {
     /// Capturing scroll shots. The worker stitches each into `latest` as it
     /// arrives over the update channel.
     Scanning {
-        target: ContainerId,
+        target: ScanTarget,
         target_name: String,
         latest: Option<BoxScanUpdate>,
     },
     /// Capturing finished; the confirm/preview modal is up, awaiting Apply.
     Reviewing {
-        target: ContainerId,
+        target: ScanTarget,
         target_name: String,
         tally: HashMap<ItemId, u32>,
         unrecognized: usize,
@@ -171,7 +188,8 @@ struct Row {
     display_icon: String,
     /// The container's stored icon choice (None = default). Unused for the stash.
     icon: Option<String>,
-    /// Bag vs box. The stash is always `Bag` (it never offers a scan).
+    /// Bag vs box — partitions Declarative (bags) from Primary (boxes). The
+    /// stash is rendered separately in Primary and ignores this.
     kind: ContainerKind,
     /// Distinct item types held — matches the historical "(N items)" count.
     item_count: usize,
@@ -243,7 +261,7 @@ pub fn ui(
     ui.add_space(8.0);
 
     // Snapshot the stash row + every container row in one read lock.
-    let (stash_row, mut rows) = {
+    let (stash_row, rows) = {
         let s = state.read();
         let (sc, sw, sv) = compute_kpis(&s, &s.collected);
         let stash_row = Row {
@@ -276,31 +294,71 @@ pub fn ui(
         (stash_row, rows)
     };
 
-    // --- Primary table: the stash, on its own. ---
+    // Group secondary containers by kind into their own sections. Primary is
+    // the stash alone — the store hideout upgrades consume from — then Boxes
+    // (scannable), Bags, and Shelves (both declarative/manual). Empty
+    // secondary sections are hidden; the "New container" button adds any kind.
+    let sort = sort_state(ui.ctx());
+    let mut box_rows: Vec<Row> = Vec::new();
+    let mut bag_rows: Vec<Row> = Vec::new();
+    let mut shelf_rows: Vec<Row> = Vec::new();
+    for row in rows {
+        match row.kind {
+            ContainerKind::Box => box_rows.push(row),
+            ContainerKind::Shelf => shelf_rows.push(row),
+            ContainerKind::Bag => bag_rows.push(row),
+        }
+    }
+    sort_rows(&mut box_rows, sort);
+    sort_rows(&mut bag_rows, sort);
+    sort_rows(&mut shelf_rows, sort);
+
+    // --- Primary: the stash. ---
     ui.add_space(2.0);
-    section_title(ui, "Primary");
-    column_header(ui, false);
+    section_title(ui, "Primary storage");
+    section_caption(
+        ui,
+        "The stash — where items must be for hideout upgrades. Scannable.",
+    );
+    column_header(ui, true);
     container_row(ui, state, icons, save_tx, &mut scan, &stash_row);
 
-    // --- Vertical gap, then the secondary table with its own sortable header. ---
-    ui.add_space(18.0);
-    section_title(ui, "Secondary");
-    column_header(ui, true);
-    let sort = sort_state(ui.ctx());
-    sort_rows(&mut rows, sort);
-    for row in &rows {
-        container_row(ui, state, icons, save_tx, &mut scan, row);
+    // --- Secondary sections, each shown only when it has containers. ---
+    for (title, caption, section_rows) in [
+        (
+            "Boxes",
+            "Contents can be filled by scanning their screen.",
+            &box_rows,
+        ),
+        (
+            "Bags & cases",
+            "Entered by hand — no screen to scan.",
+            &bag_rows,
+        ),
+        ("Shelves", "Hideout shelves — entered by hand.", &shelf_rows),
+    ] {
+        if section_rows.is_empty() {
+            continue;
+        }
+        ui.add_space(18.0);
+        section_title(ui, title);
+        section_caption(ui, caption);
+        column_header(ui, true);
+        for row in section_rows {
+            container_row(ui, state, icons, save_tx, &mut scan, row);
+        }
     }
 
-    // "New container" lives at the bottom of the Secondary section — it's the
-    // action that adds a row here, so it sits where the next row would go
-    // (and stands in for an empty-state message when there are none).
+    // "New container" adds either kind (type chosen in the modal); sits below
+    // both sections.
     ui.add_space(6.0);
     if ui
         .add(egui::Button::new(
             egui::RichText::new("➕  New container").strong(),
         ))
-        .on_hover_text("Create a backpack or box: name it and pick an icon")
+        .on_hover_text(
+            "Create a box (scannable) or a bag/case (manual): name it, pick a type + icon",
+        )
         .clicked()
     {
         open_new_container_modal(ui.ctx());
@@ -449,15 +507,13 @@ fn new_container_modal(
                     .on_hover_text(
                         "A box with a contents screen — fill it by scanning screenshots",
                     );
+                ui.selectable_value(&mut kind, ContainerKind::Shelf, "Shelf")
+                    .on_hover_text("A shelf — manual entry, its own category");
             });
 
             // Icon set follows the (possibly just-changed) type. If the current
             // selection isn't valid for the new set, snap to that set's default.
-            let icon_set: &[&str] = if kind == ContainerKind::Box {
-                BOX_ICONS
-            } else {
-                CONTAINER_ICONS
-            };
+            let icon_set = icon_set_for(kind);
             if !icon_set.contains(&chosen_icon.as_str()) {
                 chosen_icon = default_icon_for(kind).to_string();
             }
@@ -667,6 +723,16 @@ fn section_title(ui: &mut egui::Ui, text: &str) {
             .strong()
             .size(17.0)
             .color(ui.visuals().strong_text_color()),
+    );
+    ui.add_space(2.0);
+}
+
+/// One-line explanatory caption under a section title.
+fn section_caption(ui: &mut egui::Ui, text: &str) {
+    ui.label(
+        egui::RichText::new(text)
+            .small()
+            .color(ui.visuals().weak_text_color()),
     );
     ui.add_space(2.0);
 }
@@ -906,13 +972,21 @@ fn container_body(
             );
         });
         ui.add_space(6.0);
+        // The stash is primary, scannable storage too.
+        box_scan_section(ui, state, ScanTarget::Stash, "Stash", scan);
+        ui.add_space(4.0);
     }
 
-    // Box-scan controls — only Box-type containers have an in-game contents
-    // screen, so only they offer the scan; bags/cases are entered by hand.
+    // Box-scan controls — boxes are scannable storage; bags/cases are manual.
     if let Target::Container(id) = &row.target {
         if row.kind == ContainerKind::Box {
-            box_scan_section(ui, state, id, &row.name, scan);
+            box_scan_section(
+                ui,
+                state,
+                ScanTarget::Container(id.clone()),
+                &row.name,
+                scan,
+            );
             ui.add_space(4.0);
         }
     }
@@ -1296,34 +1370,34 @@ fn warn_label(ui: &mut egui::Ui, text: &str) {
 fn box_scan_section(
     ui: &mut egui::Ui,
     state: &Arc<RwLock<AppState>>,
-    target_id: &ContainerId,
+    target: ScanTarget,
     target_name: &str,
     scan: &mut ScanCtx,
 ) {
     let scanning_this = matches!(
         scan.ui_state.as_ref(),
-        Some(BoxScanUi::Scanning { target, .. }) if target == target_id
+        Some(BoxScanUi::Scanning { target: t, .. }) if *t == target
     );
     let busy_elsewhere = scan.ui_state.is_some() && !scanning_this;
 
     if !scanning_this {
         ui.horizontal(|ui| {
             ui.add_space(LEAD);
-            let btn = egui::Button::new("Scan from box screen");
+            let btn = egui::Button::new("Scan from screen");
             if busy_elsewhere {
                 ui.add_enabled(false, btn)
                     .on_hover_text("Finish the active scan first");
             } else if ui
                 .add(btn)
-                .on_hover_text("Read this box's contents screen across several scroll captures")
+                .on_hover_text("Read this store's contents screen across several scroll captures")
                 .clicked()
             {
                 scan.vr.set_box_scan_mode(true);
                 let _ = scan.cmd_tx.send(BoxCommand::Start {
-                    target: target_id.clone(),
+                    target: target.clone(),
                 });
                 *scan.ui_state = Some(BoxScanUi::Scanning {
-                    target: target_id.clone(),
+                    target: target.clone(),
                     target_name: target_name.to_string(),
                     latest: None,
                 });
@@ -1491,12 +1565,15 @@ fn box_review_modal(
         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
         .show(ctx, |ui| {
             let s = state.read();
-            let current: HashMap<ItemId, u32> = s
-                .containers
-                .iter()
-                .find(|c| c.id == target)
-                .map(|c| c.contents.clone())
-                .unwrap_or_default();
+            let current: HashMap<ItemId, u32> = match &target {
+                ScanTarget::Stash => s.collected.clone(),
+                ScanTarget::Container(cid) => s
+                    .containers
+                    .iter()
+                    .find(|c| &c.id == cid)
+                    .map(|c| c.contents.clone())
+                    .unwrap_or_default(),
+            };
 
             let total: u32 = tally.values().sum();
             ui.label(format!(
@@ -1596,21 +1673,37 @@ fn box_review_modal(
         });
 
     if apply {
+        // REPLACE: scanned counts overwrite, and items present before but absent
+        // from the scan are removed — for the stash or a container alike.
         {
             let mut w = state.write();
-            let current_ids: Vec<ItemId> = w
-                .containers
-                .iter()
-                .find(|c| c.id == target)
-                .map(|c| c.contents.keys().cloned().collect())
-                .unwrap_or_default();
-            for (id, &n) in &tally {
-                w.set_container_item(&target, id, n);
-            }
-            // REPLACE: drop items that were in the container but not in the scan.
-            for id in &current_ids {
-                if !tally.contains_key(id) {
-                    w.set_container_item(&target, id, 0);
+            match &target {
+                ScanTarget::Stash => {
+                    let current_ids: Vec<ItemId> = w.collected.keys().cloned().collect();
+                    for (id, &n) in &tally {
+                        w.set_collected(id, n);
+                    }
+                    for id in &current_ids {
+                        if !tally.contains_key(id) {
+                            w.set_collected(id, 0);
+                        }
+                    }
+                }
+                ScanTarget::Container(cid) => {
+                    let current_ids: Vec<ItemId> = w
+                        .containers
+                        .iter()
+                        .find(|c| &c.id == cid)
+                        .map(|c| c.contents.keys().cloned().collect())
+                        .unwrap_or_default();
+                    for (id, &n) in &tally {
+                        w.set_container_item(cid, id, n);
+                    }
+                    for id in &current_ids {
+                        if !tally.contains_key(id) {
+                            w.set_container_item(cid, id, 0);
+                        }
+                    }
                 }
             }
         }

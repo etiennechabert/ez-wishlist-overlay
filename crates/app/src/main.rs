@@ -95,6 +95,23 @@ fn main() -> Result<()> {
         }
     }
 
+    // Seed the built-in default Shelf exactly once per profile — fresh installs
+    // and pre-existing ones that predate the feature. The persisted flag stops
+    // it coming back if the user later deletes it.
+    if !app_state.default_shelf_seeded {
+        let id = app_state.create_container("Shelf".to_string());
+        app_state.set_container_kind(&id, state::ContainerKind::Shelf);
+        app_state.set_container_icon(&id, Some("shelf_basic".to_string()));
+        app_state.default_shelf_seeded = true;
+        // Persist synchronously now: the seeding happens before the save loop
+        // exists, and `bump()` alone emits no `SaveTick`, so without this the
+        // shelf would live only in memory and re-seed on the next launch.
+        if let Err(e) = persist::save(&paths, &app_state) {
+            tracing::warn!(error = %e, "failed to persist seeded default Shelf");
+        }
+        tracing::info!("seeded built-in default Shelf");
+    }
+
     let shared_state = Arc::new(RwLock::new(app_state));
     let (save_tx, save_rx) = crossbeam_channel::unbounded::<gui::SaveTick>();
     let _save_handle = save_loop::spawn(shared_state.clone(), paths.clone(), save_rx);
@@ -223,7 +240,7 @@ fn init_logging(buf: log_buffer::LogBuffer) {
 /// by the OCR worker thread (no shared lock); the GUI drives it via
 /// [`ocr::BoxCommand`] and reads the running tally via [`ocr::BoxScanUpdate`].
 struct BoxSession {
-    target: state::ContainerId,
+    target: ocr::ScanTarget,
     /// Reading-order tiles stitched across every capture so far.
     master: Vec<ocr::box_scan::Tile>,
     captures: u32,
@@ -232,7 +249,7 @@ struct BoxSession {
 }
 
 impl BoxSession {
-    fn new(target: state::ContainerId) -> Self {
+    fn new(target: ocr::ScanTarget) -> Self {
         Self {
             target,
             master: Vec::new(),
@@ -280,7 +297,7 @@ fn handle_box_capture(
         }
     };
     tracing::info!(
-        target = %session.target,
+        target = ?session.target,
         captures = session.captures,
         tiles_this_shot = read.tiles.len(),
         total = session.master.len(),
@@ -348,7 +365,7 @@ fn spawn_ocr_worker(
                 while let Ok(cmd) = box_cmd_rx.try_recv() {
                     match cmd {
                         ocr::BoxCommand::Start { target } => {
-                            tracing::info!(%target, "box-scan: session started");
+                            tracing::info!(target = ?target, "box-scan: session started");
                             box_session = Some(BoxSession::new(target));
                         }
                         ocr::BoxCommand::Finish | ocr::BoxCommand::Cancel => {
