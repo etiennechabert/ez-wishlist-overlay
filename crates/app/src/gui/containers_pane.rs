@@ -858,9 +858,10 @@ fn target_contents(s: &AppState, target: &Target) -> Vec<(ItemId, String, String
         .collect()
 }
 
-/// The target's items, one row each: icon + name + `[-] qty [+]` stepper + a
-/// remove (×). Mutations bump `version`, so the save loop and VR overlay pick
-/// them up like any other edit.
+/// The target's items, one row each: icon + name on the left, then a
+/// `[−] qty [+]  ×` control cluster sitting in the same actions column as the
+/// container's Edit/Delete buttons (not hugging the window's right edge). Each
+/// row gets a hover highlight so it's obvious which item a control acts on.
 fn contents_editor(
     ui: &mut egui::Ui,
     state: &Arc<RwLock<AppState>>,
@@ -872,12 +873,15 @@ fn contents_editor(
     items.sort_by_key(|a| a.1.to_lowercase());
 
     if items.is_empty() {
-        ui.label(
-            egui::RichText::new("Empty — add items below.")
-                .small()
-                .italics()
-                .color(ui.visuals().weak_text_color()),
-        );
+        ui.horizontal(|ui| {
+            ui.add_space(LEAD);
+            ui.label(
+                egui::RichText::new("Empty — add items below.")
+                    .small()
+                    .italics()
+                    .color(ui.visuals().weak_text_color()),
+            );
+        });
         return;
     }
 
@@ -890,64 +894,78 @@ fn contents_editor(
     // Comfortable hit targets for the stepper + remove controls.
     const BTN: egui::Vec2 = egui::vec2(30.0, 28.0);
     const QTY_W: f32 = 46.0;
+    const ITEM_ROW_H: f32 = 32.0;
 
     for (item_id, name, icon, qty) in &items {
-        ui.horizontal(|ui| {
-            ui.add_space(LEAD); // indent contents under the row's name column
-            if !icon.is_empty() {
-                if let Some(tex) = icons.get(ui.ctx(), icon) {
-                    ui.add(egui::Image::new(tex).fit_to_exact_size(egui::vec2(28.0, 28.0)));
-                }
-            }
-            ui.add(egui::Label::new(name).wrap_mode(egui::TextWrapMode::Truncate));
+        let full_w = ui.available_width();
+        let (row_rect, row_resp) =
+            ui.allocate_exact_size(egui::vec2(full_w, ITEM_ROW_H), egui::Sense::hover());
+        let c = cols(row_rect);
+        if !ui.is_rect_visible(row_rect) {
+            continue;
+        }
 
-            // Controls hug the right edge. In a right-to-left layout the
-            // first-added widget sits rightmost, so add ×, +, qty, − to read
-            // left→right as "[−] qty [+]   ×".
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui
-                    .add_sized(BTN, egui::Button::new(egui::RichText::new("×").strong()))
-                    .on_hover_text(remove_tip)
-                    .clicked()
-                {
-                    target_set_item(state, target, item_id, 0);
-                    notify(state, save_tx);
-                }
-                ui.add_space(8.0);
-                if ui
-                    .add_sized(BTN, egui::Button::new(egui::RichText::new("+").strong()))
-                    .on_hover_text("Add one")
-                    .clicked()
-                {
-                    target_adjust_item(state, target, item_id, 1);
-                    notify(state, save_tx);
-                }
-                let mut q = *qty;
-                if ui
-                    .add_sized(
-                        egui::vec2(QTY_W, BTN.y),
-                        egui::DragValue::new(&mut q).range(0..=9999).speed(0.1),
-                    )
-                    .on_hover_text("Drag or type a quantity")
-                    .changed()
-                {
-                    target_set_item(state, target, item_id, q);
-                    notify(state, save_tx);
-                }
-                if ui
-                    .add_enabled(
-                        *qty > 0,
-                        egui::Button::new(egui::RichText::new("−").strong()).min_size(BTN),
-                    )
-                    .on_hover_text("Remove one")
-                    .clicked()
-                {
-                    target_adjust_item(state, target, item_id, -1);
-                    notify(state, save_tx);
-                }
-            });
-        });
-        ui.add_space(2.0);
+        // Per-row hover highlight: makes it unambiguous which item the
+        // controls on this line belong to.
+        if row_resp.hovered() {
+            ui.painter()
+                .rect_filled(row_rect, 3.0, theme::row_hover(ui.visuals().dark_mode));
+        }
+
+        // Icon (in the icon column) + name (spanning name..value, truncated).
+        if !icon.is_empty() {
+            if let Some(tex) = icons.get(ui.ctx(), icon) {
+                let icon_rect =
+                    egui::Rect::from_center_size(c.icon.center(), egui::vec2(24.0, 24.0));
+                egui::Image::new(tex).paint_at(ui, icon_rect);
+            }
+        }
+        let name_rect = egui::Rect::from_min_max(c.name.left_top(), c.value.right_bottom());
+        put_left(ui, name_rect, egui::RichText::new(name));
+
+        // Controls in the actions column, aligned under Edit/Delete and read
+        // left→right as "[−] qty [+]   ×".
+        let mut a = ui.new_child(
+            egui::UiBuilder::new()
+                .max_rect(c.actions.shrink2(egui::vec2(CELL_PAD, 2.0)))
+                .layout(egui::Layout::left_to_right(egui::Align::Center)),
+        );
+        if a.add_enabled(
+            *qty > 0,
+            egui::Button::new(egui::RichText::new("−").strong()).min_size(BTN),
+        )
+        .on_hover_text("Remove one")
+        .clicked()
+        {
+            target_adjust_item(state, target, item_id, -1);
+            notify(state, save_tx);
+        }
+        let mut q = *qty;
+        if a.add_sized(
+            egui::vec2(QTY_W, BTN.y),
+            egui::DragValue::new(&mut q).range(0..=9999).speed(0.1),
+        )
+        .on_hover_text("Drag or type a quantity")
+        .changed()
+        {
+            target_set_item(state, target, item_id, q);
+            notify(state, save_tx);
+        }
+        if a.add_sized(BTN, egui::Button::new(egui::RichText::new("+").strong()))
+            .on_hover_text("Add one")
+            .clicked()
+        {
+            target_adjust_item(state, target, item_id, 1);
+            notify(state, save_tx);
+        }
+        a.add_space(8.0);
+        if a.add_sized(BTN, egui::Button::new(egui::RichText::new("×").strong()))
+            .on_hover_text(remove_tip)
+            .clicked()
+        {
+            target_set_item(state, target, item_id, 0);
+            notify(state, save_tx);
+        }
     }
 }
 
