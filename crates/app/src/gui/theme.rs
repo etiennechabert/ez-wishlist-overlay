@@ -127,3 +127,17 @@ pub fn assumed_marker(dark: bool) -> Color32 {
         Color32::from_rgb(225, 180, 175)
     }
 }
+
+/// Green fill for the affirmative, recommended button in a confirmation
+/// dialog — currently "Consume items required" in the upgrade-completion
+/// modal, the path that keeps the app's collected counts in lockstep with the
+/// game. More saturated than the muted row tints above so it reads as a
+/// call-to-action, while still pairing with the default button text color in
+/// both themes. Shares the dark-theme green of the update banner.
+pub fn primary_action_fill(dark: bool) -> Color32 {
+    if dark {
+        Color32::from_rgb(30, 90, 50)
+    } else {
+        Color32::from_rgb(160, 205, 170)
+    }
+}
