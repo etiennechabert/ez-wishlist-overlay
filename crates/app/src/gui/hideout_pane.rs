@@ -168,8 +168,9 @@ fn view_toggle_row(ui: &mut egui::Ui, settings: &Arc<RwLock<Settings>>) -> bool 
             );
         ui.selectable_value(&mut view, HideoutView::Progress, "By progress")
             .on_hover_text(
-                "Flat list of tracked upgrades, with ready-to-claim and near-complete \
-                 floated to the top.",
+                "Your whole hideout's next steps: each module's next buildable \
+                 level, ready-to-claim and near-complete floated to the top. \
+                 Independent of what's tracked.",
             );
     });
     if view != before {
@@ -1001,16 +1002,18 @@ fn upgrade_completion_modal(
     set_pending_completion(ui.ctx(), None);
 }
 
-/// "By progress" view: tracked upgrades as a flat, sorted list answering
-/// "what should I claim or grind next?". Empty when nothing's tracked.
+/// "By progress" view: every module's next buildable level as a flat, sorted
+/// list answering "what should I claim or grind next?" across the whole hideout,
+/// regardless of what's tracked. Empty only once every (unlocked) module is
+/// fully built.
 fn progress_list(ui: &mut egui::Ui, state: &Arc<RwLock<AppState>>, save_tx: &Sender<SaveTick>) {
     let rows = state.read().hideout_progress_rows();
     if rows.is_empty() {
         ui.add_space(8.0);
         ui.label(
             egui::RichText::new(
-                "Nothing tracked yet. Track an upgrade in the \"By module\" view (or apply a \
-                 preset above) and it'll show up here, sorted by how close it is to claimable.",
+                "Every hideout module is fully upgraded — nothing left to build. \
+                 (Locked modules are hidden; re-enable one in the \"By module\" view to see it here.)",
             )
             .italics()
             .color(ui.visuals().weak_text_color()),

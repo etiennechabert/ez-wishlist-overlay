@@ -342,8 +342,11 @@ impl AppState {
     /// disabling a parent cascades through every child — and so that
     /// re-enabling a parent restores the children to their individual state
     /// rather than forcing all of them on.
-    /// True if this upgrade is tracked, not yet completed, and the user has
-    /// collected enough of every required item to claim it. Ignores whether
+    /// True if this upgrade is not yet completed and the user has collected
+    /// enough of every required item to claim it — whether or not it's tracked.
+    /// A fully-stocked upgrade therefore reads as ready in the grid even when
+    /// it isn't on the wishlist (you can claim it in-game either way); tracking
+    /// only governs the "nearly ready" tier and the By-progress list. Ignores whether
     /// the collected counts are also needed for sibling upgrades — the goal
     /// here is to surface "you've got the materials for this one" cues in
     /// the desktop UI, not gate aggregation. Empty requirements lists are
@@ -354,9 +357,7 @@ impl AppState {
     /// "buy it now" when the user actually needs to fill in the recipe
     /// first via the Edit panel.
     pub fn is_upgrade_ready(&self, upgrade_id: &UpgradeId) -> bool {
-        if !self.tracked_upgrades.contains(upgrade_id)
-            || self.completed_upgrades.contains(upgrade_id)
-        {
+        if self.completed_upgrades.contains(upgrade_id) {
             return false;
         }
         let reqs = self.effective_requirements(upgrade_id);
@@ -482,11 +483,12 @@ impl AppState {
         }
     }
 
-    /// Tracked, not-completed, not-(effectively-)disabled upgrades ordered for
-    /// "what should I claim or grind next?". The filter mirrors `active_items`
-    /// exactly (difference against completed, skip disabled modules) so this
-    /// per-upgrade list and the per-item wishlist always agree on what counts
-    /// as "active".
+    /// One row per hideout module: its lowest not-yet-built level — the upgrade
+    /// you'd naturally build next, since levels are bought in strict order. This
+    /// is the whole hideout's natural progression, deliberately INDEPENDENT of
+    /// tracking and of module-disabled state. Tracking only governs the overlay's
+    /// per-item wishlist (`active_items`); it does not decide what shows up ranked
+    /// here. A module whose every level is already built contributes no row.
     ///
     /// Pinned upgrades float above everything else — a deliberate user priority
     /// ("show my goals first"). Within each pin group, ordering buckets:
@@ -503,18 +505,22 @@ impl AppState {
     /// Tiebreak within a bucket: module name, then level, for a stable order
     /// that doesn't reshuffle on unrelated clicks.
     pub fn hideout_progress_rows(&self) -> Vec<UpgradeProgressRow> {
+        // Mirrors the `AllNatural` horizon exactly (same module filter + same
+        // `natural_next_upgrade`), so this ranked list and the per-item "natural"
+        // need view never disagree on what each module's next build is. Disabled
+        // (locked) modules are hidden, same as the wishlist.
         let mut rows: Vec<UpgradeProgressRow> = self
-            .tracked_upgrades
-            .difference(&self.completed_upgrades)
-            .filter_map(|id| {
-                let uref = self.index.upgrades_by_id.get(id)?;
-                if self.is_module_effectively_disabled(&uref.module_id) {
-                    return None;
-                }
+            .data
+            .modules
+            .iter()
+            .filter(|module| !self.is_module_effectively_disabled(&module.id))
+            .filter_map(|module| {
+                let next = self.natural_next_upgrade(module)?;
+                let id = &next.id;
                 Some(UpgradeProgressRow {
                     upgrade_id: id.clone(),
-                    module_name: uref.module_name.clone(),
-                    level: uref.upgrade.level,
+                    module_name: module.name.clone(),
+                    level: next.level,
                     progress: self.upgrade_progress(id),
                     knowledge: self.recipe_knowledge(id),
                     ready: self.is_upgrade_ready(id),
@@ -805,6 +811,21 @@ impl AppState {
         out
     }
 
+    /// The lowest-level not-yet-completed upgrade in a module — the "natural"
+    /// next build there, since hideout levels are claimed in strict order.
+    /// `None` once every level is done. Shared by the `AllNatural` need horizon
+    /// and the "By progress" view so the two always agree on what's next.
+    fn natural_next_upgrade<'a>(
+        &self,
+        module: &'a crate::data::HideoutModule,
+    ) -> Option<&'a crate::data::Upgrade> {
+        module
+            .upgrades
+            .iter()
+            .filter(|u| !self.completed_upgrades.contains(&u.id))
+            .min_by_key(|u| u.level)
+    }
+
     /// Set of upgrade ids whose requirements count as "needed" for `horizon`.
     /// Always excludes completed upgrades and upgrades whose module is
     /// effectively disabled — the surplus view must never tell you to keep
@@ -827,13 +848,8 @@ impl AppState {
                 .modules
                 .iter()
                 .filter(|m| !self.is_module_effectively_disabled(&m.id))
-                .filter_map(|m| {
-                    m.upgrades
-                        .iter()
-                        .filter(|u| !self.completed_upgrades.contains(&u.id))
-                        .min_by_key(|u| u.level)
-                        .map(|u| u.id.clone())
-                })
+                .filter_map(|m| self.natural_next_upgrade(m))
+                .map(|u| u.id.clone())
                 .collect(),
             NeedHorizon::AllFuture => self
                 .data
@@ -1791,19 +1807,30 @@ mod tests {
     }
 
     #[test]
-    fn hideout_progress_rows_floats_ready_then_by_fraction() {
+    fn hideout_progress_rows_shows_natural_next_level_untracked() {
         let mut s = AppState::new(fixture());
-        s.set_tracked_upgrade(&"workbench_lv1".to_string(), true);
-        s.set_tracked_upgrade(&"workbench_lv2".to_string(), true);
-        // bolts=7 → lv2 fully stocked (7/7, ready); lv1 partial (5/8, no
-        // screws yet).
-        s.set_collected(&"bolts".to_string(), 7);
+        // Nothing tracked at all — the list still shows every (unlocked)
+        // module's next buildable level. Tracking only feeds the overlay's
+        // per-item wishlist, not this view.
         let rows = s.hideout_progress_rows();
-        assert_eq!(rows.len(), 2);
-        assert_eq!(rows[0].upgrade_id, "workbench_lv2");
-        assert!(rows[0].ready, "ready upgrade floats to the top");
-        assert_eq!(rows[1].upgrade_id, "workbench_lv1");
-        assert!(!rows[1].ready);
+        assert!(
+            rows.iter().any(|r| r.upgrade_id == "workbench_lv1"),
+            "workbench's natural next build is Lv1, shown without tracking"
+        );
+        assert!(
+            rows.iter().all(|r| r.upgrade_id != "workbench_lv2"),
+            "Lv2 stays hidden until Lv1 is built (strict level order)"
+        );
+        assert!(rows.iter().any(|r| r.upgrade_id == "placeholder_lv1"));
+
+        // Building Lv1 advances the workbench row to Lv2.
+        s.set_completed_upgrade(&"workbench_lv1".to_string(), true);
+        let rows = s.hideout_progress_rows();
+        assert!(
+            rows.iter().any(|r| r.upgrade_id == "workbench_lv2"),
+            "row advances to Lv2 once Lv1 is built"
+        );
+        assert!(rows.iter().all(|r| r.upgrade_id != "workbench_lv1"));
     }
 
     #[test]
@@ -1824,15 +1851,34 @@ mod tests {
     #[test]
     fn hideout_progress_rows_excludes_completed_and_disabled() {
         let mut s = AppState::new(fixture());
-        s.set_tracked_upgrade(&"workbench_lv1".to_string(), true);
-        // Completing lv1 drops it from tracked and auto-tracks lv2.
+        // Completing lv1 advances the workbench row to lv2 (lv1 no longer shows).
         s.set_completed_upgrade(&"workbench_lv1".to_string(), true);
         let rows = s.hideout_progress_rows();
         assert!(rows.iter().all(|r| r.upgrade_id != "workbench_lv1"));
         assert!(rows.iter().any(|r| r.upgrade_id == "workbench_lv2"));
-        // Disabling the module hides its tracked lv2 from the list entirely.
+        // Locking the workbench module hides its next level...
         s.set_module_disabled(&"workbench".to_string(), true);
-        assert!(s.hideout_progress_rows().is_empty());
+        let rows = s.hideout_progress_rows();
+        assert!(
+            rows.iter().all(|r| r.upgrade_id != "workbench_lv2"),
+            "a locked module's next level is hidden"
+        );
+        // ...but other modules' progression still shows — locking one module
+        // doesn't empty the whole view.
+        assert!(rows.iter().any(|r| r.upgrade_id == "placeholder_lv1"));
+    }
+
+    #[test]
+    fn hideout_progress_rows_drops_fully_built_module() {
+        let mut s = AppState::new(fixture());
+        s.set_completed_upgrade(&"workbench_lv1".to_string(), true);
+        s.set_completed_upgrade(&"workbench_lv2".to_string(), true);
+        let rows = s.hideout_progress_rows();
+        assert!(
+            rows.iter().all(|r| !r.upgrade_id.starts_with("workbench")),
+            "a module with every level built contributes no row"
+        );
+        assert!(rows.iter().any(|r| r.upgrade_id == "placeholder_lv1"));
     }
 
     #[test]
@@ -2232,6 +2278,27 @@ mod tests {
     }
 
     #[test]
+    fn ready_is_tracking_independent() {
+        let mut s = AppState::new(fixture());
+        // Fully stock workbench_lv1's recipe (bolts×5 + screws×3) but never
+        // track it. An untracked upgrade you already have every item for is
+        // still claimable in-game, so it must read as ready.
+        s.set_collected(&"bolts".to_string(), 5);
+        s.set_collected(&"screws".to_string(), 3);
+        assert!(
+            !s.tracked_upgrades.contains("workbench_lv1"),
+            "precondition: not tracked"
+        );
+        assert!(
+            s.is_upgrade_ready(&"workbench_lv1".to_string()),
+            "untracked + every item collected ⇒ ready"
+        );
+        // Completing it flips ready → done (a built upgrade isn't ready).
+        s.set_completed_upgrade(&"workbench_lv1".to_string(), true);
+        assert!(!s.is_upgrade_ready(&"workbench_lv1".to_string()));
+    }
+
+    #[test]
     fn nearly_ready_excludes_three_items_short() {
         let mut s = AppState::new(fixture());
         s.set_tracked_upgrade(&"workbench_lv1".to_string(), true);
@@ -2278,13 +2345,15 @@ mod tests {
     #[test]
     fn hideout_progress_rows_floats_pinned_above_bucket() {
         let mut s = AppState::new(fixture());
-        s.set_tracked_upgrade(&"workbench_lv2".to_string(), true); // bolts×7
-        s.set_tracked_upgrade(&"placeholder_lv1".to_string(), true); // assumed
-        s.set_collected(&"bolts".to_string(), 7); // lv2 ready (rank 0)
+        // workbench_lv1 is the module's natural next level; stock it fully so
+        // it's ready (rank 0). placeholder_lv1 is an assumed recipe (rank 4).
+        // Neither is tracked — pinning and readiness drive this view, not tracking.
+        s.set_collected(&"bolts".to_string(), 5);
+        s.set_collected(&"screws".to_string(), 3);
 
         // Unpinned: the ready upgrade leads, the assumed one is parked last.
         let rows = s.hideout_progress_rows();
-        assert_eq!(rows[0].upgrade_id, "workbench_lv2");
+        assert_eq!(rows[0].upgrade_id, "workbench_lv1");
         assert_eq!(rows[1].upgrade_id, "placeholder_lv1");
 
         // Pin the assumed upgrade → it floats above even the ready one, because
@@ -2293,7 +2362,7 @@ mod tests {
         let rows = s.hideout_progress_rows();
         assert_eq!(rows[0].upgrade_id, "placeholder_lv1");
         assert!(rows[0].pinned);
-        assert_eq!(rows[1].upgrade_id, "workbench_lv2");
+        assert_eq!(rows[1].upgrade_id, "workbench_lv1");
     }
 
     #[test]
