@@ -303,6 +303,47 @@ impl AppState {
             .all(|r| *self.collected.get(&r.item_id).unwrap_or(&0) >= r.quantity)
     }
 
+    /// True iff every item in this upgrade's *effective* recipe is currently
+    /// stocked to at least its required quantity — i.e. we could subtract the
+    /// whole recipe from `collected` without flooring anything at zero. Drives
+    /// the "Consume items required" choice in the upgrade-completion modal:
+    /// disabled when this is false because you can't burn materials you don't
+    /// have. Empty recipes return `false` (mirrors [`Self::is_upgrade_ready`]):
+    /// an unknown/placeholder recipe has nothing meaningful to consume.
+    pub fn can_consume_materials(&self, upgrade_id: &UpgradeId) -> bool {
+        let reqs = self.effective_requirements(upgrade_id);
+        if reqs.is_empty() {
+            return false;
+        }
+        reqs.iter()
+            .all(|r| *self.collected.get(&r.item_id).unwrap_or(&0) >= r.quantity)
+    }
+
+    /// Mark an upgrade completed, optionally burning its recipe's items from
+    /// `collected` first to mirror the in-game material cost.
+    ///
+    /// Building an upgrade in-game removes the required items from the stash.
+    /// When the user confirms a *manual* upgrade with `consume = true` we do
+    /// the same here, keeping the app's inventory in lockstep with the game so
+    /// the wishlist doesn't keep counting spent items toward other upgrades.
+    /// `consume = false` leaves `collected` untouched — the "skip" modal choice,
+    /// and the path the OCR worker uses (it reads true post-build stash counts
+    /// off the screen, so consuming again would double-subtract).
+    ///
+    /// Consumption clamps at zero per item via [`Self::adjust_collected`]; the
+    /// modal only offers `consume = true` when [`Self::can_consume_materials`]
+    /// holds, so in practice nothing floors. Each `adjust_collected` /
+    /// `set_completed_upgrade` call bumps `version`; the caller issues one
+    /// `SaveTick` after.
+    pub fn complete_upgrade(&mut self, upgrade_id: &UpgradeId, consume: bool) {
+        if consume {
+            for req in self.effective_requirements(upgrade_id) {
+                self.adjust_collected(&req.item_id, -(req.quantity as i64));
+            }
+        }
+        self.set_completed_upgrade(upgrade_id, true);
+    }
+
     /// Collected-vs-needed rollup for one upgrade's *effective* recipe
     /// (post-override, non-empty slots). Per item we cap the contribution at
     /// that item's required quantity — over-collecting bolts because three
@@ -1525,6 +1566,81 @@ mod tests {
         let need = s.needed_by_id(NeedHorizon::AllFuture);
         assert_eq!(need.get("bolts"), Some(&12)); // Lv1 5 + Lv2 7
         assert_eq!(need.get("screws"), Some(&3));
+    }
+
+    #[test]
+    fn can_consume_materials_tracks_stock_against_recipe() {
+        let mut s = AppState::new(fixture());
+        // workbench_lv1 needs bolts×5 + screws×3.
+        assert!(
+            !s.can_consume_materials(&"workbench_lv1".to_string()),
+            "nothing collected → can't consume",
+        );
+        s.set_collected(&"bolts".to_string(), 5);
+        s.set_collected(&"screws".to_string(), 2);
+        assert!(
+            !s.can_consume_materials(&"workbench_lv1".to_string()),
+            "screws short by one → still can't consume",
+        );
+        s.set_collected(&"screws".to_string(), 3);
+        assert!(
+            s.can_consume_materials(&"workbench_lv1".to_string()),
+            "exact stock of every item → can consume",
+        );
+    }
+
+    #[test]
+    fn can_consume_materials_false_for_empty_recipe() {
+        // placeholder_lv1 has no requirements — nothing to consume, so the
+        // "consume" choice must stay disabled regardless of collected counts.
+        let s = AppState::new(fixture());
+        assert!(!s.can_consume_materials(&"placeholder_lv1".to_string()));
+    }
+
+    #[test]
+    fn complete_upgrade_consuming_subtracts_recipe_from_collected() {
+        let mut s = AppState::new(fixture());
+        // Over-stock bolts (another upgrade also wants them) — consuming lv1
+        // must subtract exactly its required 5, not floor or zero it out.
+        s.set_collected(&"bolts".to_string(), 8);
+        s.set_collected(&"screws".to_string(), 3);
+        s.complete_upgrade(&"workbench_lv1".to_string(), true);
+        assert!(s.completed_upgrades.contains("workbench_lv1"));
+        assert_eq!(*s.collected.get("bolts").unwrap(), 3, "8 - 5 = 3");
+        assert_eq!(
+            s.collected.get("screws"),
+            None,
+            "3 - 3 = 0 → entry removed by set_collected",
+        );
+    }
+
+    #[test]
+    fn complete_upgrade_skipping_leaves_collected_untouched() {
+        let mut s = AppState::new(fixture());
+        s.set_collected(&"bolts".to_string(), 8);
+        s.set_collected(&"screws".to_string(), 3);
+        s.complete_upgrade(&"workbench_lv1".to_string(), false);
+        assert!(s.completed_upgrades.contains("workbench_lv1"));
+        assert_eq!(
+            *s.collected.get("bolts").unwrap(),
+            8,
+            "skip → inventory kept"
+        );
+        assert_eq!(*s.collected.get("screws").unwrap(), 3);
+    }
+
+    #[test]
+    fn complete_upgrade_consuming_still_auto_tracks_next_level() {
+        // Consumption is orthogonal to natural progression: completing lv1
+        // (with consumption) must still pull lv2 into the tracked set.
+        let mut s = AppState::new(fixture());
+        s.set_collected(&"bolts".to_string(), 5);
+        s.set_collected(&"screws".to_string(), 3);
+        s.complete_upgrade(&"workbench_lv1".to_string(), true);
+        assert!(
+            s.tracked_upgrades.contains("workbench_lv2"),
+            "lv2 should auto-track once lv1 is done, consumption or not",
+        );
     }
 
     #[test]
