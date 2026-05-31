@@ -43,7 +43,7 @@ EZ Wishlist Overlay keeps that list for you:
 
 ### 🏠 Track hideout upgrades
 
-The **Hideout** tab lists every facility module, grouped the way the in-game Facility Upgrade screen groups them (Kitchen, Medical, Storage Zone, Lounge…), with a cell per upgrade level. Tick **Track** on the levels you're saving for, or **Done** on ones you've finished. One-click **presets** — a community *Starter* set and a *Natural progression* set, each with a "how many you already have" counter — track a whole recommended batch at once, and *Deselect all* clears your tracking in one go.
+The **Hideout** tab lists every facility module, grouped the way the in-game Facility Upgrade screen groups them (Kitchen, Medical, Storage Zone, Lounge…), with a cell per upgrade level. Tick **Track** on the levels you're saving for, or **Done** on ones you've finished. One-click **presets** — a community *Starter* set and a *Natural progression* set, each with a "how many you already have" counter — track a whole recommended batch at once, and *Deselect all* clears your tracking in one go. Flip to the **By progress** view for a ranked to-do list: upgrades you can claim right now rise to the top, ones you're only an item or two short of sit right below, and you can **Pin** the goals you care about most to keep them first.
 
 <p align="center">
   <img src="docs/images/desktop-hideout.png" alt="Hideout tab" width="820">
@@ -51,7 +51,7 @@ The **Hideout** tab lists every facility module, grouped the way the in-game Fac
 
 ### 🧾 One combined wishlist
 
-The preview pane on the right is the heart of it: every item across all the upgrades you're tracking, summed together, shown as `collected / needed` with a progress bar and the list of upgrades asking for it. Nudge counts up and down with the `+ / −` buttons, or type an exact number to seed it from what's already in your stash.
+The preview pane on the right is the heart of it: every item across all the upgrades you're tracking, summed together, shown as `collected / needed` with a progress bar and the list of upgrades asking for it. Nudge counts up and down with the `+ / −` buttons, or type an exact number to seed it from what's already in your stash. Pinned upgrades push their items to the front here and in the headset, and a **Sort** switch can reorder this desktop list by what's most remaining or most valuable — the VR overlay keeps its own steady order so it never reshuffles mid-raid.
 
 ### 📦 Items database & stash value
 

@@ -41,6 +41,15 @@ pub struct AppState {
     pub index: Arc<DataIndex>,
     pub tracked_upgrades: HashSet<UpgradeId>,
     pub completed_upgrades: HashSet<UpgradeId>,
+    /// Upgrades the user has pinned to prioritize. Advisory metadata: pinned
+    /// upgrades float to the top of the "By progress" list and their items lead
+    /// the overlay / wishlist ordering. Filtered at read time to
+    /// tracked-and-not-completed wherever it affects order, so a pin on an
+    /// upgrade later completed or untracked sits inert (and re-applies if the
+    /// upgrade is re-tracked) without any of the hot mutation paths having to
+    /// clear it. Only `reset_all` + `PersistedState::merge_into` touch this set
+    /// besides `set_pinned_upgrade`.
+    pub pinned_upgrades: HashSet<UpgradeId>,
     pub collected: HashMap<ItemId, u32>,
     /// User-defined secondary containers (backpacks, item cases). Their
     /// contents sum with `collected` via [`AppState::owned_total`] for every
@@ -89,6 +98,7 @@ impl AppState {
             index,
             tracked_upgrades: HashSet::new(),
             completed_upgrades: HashSet::new(),
+            pinned_upgrades: HashSet::new(),
             collected: HashMap::new(),
             containers: Vec::new(),
             next_container_seq: 0,
@@ -170,6 +180,29 @@ impl AppState {
             self.tracked_upgrades.remove(id);
         }
         self.bump();
+    }
+
+    /// Pin or unpin an upgrade to prioritize it. Pinned upgrades float to the
+    /// top of the "By progress" list and lead the overlay / wishlist item order.
+    ///
+    /// The `bump()` is load-bearing: pinning reorders [`Self::active_items`], and
+    /// the VR overlay only rebuilds its texture + click hit-table when `version`
+    /// changes. Without the bump a reorder would leave the cached hit rects
+    /// pointing at stale cells, so clicks would land on the wrong item. We bump
+    /// only on a real change so a redundant toggle doesn't force a re-render.
+    pub fn set_pinned_upgrade(&mut self, id: &UpgradeId, on: bool) {
+        let changed = if on {
+            self.pinned_upgrades.insert(id.clone())
+        } else {
+            self.pinned_upgrades.remove(id)
+        };
+        if changed {
+            self.bump();
+        }
+    }
+
+    pub fn is_upgrade_pinned(&self, id: &UpgradeId) -> bool {
+        self.pinned_upgrades.contains(id)
     }
 
     pub fn set_completed_upgrade(&mut self, id: &UpgradeId, on: bool) {
@@ -391,6 +424,50 @@ impl AppState {
         UpgradeProgress { collected, needed }
     }
 
+    /// How far one upgrade's *effective* recipe is from claimable: how many
+    /// distinct items are still below their target, and the total units still
+    /// missing across them. Same recipe walk as [`Self::upgrade_progress`]
+    /// (counts containers via `owned_total`) but answers "how far from done?"
+    /// instead of "how complete?". Uses `<` so an item stocked to exactly its
+    /// target is NOT counted missing — mirroring [`Self::is_upgrade_ready`]'s
+    /// `>=`. An empty recipe yields all-zero: "we don't know the cost", not
+    /// "0 away" (same stance the readiness/knowledge helpers take).
+    pub fn upgrade_shortfall(&self, upgrade_id: &UpgradeId) -> UpgradeShortfall {
+        let mut items_missing = 0;
+        let mut units_missing = 0;
+        for req in self.effective_requirements(upgrade_id) {
+            let have = self.owned_total(&req.item_id);
+            if have < req.quantity {
+                items_missing += 1;
+                units_missing += req.quantity - have;
+            }
+        }
+        UpgradeShortfall {
+            items_missing,
+            units_missing,
+        }
+    }
+
+    /// "Nearly ready": a tracked, not-yet-ready upgrade that's only 1–2 distinct
+    /// items short of claimable (a known recipe). Drives the "nearly ready" tier
+    /// between "ready now" and the long in-progress tail — the quick-win cue the
+    /// user asked for ("what can I finish with just one more item?"). An empty /
+    /// assumed recipe has `items_missing == 0`, so it never qualifies (same
+    /// reason `is_upgrade_ready` refuses empty recipes). The 1–2 boundary keys
+    /// purely on distinct items per the spec; the By-progress row also surfaces
+    /// `units_missing` so a "1 item, 100 units to go" case stays honest.
+    /// Delegates to [`Self::upgrade_shortfall`] + [`Self::is_upgrade_ready`] so
+    /// the "missing" boundary lives in exactly one place.
+    pub fn is_upgrade_nearly_ready(&self, upgrade_id: &UpgradeId) -> bool {
+        if !self.tracked_upgrades.contains(upgrade_id)
+            || self.completed_upgrades.contains(upgrade_id)
+            || self.is_upgrade_ready(upgrade_id)
+        {
+            return false;
+        }
+        (1..=2).contains(&self.upgrade_shortfall(upgrade_id).items_missing)
+    }
+
     /// How much we trust an upgrade's recipe (drives the confidence badge in
     /// the Hideout views). `Assumed` wins whenever the effective recipe is
     /// empty — "we don't know the cost" is the dominant signal, the same
@@ -409,12 +486,17 @@ impl AppState {
     /// "what should I claim or grind next?". The filter mirrors `active_items`
     /// exactly (difference against completed, skip disabled modules) so this
     /// per-upgrade list and the per-item wishlist always agree on what counts
-    /// as "active". Ordering buckets:
+    /// as "active".
+    ///
+    /// Pinned upgrades float above everything else — a deliberate user priority
+    /// ("show my goals first"). Within each pin group, ordering buckets:
     ///   0. Ready — every material collected, recipe known. Float to the top.
-    ///   1. In progress (some collected), descending by fraction so the
-    ///      nearest-to-done sits highest.
-    ///   2. Known recipe, nothing collected yet.
-    ///   3. Assumed (empty recipe) — parked last and flagged, because its
+    ///   1. Nearly ready — 1–2 distinct items short of claimable; within the
+    ///      band, fewest items then fewest units first (genuinely closest leads).
+    ///   2. In progress (some collected, 3+ items short), descending by fraction
+    ///      so the nearest-to-done sits highest.
+    ///   3. Known recipe, nothing collected yet.
+    ///   4. Assumed (empty recipe) — parked last and flagged, because its
     ///      fraction is a meaningless 0 and the action there is "fill in the
     ///      recipe", not "go grind".
     ///
@@ -436,32 +518,50 @@ impl AppState {
                     progress: self.upgrade_progress(id),
                     knowledge: self.recipe_knowledge(id),
                     ready: self.is_upgrade_ready(id),
+                    pinned: self.pinned_upgrades.contains(id),
+                    shortfall: self.upgrade_shortfall(id),
                 })
             })
             .collect();
 
-        // Lower rank sorts first. Keying on an explicit bucket (rather than
-        // raw fraction) keeps "ready" and "assumed" from interleaving with the
-        // in-progress band — an assumed recipe and a known-but-untouched one
-        // both have fraction 0, but they belong at opposite ends of the list.
-        fn rank(r: &UpgradeProgressRow) -> u8 {
+        // Per row: (bucket rank, within-bucket key). Lower rank sorts first.
+        // Keying on an explicit bucket (rather than raw fraction) keeps "ready"
+        // / "nearly" / "assumed" from interleaving with the in-progress band —
+        // an assumed recipe and a known-but-untouched one both have fraction 0
+        // but belong at opposite ends. The within-bucket f64 is only ever
+        // compared against rows in the SAME bucket (rank separates them first),
+        // so each branch can pick whatever ordering fits that band: ascending
+        // "distance" for nearly (fewer items, then fewer units), and inverse
+        // fraction for in-progress (higher completion first).
+        fn sort_key(r: &UpgradeProgressRow) -> (u8, f64) {
             if matches!(r.knowledge, RecipeKnowledge::Assumed) {
-                3
+                (4, 0.0)
             } else if r.ready {
-                0
+                (0, 0.0)
+            } else if (1..=2).contains(&r.shortfall.items_missing) {
+                // Nearly: items dominate, units break ties (items can't realistically
+                // exceed the 4-slot recipe, so the 1e9 scale won't collide).
+                (
+                    1,
+                    r.shortfall.items_missing as f64 * 1.0e9 + r.shortfall.units_missing as f64,
+                )
             } else if r.progress.collected > 0 {
-                1
+                (2, 1.0 - r.progress.fraction() as f64)
             } else {
-                2
+                (3, 0.0)
             }
         }
 
         rows.sort_by(|a, b| {
-            rank(a)
-                .cmp(&rank(b))
-                // Within the in-progress band, higher fraction first. total_cmp
-                // keeps it panic-free on the f32 (matches house caution).
-                .then_with(|| b.progress.fraction().total_cmp(&a.progress.fraction()))
+            let (ra, ka) = sort_key(a);
+            let (rb, kb) = sort_key(b);
+            // Pinned upgrades float above everything else (b.pinned vs a.pinned
+            // puts `true` first), then the readiness bucket, then within-bucket
+            // order. total_cmp keeps the f64 compare panic-free (house caution).
+            b.pinned
+                .cmp(&a.pinned)
+                .then_with(|| ra.cmp(&rb))
+                .then_with(|| ka.total_cmp(&kb))
                 .then_with(|| a.module_name.cmp(&b.module_name))
                 .then_with(|| a.level.cmp(&b.level))
         });
@@ -610,6 +710,9 @@ impl AppState {
     pub fn reset_all(&mut self) {
         self.tracked_upgrades.clear();
         self.completed_upgrades.clear();
+        // Clear pins too — otherwise a zombie pin would silently re-attach if
+        // the user re-tracks the same upgrade id under the same data version.
+        self.pinned_upgrades.clear();
         self.collected.clear();
         // Clear secondary containers too — "Reset progress" wipes the whole
         // inventory. `next_container_seq` stays monotonic (not reset) so a
@@ -622,7 +725,14 @@ impl AppState {
     /// Aggregate every tracked-but-not-completed upgrade into a flat per-item
     /// view.
     pub fn active_items(&self) -> Vec<ActiveItem> {
-        let mut totals: BTreeMap<ItemId, (u32, Vec<String>)> = BTreeMap::new();
+        // Per item: (needed units, source labels, pinned). `pinned` is OR'd
+        // across every contributing upgrade — a shared item (e.g. bolts wanted
+        // by three upgrades) counts as pinned if ANY tracked upgrade needing it
+        // is pinned. The per-item view can't represent "pinned for upgrade A but
+        // not B", and floating a shared material up for the pinned goal is the
+        // sensible reading. The loop already iterates `tracked − completed`, so
+        // a pin on a completed upgrade is filtered out here for free.
+        let mut totals: BTreeMap<ItemId, (u32, Vec<String>, bool)> = BTreeMap::new();
 
         for id in self.tracked_upgrades.difference(&self.completed_upgrades) {
             let Some(uref) = self.index.upgrades_by_id.get(id) else {
@@ -631,6 +741,7 @@ impl AppState {
             if self.is_module_effectively_disabled(&uref.module_id) {
                 continue;
             }
+            let pinned = self.pinned_upgrades.contains(id);
             let label = if uref.upgrade.name == uref.module_name {
                 format!("{} L{}", uref.module_name, uref.upgrade.level)
             } else {
@@ -642,15 +753,16 @@ impl AppState {
             for req in self.effective_requirements(id) {
                 let entry = totals
                     .entry(req.item_id.clone())
-                    .or_insert_with(|| (0, Vec::new()));
+                    .or_insert_with(|| (0, Vec::new(), false));
                 entry.0 += req.quantity;
                 entry.1.push(label.clone());
+                entry.2 |= pinned;
             }
         }
 
         let mut out: Vec<ActiveItem> = totals
             .into_iter()
-            .filter_map(|(item_id, (needed, sources))| {
+            .filter_map(|(item_id, (needed, sources, pinned))| {
                 let item = self.index.items_by_id.get(&item_id)?;
                 let collected = self.owned_total(&item_id);
                 Some(ActiveItem {
@@ -660,25 +772,33 @@ impl AppState {
                     needed,
                     collected,
                     sources,
+                    pinned,
                 })
             })
             .collect();
 
         // Order:
-        //   1. Active items first; completed items last so the user's eye
-        //      lands on stuff they still need to gather.
-        //   2. Within the active group, sort by descending NEEDED quantity
-        //      so the biggest grinds sit top-left. We deliberately key on
-        //      `needed` rather than `needed - collected` — sorting on the
-        //      remaining count makes the grid reshuffle on every click in
-        //      the VR overlay, which is disorienting.
-        //   3. Tiebreak alphabetically by name for stability when two
-        //      items have the same target quantity.
+        //   1. Done items (collected ≥ needed) last so the user's eye lands on
+        //      what still needs gathering. This stays the OUTERMOST key, so a
+        //      pinned item you've already finished sinks rather than squatting
+        //      top-left in the overlay.
+        //   2. Among the not-done, pinned-sourced items first — a deliberate
+        //      user priority. Pinning bumps `version` (one overlay re-render);
+        //      collecting never changes pinned-ness, so this never reshuffles
+        //      the grid on a click.
+        //   3. Then descending NEEDED quantity so the biggest grinds sit
+        //      top-left. We deliberately key on `needed` rather than
+        //      `needed - collected` — keying on the remaining count makes the
+        //      grid reshuffle on every click in the VR overlay, which is
+        //      disorienting.
+        //   4. Tiebreak alphabetically by name for stability when two items
+        //      share a target quantity.
         out.sort_by(|a, b| {
             let a_done = a.collected >= a.needed;
             let b_done = b.collected >= b.needed;
             a_done
                 .cmp(&b_done)
+                .then_with(|| b.pinned.cmp(&a.pinned)) // pinned (true) first
                 .then_with(|| b.needed.cmp(&a.needed)) // descending
                 .then_with(|| a.name.cmp(&b.name))
         });
@@ -753,6 +873,10 @@ pub struct ActiveItem {
     pub needed: u32,
     pub collected: u32,
     pub sources: Vec<String>,
+    /// True if at least one tracked-not-completed upgrade that needs this item
+    /// is pinned. Floats the item to the front of the overlay/wishlist order and
+    /// lets the desktop preview tag it. OR'd across the item's source upgrades.
+    pub pinned: bool,
 }
 
 /// Collected-vs-needed rollup for a single upgrade's effective recipe.
@@ -778,6 +902,19 @@ impl UpgradeProgress {
             (self.collected as f32 / self.needed as f32).clamp(0.0, 1.0)
         }
     }
+}
+
+/// How far one upgrade's effective recipe is from claimable: distinct items
+/// still under their target, and total units still missing across them. The
+/// "nearly ready" tier keys on `items_missing` (1–2 ⇒ nearly); the By-progress
+/// row shows both so a "1 item, 100 units to go" case stays honest. An empty /
+/// assumed recipe yields all-zero (unknown cost, not "0 away").
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct UpgradeShortfall {
+    /// Distinct items whose owned total is below the required quantity.
+    pub items_missing: u32,
+    /// Σ (required − owned) across those items.
+    pub units_missing: u32,
 }
 
 /// How much we trust an upgrade's recipe — drives the confidence badge in the
@@ -806,6 +943,12 @@ pub struct UpgradeProgressRow {
     pub knowledge: RecipeKnowledge,
     /// `is_upgrade_ready`: tracked, materials complete, recipe known.
     pub ready: bool,
+    /// User-pinned: floats this row above its readiness bucket and paints a
+    /// priority accent. Carried on the row so the GUI never re-locks per row.
+    pub pinned: bool,
+    /// Distinct items / units still missing. Drives the "nearly ready" tier
+    /// (1–2 items_missing) and the "N to go" status text.
+    pub shortfall: UpgradeShortfall,
 }
 
 /// What [`AppState::apply_ocr_progression`] actually changed. Surfaces
@@ -828,6 +971,11 @@ pub struct PersistedState {
     pub tracked_upgrades: HashSet<UpgradeId>,
     #[serde(default)]
     pub completed_upgrades: HashSet<UpgradeId>,
+    /// Pinned upgrades (priority ordering). `#[serde(default)]` so a
+    /// pre-pinning `state.json` (no key) loads as an empty set — the same
+    /// forward-compat path `containers` uses, no schema bump.
+    #[serde(default)]
+    pub pinned_upgrades: HashSet<UpgradeId>,
     #[serde(default)]
     pub collected: HashMap<ItemId, u32>,
     #[serde(default)]
@@ -848,6 +996,7 @@ impl PersistedState {
             data_version: state.data.data_version.clone(),
             tracked_upgrades: state.tracked_upgrades.clone(),
             completed_upgrades: state.completed_upgrades.clone(),
+            pinned_upgrades: state.pinned_upgrades.clone(),
             collected: state.collected.clone(),
             disabled_modules: state.disabled_modules.clone(),
             containers: state.containers.clone(),
@@ -875,6 +1024,12 @@ impl PersistedState {
         let (kept_done_upgrades, _) = filter_known(self.completed_upgrades, |id| {
             upgrades_index.contains_key(id)
         });
+        // Pins are advisory metadata — prune ids that no longer resolve, but
+        // silently (no user-facing warning the way dropped tracked upgrades get
+        // one). A lost pin costs the user nothing; warning about it would be
+        // noise.
+        let (kept_pinned_upgrades, _) =
+            filter_known(self.pinned_upgrades, |id| upgrades_index.contains_key(id));
 
         if dropped_upgrades > 0 {
             warnings.push(format!(
@@ -884,6 +1039,7 @@ impl PersistedState {
 
         state.tracked_upgrades = kept_upgrades;
         state.completed_upgrades = kept_done_upgrades;
+        state.pinned_upgrades = kept_pinned_upgrades;
         // Drop disabled-module entries that no longer match any module — keeps
         // the set tidy across data-version bumps that rename modules.
         let known_modules: HashSet<&ModuleId> = state.data.modules.iter().map(|m| &m.id).collect();
@@ -1564,6 +1720,7 @@ mod tests {
             data_version: "older".into(),
             tracked_upgrades: HashSet::from(["nonexistent_upgrade".to_string()]),
             completed_upgrades: HashSet::new(),
+            pinned_upgrades: HashSet::new(),
             collected: HashMap::from([("bolts".to_string(), 7)]),
             disabled_modules: HashSet::new(),
             containers: Vec::new(),
@@ -1964,5 +2121,285 @@ mod tests {
         assert!(s.containers.is_empty());
         assert!(s.tracked_upgrades.contains("workbench_lv1"));
         assert_eq!(*s.collected.get("bolts").unwrap(), 2);
+    }
+
+    // --- Prioritization: pinning, shortfall, nearly-ready (issue #70) --------
+
+    #[test]
+    fn pin_toggle_bumps_version() {
+        let mut s = AppState::new(fixture());
+        let v0 = s.version;
+        s.set_pinned_upgrade(&"workbench_lv1".to_string(), true);
+        assert!(s.version > v0, "pinning must bump version so VR re-renders");
+        let v1 = s.version;
+        s.set_pinned_upgrade(&"workbench_lv1".to_string(), false);
+        assert!(s.version > v1, "unpinning must bump version too");
+        // A redundant change (already absent) must NOT bump — avoids needless
+        // overlay re-renders.
+        let v2 = s.version;
+        s.set_pinned_upgrade(&"workbench_lv1".to_string(), false);
+        assert_eq!(s.version, v2, "redundant unpin shouldn't bump");
+    }
+
+    /// Override the two workbench levels to DISJOINT single-item recipes
+    /// (lv1 → screws, lv2 → bolts) so pinning one upgrade moves only its item —
+    /// the shared bolts+screws recipe can't demonstrate floating.
+    fn disjoint_levels(s: &mut AppState) {
+        let mut lv1: [Option<Requirement>; RECIPE_SLOTS] = std::array::from_fn(|_| None);
+        lv1[0] = Some(Requirement {
+            item_id: "screws".into(),
+            quantity: 3,
+        });
+        s.set_recipe_override(&"workbench_lv1".to_string(), RecipeOverride::new(lv1));
+        // lv2's bundled recipe is already bolts×7; tracking both is enough.
+        s.set_tracked_upgrade(&"workbench_lv1".to_string(), true);
+        s.set_tracked_upgrade(&"workbench_lv2".to_string(), true);
+    }
+
+    #[test]
+    fn pinned_floats_in_active_items() {
+        let mut s = AppState::new(fixture());
+        disjoint_levels(&mut s);
+
+        // Baseline: bolts (needed 7) before screws (needed 3); nothing pinned.
+        let base = s.active_items();
+        assert_eq!(base[0].item_id, "bolts");
+        assert_eq!(base[1].item_id, "screws");
+        assert!(base.iter().all(|a| !a.pinned));
+
+        // Pin lv1 (needs screws): screws floats above the larger-needed bolts.
+        s.set_pinned_upgrade(&"workbench_lv1".to_string(), true);
+        let rows = s.active_items();
+        assert_eq!(rows[0].item_id, "screws", "pinned item leads");
+        assert!(rows[0].pinned);
+        assert_eq!(rows[1].item_id, "bolts");
+        assert!(!rows[1].pinned);
+    }
+
+    #[test]
+    fn pin_does_not_unsink_completed() {
+        let mut s = AppState::new(fixture());
+        disjoint_levels(&mut s);
+        s.set_pinned_upgrade(&"workbench_lv1".to_string(), true);
+        // Fully stock the pinned item (screws) → it's "done" and must sink below
+        // the still-needed bolts. `done` is the outermost sort key; a pin can't
+        // float a finished item back to the top of the overlay.
+        s.set_collected(&"screws".to_string(), 3);
+        let rows = s.active_items();
+        assert_eq!(rows[0].item_id, "bolts", "still-needed item leads");
+        assert_eq!(rows[1].item_id, "screws");
+        assert!(
+            rows[1].collected >= rows[1].needed,
+            "the pinned-but-done item sinks last"
+        );
+    }
+
+    #[test]
+    fn shortfall_counts_distinct_and_units() {
+        let mut s = AppState::new(fixture());
+        // workbench_lv1: bolts×5 + screws×3. Own bolts=5 (met), screws=1 (short 2).
+        s.set_collected(&"bolts".to_string(), 5);
+        s.set_collected(&"screws".to_string(), 1);
+        let sf = s.upgrade_shortfall(&"workbench_lv1".to_string());
+        assert_eq!(sf.items_missing, 1, "only screws is below target");
+        assert_eq!(sf.units_missing, 2, "3 needed − 1 owned");
+    }
+
+    #[test]
+    fn shortfall_boundary_owned_equals_qty_not_missing() {
+        let mut s = AppState::new(fixture());
+        s.set_collected(&"bolts".to_string(), 5);
+        s.set_collected(&"screws".to_string(), 3); // exactly met
+        let sf = s.upgrade_shortfall(&"workbench_lv1".to_string());
+        assert_eq!(
+            sf.items_missing, 0,
+            "owned == target is not missing (uses <, not <=)"
+        );
+        assert_eq!(sf.units_missing, 0);
+    }
+
+    #[test]
+    fn nearly_ready_excludes_ready() {
+        let mut s = AppState::new(fixture());
+        s.set_tracked_upgrade(&"workbench_lv1".to_string(), true);
+        s.set_collected(&"bolts".to_string(), 5);
+        s.set_collected(&"screws".to_string(), 3);
+        assert!(s.is_upgrade_ready(&"workbench_lv1".to_string()));
+        assert!(
+            !s.is_upgrade_nearly_ready(&"workbench_lv1".to_string()),
+            "a fully-stocked upgrade is ready, not nearly"
+        );
+    }
+
+    #[test]
+    fn nearly_ready_excludes_three_items_short() {
+        let mut s = AppState::new(fixture());
+        s.set_tracked_upgrade(&"workbench_lv1".to_string(), true);
+        // Override to a 3-item recipe, own none → 3 distinct items short.
+        let mut slots: [Option<Requirement>; RECIPE_SLOTS] = std::array::from_fn(|_| None);
+        slots[0] = Some(Requirement {
+            item_id: "bolts".into(),
+            quantity: 1,
+        });
+        slots[1] = Some(Requirement {
+            item_id: "screws".into(),
+            quantity: 1,
+        });
+        slots[2] = Some(Requirement {
+            item_id: "nuts".into(),
+            quantity: 1,
+        });
+        s.set_recipe_override(&"workbench_lv1".to_string(), RecipeOverride::new(slots));
+        assert_eq!(
+            s.upgrade_shortfall(&"workbench_lv1".to_string())
+                .items_missing,
+            3
+        );
+        assert!(
+            !s.is_upgrade_nearly_ready(&"workbench_lv1".to_string()),
+            "3 distinct items short is in-progress, not nearly"
+        );
+    }
+
+    #[test]
+    fn nearly_ready_requires_tracking() {
+        let mut s = AppState::new(fixture());
+        // One unit short of a known recipe, but NOT tracked → not nearly.
+        s.set_collected(&"bolts".to_string(), 5);
+        s.set_collected(&"screws".to_string(), 2);
+        assert!(!s.is_upgrade_nearly_ready(&"workbench_lv1".to_string()));
+        s.set_tracked_upgrade(&"workbench_lv1".to_string(), true);
+        assert!(
+            s.is_upgrade_nearly_ready(&"workbench_lv1".to_string()),
+            "tracked + 1 item short ⇒ nearly"
+        );
+    }
+
+    #[test]
+    fn hideout_progress_rows_floats_pinned_above_bucket() {
+        let mut s = AppState::new(fixture());
+        s.set_tracked_upgrade(&"workbench_lv2".to_string(), true); // bolts×7
+        s.set_tracked_upgrade(&"placeholder_lv1".to_string(), true); // assumed
+        s.set_collected(&"bolts".to_string(), 7); // lv2 ready (rank 0)
+
+        // Unpinned: the ready upgrade leads, the assumed one is parked last.
+        let rows = s.hideout_progress_rows();
+        assert_eq!(rows[0].upgrade_id, "workbench_lv2");
+        assert_eq!(rows[1].upgrade_id, "placeholder_lv1");
+
+        // Pin the assumed upgrade → it floats above even the ready one, because
+        // an explicit pin outranks the readiness buckets.
+        s.set_pinned_upgrade(&"placeholder_lv1".to_string(), true);
+        let rows = s.hideout_progress_rows();
+        assert_eq!(rows[0].upgrade_id, "placeholder_lv1");
+        assert!(rows[0].pinned);
+        assert_eq!(rows[1].upgrade_id, "workbench_lv2");
+    }
+
+    #[test]
+    fn hideout_progress_rows_orders_ready_nearly_inprogress_known_assumed() {
+        // Disjoint single-upgrade modules so each upgrade's state is independent
+        // (the shared-item fixture can't put one upgrade in every bucket at once).
+        fn up(id: &str, reqs: &[(&str, u32)]) -> Upgrade {
+            Upgrade {
+                id: id.into(),
+                name: id.into(),
+                level: 1,
+                description: String::new(),
+                requirements: reqs
+                    .iter()
+                    .map(|(i, q)| Requirement {
+                        item_id: (*i).into(),
+                        quantity: *q,
+                    })
+                    .collect(),
+            }
+        }
+        fn module(id: &str, upgrade: Upgrade) -> HideoutModule {
+            HideoutModule {
+                id: id.into(),
+                name: id.into(),
+                upgrades: vec![upgrade],
+            }
+        }
+        let data = Arc::new(GameData {
+            data_version: "test".into(),
+            scraped_at: "now".into(),
+            source_repo: "test".into(),
+            source_commit: "deadbeef".into(),
+            modules: vec![
+                module("m_ready", up("u_ready", &[("ra", 2)])),
+                module("m_nearly", up("u_nearly", &[("na", 2)])),
+                module(
+                    "m_inprog",
+                    up("u_inprog", &[("pa", 2), ("pb", 2), ("pc", 2)]),
+                ),
+                module("m_known", up("u_known", &[("ka", 2), ("kb", 2), ("kc", 2)])),
+                module("m_assumed", up("u_assumed", &[])),
+            ],
+            items: vec![],
+        });
+        let mut s = AppState::new(data);
+        for id in ["u_ready", "u_nearly", "u_inprog", "u_known", "u_assumed"] {
+            s.set_tracked_upgrade(&id.to_string(), true);
+        }
+        s.set_collected(&"ra".to_string(), 2); // ready: fully stocked
+        s.set_collected(&"na".to_string(), 1); // nearly: 1 item short
+        s.set_collected(&"pa".to_string(), 1); // in-progress: 3 items short, some collected
+                                               // u_known: nothing collected
+        let order: Vec<String> = s
+            .hideout_progress_rows()
+            .into_iter()
+            .map(|r| r.upgrade_id)
+            .collect();
+        assert_eq!(
+            order,
+            vec!["u_ready", "u_nearly", "u_inprog", "u_known", "u_assumed"]
+        );
+    }
+
+    #[test]
+    fn pinned_round_trips_through_persisted_state() {
+        let mut s = AppState::new(fixture());
+        s.set_tracked_upgrade(&"workbench_lv1".to_string(), true);
+        s.set_pinned_upgrade(&"workbench_lv1".to_string(), true);
+        let json = serde_json::to_string(&PersistedState::from_app(&s)).unwrap();
+        let back: PersistedState = serde_json::from_str(&json).unwrap();
+        let mut s2 = AppState::new(s.data.clone());
+        back.merge_into(&mut s2);
+        assert!(s2.is_upgrade_pinned(&"workbench_lv1".to_string()));
+    }
+
+    #[test]
+    fn merge_into_drops_unknown_pins() {
+        let mut s = AppState::new(fixture());
+        let persisted = PersistedState {
+            schema_version: STATE_SCHEMA_VERSION,
+            data_version: "test".into(),
+            tracked_upgrades: HashSet::new(),
+            completed_upgrades: HashSet::new(),
+            pinned_upgrades: HashSet::from(["workbench_lv1".to_string(), "ghost".to_string()]),
+            collected: HashMap::new(),
+            disabled_modules: HashSet::new(),
+            containers: Vec::new(),
+            next_container_seq: 0,
+        };
+        // Pruning an orphaned pin is silent — only dropped *tracked* upgrades warn.
+        let warn = persisted.merge_into(&mut s);
+        assert!(warn.is_none(), "a dropped pin must not produce a warning");
+        assert!(s.is_upgrade_pinned(&"workbench_lv1".to_string()));
+        assert!(
+            !s.is_upgrade_pinned(&"ghost".to_string()),
+            "unknown pin id is pruned on load"
+        );
+    }
+
+    #[test]
+    fn reset_all_clears_pins() {
+        let mut s = AppState::new(fixture());
+        s.set_tracked_upgrade(&"workbench_lv1".to_string(), true);
+        s.set_pinned_upgrade(&"workbench_lv1".to_string(), true);
+        s.reset_all();
+        assert!(s.pinned_upgrades.is_empty());
     }
 }

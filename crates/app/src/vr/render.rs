@@ -483,6 +483,7 @@ mod tests {
             needed,
             collected,
             sources: vec!["test".into()],
+            pinned: false,
         }
     }
 

@@ -316,7 +316,16 @@ impl eframe::App for App {
                 .default_width(480.0)
                 .min_width(320.0)
                 .show(ctx, |ui| {
-                    preview_pane::ui(ui, &self.state, &mut self.icons, &self.save_tx);
+                    let outcome = preview_pane::ui(
+                        ui,
+                        &self.state,
+                        &self.settings,
+                        &mut self.icons,
+                        &self.save_tx,
+                    );
+                    if outcome.settings_changed {
+                        self.persist_settings();
+                    }
                 });
         }
 
