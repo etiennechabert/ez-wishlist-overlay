@@ -462,6 +462,163 @@ mod tests {
         *tally(master).0.get(id).unwrap_or(&0)
     }
 
+    // ===================================================================
+    // Native-capture regression fixtures (`box_screenshots_native/`).
+    //
+    // Real box-screen captures keep getting flushed from the debug dir, so we
+    // freeze each one's Windows.Media.Ocr output (the word boxes) to JSON next
+    // to its PNG. `read_tiles` + `stitch` are pure and platform-independent, so
+    // these fixtures let us regression-test the whole post-OCR pipeline on every
+    // target (incl. Linux CI) without re-running the Windows-only, slightly
+    // nondeterministic engine. The PNGs are the ground truth; the `.boxes.json`
+    // are regenerated from them by `regen_box_fixtures` (Windows, --ignored).
+    //
+    // Expected results live in `<scan>.label.txt` (`<item_id>  <count>` lines).
+    // The scan tests are `#[ignore]`d for now: the box-scan mis-reads these real
+    // captures today (JUNK BOX → 0 items; "Big" → 6 of ~22). Un-ignore once the
+    // read_tiles/stitch fixes land — the labels are the target.
+    // ===================================================================
+
+    #[derive(serde::Serialize, serde::Deserialize)]
+    struct BoxFixture {
+        img_h: f32,
+        boxes: Vec<FxWord>,
+    }
+
+    #[derive(serde::Serialize, serde::Deserialize)]
+    struct FxWord {
+        text: String,
+        x: f32,
+        y: f32,
+        w: f32,
+        h: f32,
+    }
+
+    fn box_fixture_dir() -> std::path::PathBuf {
+        // `BOX_FIXTURE_DIR` points `regen_box_fixtures` at a scratch copy (e.g.
+        // to compare OCR across image formats) without touching the committed
+        // set. Unset → the committed fixtures next to the crate.
+        std::env::var_os("BOX_FIXTURE_DIR")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| {
+                std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                    .join("../../box_screenshots_native")
+            })
+    }
+
+    impl BoxFixture {
+        fn load(name: &str) -> Self {
+            let p = box_fixture_dir().join(name);
+            let s = std::fs::read_to_string(&p)
+                .unwrap_or_else(|e| panic!("read fixture {}: {e}", p.display()));
+            serde_json::from_str(&s)
+                .unwrap_or_else(|e| panic!("parse fixture {}: {e}", p.display()))
+        }
+        fn label_boxes(&self) -> Vec<LabelBox> {
+            self.boxes
+                .iter()
+                .map(|w| LabelBox {
+                    text: w.text.clone(),
+                    x: w.x,
+                    y: w.y,
+                    w: w.w,
+                    h: w.h,
+                })
+                .collect()
+        }
+    }
+
+    /// Run every shot of a scan (frozen-OCR fixtures, in scroll order) through
+    /// `read_tiles` + `stitch` and return the final tally — what would be
+    /// written into the container.
+    fn run_box_scan(shots: &[String]) -> HashMap<ItemId, u32> {
+        let data = crate::assets::load_game_data().expect("embedded data.json");
+        let mut master: Vec<Tile> = Vec::new();
+        for shot in shots {
+            let fx = BoxFixture::load(shot);
+            let res = read_tiles(&fx.label_boxes(), fx.img_h, &data);
+            stitch(&mut master, &res.tiles);
+        }
+        tally(&master).0
+    }
+
+    /// Parse a `<scan>.label.txt` ground-truth tally (`<item_id>  <count>`).
+    fn load_box_label(name: &str) -> HashMap<ItemId, u32> {
+        let p = box_fixture_dir().join(name);
+        std::fs::read_to_string(&p)
+            .unwrap_or_else(|e| panic!("read label {}: {e}", p.display()))
+            .lines()
+            .map(str::trim)
+            .filter(|l| !l.is_empty() && !l.starts_with('#'))
+            .map(|l| {
+                let mut it = l.split_whitespace();
+                let id = it.next().expect("item id").to_string();
+                let n: u32 = it.next().expect("count").parse().expect("count int");
+                (id, n)
+            })
+            .collect()
+    }
+
+    /// (Windows-only, ignored) Regenerate every `<stem>.boxes.json` from the
+    /// capture images (PNG / JPEG / WebP) in the fixture dir. Run after
+    /// adding/replacing a capture:
+    ///   cargo test -p ez-wishlist-overlay regen_box_fixtures -- --ignored
+    #[test]
+    #[ignore]
+    #[cfg(target_os = "windows")]
+    fn regen_box_fixtures() {
+        use image::GenericImageView;
+        for entry in std::fs::read_dir(box_fixture_dir()).expect("fixture dir") {
+            let path = entry.unwrap().path();
+            let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+            if !matches!(ext, "png" | "jpg" | "jpeg" | "webp") {
+                continue;
+            }
+            let img = image::open(&path).expect("open image");
+            let words = crate::ocr::engine::recognize_image(&img).expect("ocr");
+            let fx = BoxFixture {
+                img_h: img.dimensions().1 as f32,
+                boxes: words
+                    .iter()
+                    .map(|w| FxWord {
+                        text: w.text.clone(),
+                        x: w.rect.x,
+                        y: w.rect.y,
+                        w: w.rect.width,
+                        h: w.rect.height,
+                    })
+                    .collect(),
+            };
+            let out = path.with_extension("boxes.json");
+            std::fs::write(&out, serde_json::to_string_pretty(&fx).unwrap()).expect("write");
+            eprintln!("wrote {} ({} boxes)", out.display(), fx.boxes.len());
+        }
+    }
+
+    /// "Big" container scan (3 overlapping scroll shots) → its full contents.
+    /// IGNORED: today the stitch refuses shots 2-3 (the overlap row reads in a
+    /// different order each shot), so only ~6 of the ~22 items land. Un-ignore
+    /// when read_tiles produces a stable reading order.
+    #[test]
+    #[ignore]
+    fn big_container_scan_matches_label() {
+        let shots: Vec<String> = (0..3).map(|i| format!("big.shot{i}.boxes.json")).collect();
+        assert_eq!(run_box_scan(&shots), load_box_label("big.label.txt"));
+    }
+
+    /// JUNK BOX scan (10 overlapping scroll shots) → its full contents.
+    /// IGNORED: today the per-item category subtitles (Tool/Household/…) are
+    /// mistaken for the tab strip and the whole grid is dropped (0 items).
+    /// Un-ignore when read_tiles stops treating subtitle rows as chrome.
+    #[test]
+    #[ignore]
+    fn junkbox_scan_matches_label() {
+        let shots: Vec<String> = (0..10)
+            .map(|i| format!("junkbox.shot{i:02}.boxes.json"))
+            .collect();
+        assert_eq!(run_box_scan(&shots), load_box_label("junkbox.label.txt"));
+    }
+
     #[test]
     fn seeds_on_first_capture() {
         let mut master = Vec::new();
