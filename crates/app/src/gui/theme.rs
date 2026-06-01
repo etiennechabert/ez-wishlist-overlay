@@ -147,15 +147,17 @@ mod okabe {
     pub const PURPLE: Color32 = Color32::from_rgb(204, 121, 167);
 }
 
-/// IBM Design Language accessible palette. Few hues, so the two *accent* roles
-/// (pinned, customized) share magenta, separated by lightness and by placement
-/// (left stripe vs. a small button); the readiness *fills* each get their own
-/// hue, which is the distinction that actually matters in use.
+/// IBM Design Language accessible palette — its five colorblind-safe hues, one
+/// per categorical role. The readiness *fills* take blue / yellow / purple; the
+/// two *accent* roles each get their own hue too — magenta for pinned, orange
+/// for customized — so they stay tellable apart where their swatches sit side by
+/// side in the legend (they used to share magenta and read as one color).
 mod ibm {
     use egui::Color32;
     pub const BLUE: Color32 = Color32::from_rgb(100, 143, 255);
     pub const PURPLE: Color32 = Color32::from_rgb(120, 94, 240);
     pub const MAGENTA: Color32 = Color32::from_rgb(220, 38, 127);
+    pub const ORANGE: Color32 = Color32::from_rgb(254, 97, 0);
     pub const YELLOW: Color32 = Color32::from_rgb(255, 176, 0);
 }
 
@@ -191,14 +193,17 @@ fn semantic(dark: bool) -> Semantic {
             // losing the green-as-done convention costs little here.
             done: cell_fill(ibm::PURPLE, dark, IBM_PASTEL),
             pinned: accent(ibm::MAGENTA, dark),
-            // Shares magenta with `pinned` (few hues) but darker, and it
-            // surfaces as a button rather than a stripe.
+            // Its own hue (IBM's orange), not a lightness variant of pinned's
+            // magenta — side by side in the legend they otherwise read as one
+            // swatch. Kept a touch darker / more pastel than a plain `accent`
+            // so the "Edit" button's label stays legible on it (the fill-
+            // contrast test below pins that floor).
             customized: if dark {
-                scale(ibm::MAGENTA, 50)
+                scale(ibm::ORANGE, 50)
             } else {
-                toward_white(ibm::MAGENTA, 22)
+                toward_white(ibm::ORANGE, 22)
             },
-            customized_text: marker_text(ibm::MAGENTA, dark),
+            customized_text: marker_text(ibm::ORANGE, dark),
             unknown: neutral_unknown(dark),
             primary_action: accent(ibm::PURPLE, dark),
         },
@@ -370,8 +375,8 @@ mod tests {
     const SCHEMES: [ColorScheme; 2] = [ColorScheme::OkabeIto, ColorScheme::Ibm];
 
     /// The readiness *fills* are the primary signal — they must never collide
-    /// within a scheme, in either theme. (The accents may share a hue; see the
-    /// IBM note above.)
+    /// within a scheme, in either theme. (The pinned/customized *accents* are
+    /// guarded separately by `pinned_and_customized_are_visually_distinct`.)
     #[test]
     fn readiness_fills_distinct_in_every_scheme() {
         for sc in SCHEMES {
@@ -414,6 +419,38 @@ mod tests {
                     override_marker(dark),
                     ready_fill(dark),
                     "scheme {sc:?} dark={dark}: customized must differ from ready"
+                );
+            }
+        }
+        set_scheme(ColorScheme::OkabeIto);
+    }
+
+    /// Pinned and Customized sit next to each other in the hideout legend, so
+    /// their swatches have to be tellable apart at a glance — not merely `!=`.
+    /// IBM used to derive both from one magenta (distinct only by lightness),
+    /// which read as a single color; this keeps any scheme from regressing to
+    /// near-identical accents in either theme.
+    #[test]
+    fn pinned_and_customized_are_visually_distinct() {
+        // Straight RGB distance — a coarse "do these look like different
+        // colors" proxy, which is the right question for two filled swatches
+        // (luminance contrast is not: two equally bright hues still differ).
+        // The old shared-magenta accents sat ~25-41 apart; every distinct
+        // pairing here clears ~88.
+        fn rgb_distance(a: Color32, b: Color32) -> f64 {
+            let sq = |x: u8, y: u8| (x as f64 - y as f64).powi(2);
+            (sq(a.r(), b.r()) + sq(a.g(), b.g()) + sq(a.b(), b.b())).sqrt()
+        }
+        const MIN: f64 = 50.0;
+        for sc in SCHEMES {
+            set_scheme(sc);
+            for dark in [true, false] {
+                let d = rgb_distance(pinned_accent(dark), override_marker(dark));
+                assert!(
+                    d >= MIN,
+                    "scheme {sc:?} dark={dark}: pinned and customized are only \
+                     {d:.0} apart in RGB (min {MIN}) — their legend swatches \
+                     would read as the same color"
                 );
             }
         }
