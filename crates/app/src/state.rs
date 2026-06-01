@@ -17,16 +17,19 @@ pub const OVERRIDES_SCHEMA_VERSION: u32 = 1;
 
 pub type ContainerId = String;
 
-/// What kind of secondary container this is. Only [`ContainerKind::Box`]
+/// What kind of secondary container this is. Only [`ContainerKind::Case`]
 /// containers have an in-game contents screen, so only they support the
-/// screenshot/OCR scan; bags and cases are entered by hand.
+/// screenshot/OCR scan; bags and shelves are entered by hand.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum ContainerKind {
-    /// A backpack, pouch, or item case — no screen; contents entered manually.
+    /// A backpack or pouch — no screen; contents entered manually.
     #[default]
     Bag,
-    /// A box with a contents screen — supports the scroll-and-stitch OCR scan.
-    Box,
+    /// An item case with a contents screen — supports the scroll-and-stitch OCR
+    /// scan. Serialized as `"Case"`; the `"Box"` alias loads profiles written
+    /// before this kind was renamed from `Box`.
+    #[serde(alias = "Box")]
+    Case,
     /// A shelf (hideout storage furniture) — declarative/manual like a bag, but
     /// its own category. One is seeded by default on first run.
     Shelf,
@@ -2152,7 +2155,7 @@ mod tests {
         let mut s = AppState::new(fixture());
         let c = s.create_container("Backpack".into());
         s.set_container_item(&c, &"bolts".to_string(), 4);
-        s.set_container_kind(&c, ContainerKind::Box);
+        s.set_container_kind(&c, ContainerKind::Case);
         let persisted = PersistedState::from_app(&s);
         let json = serde_json::to_string(&persisted).unwrap();
         let back: PersistedState = serde_json::from_str(&json).unwrap();
@@ -2162,13 +2165,33 @@ mod tests {
         assert_eq!(s2.containers.len(), 1);
         assert_eq!(s2.containers[0].name, "Backpack");
         assert_eq!(s2.containers[0].contents.get("bolts"), Some(&4));
-        assert_eq!(s2.containers[0].kind, ContainerKind::Box);
+        assert_eq!(s2.containers[0].kind, ContainerKind::Case);
         assert_eq!(s2.owned_total(&"bolts".to_string()), 4);
         // The id counter survives so a freshly minted id can't collide with
         // the restored container.
         assert_eq!(s2.next_container_seq, 1);
         let c2 = s2.create_container("Item case".into());
         assert_ne!(c2, c);
+    }
+
+    #[test]
+    fn container_kind_box_alias_loads_as_case() {
+        // The scannable kind was renamed `Box` -> `Case`; a profile written
+        // before the rename stores `"kind": "Box"` and must still load (as
+        // `Case`) via the serde alias rather than falling back to the default.
+        let json = r#"{
+            "schema_version": 1,
+            "data_version": "test",
+            "collected": {},
+            "containers": [{"id": "ctr-1", "name": "Old box", "kind": "Box"}],
+            "next_container_seq": 1
+        }"#;
+        let back: PersistedState = serde_json::from_str(json).unwrap();
+        assert_eq!(back.containers[0].kind, ContainerKind::Case);
+        // The current spelling still loads too.
+        let json_new = json.replace("\"Box\"", "\"Case\"");
+        let back_new: PersistedState = serde_json::from_str(&json_new).unwrap();
+        assert_eq!(back_new.containers[0].kind, ContainerKind::Case);
     }
 
     #[test]

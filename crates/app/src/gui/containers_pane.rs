@@ -6,7 +6,7 @@
 //! owned totals via [`crate::state::AppState::owned_total`] — so adding an item
 //! here can flip a hideout upgrade to "ready" exactly like collecting it in the
 //! stash, and it feeds the Items DB Quantity / Surplus columns too. Bags and
-//! cases are entered by hand; "Box"-type containers can also be filled by
+//! shelves are entered by hand; "Case"-type containers can also be filled by
 //! scanning their in-game contents screen — a series of scrolling screenshots
 //! stitched into one item list (see [`crate::ocr::box_scan`]).
 //!
@@ -52,14 +52,14 @@ const DEFAULT_CONTAINER_ICON: &str = "backpack_3drt";
 /// Fixed icon for the pinned primary Stash row.
 const STASH_ICON: &str = "stash";
 
-/// Box-style icons offered when the container's type is `Box`. Only the two
+/// Case icons offered when the container's type is `Case`. Only the two
 /// Collection Boxes are listed: they're the boxes that store MISC items — what
 /// this tracker cares about — whereas the other in-game boxes (mag/attachment,
 /// medical, paint) hold specific non-misc categories. Generated flat-3D crate
 /// art (upstream has no images for these). Order here is the picker-grid order.
-const BOX_ICONS: &[&str] = &["box_collection", "box_collection_small"];
-/// Default icon for a newly-created Box container.
-const DEFAULT_BOX_ICON: &str = "box_collection";
+const CASE_ICONS: &[&str] = &["box_collection", "box_collection_small"];
+/// Default icon for a newly-created Case container.
+const DEFAULT_CASE_ICON: &str = "box_collection";
 
 /// Shelf icons (declarative furniture). One for now.
 const SHELF_ICONS: &[&str] = &["shelf_basic"];
@@ -69,7 +69,7 @@ const DEFAULT_SHELF_ICON: &str = "shelf_basic";
 /// The default icon key for a container of the given kind.
 fn default_icon_for(kind: ContainerKind) -> &'static str {
     match kind {
-        ContainerKind::Box => DEFAULT_BOX_ICON,
+        ContainerKind::Case => DEFAULT_CASE_ICON,
         ContainerKind::Shelf => DEFAULT_SHELF_ICON,
         ContainerKind::Bag => DEFAULT_CONTAINER_ICON,
     }
@@ -78,22 +78,22 @@ fn default_icon_for(kind: ContainerKind) -> &'static str {
 /// The icon set offered in the picker for a container of the given kind.
 fn icon_set_for(kind: ContainerKind) -> &'static [&'static str] {
     match kind {
-        ContainerKind::Box => BOX_ICONS,
+        ContainerKind::Case => CASE_ICONS,
         ContainerKind::Shelf => SHELF_ICONS,
         ContainerKind::Bag => CONTAINER_ICONS,
     }
 }
 
 /// Short display name for an icon key, shown under each tile in the picker so
-/// the user can tell them apart. Box names match the in-game boxes.
+/// the user can tell them apart. Case names match the in-game boxes.
 fn icon_label(key: &str) -> &'static str {
     match key {
-        // Boxes (the two MISC-storing Collection Boxes).
+        // Cases (the two MISC-storing Collection Boxes).
         "box_collection" => "Collection",
         "box_collection_small" => "Collection small",
         // Shelf.
         "shelf_basic" => "Shelf",
-        // Bags / cases.
+        // Bags.
         "backpack_3drt" => "3DRT",
         "backpack_eliteops" => "Elite Ops",
         "backpack_eliteops_green" => "Elite Ops (grn)",
@@ -295,21 +295,21 @@ pub fn ui(
     };
 
     // Group secondary containers by kind into their own sections. Primary is
-    // the stash alone — the store hideout upgrades consume from — then Boxes
-    // (scannable), Bags, and Shelves (both declarative/manual). Empty
+    // the stash alone — the store hideout upgrades consume from — then Cases
+    // (scannable), Shelves, and Bags (both declarative/manual). Empty
     // secondary sections are hidden; the "New container" button adds any kind.
     let sort = sort_state(ui.ctx());
-    let mut box_rows: Vec<Row> = Vec::new();
+    let mut case_rows: Vec<Row> = Vec::new();
     let mut bag_rows: Vec<Row> = Vec::new();
     let mut shelf_rows: Vec<Row> = Vec::new();
     for row in rows {
         match row.kind {
-            ContainerKind::Box => box_rows.push(row),
+            ContainerKind::Case => case_rows.push(row),
             ContainerKind::Shelf => shelf_rows.push(row),
             ContainerKind::Bag => bag_rows.push(row),
         }
     }
-    sort_rows(&mut box_rows, sort);
+    sort_rows(&mut case_rows, sort);
     sort_rows(&mut bag_rows, sort);
     sort_rows(&mut shelf_rows, sort);
 
@@ -323,19 +323,16 @@ pub fn ui(
     column_header(ui, true);
     container_row(ui, state, icons, save_tx, &mut scan, &stash_row);
 
-    // --- Secondary sections, each shown only when it has containers. ---
+    // --- Secondary sections, each shown only when it has containers. Order:
+    // Cases (scannable) first, then the manual kinds Shelves and Bags. ---
     for (title, caption, section_rows) in [
         (
-            "Boxes",
+            "Cases",
             "Contents can be filled by scanning their screen.",
-            &box_rows,
-        ),
-        (
-            "Bags & cases",
-            "Entered by hand — no screen to scan.",
-            &bag_rows,
+            &case_rows,
         ),
         ("Shelves", "Hideout shelves — entered by hand.", &shelf_rows),
+        ("Bags", "Entered by hand — no screen to scan.", &bag_rows),
     ] {
         if section_rows.is_empty() {
             continue;
@@ -357,7 +354,7 @@ pub fn ui(
             egui::RichText::new("➕  New container").strong(),
         ))
         .on_hover_text(
-            "Create a box (scannable) or a bag/case (manual): name it, pick a type + icon",
+            "Create a case (scannable) or a shelf/bag (manual): name it, pick a type + icon",
         )
         .clicked()
     {
@@ -501,14 +498,14 @@ fn new_container_modal(
             ui.add_space(10.0);
             ui.horizontal(|ui| {
                 ui.label("Type:");
-                ui.selectable_value(&mut kind, ContainerKind::Bag, "Bag / case")
-                    .on_hover_text("A backpack or item case — contents entered by hand");
-                ui.selectable_value(&mut kind, ContainerKind::Box, "Box")
+                ui.selectable_value(&mut kind, ContainerKind::Case, "Case")
                     .on_hover_text(
-                        "A box with a contents screen — fill it by scanning screenshots",
+                        "An item case with a contents screen — fill it by scanning screenshots",
                     );
                 ui.selectable_value(&mut kind, ContainerKind::Shelf, "Shelf")
                     .on_hover_text("A shelf — manual entry, its own category");
+                ui.selectable_value(&mut kind, ContainerKind::Bag, "Bag")
+                    .on_hover_text("A backpack or pouch — contents entered by hand");
             });
 
             // Icon set follows the (possibly just-changed) type. If the current
@@ -977,9 +974,9 @@ fn container_body(
         ui.add_space(4.0);
     }
 
-    // Box-scan controls — boxes are scannable storage; bags/cases are manual.
+    // Box-scan controls — cases are scannable storage; bags/shelves are manual.
     if let Target::Container(id) = &row.target {
-        if row.kind == ContainerKind::Box {
+        if row.kind == ContainerKind::Case {
             box_scan_section(
                 ui,
                 state,
