@@ -66,8 +66,12 @@ struct Semantic {
     ready: Color32,
     done: Color32,
     pinned: Color32,
-    /// Tint for the "Edit" button on a customized recipe.
+    /// Tint for the "Edit" button on a customized recipe (a button *fill*).
     customized: Color32,
+    /// Same "customized" hue, but tuned to be legible as small *text* on the
+    /// panel — the "(edited)" badge. Distinct from `customized` because a fill
+    /// and on-panel text need opposite lightness (see [`marker_text`]).
+    customized_text: Color32,
     /// Thin stroke on cells whose recipe is unknown (empty / a guess).
     unknown: Color32,
     /// Fill for the affirmative dialog button ("Consume items required").
@@ -92,6 +96,20 @@ fn accent(base: Color32, dark: bool) -> Color32 {
         scale(base, 66)
     } else {
         toward_white(base, 32)
+    }
+}
+
+/// Vivid hue → legible *text* on the panel background. The crucial difference
+/// from [`cell_fill`] / [`accent`]: those track the panel's lightness (a fill
+/// sits *quietly* on its background), but a hue drawn as small text must go the
+/// *opposite* way — lighten it on the dark theme, darken it on the light theme —
+/// or it washes into the panel. Same split as [`neutral_unknown`], but keeps
+/// the categorical hue. Tuned to clear WCAG AA (≥4.5:1) on egui's panel fill.
+fn marker_text(base: Color32, dark: bool) -> Color32 {
+    if dark {
+        toward_white(base, 40)
+    } else {
+        scale(base, 55)
     }
 }
 
@@ -153,6 +171,7 @@ fn semantic(dark: bool) -> Semantic {
             done: cell_fill(okabe::GREEN, dark),
             pinned: accent(okabe::PURPLE, dark),
             customized: accent(okabe::VERMILION, dark),
+            customized_text: marker_text(okabe::VERMILION, dark),
             unknown: neutral_unknown(dark),
             primary_action: accent(okabe::GREEN, dark),
         },
@@ -171,6 +190,7 @@ fn semantic(dark: bool) -> Semantic {
             } else {
                 toward_white(ibm::MAGENTA, 22)
             },
+            customized_text: marker_text(ibm::MAGENTA, dark),
             unknown: neutral_unknown(dark),
             primary_action: accent(ibm::PURPLE, dark),
         },
@@ -201,9 +221,20 @@ pub fn pinned_accent(dark: bool) -> Color32 {
 }
 
 /// Tint applied to the "Edit" button on recipes the user has corrected, so
-/// modified rows stand out. Deliberately *not* in the warm/ready family.
+/// modified rows stand out. Deliberately *not* in the warm/ready family. This
+/// is a button *fill*; for the "(edited)" badge drawn as text use
+/// [`override_text`] instead — a fill and on-panel text need opposite lightness.
 pub fn override_marker(dark: bool) -> Color32 {
     semantic(dark).customized
+}
+
+/// Readable *text* color for the "(edited)" badge on a customized recipe: the
+/// same customized hue as [`override_marker`], but lightened on dark / darkened
+/// on light so it stays legible as small text on the panel. The raw fill tint
+/// is built for a button background and was too low-contrast as text (1.5:1 in
+/// IBM dark — the readability gap issue #103's sweep caught).
+pub fn override_text(dark: bool) -> Color32 {
+    semantic(dark).customized_text
 }
 
 /// Quiet neutral marker for upgrades whose recipe is *unknown* (the effective
@@ -406,6 +437,39 @@ mod tests {
                         "scheme {sc:?} dark={dark}: label on the {name} fill is \
                          {r:.2}:1, below {MIN}:1 — it would read as low-contrast \
                          text on that tint"
+                    );
+                }
+            }
+        }
+        set_scheme(ColorScheme::OkabeIto);
+    }
+
+    /// Companion to the fill sweep: our *marker* colors are drawn as small text
+    /// directly on the panel, which needs the opposite lightness from a fill.
+    /// Both must clear WCAG AA for normal text (4.5:1) in every theme and
+    /// scheme — the "(edited)" tag (it read at 1.5:1 in IBM dark before
+    /// [`override_text`] split off from the button tint) and the "needs recipe"
+    /// tag (already tuned for text via [`unknown_marker`]). Guards against the
+    /// fill/text confusion recurring on either marker.
+    #[test]
+    fn marker_text_is_legible_on_the_panel() {
+        use super::contrast::contrast_ratio;
+        use egui::Visuals;
+        const MIN: f64 = 4.5;
+        for sc in SCHEMES {
+            set_scheme(sc);
+            for v in [Visuals::dark(), Visuals::light()] {
+                let dark = v.dark_mode;
+                let panel = v.panel_fill;
+                for (name, col) in [
+                    ("(edited)", override_text(dark)),
+                    ("needs recipe", unknown_marker(dark)),
+                ] {
+                    let r = contrast_ratio(col, panel);
+                    assert!(
+                        r >= MIN,
+                        "scheme {sc:?} dark={dark}: the {name:?} marker text is \
+                         {r:.2}:1 on the panel, below {MIN}:1"
                     );
                 }
             }
