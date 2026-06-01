@@ -66,8 +66,12 @@ struct Semantic {
     ready: Color32,
     done: Color32,
     pinned: Color32,
-    /// Tint for the "Edit" button on a customized recipe.
+    /// Tint for the "Edit" button on a customized recipe (a button *fill*).
     customized: Color32,
+    /// Same "customized" hue, but tuned to be legible as small *text* on the
+    /// panel — the "(edited)" badge. Distinct from `customized` because a fill
+    /// and on-panel text need opposite lightness (see [`marker_text`]).
+    customized_text: Color32,
     /// Thin stroke on cells whose recipe is unknown (empty / a guess).
     unknown: Color32,
     /// Fill for the affirmative dialog button ("Consume items required").
@@ -92,6 +96,20 @@ fn accent(base: Color32, dark: bool) -> Color32 {
         scale(base, 66)
     } else {
         toward_white(base, 32)
+    }
+}
+
+/// Vivid hue → legible *text* on the panel background. The crucial difference
+/// from [`cell_fill`] / [`accent`]: those track the panel's lightness (a fill
+/// sits *quietly* on its background), but a hue drawn as small text must go the
+/// *opposite* way — lighten it on the dark theme, darken it on the light theme —
+/// or it washes into the panel. Same split as [`neutral_unknown`], but keeps
+/// the categorical hue. Tuned to clear WCAG AA (≥4.5:1) on egui's panel fill.
+fn marker_text(base: Color32, dark: bool) -> Color32 {
+    if dark {
+        toward_white(base, 40)
+    } else {
+        scale(base, 55)
     }
 }
 
@@ -153,6 +171,7 @@ fn semantic(dark: bool) -> Semantic {
             done: cell_fill(okabe::GREEN, dark),
             pinned: accent(okabe::PURPLE, dark),
             customized: accent(okabe::VERMILION, dark),
+            customized_text: marker_text(okabe::VERMILION, dark),
             unknown: neutral_unknown(dark),
             primary_action: accent(okabe::GREEN, dark),
         },
@@ -171,6 +190,7 @@ fn semantic(dark: bool) -> Semantic {
             } else {
                 toward_white(ibm::MAGENTA, 22)
             },
+            customized_text: marker_text(ibm::MAGENTA, dark),
             unknown: neutral_unknown(dark),
             primary_action: accent(ibm::PURPLE, dark),
         },
@@ -201,9 +221,20 @@ pub fn pinned_accent(dark: bool) -> Color32 {
 }
 
 /// Tint applied to the "Edit" button on recipes the user has corrected, so
-/// modified rows stand out. Deliberately *not* in the warm/ready family.
+/// modified rows stand out. Deliberately *not* in the warm/ready family. This
+/// is a button *fill*; for the "(edited)" badge drawn as text use
+/// [`override_text`] instead — a fill and on-panel text need opposite lightness.
 pub fn override_marker(dark: bool) -> Color32 {
     semantic(dark).customized
+}
+
+/// Readable *text* color for the "(edited)" badge on a customized recipe: the
+/// same customized hue as [`override_marker`], but lightened on dark / darkened
+/// on light so it stays legible as small text on the panel. The raw fill tint
+/// is built for a button background and was too low-contrast as text (1.5:1 in
+/// IBM dark — the readability gap issue #103's sweep caught).
+pub fn override_text(dark: bool) -> Color32 {
+    semantic(dark).customized_text
 }
 
 /// Quiet neutral marker for upgrades whose recipe is *unknown* (the effective
@@ -283,6 +314,34 @@ pub fn source_text(dark: bool) -> Color32 {
     }
 }
 
+/// WCAG 2.x contrast math, shared by the theme-readability tests here and in
+/// `containers_pane`. Single source of truth so the two suites can't measure
+/// "is this legible?" differently. Test-only.
+#[cfg(test)]
+pub(crate) mod contrast {
+    use egui::Color32;
+
+    /// Relative luminance of an opaque sRGB color (0.0 = black, 1.0 = white).
+    pub(crate) fn relative_luminance(c: Color32) -> f64 {
+        fn lin(v: u8) -> f64 {
+            let s = v as f64 / 255.0;
+            if s <= 0.03928 {
+                s / 12.92
+            } else {
+                ((s + 0.055) / 1.055).powf(2.4)
+            }
+        }
+        0.2126 * lin(c.r()) + 0.7152 * lin(c.g()) + 0.0722 * lin(c.b())
+    }
+
+    /// Contrast ratio between two opaque colors, in 1.0..=21.0.
+    pub(crate) fn contrast_ratio(a: Color32, b: Color32) -> f64 {
+        let (la, lb) = (relative_luminance(a), relative_luminance(b));
+        let (hi, lo) = if la >= lb { (la, lb) } else { (lb, la) };
+        (hi + 0.05) / (lo + 0.05)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -335,6 +394,84 @@ mod tests {
                     ready_fill(dark),
                     "scheme {sc:?} dark={dark}: customized must differ from ready"
                 );
+            }
+        }
+        set_scheme(ColorScheme::OkabeIto);
+    }
+
+    /// Readability guard (issue #103): every label egui draws **on one of our
+    /// status-colored fills** must stay legible in both themes and both
+    /// colorblind schemes — no dark-on-dark cell/button text. We compare egui's
+    /// resting widget-text color (what a button/checkbox label actually paints
+    /// with) against each fill and require WCAG AA for UI / large text (3:1).
+    ///
+    /// Why 3.0 and not 4.5 (normal-text AA): these are deliberately *muted*
+    /// tints, and the dark-mode `ready` / `primary_action` fills sit at ~3.2
+    /// against egui's stroke by design — pushing them to 4.5 would mean louder
+    /// fills than the UI wants. 3.0 locks in today's floor (measured 3.17; the
+    /// rest range to ~9.8) so a future fill tweak can't quietly cross into
+    /// illegible territory the way the old `DARK_RED` Confirm button did.
+    #[test]
+    fn status_fill_labels_are_legible_in_all_themes_and_schemes() {
+        use super::contrast::contrast_ratio;
+        use egui::Visuals;
+        const MIN: f64 = 3.0;
+        for sc in SCHEMES {
+            set_scheme(sc);
+            for v in [Visuals::dark(), Visuals::light()] {
+                let dark = v.dark_mode;
+                let text = v.widgets.inactive.fg_stroke.color;
+                // Every fill that has egui widget text drawn on top of it:
+                // the hideout grid cells, the "Consume items required" action
+                // button, and the "Edit" button tinted on a customized recipe.
+                for (name, fill) in [
+                    ("tracked cell", tracked_fill(dark)),
+                    ("ready cell", ready_fill(dark)),
+                    ("done cell", done_fill(dark)),
+                    ("Consume button", primary_action_fill(dark)),
+                    ("Edit (customized) button", override_marker(dark)),
+                ] {
+                    let r = contrast_ratio(text, fill);
+                    assert!(
+                        r >= MIN,
+                        "scheme {sc:?} dark={dark}: label on the {name} fill is \
+                         {r:.2}:1, below {MIN}:1 — it would read as low-contrast \
+                         text on that tint"
+                    );
+                }
+            }
+        }
+        set_scheme(ColorScheme::OkabeIto);
+    }
+
+    /// Companion to the fill sweep: our *marker* colors are drawn as small text
+    /// directly on the panel, which needs the opposite lightness from a fill.
+    /// Both must clear WCAG AA for normal text (4.5:1) in every theme and
+    /// scheme — the "(edited)" tag (it read at 1.5:1 in IBM dark before
+    /// [`override_text`] split off from the button tint) and the "needs recipe"
+    /// tag (already tuned for text via [`unknown_marker`]). Guards against the
+    /// fill/text confusion recurring on either marker.
+    #[test]
+    fn marker_text_is_legible_on_the_panel() {
+        use super::contrast::contrast_ratio;
+        use egui::Visuals;
+        const MIN: f64 = 4.5;
+        for sc in SCHEMES {
+            set_scheme(sc);
+            for v in [Visuals::dark(), Visuals::light()] {
+                let dark = v.dark_mode;
+                let panel = v.panel_fill;
+                for (name, col) in [
+                    ("(edited)", override_text(dark)),
+                    ("needs recipe", unknown_marker(dark)),
+                ] {
+                    let r = contrast_ratio(col, panel);
+                    assert!(
+                        r >= MIN,
+                        "scheme {sc:?} dark={dark}: the {name:?} marker text is \
+                         {r:.2}:1 on the panel, below {MIN}:1"
+                    );
+                }
             }
         }
         set_scheme(ColorScheme::OkabeIto);

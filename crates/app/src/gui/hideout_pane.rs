@@ -1100,7 +1100,7 @@ fn progress_badge(ui: &mut egui::Ui, knowledge: RecipeKnowledge, dark: bool) {
             ui.label(
                 egui::RichText::new("(edited)")
                     .small()
-                    .color(theme::override_marker(dark)),
+                    .color(theme::override_text(dark)),
             )
             .on_hover_text("You've corrected this recipe via the Edit panel.");
         }
