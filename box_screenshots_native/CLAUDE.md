@@ -37,22 +37,30 @@ Per capture there are three files:
   (`BOX_FIXTURE_DIR=<dir>` points it at a scratch copy — handy for comparing OCR
   across image formats.)
 
-- **`<scan>.label.txt`** — ground-truth tally (`<item_id>  <count>`), the
-  correct answer the scan should produce. `big.label.txt` is complete;
-  `junkbox.label.txt` is a **best-effort draft** (the box is large — verify it
-  against the in-game box before relying on it).
+- **`<scan>.label.txt`** — `<item_id>  <count>` tally. `big.label.txt` is the
+  complete, verified contents (the test asserts against it). `junkbox.label.txt`
+  is a **non-authoritative reference** — its captures can't be fully stitched
+  (see Status), so it documents the verified contiguous run (shots 00–04) plus
+  the additional item types seen in the lower shots; its test stays ignored.
 
 ## Status
 
-The regression tests (`big_container_scan_matches_label`,
-`junkbox_scan_matches_label` in `box_scan.rs` `mod tests`) are **`#[ignore]`d**:
-the box-scan currently mis-reads both real layouts —
+Box-scan fixed for the tablet layout in issue #109. `read_tiles` is now
+layout-aware and tilt-robust (de-shears the perspective, clusters into grid-row
+blocks, drops both the tab strip and per-item subtitles via a category-word
+rule, and emits a stable reading order). `process_box_image` also writes a
+`<shot>.box-scan.txt` recognition dump next to the PNG when `ocr_debug` is on.
 
-- **JUNK BOX → 0 items**: the per-item category subtitles are mistaken for the
-  fixed tab strip, and the whole grid is dropped.
-- **Big → 6 of ~22**: the stitch refuses later shots because `read_tiles` emits
-  the overlap row in an unstable order across captures.
-
-Un-ignore them once `read_tiles` is made layout-aware and produces a stable
-reading order (tracked in the box-scan fix issue). The labels here are the
-target.
+- **`big_container_scan_matches_label`** — **passing.** All 22 tiles read and
+  stitched; matches `big.label.txt`. (Required two upstream-name corrections,
+  applied in `crates/scraper/src/corrections.rs`: `misc_b_tapeplayer` →
+  "Tape player", `misc_barcleaner` → "Cleaner".)
+- **`junkbox_scan_matches_label`** — **still `#[ignore]`d, by the captures, not
+  the code.** Each shot now reads its full 15-tile grid, but the 10 shots can't
+  be stitched into one sequence: shots 00→04 share a row each (a clean scroll),
+  but 04→09 have **scroll gaps** (no shared row), and the OCR **drops whole
+  tiles** (e.g. shot02 loses "Tape"), which shifts columns and breaks the rigid
+  overlap alignment. Un-ignoring needs better captures (every row overlapping,
+  lossless) and/or a gap-tolerant stitch. The label also surfaced several more
+  upstream name divergences/duplicates (Pet Shampoo, Boxed Nails, Band-aids,
+  "Size D battery", "Gas can") — noted in `junkbox.label.txt`, out of scope here.

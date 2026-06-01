@@ -171,9 +171,10 @@ pub fn tally(master: &[Tile]) -> (HashMap<ItemId, u32>, usize) {
 // call + `OcrWord` → `LabelBox` conversion ([`process_box_image`]) is
 // Windows-gated.
 //
-// NOTE: the thresholds and the tab-row / weight detection are a first pass.
-// They need tuning against real box-screen captures (Settings → `ocr_debug`),
-// since they depend on exactly how Windows.Media.Ocr segments these labels.
+// The thresholds below are tuned against the real captures in
+// `box_screenshots_native/` (regenerate the OCR with `ocr_debug`). They are
+// expressed in multiples of the median text height so they scale with capture
+// resolution rather than being pixel-absolute.
 //
 // Every item below is reached only by `process_box_image` (Windows) or the unit
 // tests; the non-test, non-Windows build sees them as dead. We keep them
@@ -196,6 +197,9 @@ pub struct LabelBox {
 
 #[allow(dead_code)]
 impl LabelBox {
+    fn cx(&self) -> f32 {
+        self.x + self.w / 2.0
+    }
     fn cy(&self) -> f32 {
         self.y + self.h / 2.0
     }
@@ -204,21 +208,54 @@ impl LabelBox {
     }
 }
 
-/// One screenshot's worth of box-screen reading: the reading-order tiles
-/// (clipped edge rows dropped) plus the total-weight readout used as a
-/// post-merge sanity checksum.
+/// One screenshot's worth of box-screen reading: the reading-order tiles plus
+/// the total-weight readout used as a post-merge sanity checksum. `slope` and
+/// `rows` are recognition diagnostics, surfaced in the `ocr_debug` dump
+/// ([`format_capture_dump`]) so a failed scan is debuggable in-app.
 #[derive(Clone, Debug, Default)]
 pub struct BoxReadResult {
     pub tiles: Vec<Tile>,
     pub observed_weight: Option<f32>,
+    /// Estimated perspective-shear slope used to de-tilt rows ([`shear_slope`]).
+    pub slope: f32,
+    /// Per-sub-row recognition trace, in reading order.
+    pub rows: Vec<RowReport>,
 }
 
-/// In-game category tabs that sit in a fixed row above the scrolling grid.
-/// They don't scroll, so they must be excluded from the stitched sequence.
-/// Hard-coded for the current English UI (one entry per visible word) — revisit
-/// if the game relabels or localizes these.
+/// How [`read_tiles`] classified one sub-row (for the `ocr_debug` dump).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RowKind {
+    /// A tab strip or a row of per-item category subtitles — skipped.
+    Category,
+    /// Nothing resolved to an item (window title, weight readout, service
+    /// panel, tooltip) — dropped before stitching.
+    Chrome,
+    /// A grid name row whose tiles are kept and fed to the stitch.
+    Names,
+}
+
+/// One sub-row's recognition trace for the `ocr_debug` dump: where it sits
+/// (de-sheared `ry`), how it was classified, and each tile's joined OCR text
+/// with the item it resolved to (`None` = no match).
+#[derive(Clone, Debug)]
+pub struct RowReport {
+    pub ry: f32,
+    pub kind: RowKind,
+    pub cells: Vec<(String, Tile)>,
+}
+
+/// Category words shown on the box screen. The fixed top **tab strip** (All /
+/// Medical Supplies / … / Tool) and the per-item **category subtitle** under each
+/// tile both draw from this one small vocabulary. We classify a *tile* as chrome
+/// — never an item — when every one of its words is a category word, so the same
+/// rule drops both the tab strip and the subtitles. A multi-word item name that
+/// merely starts with one of these (e.g. "Medical scissors", "Electric drill",
+/// "Power Bank") keeps a non-category word and survives.
+///
+/// Hard-coded for the current English UI — revisit if the game relabels or
+/// localizes these.
 #[allow(dead_code)]
-const TAB_WORDS: &[&str] = &[
+const CATEGORY_WORDS: &[&str] = &[
     "all",
     "medical",
     "supplies",
@@ -228,17 +265,39 @@ const TAB_WORDS: &[&str] = &[
     "household",
     "intel",
     "tool",
+    "power",
 ];
 
-/// Number of category-tab words on a row (≥2 ⇒ this is the fixed tab strip).
+/// Lowercase a label word and keep only its alphanumerics, for comparison
+/// against [`CATEGORY_WORDS`] (so trailing punctuation / case never matters).
 #[allow(dead_code)]
-fn tab_word_hits(row: &[&LabelBox]) -> usize {
-    row.iter()
-        .filter(|b| {
-            let t = b.text.trim().to_lowercase();
-            TAB_WORDS.contains(&t.as_str())
-        })
-        .count()
+fn category_key(word: &str) -> String {
+    word.chars()
+        .filter(|c| c.is_alphanumeric())
+        .flat_map(char::to_lowercase)
+        .collect()
+}
+
+/// Whether a tile is a category cell (a tab or a per-item subtitle): it has at
+/// least one word and *every* word is a [`CATEGORY_WORDS`] entry. Requiring all
+/// words keeps item names that merely begin with a category word (e.g. "Medical
+/// scissors") classified as names.
+#[allow(dead_code)]
+fn is_category_tile(tile: &[&LabelBox]) -> bool {
+    let mut saw_word = false;
+    for b in tile {
+        for word in b.text.split_whitespace() {
+            let key = category_key(word);
+            if key.is_empty() {
+                continue;
+            }
+            saw_word = true;
+            if !CATEGORY_WORDS.contains(&key.as_str()) {
+                return false;
+            }
+        }
+    }
+    saw_word
 }
 
 #[allow(dead_code)]
@@ -295,33 +354,125 @@ fn parse_weight_token(s: &str) -> Option<f32> {
     cleaned.parse::<f32>().ok().filter(|v| v.is_finite())
 }
 
-/// Group boxes into visual rows by vertical position (boxes whose centres fall
-/// within ~0.7 of the median text height share a row). Returns rows top→bottom.
+/// De-sheared vertical position of a box: `cy - slope*cx`. The tablet is viewed
+/// at an angle in VR, so a visually horizontal row is *tilted* — its boxes' `cy`
+/// rises or falls across the grid width. Subtracting the shear flattens rows into
+/// horizontal bands so they cluster cleanly.
 #[allow(dead_code)]
-fn cluster_rows<'a>(boxes: &[&'a LabelBox]) -> Vec<Vec<&'a LabelBox>> {
+fn deshear(b: &LabelBox, slope: f32) -> f32 {
+    b.cy() - slope * b.cx()
+}
+
+/// Estimate the box screen's perspective-shear slope `dy/dx`.
+///
+/// Left uncorrected the tilt wrecks row clustering: a single tilted row fragments
+/// (its `cy` spread exceeds the row tolerance) or merges with its neighbour. We
+/// seed with a Theil–Sen estimate — the median slope over pairs of boxes that are
+/// plausibly in the same row (a moderate horizontal gap, a small vertical delta),
+/// robust to the many cross-row pairs — then refine by clustering with the seed,
+/// least-squares-fitting each wide row, and taking the median of those fits.
+#[allow(dead_code)]
+fn shear_slope(boxes: &[&LabelBox], med_h: f32) -> f32 {
+    let (dx_min, dx_max, dy_max) = (med_h, med_h * 50.0, med_h * 3.0);
+    let mut seeds: Vec<f32> = Vec::new();
+    for a in boxes {
+        for b in boxes {
+            let dx = b.cx() - a.cx();
+            let dy = b.cy() - a.cy();
+            if dx > dx_min && dx < dx_max && dy.abs() < dy_max {
+                seeds.push(dy / dx);
+            }
+        }
+    }
+    let mut slope = if seeds.is_empty() {
+        0.0
+    } else {
+        median(seeds.into_iter())
+    };
+
+    for _ in 0..3 {
+        let rows = cluster_rows(boxes, slope, med_h * 0.7);
+        let mut fits: Vec<f32> = Vec::new();
+        for row in &rows {
+            if row.len() < 3 {
+                continue;
+            }
+            let n = row.len() as f32;
+            let mx = row.iter().map(|b| b.cx()).sum::<f32>() / n;
+            let my = row.iter().map(|b| b.cy()).sum::<f32>() / n;
+            let num: f32 = row.iter().map(|b| (b.cx() - mx) * (b.cy() - my)).sum();
+            let den: f32 = row.iter().map(|b| (b.cx() - mx).powi(2)).sum();
+            let (mut lo, mut hi) = (f32::INFINITY, f32::NEG_INFINITY);
+            for b in row {
+                lo = lo.min(b.cx());
+                hi = hi.max(b.cx());
+            }
+            // Only trust rows wide enough that the fit reflects the global tilt.
+            if den > 1e-3 && hi - lo > med_h * 10.0 {
+                fits.push(num / den);
+            }
+        }
+        if !fits.is_empty() {
+            slope = median(fits.into_iter());
+        }
+    }
+    slope
+}
+
+/// Group boxes into rows by de-sheared vertical position: boxes whose `cy -
+/// slope*cx` falls within `tol` of the running row mean share a row. Returns rows
+/// top→bottom.
+#[allow(dead_code)]
+fn cluster_rows<'a>(boxes: &[&'a LabelBox], slope: f32, tol: f32) -> Vec<Vec<&'a LabelBox>> {
     if boxes.is_empty() {
         return Vec::new();
     }
     let mut sorted = boxes.to_vec();
-    sorted.sort_by(|a, b| a.cy().total_cmp(&b.cy()));
-    let tol = (median(sorted.iter().map(|b| b.h)) * 0.7).max(1.0);
+    sorted.sort_by(|a, b| deshear(a, slope).total_cmp(&deshear(b, slope)));
 
     let mut rows: Vec<Vec<&LabelBox>> = Vec::new();
     let mut cur: Vec<&LabelBox> = Vec::new();
-    let mut cur_cy = 0.0f32;
+    let mut cur_ry = 0.0f32;
     for b in sorted {
-        if cur.is_empty() || (b.cy() - cur_cy).abs() <= tol {
+        if cur.is_empty() || (deshear(b, slope) - cur_ry).abs() <= tol {
             cur.push(b);
         } else {
             rows.push(std::mem::take(&mut cur));
             cur.push(b);
         }
-        cur_cy = cur.iter().map(|x| x.cy()).sum::<f32>() / cur.len() as f32;
+        cur_ry = cur.iter().map(|x| deshear(x, slope)).sum::<f32>() / cur.len() as f32;
     }
     if !cur.is_empty() {
         rows.push(cur);
     }
     rows
+}
+
+/// Split one generous grid-row *block* into sub-rows at de-sheared vertical gaps
+/// wider than ~one text height. A box tile stacks the item **name** over its
+/// **category subtitle** (~2 text heights apart), so this separates the two; the
+/// subtitle sub-row is then dropped while the name survives. A block with a single
+/// sub-row (the names-only tablet layout, or a lone chrome line) returns unsplit.
+#[allow(dead_code)]
+fn split_subrows<'a>(block: &[&'a LabelBox], slope: f32, med_h: f32) -> Vec<Vec<&'a LabelBox>> {
+    let mut sorted = block.to_vec();
+    sorted.sort_by(|a, b| deshear(a, slope).total_cmp(&deshear(b, slope)));
+    let gap = (med_h * 1.1).max(1.0);
+
+    let mut subs: Vec<Vec<&LabelBox>> = Vec::new();
+    let mut cur: Vec<&LabelBox> = Vec::new();
+    let mut prev_ry = f32::NEG_INFINITY;
+    for b in sorted {
+        if !cur.is_empty() && deshear(b, slope) - prev_ry > gap {
+            subs.push(std::mem::take(&mut cur));
+        }
+        prev_ry = deshear(b, slope);
+        cur.push(b);
+    }
+    if !cur.is_empty() {
+        subs.push(cur);
+    }
+    subs
 }
 
 /// Split one row's boxes into tiles by horizontal gaps: words within a tile's
@@ -349,64 +500,172 @@ fn split_tiles<'a>(row: &[&'a LabelBox]) -> Vec<Vec<&'a LabelBox>> {
     tiles
 }
 
-/// Best-effort drop of a clipped top/bottom row whose label is cut off (markedly
-/// shorter than the median row). The stitch's unknown-tolerance is the real
-/// safety net for any clipped row that slips through; this just reduces noise.
-#[allow(dead_code)]
-fn drop_clipped_rows(rows: &mut Vec<Vec<&LabelBox>>) {
-    if rows.len() < 3 {
-        return; // need interior rows to establish a "normal" height
-    }
-    fn row_h(r: &[&LabelBox]) -> f32 {
-        r.iter().map(|b| b.h).fold(0.0f32, f32::max)
-    }
-    let med = median(rows.iter().map(|r| row_h(r)));
-    if med <= 0.0 {
-        return;
-    }
-    if let Some(last) = rows.last() {
-        if row_h(last) < med * 0.6 {
-            rows.pop();
-        }
-    }
-    if row_h(&rows[0]) < med * 0.6 {
-        rows.remove(0);
-    }
-}
-
 /// Turn one screenshot's recognized text boxes into reading-order tiles.
 ///
-/// Excludes the fixed chrome (the category-tab strip and everything above it,
-/// plus the weight readout and everything below it), clusters the remaining
-/// labels into rows and tiles, resolves each tile via [`match_item`], and drops
-/// clipped edge rows. The fixed chrome must be excluded because it doesn't
-/// scroll — leaving it in would wreck the cross-capture alignment.
+/// Layout-aware and tilt-robust ([issue #109]):
+///   1. Estimate the perspective shear ([`shear_slope`]) and cluster boxes into
+///      generous grid-row *blocks* by de-sheared `cy` ([`cluster_rows`]). A block
+///      holds one grid row — an item name with its category subtitle — while
+///      neighbouring rows stay apart even when the slope estimate is imperfect.
+///   2. Split each block into sub-rows ([`split_subrows`]) and split each sub-row
+///      into tiles by horizontal gaps ([`split_tiles`]).
+///   3. Drop **category** sub-rows (mostly [`is_category_tile`]s) — this skips a
+///      real top tab strip *and* the per-item subtitles with one rule. Resolve the
+///      remaining tiles via [`match_item`] and drop a sub-row that resolves to
+///      nothing at all (the title, weight readout, service panel, tooltips — none
+///      of it is an item). The fixed chrome must go because it doesn't scroll;
+///      leaving it in would wreck the cross-capture alignment.
+///
+/// Reading order is block top→bottom, sub-row top→bottom, tile left→right — stable
+/// across shots (the de-shear removes the tilt that otherwise reorders a row),
+/// which is what lets [`stitch`] align overlapping captures.
+///
+/// [issue #109]: https://github.com/etiennechabert/ez-wishlist-overlay/issues/109
 #[allow(dead_code)]
 pub fn read_tiles(boxes: &[LabelBox], img_h: f32, data: &GameData) -> BoxReadResult {
-    let weight = extract_weight(boxes, img_h);
-    let grid_bottom = weight.map(|(_, y)| y).unwrap_or(img_h);
+    let observed_weight = extract_weight(boxes, img_h).map(|(v, _)| v);
 
-    let candidates: Vec<&LabelBox> = boxes.iter().filter(|b| b.cy() < grid_bottom).collect();
-    let mut rows = cluster_rows(&candidates);
+    let refs: Vec<&LabelBox> = boxes.iter().collect();
+    let med_h = median(refs.iter().map(|b| b.h)).max(1.0);
+    let slope = shear_slope(&refs, med_h);
 
-    // Drop the category-tab strip and any rows above it (e.g. a window title).
-    if let Some(tab_idx) = rows.iter().rposition(|r| tab_word_hits(r) >= 2) {
-        rows.drain(..=tab_idx);
-    }
-    drop_clipped_rows(&mut rows);
+    // Generous blocks: a name and its category subtitle (~2 text heights apart)
+    // land together, while neighbouring grid rows (~10 text heights apart) stay
+    // separate even if the slope estimate is a little off.
+    let blocks = cluster_rows(&refs, slope, med_h * 4.0);
 
     let mut tiles: Vec<Tile> = Vec::new();
-    for row in &rows {
-        for tile_words in split_tiles(row) {
-            let tokens: Vec<&str> = tile_words.iter().map(|b| b.text.as_str()).collect();
-            tiles.push(match_item(data, &tokens));
+    let mut rows: Vec<RowReport> = Vec::new();
+    for block in &blocks {
+        for sub in split_subrows(block, slope, med_h) {
+            let ry = median(sub.iter().map(|b| deshear(b, slope)));
+            let cells = split_tiles(&sub);
+
+            // Skip a category sub-row (tab strip or per-item subtitles): one whose
+            // tiles are mostly category words.
+            let cat = cells.iter().filter(|t| is_category_tile(t)).count();
+            if cat > 0 && cat * 2 >= cells.len() {
+                rows.push(RowReport {
+                    ry,
+                    kind: RowKind::Category,
+                    cells: cells.iter().map(|t| (join_text(t), None)).collect(),
+                });
+                continue;
+            }
+
+            // Resolve each tile; drop an all-unrecognized sub-row as chrome.
+            let resolved: Vec<(String, Tile)> = cells
+                .iter()
+                .map(|t| {
+                    let tokens: Vec<&str> = t.iter().map(|b| b.text.as_str()).collect();
+                    (join_text(t), match_item(data, &tokens))
+                })
+                .collect();
+            let kind = if resolved.iter().all(|(_, m)| m.is_none()) {
+                RowKind::Chrome
+            } else {
+                RowKind::Names
+            };
+            rows.push(RowReport {
+                ry,
+                kind,
+                cells: resolved.clone(),
+            });
+            if kind == RowKind::Names {
+                tiles.extend(resolved.into_iter().map(|(_, m)| m));
+            }
         }
     }
 
     BoxReadResult {
         tiles,
-        observed_weight: weight.map(|(v, _)| v),
+        observed_weight,
+        slope,
+        rows,
     }
+}
+
+/// Whitespace-join a tile's label words left→right (for diagnostics / matching
+/// previews).
+#[allow(dead_code)]
+fn join_text(tile: &[&LabelBox]) -> String {
+    tile.iter()
+        .map(|b| b.text.as_str())
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Render a human-readable recognition dump for one box-scan capture, for the
+/// `ocr_debug` sidecar. Shows the de-shear slope, every sub-row's classification
+/// and per-tile match, this shot's reading-order tiles, the stitch verdict, and
+/// the running session tally — enough to see *why* a scan mis-read without the
+/// game running. Pure (no I/O); the caller writes it next to the source PNG.
+#[allow(dead_code)]
+pub fn format_capture_dump(
+    read: &BoxReadResult,
+    outcome: StitchOutcome,
+    tally: &HashMap<ItemId, u32>,
+    unrecognized: usize,
+    captures: u32,
+) -> String {
+    use std::fmt::Write as _;
+    let mut s = String::new();
+    let _ = writeln!(s, "=== BOX-SCAN CAPTURE #{captures} ===");
+    let _ = writeln!(s, "shear slope     : {:+.4}", read.slope);
+    match read.observed_weight {
+        Some(w) => {
+            let _ = writeln!(s, "observed weight : {w:.2}");
+        }
+        None => {
+            let _ = writeln!(s, "observed weight : —");
+        }
+    }
+    match outcome {
+        StitchOutcome::Merged { added, overlap } => {
+            let _ = writeln!(
+                s,
+                "stitch          : merged (overlap {overlap}, added {added})"
+            );
+        }
+        StitchOutcome::NeedsRecapture => {
+            let _ = writeln!(
+                s,
+                "stitch          : NEEDS RECAPTURE (no confident overlap)"
+            );
+        }
+    }
+    let _ = writeln!(s, "tiles this shot : {}", read.tiles.len());
+    let _ = writeln!(s);
+
+    let _ = writeln!(s, "=== ROWS (reading order, de-sheared) ===");
+    for r in &read.rows {
+        let (tag, note) = match r.kind {
+            RowKind::Names => ("name  ", ""),
+            RowKind::Category => ("CAT   ", "  (skipped: tab strip / subtitles)"),
+            RowKind::Chrome => ("chrome", "  (dropped: no item matched)"),
+        };
+        let _ = writeln!(s, "  [{tag}] ry={:>7.1}{note}", r.ry);
+        for (text, resolved) in &r.cells {
+            match resolved {
+                Some(id) => {
+                    let _ = writeln!(s, "      {text:<28} -> {id}");
+                }
+                None => {
+                    let _ = writeln!(s, "      {text:<28} -> —");
+                }
+            }
+        }
+    }
+    let _ = writeln!(s);
+
+    let _ = writeln!(s, "=== RUNNING TALLY (after this capture) ===");
+    let mut items: Vec<(&ItemId, &u32)> = tally.iter().collect();
+    items.sort_by(|a, b| a.0.cmp(b.0));
+    for (id, n) in items {
+        let _ = writeln!(s, "  {id:<28} {n}");
+    }
+    let _ = writeln!(s, "  (unrecognized tiles: {unrecognized})");
+    s
 }
 
 /// OCR one box-screen screenshot into a [`BoxReadResult`]. Windows-only — runs
@@ -474,9 +733,11 @@ mod tests {
     // are regenerated from them by `regen_box_fixtures` (Windows, --ignored).
     //
     // Expected results live in `<scan>.label.txt` (`<item_id>  <count>` lines).
-    // The scan tests are `#[ignore]`d for now: the box-scan mis-reads these real
-    // captures today (JUNK BOX → 0 items; "Big" → 6 of ~22). Un-ignore once the
-    // read_tiles/stitch fixes land — the labels are the target.
+    // `big` now passes (issue #109). `junkbox` stays `#[ignore]`d: its 10 shots
+    // can't be stitched into one sequence — consecutive shots past shot 04 don't
+    // share a row (scroll gaps) and the OCR drops whole tiles, so the overlap
+    // alignment can't bridge them. See `junkbox_scan_matches_label` and
+    // `box_screenshots_native/CLAUDE.md`.
     // ===================================================================
 
     #[derive(serde::Serialize, serde::Deserialize)]
@@ -595,21 +856,32 @@ mod tests {
         }
     }
 
-    /// "Big" container scan (3 overlapping scroll shots) → its full contents.
-    /// IGNORED: today the stitch refuses shots 2-3 (the overlap row reads in a
-    /// different order each shot), so only ~6 of the ~22 items land. Un-ignore
-    /// when read_tiles produces a stable reading order.
+    /// "Big" container scan (3 overlapping scroll shots) → its full 22-tile
+    /// contents. The de-sheared, layout-aware `read_tiles` produces a stable
+    /// reading order across the three shots, so `stitch` aligns the overlaps and
+    /// the tally matches `big.label.txt` exactly (issue #109).
     #[test]
-    #[ignore]
     fn big_container_scan_matches_label() {
         let shots: Vec<String> = (0..3).map(|i| format!("big.shot{i}.boxes.json")).collect();
         assert_eq!(run_box_scan(&shots), load_box_label("big.label.txt"));
     }
 
-    /// JUNK BOX scan (10 overlapping scroll shots) → its full contents.
-    /// IGNORED: today the per-item category subtitles (Tool/Household/…) are
-    /// mistaken for the tab strip and the whole grid is dropped (0 items).
-    /// Un-ignore when read_tiles stops treating subtitle rows as chrome.
+    /// JUNK BOX scan (10 scroll shots) → its full contents.
+    ///
+    /// STILL `#[ignore]`d after issue #109 — but the cause is the *captures*, not
+    /// `read_tiles` (the subtitle-as-tab-strip bug that dropped the whole grid is
+    /// fixed; each shot now reads its 15-tile grid). Two capture defects defeat
+    /// the sequence stitch and can't be papered over in code:
+    ///   - **Scroll gaps:** shots 00–04 each share a full row (a clean scroll),
+    ///     but 04→05→06→07→08→09 share *no* row — rows fall between shots, so no
+    ///     overlap exists for `stitch` to anchor on.
+    ///   - **Dropped tiles:** the OCR omits whole labels (e.g. shot02 is missing
+    ///     "Tape"; "Wire Cutter"→"Cutter") which shifts later columns and breaks
+    ///     the rigid position-wise overlap alignment even within the 00–04 run.
+    ///
+    /// Un-ignoring needs better captures (every row overlapping, lossless) and/or
+    /// a gap-tolerant stitch. `junkbox.label.txt` is kept as a verified reference
+    /// of the contents; see `box_screenshots_native/CLAUDE.md`.
     #[test]
     #[ignore]
     fn junkbox_scan_matches_label() {
@@ -889,5 +1161,54 @@ mod tests {
                 Some("gunpowder".to_string())
             ]
         );
+    }
+
+    #[test]
+    fn read_tiles_records_row_classification() {
+        let data = box_data();
+        let boxes = vec![
+            // Tab strip → Category, the weight row → Chrome, a real row → Names.
+            lb("ALL", 50.0, 40.0),
+            lb("Building", 120.0, 40.0),
+            lb("Electric", 230.0, 40.0),
+            lb("UV", 50.0, 120.0),
+            lb("lamp", 85.0, 120.0),
+            lb("Piezometer", 360.0, 120.0),
+            lb("21.94", 600.0, 430.0),
+        ];
+        let res = read_tiles(&boxes, 500.0, &data);
+        let kinds: Vec<RowKind> = res.rows.iter().map(|r| r.kind).collect();
+        assert!(kinds.contains(&RowKind::Category), "tab strip → Category");
+        assert!(kinds.contains(&RowKind::Names), "item row → Names");
+        assert!(kinds.contains(&RowKind::Chrome), "weight row → Chrome");
+        // Only the Names row contributes tiles.
+        assert_eq!(
+            res.tiles,
+            vec![Some("uvlight".into()), Some("piezometer".into())]
+        );
+    }
+
+    #[test]
+    fn format_capture_dump_renders_verdict_rows_and_tally() {
+        let data = box_data();
+        let boxes = vec![
+            lb("ALL", 50.0, 40.0),
+            lb("Building", 120.0, 40.0),
+            lb("Electric", 230.0, 40.0),
+            lb("UV", 50.0, 120.0),
+            lb("lamp", 85.0, 120.0),
+            lb("Piezometer", 360.0, 120.0),
+            lb("21.94", 600.0, 430.0),
+        ];
+        let res = read_tiles(&boxes, 500.0, &data);
+        let mut master = Vec::new();
+        let outcome = stitch(&mut master, &res.tiles);
+        let (counts, unrecognized) = tally(&master);
+        let dump = format_capture_dump(&res, outcome, &counts, unrecognized, 1);
+        assert!(dump.contains("BOX-SCAN CAPTURE #1"));
+        assert!(dump.contains("shear slope"));
+        assert!(dump.contains("merged")); // first capture seeds → Merged
+        assert!(dump.contains("uvlight")); // resolved tile shown in the tally
+        assert!(dump.contains("(skipped: tab strip / subtitles)"));
     }
 }

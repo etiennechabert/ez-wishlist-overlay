@@ -2552,7 +2552,7 @@
     },
     {
       "id": "misc_b_tapeplayer",
-      "name": "Civil radio",
+      "name": "Tape player",
       "icon_path": "icons/misc_b_tapeplayer.png",
       "category": "misc",
       "subcategory": "Electric",
@@ -2672,7 +2672,7 @@
     },
     {
       "id": "misc_barcleaner",
-      "name": "Household Cleaner",
+      "name": "Cleaner",
       "icon_path": "icons/misc_barcleaner.png",
       "category": "misc",
       "subcategory": "Household",
