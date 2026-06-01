@@ -20,9 +20,11 @@ use std::time::Duration;
 
 const RETRY_DELAY: Duration = Duration::from_secs(5);
 
-/// Subdirectory under `PersistPaths::data_dir` where captured mirror-texture
-/// PNGs are written. Kept simple — the OCR test bed under `ocr_data/` is
-/// happy to consume from wherever.
+/// Subdirectory under `PersistPaths::debug_dir` where captured mirror-texture
+/// PNGs (and their OCR sidecars) are written. Lives inside the per-session
+/// `debug/` bundle that's flushed at startup, so captures never accumulate
+/// across sessions. The OCR test bed under `ocr_data/` is happy to consume
+/// from wherever.
 const SCREENSHOT_SUBDIR: &str = "vr_screenshots";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -167,6 +169,28 @@ impl Runtime {
             auto_capture,
             box_scan_mode,
             _join: join,
+        }
+    }
+
+    /// Build a runtime with **no** live VR worker, for headless GUI tests that
+    /// must hand a `Runtime` to a pane (e.g. the Containers tab's box-scan
+    /// controls) but never drive a real capture. Parks at
+    /// [`VrStatus::Unsupported`]; the flags and channels are real, so the
+    /// `set_*` / `*_enabled` accessors behave normally — nothing reads the far
+    /// end. The background thread exits immediately.
+    #[cfg(test)]
+    pub fn disconnected_for_test() -> Self {
+        let (capture_tx, _capture_rx) = crossbeam_channel::bounded::<()>(4);
+        Self {
+            status: Arc::new(RwLock::new(VrStatus::Unsupported)),
+            capture_tx,
+            last_capture: Arc::new(RwLock::new(None)),
+            auto_capture: Arc::new(AtomicBool::new(false)),
+            box_scan_mode: Arc::new(AtomicBool::new(false)),
+            _join: std::thread::Builder::new()
+                .name("ez-wishlist-vr-test".into())
+                .spawn(|| {})
+                .expect("spawn dummy VR thread"),
         }
     }
 
@@ -845,7 +869,7 @@ fn next_screenshot_path(paths: &PersistPaths) -> PathBuf {
         .map(|d| d.subsec_nanos())
         .unwrap_or(0);
     paths
-        .data_dir
+        .debug_dir
         .join(SCREENSHOT_SUBDIR)
         .join(format!("{stamp}_{nanos:09}.png"))
 }

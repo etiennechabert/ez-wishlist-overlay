@@ -11,6 +11,7 @@ pub fn show(
     open: &mut bool,
     settings: &Arc<RwLock<Settings>>,
     data_dir: &Path,
+    debug_dir: &Path,
 ) -> Outcome {
     let mut outcome = Outcome::default();
     let mut close_now = false;
@@ -46,7 +47,7 @@ pub fn show(
             );
 
             ui.add_space(12.0);
-            storage_section(ui, data_dir);
+            storage_section(ui, data_dir, debug_dir);
 
             ui.add_space(12.0);
             ui.separator();
@@ -243,16 +244,45 @@ fn updates_section(ui: &mut egui::Ui, check_for_updates: &mut bool) {
     // mind — they'll get the banner again next time an update check runs.
 }
 
-fn storage_section(ui: &mut egui::Ui, data_dir: &Path) {
+fn storage_section(ui: &mut egui::Ui, data_dir: &Path, debug_dir: &Path) {
     ui.heading("Storage");
     ui.add_space(4.0);
     ui.horizontal(|ui| {
-        if ui.button("Open data folder").clicked() {
+        if ui
+            .button("Open data folder")
+            .on_hover_text(
+                "Your saved progress and settings (state.json, overrides.json, \
+                 settings.json). These are never auto-deleted — leave them be.",
+            )
+            .clicked()
+        {
             let _ = crate::platform::open(data_dir);
         }
         let weak = ui.visuals().weak_text_color();
         ui.label(
             egui::RichText::new(data_dir.display().to_string())
+                .small()
+                .color(weak),
+        );
+    });
+    ui.add_space(4.0);
+    ui.horizontal(|ui| {
+        if ui
+            .button("Open debug folder")
+            .on_hover_text(
+                "This session's debug bundle — VR capture screenshots plus the \
+                 OCR sidecar files, written only while \"Save OCR debug \
+                 artifacts\" is on. Cleared automatically every time the app \
+                 starts, so it always holds just the current session. When OCR \
+                 misreads a panel, attach the whole folder to a GitHub issue.",
+            )
+            .clicked()
+        {
+            let _ = crate::platform::open(debug_dir);
+        }
+        let weak = ui.visuals().weak_text_color();
+        ui.label(
+            egui::RichText::new(debug_dir.display().to_string())
                 .small()
                 .color(weak),
         );

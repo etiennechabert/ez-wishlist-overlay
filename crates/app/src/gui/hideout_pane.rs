@@ -222,9 +222,9 @@ fn legend_row(ui: &mut egui::Ui) {
         );
         legend_swatch(
             ui,
-            theme::unknown_marker(dark),
+            theme::unknown_fill(dark),
             "Unknown",
-            "We don't have this upgrade's recipe yet — its cost is a guess. \
+            "We don't have this upgrade's recipe yet, so it can't be tracked. \
              Open Edit to fill it in.",
         );
     });
@@ -651,11 +651,15 @@ fn upgrade_cell(
 
     let dark = ui.visuals().dark_mode;
     let is_selected = selected(ui.ctx()).as_deref() == Some(upgrade.id.as_str());
-    // Readiness tint: done (green) → ready (yellow) → tracked (blue). Ready and
-    // done both override tracked so a claimable/built cell never reads as merely
-    // "on the list".
+    // Readiness tint: done (green) → unknown (gray) → ready (yellow) → tracked
+    // (blue). `done` wins outright (a built upgrade is settled, recipe or not).
+    // Otherwise an unknown recipe grays the cell: we don't know its cost so it
+    // can't be meaningfully tracked, and the gray marks it inert — it never
+    // reaches the warm "ready" fill and overrides the "tracked" blue.
     let fill = if done {
         theme::done_fill(dark)
+    } else if unknown {
+        theme::unknown_fill(dark)
     } else if ready {
         theme::ready_fill(dark)
     } else if tracked {
@@ -664,22 +668,14 @@ fn upgrade_cell(
         egui::Color32::TRANSPARENT
     };
 
-    // Unknown (empty) recipes never reach the warm "ready" fill no matter how
-    // much the user collects — correct, but otherwise invisible. A thin neutral
-    // stroke marks "this cell is a guess, open Edit" without the loud fills
-    // that tracked/ready/done use.
     let mut frame = egui::Frame::group(ui.style())
         .fill(fill)
         .inner_margin(egui::Margin::symmetric(6.0, 1.0));
     // The cell open in the recipe editor gets a bright neutral ring so "the one
     // I'm editing" is unmistakable — focus has no readiness color of its own,
-    // which is exactly what made it blur into the warm fills. The ring wins over
-    // the faint unknown stroke (focus is the louder, transient cue; the
-    // unknown-ness still surfaces via the hover text below).
+    // which is exactly what made it blur into the warm fills.
     if is_selected {
         frame = frame.stroke(egui::Stroke::new(2.0, theme::selected_outline(dark)));
-    } else if unknown {
-        frame = frame.stroke(egui::Stroke::new(1.0, theme::unknown_marker(dark)));
     }
 
     let resp = frame
@@ -712,13 +708,14 @@ fn upgrade_controls(
     upgrade_id: &UpgradeId,
     show_pin: bool,
 ) {
-    let (mut tracked, mut done, mut pinned, overridden) = {
+    let (mut tracked, mut done, mut pinned, overridden, unknown) = {
         let s = state.read();
         (
             s.tracked_upgrades.contains(upgrade_id),
             s.completed_upgrades.contains(upgrade_id),
             s.is_upgrade_pinned(upgrade_id),
             s.is_overridden(upgrade_id),
+            matches!(s.recipe_knowledge(upgrade_id), RecipeKnowledge::Unknown),
         )
     };
     let (original_tracked, original_done, original_pinned) = (tracked, done, pinned);
@@ -726,7 +723,13 @@ fn upgrade_controls(
     let is_selected = selected(ui.ctx()).as_deref() == Some(upgrade_id.as_str());
 
     ui.horizontal(|ui| {
-        ui.checkbox(&mut tracked, "Track");
+        // An unknown recipe can't be meaningfully tracked (we don't know what it
+        // needs), so the Track checkbox is disabled until the user fills the
+        // recipe in via Edit. `Done` stays enabled — you can still mark it built.
+        ui.add_enabled(!unknown, egui::Checkbox::new(&mut tracked, "Track"))
+            .on_disabled_hover_text(
+                "Recipe unknown — open Edit and fill it in before you can track it.",
+            );
         ui.checkbox(&mut done, "Done");
         // Pin only makes sense for a live target — a tracked, not-yet-completed
         // upgrade. Hidden otherwise so the control never implies you can
@@ -1100,7 +1103,7 @@ fn progress_badge(ui: &mut egui::Ui, knowledge: RecipeKnowledge, dark: bool) {
             ui.label(
                 egui::RichText::new("(edited)")
                     .small()
-                    .color(theme::override_marker(dark)),
+                    .color(theme::override_text(dark)),
             )
             .on_hover_text("You've corrected this recipe via the Edit panel.");
         }
@@ -1127,9 +1130,13 @@ fn editable_recipe_panel(
     module_name: &str,
     upgrade: &Upgrade,
 ) {
-    let (mut slots, overridden) = {
+    let (mut slots, overridden, unknown) = {
         let s = state.read();
-        (s.effective_slots(&upgrade.id), s.is_overridden(&upgrade.id))
+        (
+            s.effective_slots(&upgrade.id),
+            s.is_overridden(&upgrade.id),
+            matches!(s.recipe_knowledge(&upgrade.id), RecipeKnowledge::Unknown),
+        )
     };
     let original_slots = slots.clone();
 
@@ -1172,15 +1179,30 @@ fn editable_recipe_panel(
                 ui.label(egui::RichText::new(&upgrade.description).color(weak));
             }
             ui.add_space(2.0);
-            ui.label(
-                egui::RichText::new(
-                    "Wrong items or counts? Edit any slot below. \"Export corrections\" \
-                     in the header opens a GitHub issue so we can fold fixes into the bundled \
-                     dataset.",
-                )
-                .small()
-                .color(weak),
-            );
+            if unknown {
+                // We genuinely don't have this recipe — the most valuable thing a
+                // user can contribute. Encourage defining it AND sharing it back,
+                // in normal (not weak) text so it reads as an invitation rather
+                // than fine print.
+                ui.label(
+                    egui::RichText::new(
+                        "We don't have this upgrade's recipe yet — the slots below are a guess. \
+                         Fill in what it actually needs, then use \"Export corrections\" in the \
+                         header to share it so it ships for everyone.",
+                    )
+                    .small(),
+                );
+            } else {
+                ui.label(
+                    egui::RichText::new(
+                        "Wrong items or counts? Edit any slot below. \"Export corrections\" \
+                         in the header opens a GitHub issue so we can fold fixes into the bundled \
+                         dataset.",
+                    )
+                    .small()
+                    .color(weak),
+                );
+            }
             ui.add_space(6.0);
 
             egui::Grid::new(format!("reqs-grid-{}", upgrade.id))
