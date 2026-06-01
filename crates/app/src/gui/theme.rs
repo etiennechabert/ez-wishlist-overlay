@@ -75,15 +75,23 @@ struct Semantic {
 }
 
 /// Vivid categorical hue → muted cell fill. Dark themes darken the hue (so the
-/// light row text stays readable on top); light themes pastel it toward white.
-/// Used to derive the palettes from their canonical foreground hues.
-fn cell_fill(base: Color32, dark: bool) -> Color32 {
+/// light row text stays readable on top); light themes pastel it toward white by
+/// `light_pastel` percent. The pastel amount is palette-specific because the
+/// canonical hues differ in lightness: Okabe-Ito's are deep, so a strong pastel
+/// still reads; IBM's accessible hues are already light, so the same pastel
+/// washed them out to near-white (reported on the light theme) — they need a
+/// gentler blend to keep their contrast.
+fn cell_fill(base: Color32, dark: bool, light_pastel: u16) -> Color32 {
     if dark {
         scale(base, 42)
     } else {
-        toward_white(base, 62)
+        toward_white(base, light_pastel)
     }
 }
+
+/// Light-theme pastel strength for each palette's cell fills (see [`cell_fill`]).
+const OKABE_PASTEL: u16 = 62;
+const IBM_PASTEL: u16 = 40;
 
 /// Vivid hue → accent (thin stripe / small button): a touch stronger than a
 /// [`cell_fill`] so it keeps its identity at small sizes.
@@ -148,21 +156,21 @@ fn neutral_unknown(dark: bool) -> Color32 {
 fn semantic(dark: bool) -> Semantic {
     match scheme() {
         ColorScheme::OkabeIto => Semantic {
-            tracked: cell_fill(okabe::BLUE, dark),
-            ready: cell_fill(okabe::YELLOW, dark),
-            done: cell_fill(okabe::GREEN, dark),
+            tracked: cell_fill(okabe::BLUE, dark, OKABE_PASTEL),
+            ready: cell_fill(okabe::YELLOW, dark, OKABE_PASTEL),
+            done: cell_fill(okabe::GREEN, dark, OKABE_PASTEL),
             pinned: accent(okabe::PURPLE, dark),
             customized: accent(okabe::VERMILION, dark),
             unknown: neutral_unknown(dark),
             primary_action: accent(okabe::GREEN, dark),
         },
         ColorScheme::Ibm => Semantic {
-            tracked: cell_fill(ibm::BLUE, dark),
-            ready: cell_fill(ibm::YELLOW, dark),
+            tracked: cell_fill(ibm::BLUE, dark, IBM_PASTEL),
+            ready: cell_fill(ibm::YELLOW, dark, IBM_PASTEL),
             // IBM ships no green: "done" takes purple instead. The completed
             // state is also carried by the ✓ checkbox and the dimmed text, so
             // losing the green-as-done convention costs little here.
-            done: cell_fill(ibm::PURPLE, dark),
+            done: cell_fill(ibm::PURPLE, dark, IBM_PASTEL),
             pinned: accent(ibm::MAGENTA, dark),
             // Shares magenta with `pinned` (few hues) but darker, and it
             // surfaces as a button rather than a stripe.
@@ -212,6 +220,19 @@ pub fn override_marker(dark: bool) -> Color32 {
 /// placeholders doesn't become a wall of alarm.
 pub fn unknown_marker(dark: bool) -> Color32 {
     semantic(dark).unknown
+}
+
+/// Muted gray cell fill for an unknown-recipe upgrade. Because we don't know
+/// what it costs it can't be meaningfully tracked, so the cell reads as
+/// inert/disabled — a neutral gray rather than a readiness hue. Scheme-
+/// independent: "we don't know" is not a category, and graying it the same way
+/// under both palettes keeps the signal unambiguous.
+pub fn unknown_fill(dark: bool) -> Color32 {
+    if dark {
+        Color32::from_rgb(58, 61, 68)
+    } else {
+        Color32::from_rgb(213, 215, 220)
+    }
 }
 
 /// Fill for the affirmative, recommended button in a confirmation dialog —
