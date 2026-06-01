@@ -103,6 +103,23 @@ fn main() -> Result<()> {
         }
     }
 
+    // Seed the built-in default Shelf exactly once per profile — fresh installs
+    // and pre-existing ones that predate the feature. The persisted flag stops
+    // it coming back if the user later deletes it.
+    if !app_state.default_shelf_seeded {
+        let id = app_state.create_container("Shelf".to_string());
+        app_state.set_container_kind(&id, state::ContainerKind::Shelf);
+        app_state.set_container_icon(&id, Some("shelf_basic".to_string()));
+        app_state.default_shelf_seeded = true;
+        // Persist synchronously now: the seeding happens before the save loop
+        // exists, and `bump()` alone emits no `SaveTick`, so without this the
+        // shelf would live only in memory and re-seed on the next launch.
+        if let Err(e) = persist::save(&paths, &app_state) {
+            tracing::warn!(error = %e, "failed to persist seeded default Shelf");
+        }
+        tracing::info!("seeded built-in default Shelf");
+    }
+
     let shared_state = Arc::new(RwLock::new(app_state));
     let (save_tx, save_rx) = crossbeam_channel::unbounded::<gui::SaveTick>();
     let _save_handle = save_loop::spawn(shared_state.clone(), paths.clone(), save_rx);
@@ -123,12 +140,20 @@ fn main() -> Result<()> {
     // OcrFeedback messages here; the VR render loop drains them and
     // manages show/hide + auto-fade on its own.
     let (ocr_feedback_tx, ocr_feedback_rx) = crossbeam_channel::bounded::<gui::OcrFeedback>(4);
+    // Box-scan session plumbing: GUI → worker commands (Start/Finish/Cancel)
+    // and worker → GUI running-tally updates. The command channel is unbounded
+    // (tiny, bursty); the update channel is bounded — stale updates are
+    // superseded by the next, so dropping one under backpressure is harmless.
+    let (box_cmd_tx, box_cmd_rx) = crossbeam_channel::unbounded::<ocr::BoxCommand>();
+    let (box_update_tx, box_update_rx) = crossbeam_channel::bounded::<ocr::BoxScanUpdate>(8);
     let _ocr_handle = spawn_ocr_worker(
         shared_state.clone(),
         settings.clone(),
         save_tx.clone(),
         ocr_feedback_tx,
         ocr_job_rx,
+        box_cmd_rx,
+        box_update_tx,
     );
 
     let vr_runtime = Arc::new(vr::Runtime::spawn(
@@ -170,6 +195,8 @@ fn main() -> Result<()> {
                 log_buf,
                 update_rx,
                 ocr_job_tx,
+                box_cmd_tx,
+                box_update_rx,
             )))
         }),
     )
@@ -217,18 +244,103 @@ fn init_logging(buf: log_buffer::LogBuffer) {
         .init();
 }
 
+/// Worker-local accumulator for an in-progress box-scan session. Owned entirely
+/// by the OCR worker thread (no shared lock); the GUI drives it via
+/// [`ocr::BoxCommand`] and reads the running tally via [`ocr::BoxScanUpdate`].
+struct BoxSession {
+    target: ocr::ScanTarget,
+    /// Reading-order tiles stitched across every capture so far.
+    master: Vec<ocr::box_scan::Tile>,
+    captures: u32,
+    /// Most recent total-weight readout, kept for the GUI's checksum.
+    last_weight: Option<f32>,
+}
+
+impl BoxSession {
+    fn new(target: ocr::ScanTarget) -> Self {
+        Self {
+            target,
+            master: Vec::new(),
+            captures: 0,
+            last_weight: None,
+        }
+    }
+}
+
+/// Handle one box-scan capture: OCR the screenshot into tiles, stitch them into
+/// the active session, and publish the running tally to the GUI. Unlike the
+/// upgrade path this never touches `AppState` — the GUI owns the eventual
+/// write, behind a confirm/preview, on Finish. Platform-independent: the OCR
+/// call ([`ocr::box_scan::process_box_image`]) has a non-Windows stub.
+fn handle_box_capture(
+    state: &Arc<RwLock<state::AppState>>,
+    box_update_tx: &crossbeam_channel::Sender<ocr::BoxScanUpdate>,
+    session: Option<&mut BoxSession>,
+    job: ocr::OcrJob,
+) {
+    let Some(session) = session else {
+        tracing::debug!("box-scan capture with no active session — ignoring");
+        return;
+    };
+    let data = state.read().data.clone();
+    let read = match ocr::box_scan::process_box_image(&job.image, &data) {
+        Ok(r) => r,
+        Err(e) => {
+            tracing::warn!(error = %e, "box-scan OCR failed");
+            return;
+        }
+    };
+    let outcome = ocr::box_scan::stitch(&mut session.master, &read.tiles);
+    session.captures += 1;
+    if read.observed_weight.is_some() {
+        session.last_weight = read.observed_weight;
+    }
+    let (tally, unrecognized) = ocr::box_scan::tally(&session.master);
+    let status = if read.tiles.is_empty() {
+        ocr::BoxScanStatus::NoTiles
+    } else {
+        match outcome {
+            ocr::box_scan::StitchOutcome::NeedsRecapture => ocr::BoxScanStatus::NeedsRecapture,
+            ocr::box_scan::StitchOutcome::Merged { .. } => ocr::BoxScanStatus::Ok,
+        }
+    };
+    tracing::info!(
+        target = ?session.target,
+        captures = session.captures,
+        tiles_this_shot = read.tiles.len(),
+        total = session.master.len(),
+        ?status,
+        "box-scan: capture stitched",
+    );
+    let _ = box_update_tx.try_send(ocr::BoxScanUpdate {
+        target: session.target.clone(),
+        captures: session.captures,
+        tally,
+        unrecognized,
+        observed_weight: session.last_weight,
+        status,
+    });
+}
+
 /// Spawn the OCR worker thread. Receives screenshot paths from the VR
 /// thread, runs the OCR pipeline, applies the resulting per-item owned
 /// counts to `AppState.collected` (snapshot is truth — overwrite, never
 /// merge), and sends a `SaveTick` so the new state hits disk via the
 /// debounced save loop. Errors are logged; nothing is retried — the user
 /// just triggers another screenshot.
+///
+/// Box-scan jobs ([`ocr::JobKind::BoxScan`]) take a separate path: the worker
+/// owns a [`BoxSession`], stitches every capture (no stale-drain), and reports
+/// the running tally to the GUI via `box_update_tx` instead of writing state.
+#[allow(clippy::too_many_arguments)]
 fn spawn_ocr_worker(
     state: Arc<RwLock<state::AppState>>,
     settings: Arc<RwLock<settings::Settings>>,
     save_tx: crossbeam_channel::Sender<gui::SaveTick>,
     ocr_feedback_tx: crossbeam_channel::Sender<gui::OcrFeedback>,
     ocr_job_rx: crossbeam_channel::Receiver<ocr::OcrJob>,
+    box_cmd_rx: crossbeam_channel::Receiver<ocr::BoxCommand>,
+    box_update_tx: crossbeam_channel::Sender<ocr::BoxScanUpdate>,
 ) -> std::thread::JoinHandle<()> {
     // Log + forward a feedback record to the VR overlay. The render loop
     // owns the lifecycle (fade timers, show/hide); the worker just
@@ -251,7 +363,34 @@ fn spawn_ocr_worker(
             // otherwise expensive.
             #[allow(clippy::type_complexity)]
             let mut last_applied: Option<(String, Vec<(String, Option<u32>)>)> = None;
+            // Active box-scan session, when one is running. Owned here; the GUI
+            // drives it through `box_cmd_rx`.
+            let mut box_session: Option<BoxSession> = None;
             while let Ok(first) = ocr_job_rx.recv() {
+                // Apply any pending box-scan commands first — a `Start` must
+                // initialise the session before the capture that woke us is
+                // stitched into it.
+                while let Ok(cmd) = box_cmd_rx.try_recv() {
+                    match cmd {
+                        ocr::BoxCommand::Start { target } => {
+                            tracing::info!(target = ?target, "box-scan: session started");
+                            box_session = Some(BoxSession::new(target));
+                        }
+                        ocr::BoxCommand::Finish | ocr::BoxCommand::Cancel => {
+                            box_session = None;
+                        }
+                    }
+                }
+
+                // Box-scan captures take a wholly separate path: no stale-drain
+                // (every scroll position is load-bearing), no upgrade parsing,
+                // and the result is stitched into the session, not written to
+                // state.
+                if matches!(first.kind, ocr::JobKind::BoxScan) {
+                    handle_box_capture(&state, &box_update_tx, box_session.as_mut(), first);
+                    continue;
+                }
+
                 // Drain any newer jobs that arrived while we were
                 // idle, keeping only the most recent. A full OCR
                 // pass takes a few seconds and a user mashing
@@ -357,7 +496,13 @@ fn spawn_ocr_worker(
                 publish(&ocr_feedback_tx, gui::OcrFeedback::processing());
 
                 let data = state.read().data.clone();
-                let ocr::OcrJob { image, source_path } = job;
+                // `kind` is `UpgradePanel` here — box jobs took the early-return
+                // path above, so the upgrade pipeline ignores it.
+                let ocr::OcrJob {
+                    image,
+                    source_path,
+                    kind: _,
+                } = job;
                 let terminal = match ocr::process_image(
                     image,
                     source_path.as_deref(),

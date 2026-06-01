@@ -53,6 +53,14 @@ The **Hideout** tab lists every facility module, grouped the way the in-game Fac
 
 The preview pane on the right is the heart of it: every item across all the upgrades you're tracking, summed together, shown as `collected / needed` with a progress bar and the list of upgrades asking for it. Nudge counts up and down with the `+ / −` buttons, or type an exact number to seed it from what's already in your stash. Pinned upgrades push their items to the front here and in the headset, and a **Sort** switch can reorder this desktop list by what's most remaining or most valuable — the VR overlay keeps its own steady order so it never reshuffles mid-raid.
 
+### 🗃️ Track items across your containers
+
+Your barter items aren't all in one place — some sit in your main stash, others in item cases, on hideout shelves, or in a backpack. The **Containers** tab lets you model that. Your **stash** is pinned at the top as primary storage, and below it you can add secondary containers grouped by type — **Cases**, **Shelves**, and **Bags** — each with a name and an icon. Every container's contents count toward your owned totals exactly like the stash, so stashing three bolts in a case and four in your stash still flips an upgrade that needs seven to *ready*.
+
+For containers that have an in-game contents screen — the **Cases** — you don't have to type it all in. Hit **Scan from screen**, open the case in-game, and press **SPACE** at each scroll position: the app reads each screenful of items and stitches the overlapping shots into one list. A centered window shows the running tally live, and **Finish & review** opens a before/after diff (new, changed, and removed items) so you can see exactly what will change before you commit. Applying a scan **replaces** that container's contents with what was read — the review step spells that out up front.
+
+<!-- TODO: add docs/images/desktop-containers.png — a real-data capture of the Containers tab showing the Primary storage / Cases / Shelves / Bags sections — then reference it here like the other feature sections. -->
+
 ### 📦 Items database & stash value
 
 The **Items DB** tab is a sortable, filterable catalog of the barter items hideout upgrades ask for. Because the *quantity* column is the same count the rest of the app tracks, sorting by **Total Value** turns it into a quick "what's my stash actually worth" view. Flip on **tracked only** to narrow it to items you currently need.

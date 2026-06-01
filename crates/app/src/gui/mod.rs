@@ -110,6 +110,16 @@ pub struct App {
     /// debug-build "Run OCR on fixture" button so we can exercise the
     /// pipeline + in-headset overlay without a SteamVR session.
     ocr_job_tx: Sender<crate::ocr::OcrJob>,
+    /// Box-scan session: GUI → worker commands (Start/Finish/Cancel). Driven
+    /// from the Containers tab's "Scan box" flow.
+    box_cmd_tx: Sender<crate::ocr::BoxCommand>,
+    /// Box-scan session: worker → GUI running-tally updates, drained each frame
+    /// into [`Self::box_scan`].
+    box_update_rx: Receiver<crate::ocr::BoxScanUpdate>,
+    /// Active box-scan session UI state (capturing → reviewing), or `None`. The
+    /// Containers pane owns the transitions; this loop feeds worker tally
+    /// updates into it each frame.
+    box_scan: Option<containers_pane::BoxScanUi>,
     /// One-shot guard flag: has the startup window-geometry sanity check run?
     /// `eframe`'s `persist_window` can restore an unusable geometry (e.g. a
     /// window sized across two monitors, saved while maximized on a
@@ -133,6 +143,8 @@ impl App {
         log_buf: crate::log_buffer::LogBuffer,
         update_rx: Option<Receiver<CheckStatus>>,
         ocr_job_tx: Sender<crate::ocr::OcrJob>,
+        box_cmd_tx: Sender<crate::ocr::BoxCommand>,
+        box_update_rx: Receiver<crate::ocr::BoxScanUpdate>,
     ) -> Self {
         // Extend egui's default Proportional fallback chain with Hack.
         // Ubuntu-Light (the proportional primary) doesn't cover most of the
@@ -187,6 +199,9 @@ impl App {
             last_capture: None,
             capture_toast_shown_at: None,
             ocr_job_tx,
+            box_cmd_tx,
+            box_update_rx,
+            box_scan: None,
             window_geometry_checked: false,
         }
     }
@@ -287,6 +302,20 @@ impl eframe::App for App {
         }
         self.render_capture_toast(ctx);
 
+        // Feed box-scan tally updates from the OCR worker into the active
+        // session (the Containers pane reads it for the live preview). Updates
+        // only arrive while a scan is running, but guard anyway.
+        while let Ok(update) = self.box_update_rx.try_recv() {
+            if let Some(containers_pane::BoxScanUi::Scanning { target, latest, .. }) =
+                &mut self.box_scan
+            {
+                // Ignore a stray update meant for a different/older session.
+                if update.target == *target {
+                    *latest = Some(update);
+                }
+            }
+        }
+
         // OCR feedback now renders in the headset via the second
         // SteamVR overlay (see vr::ocr_render + vr::runtime). The
         // worker sends OcrFeedback messages to the VR thread; nothing
@@ -380,7 +409,15 @@ impl eframe::App for App {
                 }
                 LeftTab::Containers => {
                     egui::ScrollArea::vertical().show(ui, |ui| {
-                        containers_pane::ui(ui, &self.state, &mut self.icons, &self.save_tx);
+                        containers_pane::ui(
+                            ui,
+                            &self.state,
+                            &mut self.icons,
+                            &self.save_tx,
+                            &self.vr,
+                            &self.box_cmd_tx,
+                            &mut self.box_scan,
+                        );
                     });
                 }
                 LeftTab::ItemsDb => {

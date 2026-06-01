@@ -5,9 +5,10 @@
 //! manage *secondary* containers below it. Every container's contents sum into
 //! owned totals via [`crate::state::AppState::owned_total`] — so adding an item
 //! here can flip a hideout upgrade to "ready" exactly like collecting it in the
-//! stash, and it feeds the Items DB Quantity / Surplus columns too. Contents
-//! are entered manually; a future feature will let OCR fill a box from
-//! screenshots of its icon grid.
+//! stash, and it feeds the Items DB Quantity / Surplus columns too. Bags and
+//! shelves are entered by hand; "Case"-type containers can also be filled by
+//! scanning their in-game contents screen — a series of scrolling screenshots
+//! stitched into one item list (see [`crate::ocr::box_scan`]).
 //!
 //! Layout: a sortable KPI table — one bigger row per container showing its
 //! icon, name, item count, total weight, and total value. The Stash row is
@@ -22,7 +23,8 @@ use crate::gui::hideout_pane::{
 };
 use crate::gui::items_db_pane::format_price;
 use crate::gui::{icon_cache::IconCache, theme, SaveTick};
-use crate::state::{AppState, ContainerId};
+use crate::ocr::{BoxCommand, BoxScanStatus, BoxScanUpdate, ScanTarget};
+use crate::state::{AppState, ContainerId, ContainerKind};
 use crossbeam_channel::Sender;
 use parking_lot::RwLock;
 use std::collections::HashMap;
@@ -49,6 +51,63 @@ const CONTAINER_ICONS: &[&str] = &[
 const DEFAULT_CONTAINER_ICON: &str = "backpack_3drt";
 /// Fixed icon for the pinned primary Stash row.
 const STASH_ICON: &str = "stash";
+
+/// Case icons offered when the container's type is `Case`. Only the two
+/// Collection Boxes are listed: they're the boxes that store MISC items — what
+/// this tracker cares about — whereas the other in-game boxes (mag/attachment,
+/// medical, paint) hold specific non-misc categories. Generated flat-3D crate
+/// art (upstream has no images for these). Order here is the picker-grid order.
+const CASE_ICONS: &[&str] = &["box_collection", "box_collection_small"];
+/// Default icon for a newly-created Case container.
+const DEFAULT_CASE_ICON: &str = "box_collection";
+
+/// Shelf icons (declarative furniture). One for now.
+const SHELF_ICONS: &[&str] = &["shelf_basic"];
+/// Default icon for a Shelf container.
+const DEFAULT_SHELF_ICON: &str = "shelf_basic";
+
+/// The default icon key for a container of the given kind.
+fn default_icon_for(kind: ContainerKind) -> &'static str {
+    match kind {
+        ContainerKind::Case => DEFAULT_CASE_ICON,
+        ContainerKind::Shelf => DEFAULT_SHELF_ICON,
+        ContainerKind::Bag => DEFAULT_CONTAINER_ICON,
+    }
+}
+
+/// The icon set offered in the picker for a container of the given kind.
+fn icon_set_for(kind: ContainerKind) -> &'static [&'static str] {
+    match kind {
+        ContainerKind::Case => CASE_ICONS,
+        ContainerKind::Shelf => SHELF_ICONS,
+        ContainerKind::Bag => CONTAINER_ICONS,
+    }
+}
+
+/// Short display name for an icon key, shown under each tile in the picker so
+/// the user can tell them apart. Case names match the in-game boxes.
+fn icon_label(key: &str) -> &'static str {
+    match key {
+        // Cases (the two MISC-storing Collection Boxes).
+        "box_collection" => "Collection",
+        "box_collection_small" => "Collection small",
+        // Shelf.
+        "shelf_basic" => "Shelf",
+        // Bags.
+        "backpack_3drt" => "3DRT",
+        "backpack_eliteops" => "Elite Ops",
+        "backpack_eliteops_green" => "Elite Ops (grn)",
+        "backpack_6sh118" => "6Sh118",
+        "backpack_robinson" => "Robinson",
+        "backpack_hypertec" => "Hypertec",
+        "backpack_gnjbackpack" => "GNJ",
+        "backpack_rucksack" => "Rucksack",
+        "backpack_sportbag" => "Sport bag",
+        "backpack_odldos_black" => "Odldos",
+        "backpack_odldos_flower" => "Odldos (fl.)",
+        _ => "",
+    }
+}
 
 // KPI-table column widths. Header titles and row cells share these so the
 // columns line up. `LEAD` matches the width of the collapse triangle so the
@@ -101,6 +160,34 @@ impl Target {
     }
 }
 
+/// GUI-side state of a box-scan session. Owned by `App`, threaded into this
+/// pane; `None` when no scan is running. Only one runs at a time.
+pub enum BoxScanUi {
+    /// Capturing scroll shots. The worker stitches each into `latest` as it
+    /// arrives over the update channel.
+    Scanning {
+        target: ScanTarget,
+        target_name: String,
+        latest: Option<BoxScanUpdate>,
+    },
+    /// Capturing finished; the confirm/preview modal is up, awaiting Apply.
+    Reviewing {
+        target: ScanTarget,
+        target_name: String,
+        tally: HashMap<ItemId, u32>,
+        unrecognized: usize,
+        observed_weight: Option<f32>,
+    },
+}
+
+/// The handles this pane needs to drive a box-scan session: the VR runtime (to
+/// toggle box-scan mode), the worker command channel, and the session state.
+struct ScanCtx<'a> {
+    vr: &'a Arc<crate::vr::Runtime>,
+    cmd_tx: &'a Sender<BoxCommand>,
+    ui_state: &'a mut Option<BoxScanUi>,
+}
+
 /// One KPI row, snapshot once per frame so the table body never re-locks state.
 /// Weight/value are best-effort sums (items with unknown weight/price are
 /// skipped, matching the Items DB footer).
@@ -111,6 +198,9 @@ struct Row {
     display_icon: String,
     /// The container's stored icon choice (None = default). Unused for the stash.
     icon: Option<String>,
+    /// Bag vs box — partitions Declarative (bags) from Primary (boxes). The
+    /// stash is rendered separately in Primary and ignores this.
+    kind: ContainerKind,
     /// Distinct item types held — matches the historical "(N items)" count.
     item_count: usize,
     weight: f32,
@@ -148,12 +238,21 @@ fn compute_kpis(s: &AppState, contents: &HashMap<ItemId, u32>) -> (usize, f32, u
     (contents.len(), weight, value)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn ui(
     ui: &mut egui::Ui,
     state: &Arc<RwLock<AppState>>,
     icons: &mut IconCache,
     save_tx: &Sender<SaveTick>,
+    vr: &Arc<crate::vr::Runtime>,
+    box_cmd_tx: &Sender<BoxCommand>,
+    box_scan: &mut Option<BoxScanUi>,
 ) {
+    let mut scan = ScanCtx {
+        vr,
+        cmd_tx: box_cmd_tx,
+        ui_state: box_scan,
+    };
     ui.add_space(4.0);
     ui.label(
         egui::RichText::new("Containers")
@@ -172,7 +271,7 @@ pub fn ui(
     ui.add_space(8.0);
 
     // Snapshot the stash row + every container row in one read lock.
-    let (stash_row, mut rows) = {
+    let (stash_row, rows) = {
         let s = state.read();
         let (sc, sw, sv) = compute_kpis(&s, &s.collected);
         let stash_row = Row {
@@ -180,6 +279,7 @@ pub fn ui(
             name: "Stash".to_string(),
             display_icon: STASH_ICON.to_string(),
             icon: None,
+            kind: ContainerKind::Bag,
             item_count: sc,
             weight: sw,
             value: sv,
@@ -194,6 +294,7 @@ pub fn ui(
                     name: c.name.clone(),
                     display_icon: resolve_icon_key(&c.icon).to_string(),
                     icon: c.icon.clone(),
+                    kind: c.kind,
                     item_count: count,
                     weight,
                     value,
@@ -203,31 +304,68 @@ pub fn ui(
         (stash_row, rows)
     };
 
-    // --- Primary table: the stash, on its own. ---
-    ui.add_space(2.0);
-    section_title(ui, "Primary");
-    column_header(ui, false);
-    container_row(ui, state, icons, save_tx, &stash_row);
-
-    // --- Vertical gap, then the secondary table with its own sortable header. ---
-    ui.add_space(18.0);
-    section_title(ui, "Secondary");
-    column_header(ui, true);
+    // Group secondary containers by kind into their own sections. Primary is
+    // the stash alone — the store hideout upgrades consume from — then Cases
+    // (scannable), Shelves, and Bags (both declarative/manual). Empty
+    // secondary sections are hidden; the "New container" button adds any kind.
     let sort = sort_state(ui.ctx());
-    sort_rows(&mut rows, sort);
-    for row in &rows {
-        container_row(ui, state, icons, save_tx, row);
+    let mut case_rows: Vec<Row> = Vec::new();
+    let mut bag_rows: Vec<Row> = Vec::new();
+    let mut shelf_rows: Vec<Row> = Vec::new();
+    for row in rows {
+        match row.kind {
+            ContainerKind::Case => case_rows.push(row),
+            ContainerKind::Shelf => shelf_rows.push(row),
+            ContainerKind::Bag => bag_rows.push(row),
+        }
+    }
+    sort_rows(&mut case_rows, sort);
+    sort_rows(&mut bag_rows, sort);
+    sort_rows(&mut shelf_rows, sort);
+
+    // --- Primary: the stash. ---
+    ui.add_space(2.0);
+    section_title(ui, "Primary storage");
+    section_caption(
+        ui,
+        "The stash — where items must be for hideout upgrades. Scannable.",
+    );
+    column_header(ui, true);
+    container_row(ui, state, icons, save_tx, &mut scan, &stash_row);
+
+    // --- Secondary sections, each shown only when it has containers. Order:
+    // Cases (scannable) first, then the manual kinds Shelves and Bags. ---
+    for (title, caption, section_rows) in [
+        (
+            "Cases",
+            "Contents can be filled by scanning their screen.",
+            &case_rows,
+        ),
+        ("Shelves", "Hideout shelves — entered by hand.", &shelf_rows),
+        ("Bags", "Entered by hand — no screen to scan.", &bag_rows),
+    ] {
+        if section_rows.is_empty() {
+            continue;
+        }
+        ui.add_space(18.0);
+        section_title(ui, title);
+        section_caption(ui, caption);
+        column_header(ui, true);
+        for row in section_rows {
+            container_row(ui, state, icons, save_tx, &mut scan, row);
+        }
     }
 
-    // "New container" lives at the bottom of the Secondary section — it's the
-    // action that adds a row here, so it sits where the next row would go
-    // (and stands in for an empty-state message when there are none).
+    // "New container" adds either kind (type chosen in the modal); sits below
+    // both sections.
     ui.add_space(6.0);
     if ui
         .add(egui::Button::new(
             egui::RichText::new("➕  New container").strong(),
         ))
-        .on_hover_text("Create a backpack or box: name it and pick an icon")
+        .on_hover_text(
+            "Create a case (scannable) or a shelf/bag (manual): name it, pick a type + icon",
+        )
         .clicked()
     {
         open_new_container_modal(ui.ctx());
@@ -238,6 +376,12 @@ pub fn ui(
 
     // The "New container" modal (name + icon grid), when open.
     new_container_modal(ui.ctx(), state, icons, save_tx);
+
+    // The centered live-scan window, while a session is capturing.
+    box_scan_live_window(ui.ctx(), state, &mut scan);
+
+    // The box-scan confirm/preview modal, when a session is in its review phase.
+    box_review_modal(ui.ctx(), state, save_tx, &mut scan);
 }
 
 // --- "New container" modal -------------------------------------------------
@@ -249,6 +393,8 @@ const NEW_FOCUS_KEY: &str = "ctr-new-focus";
 /// When present, the modal is editing this existing container (Save writes to
 /// it) rather than creating a new one.
 const NEW_EDIT_KEY: &str = "ctr-new-edit-id";
+/// Chosen [`ContainerKind`] in the create/edit modal.
+const NEW_KIND_KEY: &str = "ctr-new-kind";
 
 /// Open the modal in *create* mode: blank name, default icon, focus the field.
 fn open_new_container_modal(ctx: &egui::Context) {
@@ -260,18 +406,26 @@ fn open_new_container_modal(ctx: &egui::Context) {
             egui::Id::new(NEW_ICON_KEY),
             DEFAULT_CONTAINER_ICON.to_string(),
         );
+        d.insert_temp(egui::Id::new(NEW_KIND_KEY), ContainerKind::default());
         d.insert_temp(egui::Id::new(NEW_FOCUS_KEY), true);
     });
 }
 
-/// Open the modal in *edit* mode: pre-fill the given container's name + icon;
-/// Save writes back to it.
-fn open_edit_container_modal(ctx: &egui::Context, id: &ContainerId, name: &str, icon: &str) {
+/// Open the modal in *edit* mode: pre-fill the given container's name, icon, and
+/// kind; Save writes back to it.
+fn open_edit_container_modal(
+    ctx: &egui::Context,
+    id: &ContainerId,
+    name: &str,
+    icon: &str,
+    kind: ContainerKind,
+) {
     ctx.data_mut(|d| {
         d.insert_temp(egui::Id::new(NEW_OPEN_KEY), true);
         d.insert_temp(egui::Id::new(NEW_EDIT_KEY), id.clone());
         d.insert_temp(egui::Id::new(NEW_NAME_KEY), name.to_string());
         d.insert_temp(egui::Id::new(NEW_ICON_KEY), icon.to_string());
+        d.insert_temp(egui::Id::new(NEW_KIND_KEY), kind);
         d.insert_temp(egui::Id::new(NEW_FOCUS_KEY), true);
     });
 }
@@ -282,6 +436,7 @@ fn close_new_container_modal(ctx: &egui::Context) {
         d.remove::<ContainerId>(egui::Id::new(NEW_EDIT_KEY));
         d.remove::<String>(egui::Id::new(NEW_NAME_KEY));
         d.remove::<String>(egui::Id::new(NEW_ICON_KEY));
+        d.remove::<ContainerKind>(egui::Id::new(NEW_KIND_KEY));
     });
 }
 
@@ -309,6 +464,9 @@ fn new_container_modal(
     let mut chosen_icon = ctx
         .data(|d| d.get_temp::<String>(egui::Id::new(NEW_ICON_KEY)))
         .unwrap_or_else(|| DEFAULT_CONTAINER_ICON.to_string());
+    let mut kind = ctx
+        .data(|d| d.get_temp::<ContainerKind>(egui::Id::new(NEW_KIND_KEY)))
+        .unwrap_or_default();
     let want_focus = ctx
         .data(|d| d.get_temp::<bool>(egui::Id::new(NEW_FOCUS_KEY)))
         .unwrap_or(false);
@@ -351,13 +509,39 @@ fn new_container_modal(
             });
 
             ui.add_space(10.0);
+            ui.horizontal(|ui| {
+                ui.label("Type:");
+                ui.selectable_value(&mut kind, ContainerKind::Case, "Case")
+                    .on_hover_text(
+                        "An item case with a contents screen — fill it by scanning screenshots",
+                    );
+                ui.selectable_value(&mut kind, ContainerKind::Shelf, "Shelf")
+                    .on_hover_text("A shelf — manual entry, its own category");
+                ui.selectable_value(&mut kind, ContainerKind::Bag, "Bag")
+                    .on_hover_text("A backpack or pouch — contents entered by hand");
+            });
+
+            // Icon set follows the (possibly just-changed) type. If the current
+            // selection isn't valid for the new set, snap to that set's default.
+            let icon_set = icon_set_for(kind);
+            if !icon_set.contains(&chosen_icon.as_str()) {
+                chosen_icon = default_icon_for(kind).to_string();
+            }
+            ui.add_space(10.0);
             ui.label("Icon:");
             ui.add_space(4.0);
             ui.horizontal_wrapped(|ui| {
-                for &key in CONTAINER_ICONS {
-                    if icon_choice(ui, icons, key, key == chosen_icon, 88.0) {
-                        chosen_icon = key.to_string();
-                    }
+                for &key in icon_set {
+                    ui.allocate_ui_with_layout(
+                        egui::vec2(104.0, 126.0),
+                        egui::Layout::top_down(egui::Align::Center),
+                        |ui| {
+                            if icon_choice(ui, icons, key, key == chosen_icon, 88.0) {
+                                chosen_icon = key.to_string();
+                            }
+                            ui.label(egui::RichText::new(icon_label(key)).small());
+                        },
+                    );
                 }
             });
 
@@ -389,6 +573,7 @@ fn new_container_modal(
     ctx.data_mut(|d| {
         d.insert_temp(egui::Id::new(NEW_NAME_KEY), name.clone());
         d.insert_temp(egui::Id::new(NEW_ICON_KEY), chosen_icon.clone());
+        d.insert_temp(egui::Id::new(NEW_KIND_KEY), kind);
     });
 
     if do_create && !name.trim().is_empty() {
@@ -399,10 +584,13 @@ fn new_container_modal(
                 let mut w = state.write();
                 w.rename_container(id, trimmed);
                 w.set_container_icon(id, Some(chosen_icon));
+                w.set_container_kind(id, kind);
             }
             None => {
                 let id = state.write().create_container(trimmed);
-                state.write().set_container_icon(&id, Some(chosen_icon));
+                let mut w = state.write();
+                w.set_container_icon(&id, Some(chosen_icon));
+                w.set_container_kind(&id, kind);
             }
         }
         notify(state, save_tx);
@@ -549,6 +737,16 @@ fn section_title(ui: &mut egui::Ui, text: &str) {
     ui.add_space(2.0);
 }
 
+/// One-line explanatory caption under a section title.
+fn section_caption(ui: &mut egui::Ui, text: &str) {
+    ui.label(
+        egui::RichText::new(text)
+            .small()
+            .color(ui.visuals().weak_text_color()),
+    );
+    ui.add_space(2.0);
+}
+
 /// Column header row, aligned to the same [`cols`] geometry as the data rows.
 /// When `sortable`, the KPI cells toggle the persisted sort on click.
 fn column_header(ui: &mut egui::Ui, sortable: bool) {
@@ -641,6 +839,7 @@ fn container_row(
     state: &Arc<RwLock<AppState>>,
     icons: &mut IconCache,
     save_tx: &Sender<SaveTick>,
+    scan: &mut ScanCtx,
     row: &Row,
 ) {
     let header_tex = icons
@@ -704,6 +903,7 @@ fn container_row(
                 id,
                 &row.name,
                 resolve_icon_key(&row.icon),
+                row.kind,
             );
         }
     }
@@ -715,7 +915,7 @@ fn container_row(
 
     // Body: the item list + add-item, only while expanded.
     if is_open {
-        container_body(ui, state, icons, save_tx, row);
+        container_body(ui, state, icons, save_tx, scan, row);
     }
 }
 
@@ -729,13 +929,14 @@ fn row_actions(
     id: &ContainerId,
     name: &str,
     icon_key: &str,
+    kind: ContainerKind,
 ) {
     if ui
         .button("Edit")
-        .on_hover_text("Rename and change the icon")
+        .on_hover_text("Rename, change the icon, or switch type")
         .clicked()
     {
-        open_edit_container_modal(ui.ctx(), id, name, icon_key);
+        open_edit_container_modal(ui.ctx(), id, name, icon_key, kind);
     }
     if pending_delete(ui.ctx()).as_deref() == Some(id.as_str()) {
         if ui
@@ -769,6 +970,7 @@ fn container_body(
     state: &Arc<RwLock<AppState>>,
     icons: &mut IconCache,
     save_tx: &Sender<SaveTick>,
+    scan: &mut ScanCtx,
     row: &Row,
 ) {
     if row.target.is_stash() {
@@ -783,6 +985,17 @@ fn container_body(
             );
         });
         ui.add_space(6.0);
+        // The stash is primary, scannable storage too.
+        box_scan_section(ui, ScanTarget::Stash, "Stash", scan);
+        ui.add_space(4.0);
+    }
+
+    // Box-scan controls — cases are scannable storage; bags/shelves are manual.
+    if let Target::Container(id) = &row.target {
+        if row.kind == ContainerKind::Case {
+            box_scan_section(ui, ScanTarget::Container(id.clone()), &row.name, scan);
+            ui.add_space(4.0);
+        }
     }
 
     contents_editor(ui, state, icons, save_tx, &row.target);
@@ -1116,6 +1329,438 @@ fn notify(state: &Arc<RwLock<AppState>>, save_tx: &Sender<SaveTick>) {
     let _ = save_tx.try_send(SaveTick { version: v });
 }
 
+// --- Box-scan session UI ---------------------------------------------------
+
+const SCAN_HINT: &str = "Open the box's screen in-game and press SPACE at each scroll \
+                         position. Overlap shots by about one row so they line up.";
+const WARN_COL: egui::Color32 = egui::Color32::from_rgb(200, 140, 0);
+/// Red used for the "this REPLACES current contents" warning and the removed
+/// rows in the review diff. Matches the diff's `removed` swatch (210,90,90).
+const DANGER_COL: egui::Color32 = egui::Color32::from_rgb(210, 90, 90);
+
+/// The one-line caution shown both during the live scan and atop the review
+/// modal: applying a scan is a full replace, not a merge. `{name}` is the
+/// target store ("Stash" or the container name).
+fn flush_warning(name: &str) -> String {
+    format!(
+        "Applying will REPLACE everything in “{name}” with the scan — items not seen are removed."
+    )
+}
+
+/// Sum of `Item.weight × count` over a tally — the "computed" side of the
+/// box-screen weight checksum.
+fn computed_weight(s: &AppState, tally: &HashMap<ItemId, u32>) -> f32 {
+    tally
+        .iter()
+        .map(|(id, &n)| {
+            s.index
+                .items_by_id
+                .get(id)
+                .and_then(|it| it.weight)
+                .unwrap_or(0.0)
+                * n as f32
+        })
+        .sum()
+}
+
+/// `(id, name, count)` rows for a tally, names resolved from the data index.
+fn tally_rows(s: &AppState, tally: &HashMap<ItemId, u32>) -> Vec<(ItemId, String, u32)> {
+    tally
+        .iter()
+        .map(|(id, &n)| {
+            let name = s
+                .index
+                .items_by_id
+                .get(id)
+                .map(|it| it.name.clone())
+                .unwrap_or_else(|| id.clone());
+            (id.clone(), name, n)
+        })
+        .collect()
+}
+
+fn warn_label(ui: &mut egui::Ui, text: &str) {
+    ui.label(egui::RichText::new(text).color(WARN_COL));
+}
+
+/// Like [`warn_label`] but in the stronger [`DANGER_COL`] red and bold — for
+/// the destructive REPLACE/flush caution, not a soft recapture hint.
+fn warn_label_danger(ui: &mut egui::Ui, text: &str) {
+    ui.label(egui::RichText::new(text).color(DANGER_COL).strong());
+}
+
+/// Inline box-scan control for one store's row: the "Scan from screen" start
+/// button, or — while *this* store is the active scan — a compact stub that
+/// points at the centered live window (rendered by [`box_scan_live_window`]).
+/// The full live panel deliberately lives in that floating window, not here, so
+/// it can't scroll off-screen inside the container table.
+fn box_scan_section(ui: &mut egui::Ui, target: ScanTarget, target_name: &str, scan: &mut ScanCtx) {
+    let scanning_this = matches!(
+        scan.ui_state.as_ref(),
+        Some(BoxScanUi::Scanning { target: t, .. }) if *t == target
+    );
+    let busy_elsewhere = scan.ui_state.is_some() && !scanning_this;
+
+    ui.horizontal(|ui| {
+        ui.add_space(LEAD);
+        if scanning_this {
+            // The controls live in the centered window; just signpost it here.
+            ui.label(
+                egui::RichText::new("● Scanning… (see the scan window)")
+                    .color(WARN_COL)
+                    .strong(),
+            );
+            return;
+        }
+        let btn = egui::Button::new("Scan from screen");
+        if busy_elsewhere {
+            ui.add_enabled(false, btn)
+                .on_hover_text("Finish the active scan first");
+        } else if ui
+            .add(btn)
+            .on_hover_text("Read this store's contents screen across several scroll captures")
+            .clicked()
+        {
+            scan.vr.set_box_scan_mode(true);
+            let _ = scan.cmd_tx.send(BoxCommand::Start {
+                target: target.clone(),
+            });
+            *scan.ui_state = Some(BoxScanUi::Scanning {
+                target: target.clone(),
+                target_name: target_name.to_string(),
+                latest: None,
+            });
+        }
+    });
+}
+
+/// The centered, always-visible live-scan window, shown while a box scan is in
+/// its capture phase. Rendered once at the top level (only one scan is ever
+/// active) so it floats above the container table instead of scrolling with a
+/// row. Shows the running tally, status, weight checksum, the up-front
+/// REPLACE/flush warning, and the Finish / Cancel controls.
+fn box_scan_live_window(ctx: &egui::Context, state: &Arc<RwLock<AppState>>, scan: &mut ScanCtx) {
+    let (target_name, latest) = match scan.ui_state.as_ref() {
+        Some(BoxScanUi::Scanning {
+            target_name,
+            latest,
+            ..
+        }) => (target_name.clone(), latest.clone()),
+        _ => return,
+    };
+
+    let mut finish = false;
+    let mut cancel = false;
+
+    egui::Window::new(format!("Box scan — {target_name}"))
+        .collapsible(false)
+        .resizable(false)
+        .default_width(420.0)
+        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+        .show(ctx, |ui| {
+            ui.label(
+                egui::RichText::new(SCAN_HINT)
+                    .small()
+                    .color(ui.visuals().weak_text_color()),
+            );
+            // Up-front flush caution: the user should know this is a replace
+            // before they invest several captures, not only at the review step.
+            ui.add_space(4.0);
+            warn_label_danger(ui, &flush_warning(&target_name));
+            ui.separator();
+
+            match &latest {
+                None => {
+                    ui.label(egui::RichText::new("Waiting for the first capture…").italics());
+                }
+                Some(u) => {
+                    let total: u32 = u.tally.values().sum();
+                    let mut line = format!("{} capture(s) · {} item(s)", u.captures, total);
+                    if u.unrecognized > 0 {
+                        line.push_str(&format!(" · {} unrecognized", u.unrecognized));
+                    }
+                    ui.label(line);
+
+                    match u.status {
+                        BoxScanStatus::NeedsRecapture => warn_label(
+                            ui,
+                            "Last shot didn't line up — scroll back up a little and recapture.",
+                        ),
+                        BoxScanStatus::NoTiles => warn_label(
+                            ui,
+                            "Last shot saw no items — make sure the box screen is visible.",
+                        ),
+                        BoxScanStatus::Ok => {}
+                    }
+
+                    if let Some(observed) = u.observed_weight {
+                        let computed = computed_weight(&state.read(), &u.tally);
+                        let close = (computed - observed).abs() <= (observed * 0.1).max(0.5);
+                        let col = if close {
+                            egui::Color32::from_rgb(80, 170, 90)
+                        } else {
+                            WARN_COL
+                        };
+                        ui.label(
+                            egui::RichText::new(format!(
+                                "weight: computed {computed:.1} / observed {observed:.1} kg"
+                            ))
+                            .small()
+                            .color(col),
+                        );
+                    }
+
+                    let mut rows = tally_rows(&state.read(), &u.tally);
+                    rows.sort_by(|a, b| {
+                        b.2.cmp(&a.2)
+                            .then_with(|| a.1.to_lowercase().cmp(&b.1.to_lowercase()))
+                    });
+                    if !rows.is_empty() {
+                        egui::ScrollArea::vertical()
+                            .max_height(220.0)
+                            .id_salt("box-scan-tally")
+                            .show(ui, |ui| {
+                                for (_, name, qty) in &rows {
+                                    ui.label(format!("  {qty} × {name}"));
+                                }
+                            });
+                    }
+                }
+            }
+
+            ui.separator();
+            ui.horizontal(|ui| {
+                if ui
+                    .add(egui::Button::new(
+                        egui::RichText::new("Finish & review").strong(),
+                    ))
+                    .clicked()
+                {
+                    finish = true;
+                }
+                if ui.button("Cancel scan").clicked() {
+                    cancel = true;
+                }
+            });
+        });
+
+    if finish {
+        if let Some(BoxScanUi::Scanning {
+            target,
+            target_name,
+            latest,
+        }) = scan.ui_state.take()
+        {
+            scan.vr.set_box_scan_mode(false);
+            let _ = scan.cmd_tx.send(BoxCommand::Finish);
+            let (tally, unrecognized, observed_weight) = latest
+                .map(|u| (u.tally, u.unrecognized, u.observed_weight))
+                .unwrap_or_default();
+            *scan.ui_state = Some(BoxScanUi::Reviewing {
+                target,
+                target_name,
+                tally,
+                unrecognized,
+                observed_weight,
+            });
+        }
+    } else if cancel {
+        scan.vr.set_box_scan_mode(false);
+        let _ = scan.cmd_tx.send(BoxCommand::Cancel);
+        *scan.ui_state = None;
+    }
+}
+
+/// The Finish confirm/preview modal: a diff of the scanned tally vs the
+/// container's current contents (new green, changed amber, removed red), a
+/// weight checksum, and Apply / Discard. Apply does a REPLACE — scanned counts
+/// overwrite, and items absent from the scan are removed.
+fn box_review_modal(
+    ctx: &egui::Context,
+    state: &Arc<RwLock<AppState>>,
+    save_tx: &Sender<SaveTick>,
+    scan: &mut ScanCtx,
+) {
+    // Own a snapshot, ending the borrow on `scan.ui_state` before we mutate it.
+    let (target, target_name, tally, unrecognized, observed_weight) = match scan.ui_state.as_ref() {
+        Some(BoxScanUi::Reviewing {
+            target,
+            target_name,
+            tally,
+            unrecognized,
+            observed_weight,
+        }) => (
+            target.clone(),
+            target_name.clone(),
+            tally.clone(),
+            *unrecognized,
+            *observed_weight,
+        ),
+        _ => return,
+    };
+
+    let mut open = true;
+    let mut apply = false;
+    let mut discard = false;
+
+    egui::Window::new(format!("Apply box scan to {target_name}?"))
+        .open(&mut open)
+        .collapsible(false)
+        .resizable(false)
+        .default_width(520.0)
+        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+        .show(ctx, |ui| {
+            let s = state.read();
+            let current: HashMap<ItemId, u32> = match &target {
+                ScanTarget::Stash => s.collected.clone(),
+                ScanTarget::Container(cid) => s
+                    .containers
+                    .iter()
+                    .find(|c| &c.id == cid)
+                    .map(|c| c.contents.clone())
+                    .unwrap_or_default(),
+            };
+
+            let total: u32 = tally.values().sum();
+            ui.label(format!(
+                "Replace contents with the scan: {} item(s), {} type(s).",
+                total,
+                tally.len()
+            ));
+            warn_label_danger(ui, &flush_warning(&target_name));
+            if unrecognized > 0 {
+                warn_label(
+                    ui,
+                    &format!("{unrecognized} tile(s) weren't recognized and are left out."),
+                );
+            }
+            if let Some(observed) = observed_weight {
+                let computed = computed_weight(&s, &tally);
+                ui.label(
+                    egui::RichText::new(format!(
+                        "weight: computed {computed:.1} / observed {observed:.1} kg"
+                    ))
+                    .small()
+                    .color(ui.visuals().weak_text_color()),
+                );
+            }
+            ui.separator();
+
+            // Diff over the union of current + scanned ids.
+            let mut ids: Vec<ItemId> = current.keys().chain(tally.keys()).cloned().collect();
+            ids.sort();
+            ids.dedup();
+            let mut rows: Vec<(String, u32, u32)> = ids
+                .iter()
+                .map(|id| {
+                    let name = s
+                        .index
+                        .items_by_id
+                        .get(id)
+                        .map(|it| it.name.clone())
+                        .unwrap_or_else(|| id.clone());
+                    (
+                        name,
+                        *current.get(id).unwrap_or(&0),
+                        *tally.get(id).unwrap_or(&0),
+                    )
+                })
+                .collect();
+            rows.sort_by_key(|r| r.0.to_lowercase());
+
+            egui::ScrollArea::vertical()
+                .max_height(300.0)
+                .id_salt("box-review")
+                .show(ui, |ui| {
+                    egui::Grid::new("box-review-grid")
+                        .num_columns(3)
+                        .striped(true)
+                        .show(ui, |ui| {
+                            ui.label(egui::RichText::new("Item").strong());
+                            ui.label(egui::RichText::new("Now").strong());
+                            ui.label(egui::RichText::new("After").strong());
+                            ui.end_row();
+                            for (name, now, after) in &rows {
+                                let col = if *after == 0 && *now > 0 {
+                                    Some(egui::Color32::from_rgb(210, 90, 90)) // removed
+                                } else if *now == 0 && *after > 0 {
+                                    Some(egui::Color32::from_rgb(80, 170, 90)) // new
+                                } else if now != after {
+                                    Some(egui::Color32::from_rgb(205, 165, 60)) // changed
+                                } else {
+                                    None
+                                };
+                                let paint = |t: String| match col {
+                                    Some(c) => egui::RichText::new(t).color(c),
+                                    None => egui::RichText::new(t),
+                                };
+                                ui.label(paint(name.clone()));
+                                ui.label(paint(now.to_string()));
+                                ui.label(paint(after.to_string()));
+                                ui.end_row();
+                            }
+                        });
+                });
+
+            ui.separator();
+            ui.horizontal(|ui| {
+                if ui
+                    .add(
+                        egui::Button::new(egui::RichText::new("Apply (replace contents)").strong())
+                            .fill(egui::Color32::from_rgb(60, 120, 70)),
+                    )
+                    .clicked()
+                {
+                    apply = true;
+                }
+                if ui.button("Discard").clicked() {
+                    discard = true;
+                }
+            });
+        });
+
+    if apply {
+        // REPLACE: scanned counts overwrite, and items present before but absent
+        // from the scan are removed — for the stash or a container alike.
+        {
+            let mut w = state.write();
+            match &target {
+                ScanTarget::Stash => {
+                    let current_ids: Vec<ItemId> = w.collected.keys().cloned().collect();
+                    for (id, &n) in &tally {
+                        w.set_collected(id, n);
+                    }
+                    for id in &current_ids {
+                        if !tally.contains_key(id) {
+                            w.set_collected(id, 0);
+                        }
+                    }
+                }
+                ScanTarget::Container(cid) => {
+                    let current_ids: Vec<ItemId> = w
+                        .containers
+                        .iter()
+                        .find(|c| &c.id == cid)
+                        .map(|c| c.contents.keys().cloned().collect())
+                        .unwrap_or_default();
+                    for (id, &n) in &tally {
+                        w.set_container_item(cid, id, n);
+                    }
+                    for id in &current_ids {
+                        if !tally.contains_key(id) {
+                            w.set_container_item(cid, id, 0);
+                        }
+                    }
+                }
+            }
+        }
+        notify(state, save_tx);
+        *scan.ui_state = None;
+    } else if discard || !open {
+        *scan.ui_state = None;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     //! Headless GUI tests for the Containers pane, driving `ui` through
@@ -1156,10 +1801,27 @@ mod tests {
     fn harness(state: &Arc<RwLock<AppState>>) -> Harness<'static> {
         let ui_state = Arc::clone(state);
         let (save_tx, _save_rx) = crossbeam_channel::unbounded::<SaveTick>();
+        // The pane now takes a VR runtime + box-scan plumbing for the
+        // contents-scan feature. None of the delete/contrast cases below start a
+        // scan, so a worker-less runtime, a drained command channel, and an
+        // empty session are enough to satisfy the signature.
+        let (box_cmd_tx, _box_cmd_rx) = crossbeam_channel::unbounded::<BoxCommand>();
+        let vr = Arc::new(crate::vr::Runtime::disconnected_for_test());
         let mut icons = IconCache::new();
+        let mut box_scan: Option<BoxScanUi> = None;
         Harness::builder()
             .with_size(egui::vec2(1000.0, 800.0))
-            .build_ui(move |ui| super::ui(ui, &ui_state, &mut icons, &save_tx))
+            .build_ui(move |ui| {
+                super::ui(
+                    ui,
+                    &ui_state,
+                    &mut icons,
+                    &save_tx,
+                    &vr,
+                    &box_cmd_tx,
+                    &mut box_scan,
+                )
+            })
     }
 
     #[test]

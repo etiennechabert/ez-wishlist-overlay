@@ -31,6 +31,17 @@ const ROW_H: f32 = 24.0;
 /// bar is wide enough to read the "c / n" overlay.
 const PROGRESS_NAME_W: f32 = 210.0;
 const PROGRESS_BAR_W: f32 = 180.0;
+/// Padding baked *inside* each By-progress row so its readiness tint reads as a
+/// rounded pill wrapping the widgets rather than a tight band: the row is this
+/// much taller than the bare content (`.y`, split above/below) and inset this
+/// much at the left and right ends (`.x`). Paired with [`PROGRESS_ROW_GAP`] so
+/// adjacent pills keep a visible gap, and [`PROGRESS_BG_ROUNDING`] for the
+/// corner radius.
+const PROGRESS_BG_PAD: egui::Vec2 = egui::vec2(8.0, 4.0);
+/// Vertical gap left between consecutive By-progress pills.
+const PROGRESS_ROW_GAP: f32 = 4.0;
+/// Corner radius of the By-progress readiness pill.
+const PROGRESS_BG_ROUNDING: f32 = 5.0;
 /// Visual left-indent applied to child rows so the hierarchy is unambiguous
 /// at a glance. ~one toggle-width — child toggle column aligns with the
 /// parent's name column.
@@ -691,7 +702,7 @@ fn upgrade_cell(
     }
 }
 
-/// The Track / Done / (Pin) / Edit control cluster shared by the grid cell and
+/// The Track / (Pin) / Done / Edit control cluster shared by the grid cell and
 /// the "By progress" list row, so the two never drift. Reads and self-applies
 /// tracked/completed/pinned mutations (+ notify) exactly as the old inline block
 /// in `upgrade_cell` did, and toggles the ctx-memory selection that drives the
@@ -730,18 +741,20 @@ fn upgrade_controls(
             .on_disabled_hover_text(
                 "Recipe unknown — open Edit and fill it in before you can track it.",
             );
-        ui.checkbox(&mut done, "Done");
-        // Pin only makes sense for a live target — a tracked, not-yet-completed
-        // upgrade. Hidden otherwise so the control never implies you can
-        // prioritize something you're not working toward. (A pin set earlier
-        // survives untracking inertly; it just isn't editable here until the
-        // upgrade is tracked again.)
-        if show_pin && tracked && !done {
-            ui.checkbox(&mut pinned, "Pin").on_hover_text(
-                "Prioritize: float this upgrade to the top of the list and its \
-                 items to the front of the overlay.",
-            );
+        // Pin sits between Track and Done, By-progress only (`show_pin`; the
+        // width-capped grid omits it). Always rendered for a stable cluster but
+        // enabled only once the upgrade is tracked — pinning prioritizes a
+        // tracked upgrade's items in the overlay — so it grays out as a "Track
+        // it first" cue rather than disappearing.
+        if show_pin {
+            ui.add_enabled(tracked, egui::Checkbox::new(&mut pinned, "Pin"))
+                .on_hover_text(
+                    "Prioritize: float this upgrade to the top of the list and \
+                     its items to the front of the overlay.",
+                )
+                .on_disabled_hover_text("Track this upgrade first, then you can pin it.");
         }
+        ui.checkbox(&mut done, "Done");
         ui.add_space(4.0);
 
         let label = if is_selected { "Hide" } else { "Edit" };
@@ -985,6 +998,7 @@ fn progress_list(ui: &mut egui::Ui, state: &Arc<RwLock<AppState>>, save_tx: &Sen
         );
         return;
     }
+    ui.add_space(PROGRESS_ROW_GAP);
     for (idx, row) in rows.iter().enumerate() {
         progress_row(ui, state, save_tx, idx, row);
     }
@@ -1007,7 +1021,8 @@ fn progress_row(
     let accent_idx = ui.painter().add(egui::Shape::Noop);
 
     let inner = ui.horizontal(|ui| {
-        ui.set_min_height(ROW_H);
+        ui.set_min_height(ROW_H + 2.0 * PROGRESS_BG_PAD.y);
+        ui.add_space(PROGRESS_BG_PAD.x);
         ui.allocate_ui_with_layout(
             egui::vec2(PROGRESS_NAME_W, ROW_H),
             egui::Layout::left_to_right(egui::Align::Center),
@@ -1036,6 +1051,7 @@ fn progress_row(
 
         ui.add_space(8.0);
         upgrade_controls(ui, state, save_tx, &row.upgrade_id, true);
+        ui.add_space(PROGRESS_BG_PAD.x);
     });
 
     // Ready rows get the warm `ready_fill` so closeness-to-claimable pops before
@@ -1054,20 +1070,25 @@ fn progress_row(
         egui::Color32::TRANSPARENT
     };
     if bg != egui::Color32::TRANSPARENT {
-        ui.painter()
-            .set(bg_idx, egui::epaint::RectShape::filled(row_rect, 2.0, bg));
-    }
-    // Pinned rows get a thin violet left stripe — a priority cue independent of
-    // the readiness tint, painted over the bg.
-    if row.pinned {
-        let stripe =
-            egui::Rect::from_min_size(row_rect.left_top(), egui::vec2(3.0, row_rect.height()));
         ui.painter().set(
-            accent_idx,
-            egui::epaint::RectShape::filled(stripe, 0.0, theme::pinned_accent(dark)),
+            bg_idx,
+            egui::epaint::RectShape::filled(row_rect, PROGRESS_BG_ROUNDING, bg),
         );
     }
-    ui.add_space(2.0);
+    // Pinned rows get a thin violet left stripe — a priority cue independent of
+    // the readiness tint, painted over the bg. Inset to the pill's rounded
+    // corners so it doesn't poke past them.
+    if row.pinned {
+        let stripe = egui::Rect::from_min_size(
+            row_rect.left_top() + egui::vec2(0.0, PROGRESS_BG_ROUNDING),
+            egui::vec2(3.0, row_rect.height() - 2.0 * PROGRESS_BG_ROUNDING),
+        );
+        ui.painter().set(
+            accent_idx,
+            egui::epaint::RectShape::filled(stripe, 1.5, theme::pinned_accent(dark)),
+        );
+    }
+    ui.add_space(PROGRESS_ROW_GAP);
 }
 
 /// Small status chip on a By-progress row: "ready" once every material is in,

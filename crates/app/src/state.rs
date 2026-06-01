@@ -17,6 +17,24 @@ pub const OVERRIDES_SCHEMA_VERSION: u32 = 1;
 
 pub type ContainerId = String;
 
+/// What kind of secondary container this is. Only [`ContainerKind::Case`]
+/// containers have an in-game contents screen, so only they support the
+/// screenshot/OCR scan; bags and shelves are entered by hand.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum ContainerKind {
+    /// A backpack or pouch — no screen; contents entered manually.
+    #[default]
+    Bag,
+    /// An item case with a contents screen — supports the scroll-and-stitch OCR
+    /// scan. Serialized as `"Case"`; the `"Box"` alias loads profiles written
+    /// before this kind was renamed from `Box`.
+    #[serde(alias = "Box")]
+    Case,
+    /// A shelf (hideout storage furniture) — declarative/manual like a bag, but
+    /// its own category. One is seeded by default on first run.
+    Shelf,
+}
+
 /// A user-defined secondary container — a backpack, item case, etc. Its
 /// contents count toward owned totals for upgrade readiness, progress,
 /// surplus, and the owned-items list exactly like the stash, but it's named
@@ -34,6 +52,11 @@ pub struct Container {
     /// Pure presentation; the data layer never interprets it.
     #[serde(default)]
     pub icon: Option<String>,
+    /// Whether this is a plain bag/case or a box with a scannable screen.
+    /// Defaults to `Bag` so containers saved before this field existed load
+    /// unchanged.
+    #[serde(default)]
+    pub kind: ContainerKind,
 }
 
 pub struct AppState {
@@ -59,6 +82,10 @@ pub struct AppState {
     /// Monotonic id source for `containers`; persisted so a deleted
     /// container's id is never reused while anything still references it.
     pub next_container_seq: u64,
+    /// Set once the built-in default Shelf has been created. Persisted so the
+    /// shelf is seeded exactly once per profile (fresh *or* pre-existing) and a
+    /// later deletion doesn't bring it back.
+    pub default_shelf_seeded: bool,
     /// Modules the user has marked as unavailable (e.g. quest-locked). Their
     /// tracked upgrades stay tracked but don't contribute to `active_items`,
     /// so the wishlist hides items the user can't act on yet.
@@ -102,6 +129,7 @@ impl AppState {
             collected: HashMap::new(),
             containers: Vec::new(),
             next_container_seq: 0,
+            default_shelf_seeded: false,
             disabled_modules: HashSet::new(),
             overrides: HashMap::new(),
             version: 0,
@@ -632,6 +660,7 @@ impl AppState {
             name,
             contents: HashMap::new(),
             icon: None,
+            kind: ContainerKind::default(),
         });
         self.bump();
         id
@@ -643,6 +672,17 @@ impl AppState {
         if let Some(c) = self.containers.iter_mut().find(|c| &c.id == id) {
             if c.icon != icon {
                 c.icon = icon;
+                self.bump();
+            }
+        }
+    }
+
+    /// Set a container's kind (bag vs box). No-op if the id is unknown or
+    /// unchanged.
+    pub fn set_container_kind(&mut self, id: &ContainerId, kind: ContainerKind) {
+        if let Some(c) = self.containers.iter_mut().find(|c| &c.id == id) {
+            if c.kind != kind {
+                c.kind = kind;
                 self.bump();
             }
         }
@@ -984,6 +1024,11 @@ pub struct PersistedState {
     pub containers: Vec<Container>,
     #[serde(default)]
     pub next_container_seq: u64,
+    /// Whether the built-in default Shelf has been seeded. `#[serde(default)]`
+    /// → a `state.json` predating this feature loads as `false`, so the shelf
+    /// is created once on the next launch.
+    #[serde(default)]
+    pub default_shelf_seeded: bool,
 }
 
 impl PersistedState {
@@ -998,6 +1043,7 @@ impl PersistedState {
             disabled_modules: state.disabled_modules.clone(),
             containers: state.containers.clone(),
             next_container_seq: state.next_container_seq,
+            default_shelf_seeded: state.default_shelf_seeded,
         }
     }
 
@@ -1055,6 +1101,7 @@ impl PersistedState {
         // with a surviving container.
         state.containers = self.containers;
         state.next_container_seq = self.next_container_seq;
+        state.default_shelf_seeded = self.default_shelf_seeded;
         state.bump();
 
         if warnings.is_empty() {
@@ -1722,6 +1769,7 @@ mod tests {
             disabled_modules: HashSet::new(),
             containers: Vec::new(),
             next_container_seq: 0,
+            default_shelf_seeded: false,
         };
         let warn = persisted.merge_into(&mut s).expect("should warn");
         assert!(warn.contains("Game data updated"));
@@ -2107,6 +2155,7 @@ mod tests {
         let mut s = AppState::new(fixture());
         let c = s.create_container("Backpack".into());
         s.set_container_item(&c, &"bolts".to_string(), 4);
+        s.set_container_kind(&c, ContainerKind::Case);
         let persisted = PersistedState::from_app(&s);
         let json = serde_json::to_string(&persisted).unwrap();
         let back: PersistedState = serde_json::from_str(&json).unwrap();
@@ -2116,12 +2165,33 @@ mod tests {
         assert_eq!(s2.containers.len(), 1);
         assert_eq!(s2.containers[0].name, "Backpack");
         assert_eq!(s2.containers[0].contents.get("bolts"), Some(&4));
+        assert_eq!(s2.containers[0].kind, ContainerKind::Case);
         assert_eq!(s2.owned_total(&"bolts".to_string()), 4);
         // The id counter survives so a freshly minted id can't collide with
         // the restored container.
         assert_eq!(s2.next_container_seq, 1);
         let c2 = s2.create_container("Item case".into());
         assert_ne!(c2, c);
+    }
+
+    #[test]
+    fn container_kind_box_alias_loads_as_case() {
+        // The scannable kind was renamed `Box` -> `Case`; a profile written
+        // before the rename stores `"kind": "Box"` and must still load (as
+        // `Case`) via the serde alias rather than falling back to the default.
+        let json = r#"{
+            "schema_version": 1,
+            "data_version": "test",
+            "collected": {},
+            "containers": [{"id": "ctr-1", "name": "Old box", "kind": "Box"}],
+            "next_container_seq": 1
+        }"#;
+        let back: PersistedState = serde_json::from_str(json).unwrap();
+        assert_eq!(back.containers[0].kind, ContainerKind::Case);
+        // The current spelling still loads too.
+        let json_new = json.replace("\"Box\"", "\"Case\"");
+        let back_new: PersistedState = serde_json::from_str(&json_new).unwrap();
+        assert_eq!(back_new.containers[0].kind, ContainerKind::Case);
     }
 
     #[test]
@@ -2375,6 +2445,7 @@ mod tests {
             disabled_modules: HashSet::new(),
             containers: Vec::new(),
             next_container_seq: 0,
+            default_shelf_seeded: false,
         };
         // Pruning an orphaned pin is silent — only dropped *tracked* upgrades warn.
         let warn = persisted.merge_into(&mut s);
