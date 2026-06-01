@@ -28,8 +28,8 @@ vr-fntable.txt
 ocr_data/
 
 # Native VR captures are now the OCR pipeline's ground-truth test set
-# (paired with `<UpgradeId>.label.txt` files). Committed despite their
-# size (~10 MB lossless per PNG, ~150 MB total) because the
+# (paired with `<UpgradeId>.label.txt` files). Committed as WebP q99
+# (~0.9 MB per capture, ~13 MB total; issue #110) because the
 # fixture-test + regression diagnostics depend on them. New
 # screenshots from `<data_dir>/debug/vr_screenshots/` should NOT be added
 # here unless they're meant as fixtures.

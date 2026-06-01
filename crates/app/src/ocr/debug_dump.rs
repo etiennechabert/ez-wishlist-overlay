@@ -84,7 +84,7 @@ pub struct CellDebug<'a> {
 ///
 /// The trailing `HHMMSS` is when **this dump** was written, separate
 /// from any timestamp the source filename might already carry. Useful
-/// for the fixture tests where the source name is just `BookcaseLv1.png`
+/// for the fixture tests where the source name is just `BookcaseLv1.webp`
 /// — without it, regenerated debug files would silently overwrite the
 /// previous run and you couldn't tell if a file on disk reflects the
 /// latest pipeline behaviour or a stale build's.
