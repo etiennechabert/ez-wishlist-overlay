@@ -723,18 +723,22 @@ mod fixture_tests {
     }
 
     fn fixture_dir() -> PathBuf {
-        // CARGO_MANIFEST_DIR is `crates/app`; native PNGs live at repo root.
+        // CARGO_MANIFEST_DIR is `crates/app`; native captures live at repo root.
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../hideout_screenshots_native")
     }
 
-    /// True for the "primary" fixture PNGs (e.g. `BookcaseLv1.png`).
-    /// Excludes per-cell strip debug PNGs (`*.cellN.*.png`) and other
-    /// sibling files that get written next to fixtures by the
-    /// pipeline's debug-build dumps — those would otherwise be picked
-    /// up as fixtures themselves and break the test sweep.
+    /// True for the "primary" fixture captures (e.g. `BookcaseLv1.webp`).
+    /// Accepts both `.webp` (the committed lossy captures) and `.png`
+    /// (still used by the `#[ignore]`d regen diagnostics that dump
+    /// upscaled crops). Excludes per-cell strip debug images
+    /// (`*.cellN.*.png`) and other sibling files that get written next
+    /// to fixtures by the pipeline's debug-build dumps — those would
+    /// otherwise be picked up as fixtures themselves and break the
+    /// test sweep.
     fn is_primary_fixture(entry: &std::fs::DirEntry) -> bool {
         let path = entry.path();
-        if path.extension().and_then(|s| s.to_str()) != Some("png") {
+        let ext = path.extension().and_then(|s| s.to_str());
+        if !matches!(ext, Some("webp") | Some("png")) {
             return false;
         }
         let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
@@ -1083,7 +1087,7 @@ mod fixture_tests {
         use image::GenericImageView;
         let data = load_data();
         let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../hideout_screenshots_native/BookcaseLv1.png");
+            .join("../../hideout_screenshots_native/BookcaseLv1.webp");
         let img = image::open(&path).expect("open");
         let (img_w, img_h) = img.dimensions();
         let words = engine::recognize_image(&img).expect("OCR");
@@ -1125,7 +1129,7 @@ mod fixture_tests {
         use image::GenericImageView;
         let data = load_data();
         let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../hideout_screenshots_native/BookcaseLv1.png");
+            .join("../../hideout_screenshots_native/BookcaseLv1.webp");
         let img = image::open(&path).expect("open");
         let (img_w, img_h) = img.dimensions();
         let words = engine::recognize_image(&img).expect("OCR");
@@ -1178,7 +1182,7 @@ mod fixture_tests {
         use image::GenericImageView;
         let data = load_data();
         let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../hideout_screenshots_native/BookcaseLv1.png");
+            .join("../../hideout_screenshots_native/BookcaseLv1.webp");
         let img = image::open(&path).expect("open Bookcase");
         let (img_w, img_h) = img.dimensions();
         let words = engine::recognize_image(&img).expect("OCR");
@@ -1618,7 +1622,7 @@ mod fixture_tests {
         let path = match std::env::var_os("OCR_DUMP_PATH") {
             Some(p) => std::path::PathBuf::from(p),
             None => std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                .join("../../hideout_screenshots_native/CryptoMiningLv2.png"),
+                .join("../../hideout_screenshots_native/CryptoMiningLv2.webp"),
         };
         eprintln!("OCR dump for: {}", path.display());
         let img = image::open(&path).expect("open PNG");
@@ -1634,8 +1638,8 @@ mod fixture_tests {
         }
     }
 
-    /// Identification + cell-ordering regression. For every native PNG
-    /// in `hideout_screenshots_native/`:
+    /// Identification + cell-ordering regression. For every native
+    /// capture in `hideout_screenshots_native/`:
     ///   - pipeline must return `Some(outcome)`,
     ///   - `outcome.upgrade_id` must equal the filename stem (the
     ///     ground-truth Upgrade.id),
@@ -1658,7 +1662,7 @@ mod fixture_tests {
             .collect();
         assert!(
             !entries.is_empty(),
-            "no native PNG fixtures under {}",
+            "no native capture fixtures under {}",
             dir.display(),
         );
 
@@ -1717,15 +1721,22 @@ mod fixture_tests {
         );
     }
 
-    /// Owned-count accuracy regression. For each native PNG fixture
-    /// paired with a `<UpgradeId>.label.txt`, count cells where the
-    /// pipeline reads the same `owned/needed` pair the user hand-
-    /// labelled. Asserts a minimum floor so future strip-Y, X-pad,
-    /// or template changes can't silently undo the closed-loop
-    /// gains (current baseline 48/59 after issue #58's hole-count
-    /// discriminator landed; gate at 45 leaves headroom for one
-    /// fixture flickering by 1-3 cells on a different build
-    /// environment).
+    /// Owned-count accuracy regression. For each native capture
+    /// fixture paired with a `<UpgradeId>.label.txt`, count cells where
+    /// the pipeline reads the same `owned/needed` pair the user hand-
+    /// labelled. Asserts a minimum floor so future strip-Y, X-pad, or
+    /// template changes can't silently undo the closed-loop gains.
+    ///
+    /// On the lossless captures the baseline was 48/59 (after issue
+    /// #58's hole-count discriminator). The fixtures are now WebP q99
+    /// (issue #110, to shrink the repo ~90%); lossy compression
+    /// perturbs the chunky pixel-art digits enough to cost ~2 reads, so
+    /// it lands ~45-47/59 and can flicker down to the 45 floor (the OCR
+    /// engine itself is non-deterministic by ±2 cells run-to-run; that
+    /// flicker predates the WebP swap). The floor stays at 45 (the
+    /// issue's mandated guardrail): if cross-environment flicker ever
+    /// pushes a run below it, re-encode the fixtures lossless rather
+    /// than lowering the gate.
     ///
     /// Wrong reads count against accuracy; UNREAD cells count as
     /// "no opinion" and are excluded from the labelled total — they
@@ -1797,10 +1808,11 @@ mod fixture_tests {
         }
         eprintln!("Total: {correct}/{labelled} correct, {wrong_writes} wrong writes");
 
-        // Floor at 45, three below the current 48/59 baseline so
-        // incidental fluctuations (e.g. one fixture flickering by
-        // a cell on a different build environment) don't block CI;
-        // large regressions still trip the gate.
+        // Floor at 45 per issue #110. The WebP-q99 fixtures read
+        // ~45-47/59 (down from the lossless 48 baseline), so there is
+        // little headroom left: a large pipeline regression still trips
+        // the gate, and a sub-45 flicker means the fixtures should be
+        // re-encoded lossless, not the floor lowered.
         assert!(
             correct >= 45,
             "owned-count accuracy regressed below floor: {correct}/{labelled} (want ≥ 45)"
