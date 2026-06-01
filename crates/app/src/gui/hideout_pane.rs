@@ -1707,3 +1707,431 @@ fn notify(state: &Arc<RwLock<AppState>>, save_tx: &Sender<SaveTick>) {
     let v = state.read().version;
     let _ = save_tx.try_send(SaveTick { version: v });
 }
+
+#[cfg(test)]
+mod tests {
+    //! Headless GUI tests for the Hideout pane, driving [`ui`] through
+    //! `egui_kittest` (issue #106, extending the Containers-pane pattern from
+    //! #103/#105). These pin the pane's *interaction wiring* — the place the
+    //! completion/consume and recipe-override logic is reached from — so a
+    //! "click a widget → wrong state change" regression fails `cargo test`
+    //! instead of being caught by eye:
+    //!   * **Track / Pin** checkboxes toggle the right `AppState` set;
+    //!   * ticking **Done** stages the completion modal, whose **Consume** vs
+    //!     **Skip** choice does (or doesn't) burn `collected`, and whose Consume
+    //!     button is disabled when the stash is short;
+    //!   * the module / category **availability toggle** cascades a disable;
+    //!   * the recipe **Edit** panel writes an override and reverts it.
+    //!
+    //! Every assertion checks the real `AppState` (the source of truth), not
+    //! merely that a widget exists. Test data is kept to a single module so
+    //! widget labels are unambiguous and `get_by_label` maps to one known row.
+    use super::*;
+    use crate::data::GameData;
+    use crate::settings::ColorScheme;
+    use egui::accesskit::Role;
+    use egui_kittest::kittest::Queryable;
+    use egui_kittest::Harness;
+
+    fn item(id: &str, name: &str) -> Item {
+        Item {
+            id: id.into(),
+            name: name.into(),
+            icon_path: String::new(),
+            category: None,
+            subcategory: None,
+            weight: None,
+            price: None,
+            rarity: None,
+        }
+    }
+
+    fn upgrade(id: &str, level: u32, reqs: &[(&str, u32)]) -> Upgrade {
+        Upgrade {
+            id: id.into(),
+            name: id.into(),
+            level,
+            description: String::new(),
+            requirements: reqs
+                .iter()
+                .map(|&(iid, q)| Requirement {
+                    item_id: iid.into(),
+                    quantity: q,
+                })
+                .collect(),
+        }
+    }
+
+    fn module(id: &str, name: &str, upgrades: Vec<Upgrade>) -> HideoutModule {
+        HideoutModule {
+            id: id.into(),
+            name: name.into(),
+            upgrades,
+        }
+    }
+
+    fn game_data(modules: Vec<HideoutModule>, items: Vec<Item>) -> Arc<GameData> {
+        Arc::new(GameData {
+            data_version: "test".into(),
+            scraped_at: "now".into(),
+            source_repo: "test".into(),
+            source_commit: "deadbeef".into(),
+            modules,
+            items,
+        })
+    }
+
+    fn settings(view: HideoutView) -> Arc<RwLock<Settings>> {
+        Arc::new(RwLock::new(Settings {
+            hideout_view: view,
+            ..Settings::default()
+        }))
+    }
+
+    /// Build a headless harness driving [`ui`] over `state` + `settings`. The
+    /// closure owns clones of both `Arc`s, its own icon cache, and a dead-end
+    /// save channel (the pane ignores send errors), so the harness is `'static`
+    /// and the caller keeps the originals for assertions. Sized wide and tall
+    /// enough that the full 4-level grid and the modals lay out unclipped, so
+    /// every widget is reachable by the AccessKit queries. `set_scheme` runs per
+    /// frame exactly as `App` drives it from `Settings`, since the pane reads
+    /// `theme::*_fill` for the cell tints.
+    fn harness(
+        state: &Arc<RwLock<AppState>>,
+        settings: &Arc<RwLock<Settings>>,
+    ) -> Harness<'static> {
+        let ui_state = Arc::clone(state);
+        let ui_settings = Arc::clone(settings);
+        let (save_tx, _save_rx) = crossbeam_channel::unbounded::<SaveTick>();
+        let mut icons = IconCache::new();
+        Harness::builder()
+            .with_size(egui::vec2(1400.0, 1000.0))
+            .build_ui(move |ui| {
+                theme::set_scheme(ColorScheme::OkabeIto);
+                let _ = super::ui(ui, &ui_state, &ui_settings, &mut icons, &save_tx);
+            })
+    }
+
+    /// One enabled module with a known (non-empty) Lv1 recipe — the common case
+    /// for the grid-cell tests, where a known recipe keeps the Track checkbox
+    /// enabled.
+    fn single_known_module() -> Arc<RwLock<AppState>> {
+        let data = game_data(
+            vec![module(
+                "Workshop",
+                "Workshop",
+                vec![upgrade("workshop_lv1", 1, &[("bolts", 2)])],
+            )],
+            vec![item("bolts", "Bolts")],
+        );
+        Arc::new(RwLock::new(AppState::new(data)))
+    }
+
+    #[test]
+    fn track_checkbox_toggles_tracked_upgrades() {
+        let state = single_known_module();
+        let settings = settings(HideoutView::Modules);
+        let mut h = harness(&state, &settings);
+        h.run();
+
+        // The cell's Track checkbox is enabled (recipe is known) — ticking it
+        // adds the upgrade to `tracked_upgrades`, the overlay wishlist's source.
+        h.get_by_label("Track").click();
+        h.run();
+        assert!(
+            state.read().tracked_upgrades.contains("workshop_lv1"),
+            "ticking Track should track the upgrade"
+        );
+
+        // Unticking removes it again.
+        h.get_by_label("Track").click();
+        h.run();
+        assert!(
+            !state.read().tracked_upgrades.contains("workshop_lv1"),
+            "unticking Track should untrack the upgrade"
+        );
+    }
+
+    #[test]
+    fn ticking_done_opens_completion_modal() {
+        let state = single_known_module();
+        let settings = settings(HideoutView::Modules);
+        let mut h = harness(&state, &settings);
+        h.run();
+
+        // No modal until "Done" is ticked.
+        assert!(h.query_by_label("Consume items required").is_none());
+
+        // The legend also carries a "Done" *label*; disambiguate to the checkbox
+        // by role so the query is unambiguous.
+        h.get_by_role_and_label(Role::CheckBox, "Done").click();
+        h.run();
+
+        // Ticking Done stages a pending completion and the modal renders inside
+        // the pane (driven by ctx memory), offering the Consume / Skip choice.
+        // The upgrade is NOT yet completed — the modal is the commit.
+        assert_eq!(
+            pending_completion(&h.ctx).as_deref(),
+            Some("workshop_lv1"),
+            "ticking Done should stage a pending completion"
+        );
+        assert!(h.query_by_label("Consume items required").is_some());
+        assert!(h.query_by_label("Skip item consumption").is_some());
+        assert!(
+            !state.read().completed_upgrades.contains("workshop_lv1"),
+            "the modal must commit the completion, not the checkbox tick"
+        );
+    }
+
+    #[test]
+    fn completion_consume_subtracts_collected() {
+        let data = game_data(
+            vec![module(
+                "Workshop",
+                "Workshop",
+                vec![upgrade("workshop_lv1", 1, &[("bolts", 2), ("screws", 1)])],
+            )],
+            vec![item("bolts", "Bolts"), item("screws", "Screws")],
+        );
+        let state = Arc::new(RwLock::new(AppState::new(data)));
+        {
+            let mut s = state.write();
+            s.set_collected(&"bolts".to_string(), 5);
+            s.set_collected(&"screws".to_string(), 3);
+        }
+        let settings = settings(HideoutView::Modules);
+        let mut h = harness(&state, &settings);
+        // Seed the pending key directly to render the modal (sanctioned by the
+        // issue note) — the Done-tick path is covered separately above.
+        set_pending_completion(&h.ctx, Some("workshop_lv1"));
+        h.run();
+
+        h.get_by_label("Consume items required").click();
+        h.run();
+
+        let s = state.read();
+        assert!(
+            s.completed_upgrades.contains("workshop_lv1"),
+            "Consume should complete the upgrade"
+        );
+        assert_eq!(
+            *s.collected.get("bolts").unwrap(),
+            3,
+            "Consume should burn 2 bolts from 5"
+        );
+        assert_eq!(
+            *s.collected.get("screws").unwrap(),
+            2,
+            "Consume should burn 1 screw from 3"
+        );
+        assert!(
+            pending_completion(&h.ctx).is_none(),
+            "choosing an action should dismiss the modal"
+        );
+    }
+
+    #[test]
+    fn completion_skip_keeps_collected() {
+        let data = game_data(
+            vec![module(
+                "Workshop",
+                "Workshop",
+                vec![upgrade("workshop_lv1", 1, &[("bolts", 2)])],
+            )],
+            vec![item("bolts", "Bolts")],
+        );
+        let state = Arc::new(RwLock::new(AppState::new(data)));
+        state.write().set_collected(&"bolts".to_string(), 5);
+        let settings = settings(HideoutView::Modules);
+        let mut h = harness(&state, &settings);
+        set_pending_completion(&h.ctx, Some("workshop_lv1"));
+        h.run();
+
+        h.get_by_label("Skip item consumption").click();
+        h.run();
+
+        let s = state.read();
+        assert!(
+            s.completed_upgrades.contains("workshop_lv1"),
+            "Skip should still complete the upgrade"
+        );
+        assert_eq!(
+            *s.collected.get("bolts").unwrap(),
+            5,
+            "Skip must leave collected counts untouched"
+        );
+    }
+
+    #[test]
+    fn completion_consume_disabled_when_stash_short() {
+        let state = single_known_module(); // needs 2 bolts
+        state.write().set_collected(&"bolts".to_string(), 1); // only 1 on hand
+        let settings = settings(HideoutView::Modules);
+        let mut h = harness(&state, &settings);
+        set_pending_completion(&h.ctx, Some("workshop_lv1"));
+        h.run();
+
+        assert!(
+            !state
+                .read()
+                .can_consume_materials(&"workshop_lv1".to_string()),
+            "precondition: the stash is short, so materials can't be consumed"
+        );
+        assert!(
+            h.get_by_label("Consume items required").is_disabled(),
+            "Consume must be disabled when the stash is short"
+        );
+        // Skip is always available — you can mark it built without consuming.
+        assert!(
+            !h.get_by_label("Skip item consumption").is_disabled(),
+            "Skip should stay enabled regardless of stash"
+        );
+    }
+
+    #[test]
+    fn pin_checkbox_toggles_pinned_upgrades() {
+        let state = single_known_module();
+        // Pin is only enabled once the upgrade is tracked, so pre-track it.
+        state
+            .write()
+            .set_tracked_upgrade(&"workshop_lv1".to_string(), true);
+        let settings = settings(HideoutView::Progress);
+        let mut h = harness(&state, &settings);
+        h.run();
+
+        h.get_by_label("Pin").click();
+        h.run();
+        assert!(
+            state.read().is_upgrade_pinned(&"workshop_lv1".to_string()),
+            "ticking Pin should pin the upgrade"
+        );
+
+        h.get_by_label("Pin").click();
+        h.run();
+        assert!(
+            !state.read().is_upgrade_pinned(&"workshop_lv1".to_string()),
+            "unticking Pin should unpin the upgrade"
+        );
+    }
+
+    #[test]
+    fn module_toggle_locks_and_unlocks_module() {
+        let state = single_known_module();
+        let settings = settings(HideoutView::Modules);
+        let mut h = harness(&state, &settings);
+        h.run();
+
+        // A top-level module renders exactly one ●/○ availability toggle.
+        h.get_by_label("●").click();
+        h.run();
+        assert!(
+            state.read().disabled_modules.contains("Workshop"),
+            "clicking ● should lock (disable) the module"
+        );
+
+        // It now shows ○; clicking again re-enables it.
+        h.get_by_label("○").click();
+        h.run();
+        assert!(
+            !state.read().disabled_modules.contains("Workshop"),
+            "clicking ○ should re-enable the module"
+        );
+    }
+
+    #[test]
+    fn category_header_toggle_cascades_to_children() {
+        // "CoffeeMaker" maps to the "Kitchen Area" category, so the pane renders
+        // a synthetic "Kitchen Area" header (with its own ● toggle) above the
+        // child module row.
+        let data = game_data(
+            vec![module(
+                "CoffeeMaker",
+                "Coffee Maker",
+                vec![upgrade("coffee_lv1", 1, &[("bolts", 2)])],
+            )],
+            vec![item("bolts", "Bolts")],
+        );
+        let state = Arc::new(RwLock::new(AppState::new(data)));
+        let settings = settings(HideoutView::Modules);
+        let mut h = harness(&state, &settings);
+        h.run();
+
+        // Two ● toggles: [0] the synthetic category header, [1] the child
+        // module. Build order (see `build_hideout_rows`) puts the header first.
+        assert_eq!(
+            h.get_all_by_label("●").count(),
+            2,
+            "the category header and its one child each render a ● toggle"
+        );
+        h.get_all_by_label("●").next().unwrap().click();
+        h.run();
+
+        let s = state.read();
+        assert!(
+            s.disabled_modules
+                .contains(&category_virtual_id("Kitchen Area")),
+            "clicking the header toggle should disable the whole category"
+        );
+        assert!(
+            !s.disabled_modules.contains("CoffeeMaker"),
+            "the child is not disabled directly — the lock cascades from the parent"
+        );
+        assert!(
+            s.is_module_effectively_disabled("CoffeeMaker"),
+            "the child should read as effectively disabled via the cascade"
+        );
+    }
+
+    #[test]
+    fn recipe_edit_writes_and_reverts_override() {
+        let data = game_data(
+            vec![module(
+                "Workshop",
+                "Workshop",
+                vec![upgrade("workshop_lv1", 1, &[("bolts", 5)])],
+            )],
+            vec![item("bolts", "Bolts")],
+        );
+        let state = Arc::new(RwLock::new(AppState::new(data)));
+        let settings = settings(HideoutView::Modules);
+        let mut h = harness(&state, &settings);
+        h.run();
+
+        assert!(!state.read().is_overridden(&"workshop_lv1".to_string()));
+
+        // Open the recipe editor from the cell.
+        h.get_by_label("Edit").click();
+        h.run();
+
+        // The single filled slot shows a [-] qty [+] stepper; bump it 5 → 6.
+        h.get_by_label("+").click();
+        h.run();
+        {
+            let s = state.read();
+            assert!(
+                s.is_overridden(&"workshop_lv1".to_string()),
+                "editing a slot should write a recipe override"
+            );
+            let reqs = s.effective_requirements(&"workshop_lv1".to_string());
+            assert_eq!(reqs.len(), 1);
+            assert_eq!(
+                reqs[0].quantity, 6,
+                "effective_requirements should reflect the edited quantity"
+            );
+        }
+
+        // Reverting via "Reset to official" drops the override.
+        h.get_by_label("Reset to official").click();
+        h.run();
+        let s = state.read();
+        assert!(
+            !s.is_overridden(&"workshop_lv1".to_string()),
+            "Reset to official should clear the override"
+        );
+        assert_eq!(
+            s.effective_requirements(&"workshop_lv1".to_string())[0].quantity,
+            5,
+            "clearing the override should restore the bundled quantity"
+        );
+    }
+}
