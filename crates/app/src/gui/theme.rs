@@ -148,10 +148,12 @@ mod okabe {
 }
 
 /// IBM Design Language accessible palette — its five colorblind-safe hues, one
-/// per categorical role. The readiness *fills* take blue / yellow / purple; the
-/// two *accent* roles each get their own hue too — magenta for pinned, orange
-/// for customized — so they stay tellable apart where their swatches sit side by
-/// side in the legend (they used to share magenta and read as one color).
+/// per categorical role. Two hues are blue-family (blue, indigo) and two are
+/// warm (yellow, orange), so roles are assigned to keep each look-alike pair
+/// split across a *fill* and an *accent* instead of colliding: fills are blue
+/// (tracked) / yellow (ready) / magenta (done); accents are indigo (pinned) /
+/// orange (customized). That keeps the three fills in distinct hue families, and
+/// likewise the two accents — the distinctions the legend actually leans on.
 mod ibm {
     use egui::Color32;
     pub const BLUE: Color32 = Color32::from_rgb(100, 143, 255);
@@ -188,13 +190,18 @@ fn semantic(dark: bool) -> Semantic {
         ColorScheme::Ibm => Semantic {
             tracked: cell_fill(ibm::BLUE, dark, IBM_PASTEL),
             ready: cell_fill(ibm::YELLOW, dark, IBM_PASTEL),
-            // IBM ships no green: "done" takes purple instead. The completed
-            // state is also carried by the ✓ checkbox and the dimmed text, so
-            // losing the green-as-done convention costs little here.
-            done: cell_fill(ibm::PURPLE, dark, IBM_PASTEL),
-            pinned: accent(ibm::MAGENTA, dark),
-            // Its own hue (IBM's orange), not a lightness variant of pinned's
-            // magenta — side by side in the legend they otherwise read as one
+            // IBM ships no green, so "done" can't take the usual green — and
+            // indigo (its other fill-friendly hue) sits too close to tracked's
+            // blue as a pale cell tint, which read as one color. Magenta
+            // instead: a fill well clear of blue. The ✓ checkbox + dimmed text
+            // also carry "done", so the hue is free to maximize that gap.
+            done: cell_fill(ibm::MAGENTA, dark, IBM_PASTEL),
+            // Indigo, kept off the readiness *fills* (where it collided with
+            // blue) and used as an accent stripe instead — matching Okabe-Ito,
+            // which also pins with purple.
+            pinned: accent(ibm::PURPLE, dark),
+            // Its own hue (IBM's orange), not a lightness variant of another
+            // accent — side by side in the legend look-alikes read as one
             // swatch. Kept a touch darker / more pastel than a plain `accent`
             // so the "Edit" button's label stays legible on it (the fill-
             // contrast test below pins that floor).
@@ -205,6 +212,9 @@ fn semantic(dark: bool) -> Semantic {
             },
             customized_text: marker_text(ibm::ORANGE, dark),
             unknown: neutral_unknown(dark),
+            // No hue is free (all five map to a legend role), so the affirmative
+            // action button reuses indigo. It only shows in the completion modal
+            // — never beside the pinned stripe — so the overlap is moot.
             primary_action: accent(ibm::PURPLE, dark),
         },
     }
@@ -374,6 +384,15 @@ mod tests {
 
     const SCHEMES: [ColorScheme; 2] = [ColorScheme::OkabeIto, ColorScheme::Ibm];
 
+    /// Coarse "do these read as different colors?" proxy for two swatches:
+    /// straight RGB distance, not luminance contrast (two equally bright hues
+    /// would fail a contrast check despite looking distinct). Used to guard the
+    /// legend swatch pairs the eye actually compares.
+    fn rgb_distance(a: Color32, b: Color32) -> f64 {
+        let sq = |x: u8, y: u8| (x as f64 - y as f64).powi(2);
+        (sq(a.r(), b.r()) + sq(a.g(), b.g()) + sq(a.b(), b.b())).sqrt()
+    }
+
     /// The readiness *fills* are the primary signal — they must never collide
     /// within a scheme, in either theme. (The pinned/customized *accents* are
     /// guarded separately by `pinned_and_customized_are_visually_distinct`.)
@@ -432,15 +451,8 @@ mod tests {
     /// near-identical accents in either theme.
     #[test]
     fn pinned_and_customized_are_visually_distinct() {
-        // Straight RGB distance — a coarse "do these look like different
-        // colors" proxy, which is the right question for two filled swatches
-        // (luminance contrast is not: two equally bright hues still differ).
         // The old shared-magenta accents sat ~25-41 apart; every distinct
         // pairing here clears ~88.
-        fn rgb_distance(a: Color32, b: Color32) -> f64 {
-            let sq = |x: u8, y: u8| (x as f64 - y as f64).powi(2);
-            (sq(a.r(), b.r()) + sq(a.g(), b.g()) + sq(a.b(), b.b())).sqrt()
-        }
         const MIN: f64 = 50.0;
         for sc in SCHEMES {
             set_scheme(sc);
@@ -453,6 +465,28 @@ mod tests {
                      would read as the same color"
                 );
             }
+        }
+        set_scheme(ColorScheme::OkabeIto);
+    }
+
+    /// IBM-specific: tracked (blue) and done are both pale cell *fills* a row
+    /// apart in the legend, so they must read as clearly different colors. IBM's
+    /// two blue-family hues (blue, indigo) looked like one when both were pale
+    /// fills — the reported collision — so done maps to magenta instead. Scoped
+    /// to IBM on purpose: Okabe-Ito's blue/green fills are RGB-close yet a
+    /// genuinely different hue family (fine to the eye), so a blunt RGB-distance
+    /// bar would false-flag them.
+    #[test]
+    fn ibm_tracked_and_done_fills_are_visually_distinct() {
+        set_scheme(ColorScheme::Ibm);
+        const MIN: f64 = 60.0;
+        for dark in [true, false] {
+            let d = rgb_distance(tracked_fill(dark), done_fill(dark));
+            assert!(
+                d >= MIN,
+                "IBM dark={dark}: tracked and done fills are only {d:.0} apart \
+                 in RGB (min {MIN}) — two blue-family fills would read alike"
+            );
         }
         set_scheme(ColorScheme::OkabeIto);
     }
