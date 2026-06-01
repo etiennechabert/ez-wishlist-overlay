@@ -1609,6 +1609,272 @@ mod fixture_tests {
         }
     }
 
+    /// Structured, **noise-aware** eval report for the OCR-improvement
+    /// loop (the `ocr-tune` skill / `scripts/ocr-eval-compare.ps1`).
+    ///
+    /// Runs the full pipeline over every native fixture `OCR_EVAL_RUNS`
+    /// times (default 3) so the Windows.Media.Ocr run-to-run jitter
+    /// (~±2 cells, documented on `owned_count_accuracy_floor_on_native_pngs`)
+    /// shows up as a `min/median/max` band instead of one fragile
+    /// number, then emits a machine-readable JSON report. A change is
+    /// only a real improvement when it clears that band — comparing two
+    /// single runs would chase noise.
+    ///
+    /// This is the *fine-grained signal* the tuning loop diffs before vs
+    /// after a change (per-fixture + per-cell deltas, the noise band, and
+    /// `wrong_writes_max` for data-safety). The hard pass/fail **gates**
+    /// stay where they are — `identification_…` (15/15) and
+    /// `owned_count_accuracy_floor_…` (≥45) and `big_container_scan_…`
+    /// (exact) — so a regression that breaks a gate fails the normal
+    /// `cargo test ocr` run and the loop reverts regardless of this JSON.
+    ///
+    /// Output: the path in `OCR_EVAL_OUT` when set (parent dirs created),
+    /// else stdout between `<<<OCR_EVAL_JSON>>>` / `<<<END_OCR_EVAL_JSON>>>`
+    /// markers so a wrapper can lift it out of libtest noise. Uses
+    /// `debug_dumps=false`, so it writes no `.cell*/.ocr-debug` siblings.
+    ///
+    /// Run (Windows dev-shell):
+    /// ```text
+    /// $env:OCR_EVAL_RUNS=5; $env:OCR_EVAL_OUT="C:\zt\ocr-eval\baseline.json"
+    /// cargo test -p ez-wishlist-overlay --target x86_64-pc-windows-msvc \
+    ///   ocr::pipeline::fixture_tests::eval_report_json -- --ignored --nocapture
+    /// ```
+    #[test]
+    #[ignore = "diagnostic — structured eval report for the OCR-tuning loop; run with --ignored"]
+    fn eval_report_json() {
+        use crate::ocr::debug_dump;
+
+        #[derive(serde::Serialize)]
+        struct CellReport {
+            index: usize,
+            item_id: String,
+            needed: u32,
+            label_owned: Option<u32>,
+            label_needed: Option<u32>,
+            /// One entry per run: the read owned-count as a string, or
+            /// `"UNREAD"` when the cell didn't parse that run.
+            reads: Vec<String>,
+            /// How many of the `runs` reads matched the ground-truth label.
+            correct_runs: usize,
+        }
+        #[derive(serde::Serialize)]
+        struct FixtureReport {
+            stem: String,
+            /// True only when **every** run identified the upgrade as `stem`.
+            identified: bool,
+            /// What the first run actually resolved to (for misident triage).
+            identified_as: String,
+            labelled: usize,
+            correct_min: usize,
+            correct_median: usize,
+            correct_max: usize,
+            cells: Vec<CellReport>,
+        }
+        #[derive(serde::Serialize)]
+        struct Totals {
+            fixtures: usize,
+            identified: usize,
+            labelled: usize,
+            correct_min: usize,
+            correct_median: usize,
+            correct_max: usize,
+            /// Worst-case count of labelled cells that read a *wrong* value
+            /// (not UNREAD) across the runs. Must stay 0 — a non-zero here
+            /// means the pipeline would overwrite real progress with garbage.
+            wrong_writes_max: usize,
+        }
+        #[derive(serde::Serialize)]
+        struct Report {
+            runs: usize,
+            templates_loaded: usize,
+            totals: Totals,
+            fixtures: Vec<FixtureReport>,
+        }
+
+        fn median(mut v: Vec<usize>) -> usize {
+            if v.is_empty() {
+                return 0;
+            }
+            v.sort_unstable();
+            v[v.len() / 2]
+        }
+
+        let runs: usize = std::env::var("OCR_EVAL_RUNS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .filter(|&n| n >= 1)
+            .unwrap_or(3);
+
+        let data = load_data();
+        let dir = fixture_dir();
+        let mut entries: Vec<_> = std::fs::read_dir(&dir)
+            .unwrap_or_else(|e| panic!("read_dir {}: {e}", dir.display()))
+            .filter_map(|e| e.ok())
+            .filter(is_primary_fixture)
+            .collect();
+        entries.sort_by_key(|e| e.file_name());
+        assert!(
+            !entries.is_empty(),
+            "no native fixtures under {}",
+            dir.display()
+        );
+
+        let mut fixtures: Vec<FixtureReport> = Vec::new();
+        // Per-run owned-count totals across all fixtures — the noise band.
+        let mut tot_correct_per_run = vec![0usize; runs];
+        let mut tot_wrong_per_run = vec![0usize; runs];
+        let mut tot_labelled = 0usize;
+        let mut identified_fixtures = 0usize;
+
+        for entry in &entries {
+            let path = entry.path();
+            let stem = path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("")
+                .to_string();
+            let labels = match debug_dump::load_labels(&path) {
+                Some(l) => l,
+                None => continue,
+            };
+
+            // `stem` is the ground-truth Upgrade.id, so the requirement
+            // list (and thus the cell order + needed counts) is known
+            // independently of what the pipeline resolves — that keeps
+            // `labelled` stable even if a run mis-identifies.
+            let upgrade = data
+                .modules
+                .iter()
+                .flat_map(|m| &m.upgrades)
+                .find(|u| u.id == stem);
+
+            let mut per_run_items: Vec<Vec<(String, Option<u32>)>> = Vec::with_capacity(runs);
+            let mut identified_as = String::new();
+            let mut all_identified = runs > 0;
+            for _ in 0..runs {
+                match super::process_screenshot(&path, &data, false, false) {
+                    Ok(ocr::OcrPipelineResult::Identified(o)) => {
+                        if identified_as.is_empty() {
+                            identified_as = o.upgrade_id.clone();
+                        }
+                        if o.upgrade_id != stem {
+                            all_identified = false;
+                        }
+                        per_run_items.push(o.items);
+                    }
+                    _ => {
+                        all_identified = false;
+                        per_run_items.push(Vec::new());
+                    }
+                }
+            }
+            if all_identified {
+                identified_fixtures += 1;
+            }
+
+            let reqs: &[_] = match upgrade {
+                Some(u) => u.requirements.as_slice(),
+                None => &[],
+            };
+            let mut cells: Vec<CellReport> = Vec::new();
+            let mut fixture_labelled = 0usize;
+            let mut fix_correct_per_run = vec![0usize; runs];
+            for (i, req) in reqs.iter().enumerate() {
+                let label = labels.iter().find(|l| l.item_id == req.item_id);
+                // A cell only counts toward accuracy when its label's
+                // `needed` agrees with data.json's quantity (mirrors the
+                // floor test); otherwise the label row is stale/unusable.
+                let is_labelled = label.map(|l| l.needed == req.quantity).unwrap_or(false);
+                if is_labelled {
+                    fixture_labelled += 1;
+                }
+                let mut reads: Vec<String> = Vec::with_capacity(runs);
+                let mut correct_runs = 0usize;
+                for (r, items) in per_run_items.iter().enumerate() {
+                    let read = items.get(i).and_then(|(_, owned)| *owned);
+                    reads.push(match read {
+                        Some(n) => n.to_string(),
+                        None => "UNREAD".to_string(),
+                    });
+                    if let (true, Some(lbl), Some(rv)) = (is_labelled, label, read) {
+                        if lbl.owned == rv {
+                            correct_runs += 1;
+                            fix_correct_per_run[r] += 1;
+                        } else {
+                            tot_wrong_per_run[r] += 1;
+                        }
+                    }
+                }
+                cells.push(CellReport {
+                    index: i,
+                    item_id: req.item_id.clone(),
+                    needed: req.quantity,
+                    label_owned: label.map(|l| l.owned),
+                    label_needed: label.map(|l| l.needed),
+                    reads,
+                    correct_runs,
+                });
+            }
+            for (r, c) in fix_correct_per_run.iter().enumerate() {
+                tot_correct_per_run[r] += c;
+            }
+            tot_labelled += fixture_labelled;
+
+            fixtures.push(FixtureReport {
+                stem,
+                identified: all_identified,
+                identified_as,
+                labelled: fixture_labelled,
+                correct_min: *fix_correct_per_run.iter().min().unwrap_or(&0),
+                correct_median: median(fix_correct_per_run.clone()),
+                correct_max: *fix_correct_per_run.iter().max().unwrap_or(&0),
+                cells,
+            });
+        }
+
+        let report = Report {
+            runs,
+            templates_loaded: crate::ocr::templates::EMBEDDED.len(),
+            totals: Totals {
+                fixtures: fixtures.len(),
+                identified: identified_fixtures,
+                labelled: tot_labelled,
+                correct_min: *tot_correct_per_run.iter().min().unwrap_or(&0),
+                correct_median: median(tot_correct_per_run.clone()),
+                correct_max: *tot_correct_per_run.iter().max().unwrap_or(&0),
+                wrong_writes_max: *tot_wrong_per_run.iter().max().unwrap_or(&0),
+            },
+            fixtures,
+        };
+        let json = serde_json::to_string_pretty(&report).expect("serialize eval report");
+
+        if let Some(out) = std::env::var_os("OCR_EVAL_OUT") {
+            let out = std::path::PathBuf::from(out);
+            if let Some(parent) = out.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            std::fs::write(&out, &json).unwrap_or_else(|e| panic!("write {}: {e}", out.display()));
+            eprintln!("wrote eval report -> {}", out.display());
+        } else {
+            println!("<<<OCR_EVAL_JSON>>>");
+            println!("{json}");
+            println!("<<<END_OCR_EVAL_JSON>>>");
+        }
+        // Human-readable one-liner on stderr regardless of output sink.
+        eprintln!(
+            "eval: {}/{} identified; owned-count min/med/max = {}/{}/{} of {} labelled \
+             (runs={}, wrong_writes_max={})",
+            report.totals.identified,
+            report.totals.fixtures,
+            report.totals.correct_min,
+            report.totals.correct_median,
+            report.totals.correct_max,
+            report.totals.labelled,
+            report.runs,
+            report.totals.wrong_writes_max,
+        );
+    }
+
     /// Diagnostic: dump every OCR'd word for one native PNG, with
     /// focus on the area below the anchor (where FROM RAID labels +
     /// counts live). Path is read from the `OCR_DUMP_PATH` env var
