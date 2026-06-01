@@ -367,6 +367,9 @@ pub fn ui(
     // The "New container" modal (name + icon grid), when open.
     new_container_modal(ui.ctx(), state, icons, save_tx);
 
+    // The centered live-scan window, while a session is capturing.
+    box_scan_live_window(ui.ctx(), state, &mut scan);
+
     // The box-scan confirm/preview modal, when a session is in its review phase.
     box_review_modal(ui.ctx(), state, save_tx, &mut scan);
 }
@@ -970,20 +973,14 @@ fn container_body(
         });
         ui.add_space(6.0);
         // The stash is primary, scannable storage too.
-        box_scan_section(ui, state, ScanTarget::Stash, "Stash", scan);
+        box_scan_section(ui, ScanTarget::Stash, "Stash", scan);
         ui.add_space(4.0);
     }
 
     // Box-scan controls — cases are scannable storage; bags/shelves are manual.
     if let Target::Container(id) = &row.target {
         if row.kind == ContainerKind::Case {
-            box_scan_section(
-                ui,
-                state,
-                ScanTarget::Container(id.clone()),
-                &row.name,
-                scan,
-            );
+            box_scan_section(ui, ScanTarget::Container(id.clone()), &row.name, scan);
             ui.add_space(4.0);
         }
     }
@@ -1324,6 +1321,18 @@ fn notify(state: &Arc<RwLock<AppState>>, save_tx: &Sender<SaveTick>) {
 const SCAN_HINT: &str = "Open the box's screen in-game and press SPACE at each scroll \
                          position. Overlap shots by about one row so they line up.";
 const WARN_COL: egui::Color32 = egui::Color32::from_rgb(200, 140, 0);
+/// Red used for the "this REPLACES current contents" warning and the removed
+/// rows in the review diff. Matches the diff's `removed` swatch (210,90,90).
+const DANGER_COL: egui::Color32 = egui::Color32::from_rgb(210, 90, 90);
+
+/// The one-line caution shown both during the live scan and atop the review
+/// modal: applying a scan is a full replace, not a merge. `{name}` is the
+/// target store ("Stash" or the container name).
+fn flush_warning(name: &str) -> String {
+    format!(
+        "Applying will REPLACE everything in “{name}” with the scan — items not seen are removed."
+    )
+}
 
 /// Sum of `Item.weight × count` over a tally — the "computed" side of the
 /// box-screen weight checksum.
@@ -1361,139 +1370,166 @@ fn warn_label(ui: &mut egui::Ui, text: &str) {
     ui.label(egui::RichText::new(text).color(WARN_COL));
 }
 
-/// Box-scan controls for one secondary container: a start button, or — while
-/// *this* container is the active scan — the live session panel (running tally,
-/// weight checksum, status, Finish / Cancel).
-fn box_scan_section(
-    ui: &mut egui::Ui,
-    state: &Arc<RwLock<AppState>>,
-    target: ScanTarget,
-    target_name: &str,
-    scan: &mut ScanCtx,
-) {
+/// Like [`warn_label`] but in the stronger [`DANGER_COL`] red and bold — for
+/// the destructive REPLACE/flush caution, not a soft recapture hint.
+fn warn_label_danger(ui: &mut egui::Ui, text: &str) {
+    ui.label(egui::RichText::new(text).color(DANGER_COL).strong());
+}
+
+/// Inline box-scan control for one store's row: the "Scan from screen" start
+/// button, or — while *this* store is the active scan — a compact stub that
+/// points at the centered live window (rendered by [`box_scan_live_window`]).
+/// The full live panel deliberately lives in that floating window, not here, so
+/// it can't scroll off-screen inside the container table.
+fn box_scan_section(ui: &mut egui::Ui, target: ScanTarget, target_name: &str, scan: &mut ScanCtx) {
     let scanning_this = matches!(
         scan.ui_state.as_ref(),
         Some(BoxScanUi::Scanning { target: t, .. }) if *t == target
     );
     let busy_elsewhere = scan.ui_state.is_some() && !scanning_this;
 
-    if !scanning_this {
-        ui.horizontal(|ui| {
-            ui.add_space(LEAD);
-            let btn = egui::Button::new("Scan from screen");
-            if busy_elsewhere {
-                ui.add_enabled(false, btn)
-                    .on_hover_text("Finish the active scan first");
-            } else if ui
-                .add(btn)
-                .on_hover_text("Read this store's contents screen across several scroll captures")
-                .clicked()
-            {
-                scan.vr.set_box_scan_mode(true);
-                let _ = scan.cmd_tx.send(BoxCommand::Start {
-                    target: target.clone(),
-                });
-                *scan.ui_state = Some(BoxScanUi::Scanning {
-                    target: target.clone(),
-                    target_name: target_name.to_string(),
-                    latest: None,
-                });
-            }
-        });
-        return;
-    }
+    ui.horizontal(|ui| {
+        ui.add_space(LEAD);
+        if scanning_this {
+            // The controls live in the centered window; just signpost it here.
+            ui.label(
+                egui::RichText::new("● Scanning… (see the scan window)")
+                    .color(WARN_COL)
+                    .strong(),
+            );
+            return;
+        }
+        let btn = egui::Button::new("Scan from screen");
+        if busy_elsewhere {
+            ui.add_enabled(false, btn)
+                .on_hover_text("Finish the active scan first");
+        } else if ui
+            .add(btn)
+            .on_hover_text("Read this store's contents screen across several scroll captures")
+            .clicked()
+        {
+            scan.vr.set_box_scan_mode(true);
+            let _ = scan.cmd_tx.send(BoxCommand::Start {
+                target: target.clone(),
+            });
+            *scan.ui_state = Some(BoxScanUi::Scanning {
+                target: target.clone(),
+                target_name: target_name.to_string(),
+                latest: None,
+            });
+        }
+    });
+}
 
-    // --- Live session panel (this container is being scanned) ---
-    let latest = match scan.ui_state.as_ref() {
-        Some(BoxScanUi::Scanning { latest, .. }) => latest.clone(),
-        _ => None,
+/// The centered, always-visible live-scan window, shown while a box scan is in
+/// its capture phase. Rendered once at the top level (only one scan is ever
+/// active) so it floats above the container table instead of scrolling with a
+/// row. Shows the running tally, status, weight checksum, the up-front
+/// REPLACE/flush warning, and the Finish / Cancel controls.
+fn box_scan_live_window(ctx: &egui::Context, state: &Arc<RwLock<AppState>>, scan: &mut ScanCtx) {
+    let (target_name, latest) = match scan.ui_state.as_ref() {
+        Some(BoxScanUi::Scanning {
+            target_name,
+            latest,
+            ..
+        }) => (target_name.clone(), latest.clone()),
+        _ => return,
     };
+
     let mut finish = false;
     let mut cancel = false;
 
-    egui::Frame::group(ui.style()).show(ui, |ui| {
-        ui.label(egui::RichText::new("Box scan in progress").strong());
-        ui.label(
-            egui::RichText::new(SCAN_HINT)
-                .small()
-                .color(ui.visuals().weak_text_color()),
-        );
-        ui.add_space(4.0);
+    egui::Window::new(format!("Box scan — {target_name}"))
+        .collapsible(false)
+        .resizable(false)
+        .default_width(420.0)
+        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+        .show(ctx, |ui| {
+            ui.label(
+                egui::RichText::new(SCAN_HINT)
+                    .small()
+                    .color(ui.visuals().weak_text_color()),
+            );
+            // Up-front flush caution: the user should know this is a replace
+            // before they invest several captures, not only at the review step.
+            ui.add_space(4.0);
+            warn_label_danger(ui, &flush_warning(&target_name));
+            ui.separator();
 
-        match &latest {
-            None => {
-                ui.label(egui::RichText::new("Waiting for the first capture…").italics());
-            }
-            Some(u) => {
-                let total: u32 = u.tally.values().sum();
-                let mut line = format!("{} capture(s) · {} item(s)", u.captures, total);
-                if u.unrecognized > 0 {
-                    line.push_str(&format!(" · {} unrecognized", u.unrecognized));
+            match &latest {
+                None => {
+                    ui.label(egui::RichText::new("Waiting for the first capture…").italics());
                 }
-                ui.label(line);
+                Some(u) => {
+                    let total: u32 = u.tally.values().sum();
+                    let mut line = format!("{} capture(s) · {} item(s)", u.captures, total);
+                    if u.unrecognized > 0 {
+                        line.push_str(&format!(" · {} unrecognized", u.unrecognized));
+                    }
+                    ui.label(line);
 
-                match u.status {
-                    BoxScanStatus::NeedsRecapture => warn_label(
-                        ui,
-                        "Last shot didn't line up — scroll back up a little and recapture.",
-                    ),
-                    BoxScanStatus::NoTiles => warn_label(
-                        ui,
-                        "Last shot saw no items — make sure the box screen is visible.",
-                    ),
-                    BoxScanStatus::Ok => {}
-                }
+                    match u.status {
+                        BoxScanStatus::NeedsRecapture => warn_label(
+                            ui,
+                            "Last shot didn't line up — scroll back up a little and recapture.",
+                        ),
+                        BoxScanStatus::NoTiles => warn_label(
+                            ui,
+                            "Last shot saw no items — make sure the box screen is visible.",
+                        ),
+                        BoxScanStatus::Ok => {}
+                    }
 
-                if let Some(observed) = u.observed_weight {
-                    let computed = computed_weight(&state.read(), &u.tally);
-                    let close = (computed - observed).abs() <= (observed * 0.1).max(0.5);
-                    let col = if close {
-                        egui::Color32::from_rgb(80, 170, 90)
-                    } else {
-                        WARN_COL
-                    };
-                    ui.label(
-                        egui::RichText::new(format!(
-                            "weight: computed {computed:.1} / observed {observed:.1} kg"
-                        ))
-                        .small()
-                        .color(col),
-                    );
-                }
+                    if let Some(observed) = u.observed_weight {
+                        let computed = computed_weight(&state.read(), &u.tally);
+                        let close = (computed - observed).abs() <= (observed * 0.1).max(0.5);
+                        let col = if close {
+                            egui::Color32::from_rgb(80, 170, 90)
+                        } else {
+                            WARN_COL
+                        };
+                        ui.label(
+                            egui::RichText::new(format!(
+                                "weight: computed {computed:.1} / observed {observed:.1} kg"
+                            ))
+                            .small()
+                            .color(col),
+                        );
+                    }
 
-                let mut rows = tally_rows(&state.read(), &u.tally);
-                rows.sort_by(|a, b| {
-                    b.2.cmp(&a.2)
-                        .then_with(|| a.1.to_lowercase().cmp(&b.1.to_lowercase()))
-                });
-                if !rows.is_empty() {
-                    egui::ScrollArea::vertical()
-                        .max_height(150.0)
-                        .id_salt("box-scan-tally")
-                        .show(ui, |ui| {
-                            for (_, name, qty) in &rows {
-                                ui.label(format!("  {qty} × {name}"));
-                            }
-                        });
+                    let mut rows = tally_rows(&state.read(), &u.tally);
+                    rows.sort_by(|a, b| {
+                        b.2.cmp(&a.2)
+                            .then_with(|| a.1.to_lowercase().cmp(&b.1.to_lowercase()))
+                    });
+                    if !rows.is_empty() {
+                        egui::ScrollArea::vertical()
+                            .max_height(220.0)
+                            .id_salt("box-scan-tally")
+                            .show(ui, |ui| {
+                                for (_, name, qty) in &rows {
+                                    ui.label(format!("  {qty} × {name}"));
+                                }
+                            });
+                    }
                 }
             }
-        }
 
-        ui.add_space(6.0);
-        ui.horizontal(|ui| {
-            if ui
-                .add(egui::Button::new(
-                    egui::RichText::new("Finish & review").strong(),
-                ))
-                .clicked()
-            {
-                finish = true;
-            }
-            if ui.button("Cancel scan").clicked() {
-                cancel = true;
-            }
+            ui.separator();
+            ui.horizontal(|ui| {
+                if ui
+                    .add(egui::Button::new(
+                        egui::RichText::new("Finish & review").strong(),
+                    ))
+                    .clicked()
+                {
+                    finish = true;
+                }
+                if ui.button("Cancel scan").clicked() {
+                    cancel = true;
+                }
+            });
         });
-    });
 
     if finish {
         if let Some(BoxScanUi::Scanning {
@@ -1578,6 +1614,7 @@ fn box_review_modal(
                 total,
                 tally.len()
             ));
+            warn_label_danger(ui, &flush_warning(&target_name));
             if unrecognized > 0 {
                 warn_label(
                     ui,
