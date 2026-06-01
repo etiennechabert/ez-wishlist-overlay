@@ -343,10 +343,10 @@ fn render_loop(
 
     let mut fsm = VisibilityFsm::new();
     // The data-rendered pixmap is cached so we don't re-decode all icons on
-    // every frame — only re-render when version/grid_cols changes. Hover
-    // border is a cheap copy+stroke applied per frame on top of the cache.
+    // every frame — only re-render when version/grid_cols/max_items changes.
+    // Hover border is a cheap copy+stroke applied per frame on top of the cache.
     let mut clean_pixmap: Option<tiny_skia::Pixmap> = None;
-    let mut clean_sig: Option<(u64, u32)> = None;
+    let mut clean_sig: Option<(u64, u32, u32)> = None;
     let mut last_hits: Vec<CellHit> = Vec::new();
     let mut last_canvas: (u32, u32) = (0, 0);
     let mut fade_start: Option<Instant> = None;
@@ -391,6 +391,7 @@ fn render_loop(
                 pitch,
                 frame_start,
                 grid_cols: vr.grid_cols,
+                max_items: vr.max_items,
                 height_offset_m: vr.height_offset_m,
             },
             &mut was_visible,
@@ -520,11 +521,12 @@ fn render_loop(
 
         if visible_now {
             let current_version = state.read().version;
-            let need_data_render = clean_sig != Some((current_version, vr.grid_cols));
+            let need_data_render = clean_sig != Some((current_version, vr.grid_cols, vr.max_items));
             if need_data_render {
                 render_data(
                     state,
                     vr.grid_cols,
+                    vr.max_items,
                     &mut clean_pixmap,
                     &mut clean_sig,
                     &mut last_hits,
@@ -598,6 +600,7 @@ struct VisibilityTransition {
     pitch: f32,
     frame_start: std::time::Instant,
     grid_cols: u32,
+    max_items: u32,
     height_offset_m: f32,
 }
 
@@ -610,7 +613,7 @@ fn handle_visibility_transition(
     was_visible: &mut bool,
     fade_start: &mut Option<std::time::Instant>,
     clean_pixmap: &mut Option<tiny_skia::Pixmap>,
-    clean_sig: &mut Option<(u64, u32)>,
+    clean_sig: &mut Option<(u64, u32, u32)>,
     last_hits: &mut Vec<super::render::CellHit>,
     last_canvas: &mut (u32, u32),
     current_hover: &mut Option<String>,
@@ -620,6 +623,7 @@ fn handle_visibility_transition(
             render_data(
                 state,
                 t.grid_cols,
+                t.max_items,
                 clean_pixmap,
                 clean_sig,
                 last_hits,
@@ -974,23 +978,28 @@ fn capture_and_forward(
 fn render_data(
     state: &Arc<RwLock<AppState>>,
     grid_cols: u32,
+    max_items: u32,
     clean_pixmap: &mut Option<tiny_skia::Pixmap>,
-    clean_sig: &mut Option<(u64, u32)>,
+    clean_sig: &mut Option<(u64, u32, u32)>,
     last_hits: &mut Vec<super::render::CellHit>,
     last_canvas: &mut (u32, u32),
 ) -> anyhow::Result<()> {
     use super::render;
     use crate::assets;
 
-    let (items, version) = {
+    let (mut items, version) = {
         let st = state.read();
         (st.active_items(), st.version)
     };
+    // Trim to the user's top-N priority cap (0 = no cap) before layout, so the
+    // overlay shows just the leaders and the click hit-table only covers cells
+    // we actually draw.
+    render::cap_wishlist(&mut items, max_items);
     let (pixmap, hits) = render::render(&items, grid_cols, assets::read_icon);
     *last_canvas = (pixmap.width(), pixmap.height());
     *last_hits = hits;
     *clean_pixmap = Some(pixmap);
-    *clean_sig = Some((version, grid_cols));
+    *clean_sig = Some((version, grid_cols, max_items));
     Ok(())
 }
 

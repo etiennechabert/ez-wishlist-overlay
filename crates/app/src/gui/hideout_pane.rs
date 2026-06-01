@@ -750,7 +750,8 @@ fn upgrade_controls(
             ui.add_enabled(tracked, egui::Checkbox::new(&mut pinned, "Pin"))
                 .on_hover_text(
                     "Prioritize: float this upgrade to the top of the list and \
-                     its items to the front of the overlay.",
+                     pull its items to the front of the overlay, highlighted \
+                     with a purple accent.",
                 )
                 .on_disabled_hover_text("Track this upgrade first, then you can pin it.");
         }
