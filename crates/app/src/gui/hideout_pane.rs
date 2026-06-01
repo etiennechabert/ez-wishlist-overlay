@@ -702,7 +702,7 @@ fn upgrade_cell(
     }
 }
 
-/// The (Pin) / Track / Done / Edit control cluster shared by the grid cell and
+/// The Track / (Pin) / Done / Edit control cluster shared by the grid cell and
 /// the "By progress" list row, so the two never drift. Reads and self-applies
 /// tracked/completed/pinned mutations (+ notify) exactly as the old inline block
 /// in `upgrade_cell` did, and toggles the ctx-memory selection that drives the
@@ -737,21 +737,23 @@ fn upgrade_controls(
         // An unknown recipe can't be meaningfully tracked (we don't know what it
         // needs), so the Track checkbox is disabled until the user fills the
         // recipe in via Edit. `Done` stays enabled — you can still mark it built.
-        // Pin leads the cluster (left of Track) and is always offered in the
-        // By-progress list, so a pinned-but-untracked row can be unpinned right
-        // here without re-tracking first. By-progress only (`show_pin`); the
-        // width-capped grid omits it. Hidden for an unknown recipe, which can't
-        // be tracked or meaningfully prioritized.
-        if show_pin && !unknown {
-            ui.checkbox(&mut pinned, "Pin").on_hover_text(
-                "Prioritize: float this upgrade to the top of the list; once \
-                 tracked, its items also lead the VR overlay.",
-            );
-        }
         ui.add_enabled(!unknown, egui::Checkbox::new(&mut tracked, "Track"))
             .on_disabled_hover_text(
                 "Recipe unknown — open Edit and fill it in before you can track it.",
             );
+        // Pin sits between Track and Done, By-progress only (`show_pin`; the
+        // width-capped grid omits it). Always rendered for a stable cluster but
+        // enabled only once the upgrade is tracked — pinning prioritizes a
+        // tracked upgrade's items in the overlay — so it grays out as a "Track
+        // it first" cue rather than disappearing.
+        if show_pin {
+            ui.add_enabled(tracked, egui::Checkbox::new(&mut pinned, "Pin"))
+                .on_hover_text(
+                    "Prioritize: float this upgrade to the top of the list and \
+                     its items to the front of the overlay.",
+                )
+                .on_disabled_hover_text("Track this upgrade first, then you can pin it.");
+        }
         ui.checkbox(&mut done, "Done");
         ui.add_space(4.0);
 
