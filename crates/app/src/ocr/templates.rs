@@ -354,6 +354,37 @@ fn top_band_fill(mask: &[bool], w: u32, h: u32) -> f32 {
     fg as f32 / (band * w) as f32
 }
 
+/// Fraction of foreground pixels in the bottom `~3/11` of a glyph's
+/// rows — the mirror of [`top_band_fill`]. Used together with it by the
+/// `1`↔`7` tie-break: a `7` packs its mass into a full-width header and
+/// thins to a diagonal tail, while a `1` is a near-uniform vertical
+/// stem (often with a small base serif), so the two bands behave very
+/// differently for `7` and almost identically for `1`.
+fn bottom_band_fill(mask: &[bool], w: u32, h: u32) -> f32 {
+    if w == 0 || h == 0 {
+        return 0.0;
+    }
+    let band = (h * 3 / 11).max(1);
+    let mut fg = 0u32;
+    for y in (h - band)..h {
+        for x in 0..w {
+            if mask[(y * w + x) as usize] {
+                fg += 1;
+            }
+        }
+    }
+    fg as f32 / (band * w) as f32
+}
+
+/// "Top-heaviness": top-band fill minus bottom-band fill. A `7`'s header
+/// bar over a sparse tail makes this strongly positive; a `1`'s uniform
+/// stem keeps it near zero (or slightly negative from a base serif).
+/// Scales with the glyph because both bands track its height, so it
+/// reads the same proportional shape whether captured at h≈8 or h≈14.
+fn top_heaviness(mask: &[bool], w: u32, h: u32) -> f32 {
+    top_band_fill(mask, w, h) - bottom_band_fill(mask, w, h)
+}
+
 /// Resolve a `4`↔`7` near-tie by top-band fill instead of the
 /// hole-count-weighted pixel [`score`] (issue #108).
 ///
@@ -418,6 +449,81 @@ fn disambiguate_4_vs_7(comp: &Component, scores: &mut [(char, f32)], templates: 
         '7'
     } else {
         '4'
+    };
+    if pick != winner {
+        if let Some(pos) = scores.iter().position(|(c, _)| *c == pick) {
+            scores[..=pos].rotate_right(1);
+        }
+    }
+}
+
+/// Resolve a `1`↔`7` near-tie by glyph top-heaviness instead of the
+/// hole-count-weighted pixel [`score`].
+///
+/// **The failure this fixes.** At this font size `1` and `7` are both a
+/// narrow vertical stroke, so their pixel-agreement scores land within
+/// a hair of each other — PlantingLv1's insulating-tape *needed* digit
+/// (a real `1`) scored `'7'=0.682` vs `'1'=0.679`, a 0.003 gap. Neither
+/// digit carries a hole, so the hole-count term in [`score`] can't
+/// break the tie, and because the same glyph binarises identically each
+/// frame the misread is deterministic. The `1` losing flips the parsed
+/// `Y` away from the known `needed`, so the whole cell is dropped to
+/// UNREAD.
+///
+/// **Why top-heaviness.** A `7` is a solid full-width header over a
+/// sparse diagonal tail (top-heavy); a `1` is a near-uniform stem
+/// (flat, sometimes slightly bottom-heavy from a base serif). The
+/// top−bottom band-fill differential ([`top_heaviness`]) separates the
+/// two about as decisively as the `4`↔`7` top-band feature does, and
+/// unlike a raw top-band reading it isn't fooled by a tightly-cropped
+/// `1` whose stem fills its narrow box top-to-bottom.
+///
+/// Surgical, exactly like [`disambiguate_4_vs_7`]: it engages only when
+/// the winner is `1` or `7` *and* the other is within [`TIE_MARGIN`],
+/// derives the boundary from the live `1`/`7` templates, and declines
+/// to act (safe no-op) if those templates don't actually separate on
+/// the feature — so a future template re-extract can't turn it into a
+/// mis-correction. `scores` is sorted descending; the chosen label is
+/// rotated to the front so callers reading `scores[0]` pick it up.
+fn disambiguate_1_vs_7(comp: &Component, scores: &mut [(char, f32)], templates: &[Template]) {
+    /// `1`/`7` confusions live in a much tighter band than `4`/`7` —
+    /// the observed flip was 0.003 — so keep the intervention window
+    /// small to minimise any chance of disturbing a clear read.
+    const TIE_MARGIN: f32 = 0.06;
+    /// The `1` and `7` templates must differ by at least this much in
+    /// top-heaviness for the feature to be trusted. Below it the
+    /// discriminator can't tell them apart, so it stays out entirely.
+    const MIN_TEMPLATE_SEPARATION: f32 = 0.20;
+
+    let winner = match scores.first() {
+        Some(&(c, _)) if c == '1' || c == '7' => c,
+        _ => return,
+    };
+    let partner = if winner == '1' { '7' } else { '1' };
+    let Some(partner_score) = scores.iter().find(|(c, _)| *c == partner).map(|(_, s)| *s) else {
+        return;
+    };
+    if scores[0].1 - partner_score > TIE_MARGIN {
+        return; // confident win — trust the pixel score.
+    }
+
+    let tmpl_feat = |label: char| {
+        templates
+            .iter()
+            .find(|t| t.label == label)
+            .map(|t| top_heaviness(&t.mask, t.w, t.h))
+    };
+    let (Some(feat_1), Some(feat_7)) = (tmpl_feat('1'), tmpl_feat('7')) else {
+        return;
+    };
+    if (feat_7 - feat_1).abs() < MIN_TEMPLATE_SEPARATION {
+        return; // templates don't separate on this feature — leave it be.
+    }
+    let comp_feat = top_heaviness(&comp.mask, comp.w, comp.h);
+    let pick = if (comp_feat - feat_7).abs() < (comp_feat - feat_1).abs() {
+        '7'
+    } else {
+        '1'
     };
     if pick != winner {
         if let Some(pos) = scores.iter().position(|(c, _)| *c == pick) {
@@ -588,6 +694,12 @@ pub fn recognize_with_debug(strip: &GrayImage, templates: &[Template]) -> Recogn
         // small `4` whose triangle hole broke open scores the same as a
         // `7` under the hole-count term (issue #108).
         disambiguate_4_vs_7(c, &mut scores, templates);
+        // Then the `1`↔`7` tie-break. Order matters: a genuine `7`
+        // keeps its win under both, and a `4`/`7` decision is settled
+        // before the `1`/`7` one even looks (their trigger sets are
+        // effectively disjoint — a real `4` never has `1` as a close
+        // contender), so the two never fight over the same component.
+        disambiguate_1_vs_7(c, &mut scores, templates);
         if let Some(&(label, _)) = scores.first() {
             out.push(label);
         }
@@ -709,6 +821,23 @@ mod tests {
         "...##...",
         "..##....",
     ];
+    // A chunky-font `1`: a vertical stem with a small top-left flag and
+    // a base serif. Flat top-to-bottom mass (the flag and serif roughly
+    // balance), which is what tells it apart from the top-heavy `7`.
+    #[rustfmt::skip]
+    const G1: &[&str] = &[
+        "...##...",
+        "..###...",
+        ".####...",
+        "...##...",
+        "...##...",
+        "...##...",
+        "...##...",
+        "...##...",
+        "...##...",
+        ".######.",
+        ".######.",
+    ];
 
     fn parse_glyph(rows: &[&str]) -> (Vec<bool>, u32, u32) {
         let h = rows.len() as u32;
@@ -826,6 +955,69 @@ mod tests {
         let mut scores = vec![('3', 0.80_f32), ('4', 0.75), ('7', 0.74)];
         disambiguate_4_vs_7(&comp, &mut scores, &templates);
         assert_eq!(scores[0].0, '3', "a non-4/7 winner is left alone");
+    }
+
+    // ── 1↔7 discriminator ────────────────────────────────────────────
+    fn templates_1_7() -> Vec<Template> {
+        vec![templ_from_rows('1', G1), templ_from_rows('7', G7)]
+    }
+
+    #[test]
+    fn top_heaviness_separates_1_from_7() {
+        let (m1, w1, h1) = parse_glyph(G1);
+        let (m7, w7, h7) = parse_glyph(G7);
+        let t1 = top_heaviness(&m1, w1, h1);
+        let t7 = top_heaviness(&m7, w7, h7);
+        assert!(
+            t7 > 0.4,
+            "7's header-over-tail should read top-heavy, got {t7}"
+        );
+        assert!(t1 < 0.1, "1's uniform stem should read flat, got {t1}");
+        // Comfortably clears the discriminator's MIN_TEMPLATE_SEPARATION.
+        assert!(
+            (t7 - t1).abs() > 0.2,
+            "templates must separate, got {t1} vs {t7}"
+        );
+    }
+
+    #[test]
+    fn disambiguate_rescues_one_misread_as_seven() {
+        let templates = templates_1_7();
+        let comp = comp_from_rows(G1);
+        // The PlantingLv1 insulating-tape state: a real '1' lost to '7'
+        // by a hair (0.682 vs 0.679), inside TIE_MARGIN.
+        let mut scores = vec![('7', 0.682_f32), ('1', 0.679)];
+        disambiguate_1_vs_7(&comp, &mut scores, &templates);
+        assert_eq!(scores[0].0, '1', "a vertical-stem 1 must be rescued from 7");
+    }
+
+    #[test]
+    fn disambiguate_1_7_keeps_genuine_seven() {
+        let templates = templates_1_7();
+        let comp = comp_from_rows(G7);
+        let mut scores = vec![('7', 0.70_f32), ('1', 0.66)];
+        disambiguate_1_vs_7(&comp, &mut scores, &templates);
+        assert_eq!(scores[0].0, '7', "a real 7 must stay 7");
+    }
+
+    #[test]
+    fn disambiguate_1_7_leaves_confident_win_untouched() {
+        let templates = templates_1_7();
+        let comp = comp_from_rows(G1);
+        // Gap exceeds TIE_MARGIN: the base metric is confident, so the
+        // fix stays out of it (scope guard, not a digit decision).
+        let mut scores = vec![('7', 0.80_f32), ('1', 0.60)];
+        disambiguate_1_vs_7(&comp, &mut scores, &templates);
+        assert_eq!(scores[0].0, '7');
+    }
+
+    #[test]
+    fn disambiguate_1_7_ignores_non_1_7_winner() {
+        let templates = templates_1_7();
+        let comp = comp_from_rows(G1);
+        let mut scores = vec![('2', 0.80_f32), ('1', 0.78), ('7', 0.77)];
+        disambiguate_1_vs_7(&comp, &mut scores, &templates);
+        assert_eq!(scores[0].0, '2', "a non-1/7 winner is left alone");
     }
 
     #[test]
