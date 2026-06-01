@@ -325,6 +325,107 @@ pub fn score(comp: &Component, t: &Template) -> f32 {
     base * penalty
 }
 
+/// Fraction of foreground pixels in the top `~3/11` of a glyph's rows.
+///
+/// This is a targeted shape feature for the `4`↔`7` decision. In the
+/// chunky game font, `7` is defined by a solid **two-row header bar**
+/// (`fill ≈ 0.92`) while `4` rises to a point and stays sparse up top
+/// (`fill ≈ 0.33`). The two glyphs differ here about as much as any
+/// pair of digits can, which is exactly why this feature stays
+/// decisive when the usual discriminators don't.
+///
+/// The band tracks the `7` template's header height (2 of its 11 rows,
+/// rounded up to `3/11`) and scales with the component, so it reads the
+/// same proportional slice whether the digit was captured at h≈8 or
+/// h≈14.
+fn top_band_fill(mask: &[bool], w: u32, h: u32) -> f32 {
+    if w == 0 || h == 0 {
+        return 0.0;
+    }
+    let band = (h * 3 / 11).max(1);
+    let mut fg = 0u32;
+    for y in 0..band {
+        for x in 0..w {
+            if mask[(y * w + x) as usize] {
+                fg += 1;
+            }
+        }
+    }
+    fg as f32 / (band * w) as f32
+}
+
+/// Resolve a `4`↔`7` near-tie by top-band fill instead of the
+/// hole-count-weighted pixel [`score`] (issue #108).
+///
+/// **The failure this fixes.** `4` carries one hole (the enclosed
+/// triangle); `7` carries none. When a `4` is rendered small or noisy,
+/// that triangle breaks open during binarisation and the component's
+/// hole count drops to 0. [`score`]'s asymmetric penalty then *helps
+/// the wrong digit*: matched to its true `4` template the holeless
+/// component is docked ×0.90 (component "lost" a hole), but matched to
+/// `7` the hole counts agree and it keeps ×1.0. So once raw pixel
+/// agreement between the two is within ~10% — plausible at these sizes
+/// — the `7` template wins, and because the same glyph binarises the
+/// same way every frame the misread is deterministic.
+///
+/// **Why a top-band tie-break and not a penalty tweak.** The hole
+/// penalty is load-bearing for the closed-loop digits (`0`/`6`/`8`/`9`);
+/// a general top/bottom mass discriminator was already tried in
+/// [`score`] and regressed (see its doc). This stays surgical: it only
+/// engages when the winner is `4` or `7` *and* the other of the pair is
+/// within [`TIE_MARGIN`] — the exact regime where the base metric is
+/// untrustworthy. A confident `7` (or `4`) keeps its pixel-score win
+/// untouched, so no other digit and no clear read can be affected.
+///
+/// `scores` is sorted descending on entry. When we override, the chosen
+/// label is rotated to the front (preserving the relative order of the
+/// rest) so callers reading `scores[0]` / the first non-`/` entry pick
+/// it up unchanged.
+fn disambiguate_4_vs_7(comp: &Component, scores: &mut [(char, f32)], templates: &[Template]) {
+    /// Only intervene on a near-tie. ~12% comfortably covers the
+    /// analytic flip window where the missing-hole penalty alone
+    /// (×0.90 vs ×1.0) decides the match; beyond it the pixel score
+    /// genuinely favours its winner and we leave it be.
+    const TIE_MARGIN: f32 = 0.12;
+
+    let winner = match scores.first() {
+        Some(&(c, _)) if c == '4' || c == '7' => c,
+        _ => return,
+    };
+    let partner = if winner == '4' { '7' } else { '4' };
+    let Some(partner_score) = scores.iter().find(|(c, _)| *c == partner).map(|(_, s)| *s) else {
+        return;
+    };
+    if scores[0].1 - partner_score > TIE_MARGIN {
+        return; // confident win — trust the pixel score.
+    }
+
+    // Decide by top-band fill: pick whichever template's header the
+    // component's top band looks more like. Deriving the boundary from
+    // the live templates keeps this correct if they're ever re-extracted
+    // at different proportions.
+    let tmpl_fill = |label: char| {
+        templates
+            .iter()
+            .find(|t| t.label == label)
+            .map(|t| top_band_fill(&t.mask, t.w, t.h))
+    };
+    let (Some(fill_4), Some(fill_7)) = (tmpl_fill('4'), tmpl_fill('7')) else {
+        return;
+    };
+    let comp_fill = top_band_fill(&comp.mask, comp.w, comp.h);
+    let pick = if (comp_fill - fill_7).abs() < (comp_fill - fill_4).abs() {
+        '7'
+    } else {
+        '4'
+    };
+    if pick != winner {
+        if let Some(pos) = scores.iter().position(|(c, _)| *c == pick) {
+            scores[..=pos].rotate_right(1);
+        }
+    }
+}
+
 /// Match every component in the binary strip against the templates and
 /// return the recognised characters, sorted left-to-right.
 ///
@@ -483,6 +584,10 @@ pub fn recognize_with_debug(strip: &GrayImage, templates: &[Template]) -> Recogn
         let mut scores: Vec<(char, f32)> =
             templates.iter().map(|t| (t.label, score(c, t))).collect();
         scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        // Targeted `4`↔`7` rescue before reading off the winner: a
+        // small `4` whose triangle hole broke open scores the same as a
+        // `7` under the hole-count term (issue #108).
+        disambiguate_4_vs_7(c, &mut scores, templates);
         if let Some(&(label, _)) = scores.first() {
             out.push(label);
         }
@@ -549,5 +654,184 @@ mod tests {
     fn recognize_empty_when_no_templates() {
         let img = GrayImage::from_pixel(10, 10, image::Luma([255]));
         assert_eq!(recognize(&img, &[]), String::new());
+    }
+
+    // ── 4↔7 discriminator (issue #108) ──────────────────────────────
+    //
+    // The game-font glyphs as bundled in `assets/ocr_templates/`. `G4`
+    // carries the enclosed triangle (1 hole); `G4_BROKEN` is the same
+    // glyph after a small/noisy capture pops that triangle open (0
+    // holes) — the input that used to misread as `7`. `G7` has the
+    // solid two-row header bar that no `4` ever has.
+    #[rustfmt::skip]
+    const G4: &[&str] = &[
+        ".....##.",
+        "....###.",
+        "....###.",
+        "...####.",
+        "...####.",
+        "..#####.",
+        ".##..##.",
+        ".##.####",
+        "########",
+        "########",
+        "....####",
+        ".....##.",
+        "......#.",
+    ];
+    #[rustfmt::skip]
+    const G4_BROKEN: &[&str] = &[
+        ".....##.",
+        "....###.",
+        "....###.",
+        "...####.",
+        "...####.",
+        "..#####.",
+        ".######.",
+        ".#######",
+        "########",
+        "########",
+        "....####",
+        ".....##.",
+        "......#.",
+    ];
+    #[rustfmt::skip]
+    const G7: &[&str] = &[
+        "########",
+        "########",
+        "###..###",
+        ".....###",
+        ".....##.",
+        "....###.",
+        "....##..",
+        "....##..",
+        "...##...",
+        "...##...",
+        "..##....",
+    ];
+
+    fn parse_glyph(rows: &[&str]) -> (Vec<bool>, u32, u32) {
+        let h = rows.len() as u32;
+        let w = rows[0].chars().count() as u32;
+        let mut mask = Vec::with_capacity((w * h) as usize);
+        for r in rows {
+            assert_eq!(r.chars().count() as u32, w, "ragged glyph row {r:?}");
+            mask.extend(r.chars().map(|c| c == '#'));
+        }
+        (mask, w, h)
+    }
+
+    fn comp_from_rows(rows: &[&str]) -> Component {
+        let (mask, w, h) = parse_glyph(rows);
+        let holes = count_holes(&mask, w, h);
+        Component {
+            x: 0,
+            y: 0,
+            w,
+            h,
+            mask,
+            holes,
+        }
+    }
+
+    fn templ_from_rows(label: char, rows: &[&str]) -> Template {
+        let (mask, w, h) = parse_glyph(rows);
+        let holes = count_holes(&mask, w, h);
+        Template {
+            label,
+            mask,
+            w,
+            h,
+            holes,
+        }
+    }
+
+    /// White strip with the glyph (black, value 0) inset by `border` px
+    /// so `find_components`' edge guard keeps it.
+    fn strip_from_glyph(rows: &[&str], border: u32) -> GrayImage {
+        let (mask, w, h) = parse_glyph(rows);
+        let mut img = GrayImage::from_pixel(w + border * 2, h + border * 2, image::Luma([255]));
+        for y in 0..h {
+            for x in 0..w {
+                if mask[(y * w + x) as usize] {
+                    img.put_pixel(x + border, y + border, image::Luma([0]));
+                }
+            }
+        }
+        img
+    }
+
+    fn templates_4_7() -> Vec<Template> {
+        vec![templ_from_rows('4', G4), templ_from_rows('7', G7)]
+    }
+
+    #[test]
+    fn glyph_hole_counts() {
+        // The whole premise: the intact 4 has a hole, the broken one
+        // and the 7 do not.
+        assert_eq!(comp_from_rows(G4).holes, 1);
+        assert_eq!(comp_from_rows(G4_BROKEN).holes, 0);
+        assert_eq!(comp_from_rows(G7).holes, 0);
+    }
+
+    #[test]
+    fn top_band_fill_separates_4_from_7() {
+        let (m4, w4, h4) = parse_glyph(G4);
+        let (m7, w7, h7) = parse_glyph(G7);
+        let f4 = top_band_fill(&m4, w4, h4);
+        let f7 = top_band_fill(&m7, w7, h7);
+        assert!(f4 < 0.5, "4's pointed top should read low, got {f4}");
+        assert!(f7 > 0.8, "7's header bar should read high, got {f7}");
+        // Breaking the hole doesn't touch the top band — that's why it
+        // stays a reliable tell when the hole count fails.
+        let (mb, wb, hb) = parse_glyph(G4_BROKEN);
+        assert!((top_band_fill(&mb, wb, hb) - f4).abs() < 1e-6);
+    }
+
+    #[test]
+    fn disambiguate_rescues_holeless_four() {
+        let templates = templates_4_7();
+        let comp = comp_from_rows(G4_BROKEN);
+        // Pixel race tipped to '7' by the missing-hole penalty, inside
+        // TIE_MARGIN — the exact misread state from issue #108.
+        let mut scores = vec![('7', 0.70_f32), ('4', 0.66)];
+        disambiguate_4_vs_7(&comp, &mut scores, &templates);
+        assert_eq!(scores[0].0, '4', "a holeless 4 must be rescued from 7");
+    }
+
+    #[test]
+    fn disambiguate_keeps_genuine_seven() {
+        let templates = templates_4_7();
+        let comp = comp_from_rows(G7);
+        let mut scores = vec![('7', 0.70_f32), ('4', 0.66)];
+        disambiguate_4_vs_7(&comp, &mut scores, &templates);
+        assert_eq!(scores[0].0, '7', "a real 7 must stay 7");
+    }
+
+    #[test]
+    fn disambiguate_leaves_confident_win_untouched() {
+        let templates = templates_4_7();
+        let comp = comp_from_rows(G4_BROKEN);
+        // Gap exceeds TIE_MARGIN: the base metric is confident, so the
+        // fix stays out of it (scope guard, not a digit decision).
+        let mut scores = vec![('7', 0.85_f32), ('4', 0.55)];
+        disambiguate_4_vs_7(&comp, &mut scores, &templates);
+        assert_eq!(scores[0].0, '7');
+    }
+
+    #[test]
+    fn disambiguate_ignores_non_4_7_winner() {
+        let templates = templates_4_7();
+        let comp = comp_from_rows(G4_BROKEN);
+        let mut scores = vec![('3', 0.80_f32), ('4', 0.75), ('7', 0.74)];
+        disambiguate_4_vs_7(&comp, &mut scores, &templates);
+        assert_eq!(scores[0].0, '3', "a non-4/7 winner is left alone");
+    }
+
+    #[test]
+    fn recognize_reads_holeless_four_and_seven() {
+        let templates = templates_4_7();
+        assert_eq!(recognize(&strip_from_glyph(G4_BROKEN, 3), &templates), "4");
+        assert_eq!(recognize(&strip_from_glyph(G7, 3), &templates), "7");
     }
 }
