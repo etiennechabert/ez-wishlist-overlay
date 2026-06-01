@@ -129,7 +129,7 @@ impl ItemCatalog {
             .filter(|rec| rec.category.as_deref() == Some("misc"))
             .map(|rec| Item {
                 id: rec.id.clone(),
-                name: rec.name.clone(),
+                name: crate::corrections::correct_name(&rec.id, &rec.name),
                 icon_path: format!("{icon_dir_name}/{}.png", rec.id),
                 category: rec.category.clone(),
                 subcategory: rec.subcategory.clone(),

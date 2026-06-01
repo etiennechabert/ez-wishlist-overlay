@@ -6,6 +6,7 @@
 //! cargo run -p scraper -- --output crates/app/src/assets
 //! ```
 
+mod corrections;
 mod items;
 mod model;
 mod output;

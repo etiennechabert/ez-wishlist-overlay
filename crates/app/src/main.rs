@@ -312,6 +312,28 @@ fn handle_box_capture(
         ?status,
         "box-scan: capture stitched",
     );
+    // Recognition debug dump: `source_path` is `Some` only when `ocr_debug` is on
+    // (the capture saved a PNG to attach to a bug report). Drop a text sidecar
+    // next to it so a mis-read scan is diagnosable — today only the raw PNG is
+    // kept, which can't explain why the stitch refused or a tile went unmatched.
+    if let Some(src) = job.source_path.as_deref() {
+        let dump = ocr::box_scan::format_capture_dump(
+            &read,
+            outcome,
+            &tally,
+            unrecognized,
+            session.captures,
+        );
+        let dump_path = src.with_extension("box-scan.txt");
+        match std::fs::write(&dump_path, dump) {
+            Ok(()) => {
+                tracing::info!(path = %dump_path.display(), "box-scan: wrote recognition dump")
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, path = %dump_path.display(), "box-scan: dump write failed")
+            }
+        }
+    }
     let _ = box_update_tx.try_send(ocr::BoxScanUpdate {
         target: session.target.clone(),
         captures: session.captures,
