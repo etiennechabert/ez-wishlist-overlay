@@ -346,7 +346,7 @@ impl AppState {
     /// enough of every required item to claim it — whether or not it's tracked.
     /// A fully-stocked upgrade therefore reads as ready in the grid even when
     /// it isn't on the wishlist (you can claim it in-game either way); tracking
-    /// only governs the "nearly ready" tier and the By-progress list. Ignores whether
+    /// only governs the VR overlay's per-item wishlist. Ignores whether
     /// the collected counts are also needed for sibling upgrades — the goal
     /// here is to surface "you've got the materials for this one" cues in
     /// the desktop UI, not gate aggregation. Empty requirements lists are
@@ -449,33 +449,13 @@ impl AppState {
         }
     }
 
-    /// "Nearly ready": a tracked, not-yet-ready upgrade that's only 1–2 distinct
-    /// items short of claimable (a known recipe). Drives the "nearly ready" tier
-    /// between "ready now" and the long in-progress tail — the quick-win cue the
-    /// user asked for ("what can I finish with just one more item?"). An empty /
-    /// assumed recipe has `items_missing == 0`, so it never qualifies (same
-    /// reason `is_upgrade_ready` refuses empty recipes). The 1–2 boundary keys
-    /// purely on distinct items per the spec; the By-progress row also surfaces
-    /// `units_missing` so a "1 item, 100 units to go" case stays honest.
-    /// Delegates to [`Self::upgrade_shortfall`] + [`Self::is_upgrade_ready`] so
-    /// the "missing" boundary lives in exactly one place.
-    pub fn is_upgrade_nearly_ready(&self, upgrade_id: &UpgradeId) -> bool {
-        if !self.tracked_upgrades.contains(upgrade_id)
-            || self.completed_upgrades.contains(upgrade_id)
-            || self.is_upgrade_ready(upgrade_id)
-        {
-            return false;
-        }
-        (1..=2).contains(&self.upgrade_shortfall(upgrade_id).items_missing)
-    }
-
     /// How much we trust an upgrade's recipe (drives the confidence badge in
-    /// the Hideout views). `Assumed` wins whenever the effective recipe is
+    /// the Hideout views). `Unknown` wins whenever the effective recipe is
     /// empty — "we don't know the cost" is the dominant signal, the same
     /// reason `is_upgrade_ready` refuses to flash empty recipes green.
     pub fn recipe_knowledge(&self, upgrade_id: &UpgradeId) -> RecipeKnowledge {
         if self.effective_requirements(upgrade_id).is_empty() {
-            RecipeKnowledge::Assumed
+            RecipeKnowledge::Unknown
         } else if self.is_overridden(upgrade_id) {
             RecipeKnowledge::Edited
         } else {
@@ -498,7 +478,7 @@ impl AppState {
     ///   2. In progress (some collected, 3+ items short), descending by fraction
     ///      so the nearest-to-done sits highest.
     ///   3. Known recipe, nothing collected yet.
-    ///   4. Assumed (empty recipe) — parked last and flagged, because its
+    ///   4. Unknown (empty recipe) — parked last and flagged, because its
     ///      fraction is a meaningless 0 and the action there is "fill in the
     ///      recipe", not "go grind".
     ///
@@ -532,15 +512,15 @@ impl AppState {
 
         // Per row: (bucket rank, within-bucket key). Lower rank sorts first.
         // Keying on an explicit bucket (rather than raw fraction) keeps "ready"
-        // / "nearly" / "assumed" from interleaving with the in-progress band —
-        // an assumed recipe and a known-but-untouched one both have fraction 0
-        // but belong at opposite ends. The within-bucket f64 is only ever
+        // / "nearly" / "unknown" from interleaving with the in-progress band —
+        // an unknown-recipe row and a known-but-untouched one both have fraction
+        // 0 but belong at opposite ends. The within-bucket f64 is only ever
         // compared against rows in the SAME bucket (rank separates them first),
         // so each branch can pick whatever ordering fits that band: ascending
         // "distance" for nearly (fewer items, then fewer units), and inverse
         // fraction for in-progress (higher completion first).
         fn sort_key(r: &UpgradeProgressRow) -> (u8, f64) {
-            if matches!(r.knowledge, RecipeKnowledge::Assumed) {
+            if matches!(r.knowledge, RecipeKnowledge::Unknown) {
                 (4, 0.0)
             } else if r.ready {
                 (0, 0.0)
@@ -924,7 +904,7 @@ impl UpgradeProgress {
 /// still under their target, and total units still missing across them. The
 /// "nearly ready" tier keys on `items_missing` (1–2 ⇒ nearly); the By-progress
 /// row shows both so a "1 item, 100 units to go" case stays honest. An empty /
-/// assumed recipe yields all-zero (unknown cost, not "0 away").
+/// unknown recipe yields all-zero (unknown cost, not "0 away").
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct UpgradeShortfall {
     /// Distinct items whose owned total is below the required quantity.
@@ -939,7 +919,7 @@ pub struct UpgradeShortfall {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RecipeKnowledge {
     /// Effective recipe is empty — we don't know the cost. Parked + flagged.
-    Assumed,
+    Unknown,
     /// Bundled recipe, used as shipped (no user override).
     Bundled,
     /// User has corrected the recipe via the Edit panel.
@@ -957,7 +937,8 @@ pub struct UpgradeProgressRow {
     pub level: u32,
     pub progress: UpgradeProgress,
     pub knowledge: RecipeKnowledge,
-    /// `is_upgrade_ready`: tracked, materials complete, recipe known.
+    /// `is_upgrade_ready`: every material collected, recipe known (not
+    /// tracking-gated).
     pub ready: bool,
     /// User-pinned: floats this row above its readiness bucket and paints a
     /// priority accent. Carried on the row so the GUI never re-locks per row.
@@ -1219,7 +1200,7 @@ mod tests {
                 },
                 // Second module whose sole upgrade carries an empty recipe — the
                 // "we know this level exists but not its cost" placeholder. Lets
-                // the progress/knowledge tests exercise the `Assumed` paths
+                // the progress/knowledge tests exercise the `Unknown` paths
                 // without disturbing the workbench module's two-level shape (the
                 // top-level-completion test relies on Lv2 being workbench's top).
                 HideoutModule {
@@ -1782,7 +1763,7 @@ mod tests {
     }
 
     #[test]
-    fn recipe_knowledge_bundled_edited_assumed() {
+    fn recipe_knowledge_bundled_edited_unknown() {
         let mut s = AppState::new(fixture());
         assert_eq!(
             s.recipe_knowledge(&"workbench_lv1".to_string()),
@@ -1799,10 +1780,10 @@ mod tests {
             s.recipe_knowledge(&"workbench_lv1".to_string()),
             RecipeKnowledge::Edited
         );
-        // Empty recipe = Assumed, regardless of tracking.
+        // Empty recipe = Unknown, regardless of tracking.
         assert_eq!(
             s.recipe_knowledge(&"placeholder_lv1".to_string()),
-            RecipeKnowledge::Assumed
+            RecipeKnowledge::Unknown
         );
     }
 
@@ -1834,18 +1815,18 @@ mod tests {
     }
 
     #[test]
-    fn hideout_progress_rows_parks_assumed_last() {
-        let mut s = AppState::new(fixture());
-        s.set_tracked_upgrade(&"workbench_lv1".to_string(), true); // known, untouched
-        s.set_tracked_upgrade(&"placeholder_lv1".to_string(), true); // assumed
+    fn hideout_progress_rows_parks_unknown_last() {
+        let s = AppState::new(fixture());
+        // Both modules' next level shows regardless of tracking; the known
+        // recipe sorts above the unknown one.
         let rows = s.hideout_progress_rows();
         assert_eq!(rows.len(), 2);
         assert_eq!(
             rows[0].upgrade_id, "workbench_lv1",
-            "known not-started sorts above an assumed recipe"
+            "known not-started sorts above an unknown recipe"
         );
         assert_eq!(rows[1].upgrade_id, "placeholder_lv1");
-        assert_eq!(rows[1].knowledge, RecipeKnowledge::Assumed);
+        assert_eq!(rows[1].knowledge, RecipeKnowledge::Unknown);
     }
 
     #[test]
@@ -2265,19 +2246,6 @@ mod tests {
     }
 
     #[test]
-    fn nearly_ready_excludes_ready() {
-        let mut s = AppState::new(fixture());
-        s.set_tracked_upgrade(&"workbench_lv1".to_string(), true);
-        s.set_collected(&"bolts".to_string(), 5);
-        s.set_collected(&"screws".to_string(), 3);
-        assert!(s.is_upgrade_ready(&"workbench_lv1".to_string()));
-        assert!(
-            !s.is_upgrade_nearly_ready(&"workbench_lv1".to_string()),
-            "a fully-stocked upgrade is ready, not nearly"
-        );
-    }
-
-    #[test]
     fn ready_is_tracking_independent() {
         let mut s = AppState::new(fixture());
         // Fully stock workbench_lv1's recipe (bolts×5 + screws×3) but never
@@ -2299,65 +2267,21 @@ mod tests {
     }
 
     #[test]
-    fn nearly_ready_excludes_three_items_short() {
-        let mut s = AppState::new(fixture());
-        s.set_tracked_upgrade(&"workbench_lv1".to_string(), true);
-        // Override to a 3-item recipe, own none → 3 distinct items short.
-        let mut slots: [Option<Requirement>; RECIPE_SLOTS] = std::array::from_fn(|_| None);
-        slots[0] = Some(Requirement {
-            item_id: "bolts".into(),
-            quantity: 1,
-        });
-        slots[1] = Some(Requirement {
-            item_id: "screws".into(),
-            quantity: 1,
-        });
-        slots[2] = Some(Requirement {
-            item_id: "nuts".into(),
-            quantity: 1,
-        });
-        s.set_recipe_override(&"workbench_lv1".to_string(), RecipeOverride::new(slots));
-        assert_eq!(
-            s.upgrade_shortfall(&"workbench_lv1".to_string())
-                .items_missing,
-            3
-        );
-        assert!(
-            !s.is_upgrade_nearly_ready(&"workbench_lv1".to_string()),
-            "3 distinct items short is in-progress, not nearly"
-        );
-    }
-
-    #[test]
-    fn nearly_ready_requires_tracking() {
-        let mut s = AppState::new(fixture());
-        // One unit short of a known recipe, but NOT tracked → not nearly.
-        s.set_collected(&"bolts".to_string(), 5);
-        s.set_collected(&"screws".to_string(), 2);
-        assert!(!s.is_upgrade_nearly_ready(&"workbench_lv1".to_string()));
-        s.set_tracked_upgrade(&"workbench_lv1".to_string(), true);
-        assert!(
-            s.is_upgrade_nearly_ready(&"workbench_lv1".to_string()),
-            "tracked + 1 item short ⇒ nearly"
-        );
-    }
-
-    #[test]
     fn hideout_progress_rows_floats_pinned_above_bucket() {
         let mut s = AppState::new(fixture());
         // workbench_lv1 is the module's natural next level; stock it fully so
-        // it's ready (rank 0). placeholder_lv1 is an assumed recipe (rank 4).
+        // it's ready (rank 0). placeholder_lv1 has an unknown recipe (rank 4).
         // Neither is tracked — pinning and readiness drive this view, not tracking.
         s.set_collected(&"bolts".to_string(), 5);
         s.set_collected(&"screws".to_string(), 3);
 
-        // Unpinned: the ready upgrade leads, the assumed one is parked last.
+        // Unpinned: the ready upgrade leads, the unknown-recipe one is parked last.
         let rows = s.hideout_progress_rows();
         assert_eq!(rows[0].upgrade_id, "workbench_lv1");
         assert_eq!(rows[1].upgrade_id, "placeholder_lv1");
 
-        // Pin the assumed upgrade → it floats above even the ready one, because
-        // an explicit pin outranks the readiness buckets.
+        // Pin the unknown-recipe upgrade → it floats above even the ready one,
+        // because an explicit pin outranks the readiness buckets.
         s.set_pinned_upgrade(&"placeholder_lv1".to_string(), true);
         let rows = s.hideout_progress_rows();
         assert_eq!(rows[0].upgrade_id, "placeholder_lv1");
@@ -2366,7 +2290,7 @@ mod tests {
     }
 
     #[test]
-    fn hideout_progress_rows_orders_ready_nearly_inprogress_known_assumed() {
+    fn hideout_progress_rows_orders_ready_nearly_inprogress_known_unknown() {
         // Disjoint single-upgrade modules so each upgrade's state is independent
         // (the shared-item fixture can't put one upgrade in every bucket at once).
         fn up(id: &str, reqs: &[(&str, u32)]) -> Upgrade {
@@ -2404,14 +2328,13 @@ mod tests {
                     up("u_inprog", &[("pa", 2), ("pb", 2), ("pc", 2)]),
                 ),
                 module("m_known", up("u_known", &[("ka", 2), ("kb", 2), ("kc", 2)])),
-                module("m_assumed", up("u_assumed", &[])),
+                module("m_unknown", up("u_unknown", &[])),
             ],
             items: vec![],
         });
         let mut s = AppState::new(data);
-        for id in ["u_ready", "u_nearly", "u_inprog", "u_known", "u_assumed"] {
-            s.set_tracked_upgrade(&id.to_string(), true);
-        }
+        // Tracking is irrelevant to this list now; the ordering is purely by
+        // readiness bucket. Collect just enough to place each row in its bucket.
         s.set_collected(&"ra".to_string(), 2); // ready: fully stocked
         s.set_collected(&"na".to_string(), 1); // nearly: 1 item short
         s.set_collected(&"pa".to_string(), 1); // in-progress: 3 items short, some collected
@@ -2423,7 +2346,7 @@ mod tests {
             .collect();
         assert_eq!(
             order,
-            vec!["u_ready", "u_nearly", "u_inprog", "u_known", "u_assumed"]
+            vec!["u_ready", "u_nearly", "u_inprog", "u_known", "u_unknown"]
         );
     }
 

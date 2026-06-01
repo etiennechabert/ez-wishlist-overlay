@@ -96,15 +96,13 @@ fn appearance_section(ui: &mut egui::Ui, theme: &mut Theme, color_scheme: &mut C
     ui.add_space(6.0);
     ui.horizontal(|ui| {
         ui.label("Color scheme").on_hover_text(
-            "Palette for the hideout status colors (tracked / nearly ready / \
-             ready / done / pinned). Okabe-Ito and IBM are colorblind-safe \
-             palettes that keep those states distinct under red-green color \
-             vision deficiency. The legend above the hideout grid updates to \
-             match your choice.",
+            "Palette for the hideout status colors (tracked / ready / done / \
+             pinned). Both options are colorblind-safe — they keep those states \
+             distinct under red-green color vision deficiency. The legend above \
+             the hideout grid updates to match your choice.",
         );
-        ui.selectable_value(color_scheme, ColorScheme::Default, "Default");
         ui.selectable_value(color_scheme, ColorScheme::OkabeIto, "Okabe-Ito")
-            .on_hover_text("Color Universal Design palette (Wong 2011).");
+            .on_hover_text("Color Universal Design palette (Wong 2011). The default.");
         ui.selectable_value(color_scheme, ColorScheme::Ibm, "IBM")
             .on_hover_text("IBM Design Language accessible palette.");
     });

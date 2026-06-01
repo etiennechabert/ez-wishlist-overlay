@@ -183,8 +183,8 @@ fn view_toggle_row(ui: &mut egui::Ui, settings: &Arc<RwLock<Settings>>) -> bool 
 
 /// Always-visible key for the grid's status colors, sitting just under the view
 /// toggle. Every swatch is painted with the *live* theme color, so the legend
-/// tracks the active palette (Default / Okabe-Ito / IBM) and the dark/light
-/// theme automatically — switch the scheme in Settings and these update too.
+/// tracks the active palette (Okabe-Ito / IBM) and the dark/light theme
+/// automatically — switch the scheme in Settings and these update too.
 fn legend_row(ui: &mut egui::Ui) {
     let dark = ui.visuals().dark_mode;
     ui.horizontal_wrapped(|ui| {
@@ -200,81 +200,46 @@ fn legend_row(ui: &mut egui::Ui) {
             theme::tracked_fill(dark),
             "Tracked",
             "On your list — you're working toward it.",
-            false,
-        );
-        legend_swatch(
-            ui,
-            theme::nearly_ready_fill(dark),
-            "Nearly",
-            "Tracked and only 1–2 items short of claimable.",
-            false,
         );
         legend_swatch(
             ui,
             theme::ready_fill(dark),
             "Ready",
             "Every required item collected — claim it in-game.",
-            false,
         );
-        legend_swatch(
-            ui,
-            theme::done_fill(dark),
-            "Done",
-            "Built / completed.",
-            false,
-        );
+        legend_swatch(ui, theme::done_fill(dark), "Done", "Built / completed.");
         legend_swatch(
             ui,
             theme::pinned_accent(dark),
             "Pinned",
             "Prioritized — floats to the top of the By-progress list.",
-            false,
         );
         legend_swatch(
             ui,
             theme::override_marker(dark),
             "Customized",
             "Recipe you've edited away from the bundled default.",
-            false,
         );
         legend_swatch(
             ui,
-            theme::assumed_marker(dark),
-            "Assumed",
-            "Recipe unknown — its cost is a guess. Open Edit to fill it in.",
-            false,
-        );
-        legend_swatch(
-            ui,
-            theme::selected_outline(dark),
-            "Editing",
-            "The cell currently open in the recipe editor below.",
-            true,
+            theme::unknown_marker(dark),
+            "Unknown",
+            "We don't have this upgrade's recipe yet — its cost is a guess. \
+             Open Edit to fill it in.",
         );
     });
 }
 
-/// One legend entry: a small rounded swatch followed by its label. `outline`
-/// draws the swatch as a ring (matching the "Editing" focus cue) rather than a
-/// solid chip.
-fn legend_swatch(ui: &mut egui::Ui, color: egui::Color32, label: &str, tip: &str, outline: bool) {
+/// One legend entry: a small rounded swatch followed by its label.
+fn legend_swatch(ui: &mut egui::Ui, color: egui::Color32, label: &str, tip: &str) {
     const SW: f32 = 13.0;
     let (rect, _) = ui.allocate_exact_size(egui::vec2(SW, SW), egui::Sense::hover());
     if ui.is_rect_visible(rect) {
         let border = ui.visuals().weak_text_color();
-        if outline {
-            // Ring: paint the color, then knock out the centre with the panel
-            // fill so only a ~2px border remains. Avoids depending on a
-            // specific `rect_stroke` signature across egui versions.
-            ui.painter().rect_filled(rect, 3.0, color);
-            ui.painter()
-                .rect_filled(rect.shrink(2.0), 2.0, ui.visuals().panel_fill);
-        } else {
-            // Hairline border behind the chip so pale fills still read as a
-            // distinct swatch against the panel in either theme.
-            ui.painter().rect_filled(rect.expand(1.0), 3.5, border);
-            ui.painter().rect_filled(rect, 3.0, color);
-        }
+        // Hairline border behind the chip so pale fills still read as a
+        // distinct swatch against the panel in either theme.
+        ui.painter().rect_filled(rect.expand(1.0), 3.5, border);
+        ui.painter().rect_filled(rect, 3.0, color);
     }
     ui.add(egui::Label::new(egui::RichText::new(label).small()).selectable(false))
         .on_hover_text(tip);
@@ -674,36 +639,33 @@ fn upgrade_cell(
     save_tx: &Sender<SaveTick>,
     upgrade: &Upgrade,
 ) {
-    let (tracked, done, ready, nearly, assumed) = {
+    let (tracked, done, ready, unknown) = {
         let s = state.read();
         (
             s.tracked_upgrades.contains(&upgrade.id),
             s.completed_upgrades.contains(&upgrade.id),
             s.is_upgrade_ready(&upgrade.id),
-            s.is_upgrade_nearly_ready(&upgrade.id),
-            matches!(s.recipe_knowledge(&upgrade.id), RecipeKnowledge::Assumed),
+            matches!(s.recipe_knowledge(&upgrade.id), RecipeKnowledge::Unknown),
         )
     };
 
     let dark = ui.visuals().dark_mode;
     let is_selected = selected(ui.ctx()).as_deref() == Some(upgrade.id.as_str());
-    // Warmth gradient: tracked (blue) → nearly (amber) → ready (yellow) → done
-    // (green). `nearly` slots just below `ready` so a cell 1–2 items short reads
-    // as "almost" without being mistaken for claimable.
+    // Readiness tint: done (green) → ready (yellow) → tracked (blue). Ready and
+    // done both override tracked so a claimable/built cell never reads as merely
+    // "on the list".
     let fill = if done {
         theme::done_fill(dark)
     } else if ready {
         theme::ready_fill(dark)
-    } else if nearly {
-        theme::nearly_ready_fill(dark)
     } else if tracked {
         theme::tracked_fill(dark)
     } else {
         egui::Color32::TRANSPARENT
     };
 
-    // Assumed (empty) recipes never reach the warm "ready" fill no matter how
-    // much the user collects — correct, but otherwise invisible. A thin brick
+    // Unknown (empty) recipes never reach the warm "ready" fill no matter how
+    // much the user collects — correct, but otherwise invisible. A thin neutral
     // stroke marks "this cell is a guess, open Edit" without the loud fills
     // that tracked/ready/done use.
     let mut frame = egui::Frame::group(ui.style())
@@ -712,12 +674,12 @@ fn upgrade_cell(
     // The cell open in the recipe editor gets a bright neutral ring so "the one
     // I'm editing" is unmistakable — focus has no readiness color of its own,
     // which is exactly what made it blur into the warm fills. The ring wins over
-    // the faint assumed stroke (focus is the louder, transient cue; the
-    // assumed-ness still surfaces via the hover text below).
+    // the faint unknown stroke (focus is the louder, transient cue; the
+    // unknown-ness still surfaces via the hover text below).
     if is_selected {
         frame = frame.stroke(egui::Stroke::new(2.0, theme::selected_outline(dark)));
-    } else if assumed {
-        frame = frame.stroke(egui::Stroke::new(1.0, theme::assumed_marker(dark)));
+    } else if unknown {
+        frame = frame.stroke(egui::Stroke::new(1.0, theme::unknown_marker(dark)));
     }
 
     let resp = frame
@@ -725,7 +687,7 @@ fn upgrade_cell(
             upgrade_controls(ui, state, save_tx, &upgrade.id, false);
         })
         .response;
-    if assumed {
+    if unknown {
         resp.on_hover_text(
             "We don't have this upgrade's recipe yet — its cost is a guess. \
              Click Edit to fill in what it actually needs.",
@@ -1073,18 +1035,14 @@ fn progress_row(
         upgrade_controls(ui, state, save_tx, &row.upgrade_id, true);
     });
 
-    // Ready rows get the warm `ready_fill`; nearly-ready rows the dimmer amber.
-    // So closeness-to-claimable pops before the eye reaches the bar (the grid
-    // signals this per-cell; here the row IS the upgrade). Everything in this
-    // list is tracked-and-incomplete by construction, so there's no tracked/done
-    // tint to compete with.
+    // Ready rows get the warm `ready_fill` so closeness-to-claimable pops before
+    // the eye reaches the bar (the grid signals this per-cell; here the row IS
+    // the upgrade). Everything else falls back to the hover/stripe neutrals; the
+    // "N items to go" chip and the bucket order already carry near-completeness.
     let row_rect = inner.response.rect;
     let hovered = ui.rect_contains_pointer(row_rect);
-    let nearly = !row.ready && (1..=2).contains(&row.shortfall.items_missing);
     let bg = if row.ready {
         theme::ready_fill(dark)
-    } else if nearly {
-        theme::nearly_ready_fill(dark)
     } else if hovered {
         theme::row_hover(dark)
     } else if row_idx % 2 == 1 {
@@ -1132,7 +1090,7 @@ fn progress_status_chip(ui: &mut egui::Ui, row: &UpgradeProgressRow) {
 }
 
 /// Recipe-confidence badge for a progress-list row. `Bundled` is the quiet
-/// default (no badge); `Assumed`/`Edited` get a small colored tag. No ✎/✓
+/// default (no badge); `Unknown`/`Edited` get a small colored tag. No ✎/✓
 /// Dingbat glyphs — neither Ubuntu-Light nor Hack cover that block, so they'd
 /// render as tofu (same trap `module_toggle` documents for ✓/✕).
 fn progress_badge(ui: &mut egui::Ui, knowledge: RecipeKnowledge, dark: bool) {
@@ -1146,12 +1104,12 @@ fn progress_badge(ui: &mut egui::Ui, knowledge: RecipeKnowledge, dark: bool) {
             )
             .on_hover_text("You've corrected this recipe via the Edit panel.");
         }
-        RecipeKnowledge::Assumed => {
+        RecipeKnowledge::Unknown => {
             ui.label(
                 egui::RichText::new("needs recipe")
                     .small()
                     .strong()
-                    .color(theme::assumed_marker(dark)),
+                    .color(theme::unknown_marker(dark)),
             )
             .on_hover_text(
                 "We don't have this upgrade's recipe yet — its cost is a guess. \
