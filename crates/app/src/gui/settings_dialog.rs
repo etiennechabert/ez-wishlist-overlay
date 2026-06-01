@@ -321,6 +321,15 @@ fn vr_section(ui: &mut egui::Ui, vr: &mut VrSettings) {
             stepper_slider_u32(ui, &mut vr.grid_cols, bounds::GRID_COLS, 1, "");
             ui.end_row();
 
+            ui.label("Max items").on_hover_text(
+                "Show at most this many items on the overlay, top priority first \
+                 (pinned, then biggest grinds). 'All' shows your whole wishlist; \
+                 set a small number to keep the panel to just the next few things \
+                 worth grabbing.",
+            );
+            max_items_slider(ui, &mut vr.max_items);
+            ui.end_row();
+
             ui.label("Height offset (m)").on_hover_text(
                 "How far above the HMD the overlay sits when it shows. Higher \
                  values push the panel up so you have to crane further to see \
@@ -341,8 +350,8 @@ fn vr_section(ui: &mut egui::Ui, vr: &mut VrSettings) {
     let weak = ui.visuals().weak_text_color();
     ui.label(
         egui::RichText::new(
-            "Width, pitch thresholds, and grid layout apply live. Height offset \
-             takes effect on the next show.",
+            "Width, pitch thresholds, grid layout, and item cap apply live. \
+             Height offset takes effect on the next show.",
         )
         .small()
         .color(weak),
@@ -408,6 +417,47 @@ fn stepper_slider_u32(
             .clicked()
         {
             *value = value.saturating_add(step).min(max);
+        }
+    });
+}
+
+/// Slider for the overlay item cap. `0` displays as "All" (no cap); the +/-
+/// steppers and the slider share that sentinel. Mirrors [`stepper_slider_u32`]
+/// but with the custom "All" label, which a plain integer slider can't show.
+fn max_items_slider(ui: &mut egui::Ui, value: &mut u32) {
+    let range = bounds::OVERLAY_MAX_ITEMS;
+    let max = *range.end();
+    ui.horizontal(|ui| {
+        if ui
+            .add_sized([STEPPER_BUTTON_W, 0.0], egui::Button::new("−"))
+            .clicked()
+        {
+            *value = value.saturating_sub(1);
+        }
+        ui.add(
+            egui::Slider::new(value, range)
+                .integer()
+                .custom_formatter(|n, _| {
+                    if n < 1.0 {
+                        "All".to_string()
+                    } else {
+                        (n as u32).to_string()
+                    }
+                })
+                .custom_parser(|s| {
+                    let s = s.trim();
+                    if s.eq_ignore_ascii_case("all") {
+                        Some(0.0)
+                    } else {
+                        s.parse::<f64>().ok()
+                    }
+                }),
+        );
+        if ui
+            .add_sized([STEPPER_BUTTON_W, 0.0], egui::Button::new("+"))
+            .clicked()
+        {
+            *value = (*value + 1).min(max);
         }
     });
 }

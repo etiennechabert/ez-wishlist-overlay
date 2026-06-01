@@ -37,6 +37,23 @@ pub const MAX_ROWS: u32 = 8;
 const PLACEHOLDER_WIDTH: u32 = 600;
 const PLACEHOLDER_HEIGHT: u32 = 120;
 
+/// Width of the purple stripe drawn down the left edge of a pinned item's cell.
+const PINNED_STRIPE_W: f32 = 6.0;
+/// Border width for a pinned cell — a touch heavier than the neutral 2px so the
+/// accent reads as deliberate rather than as a hover artifact.
+const PINNED_BORDER_W: f32 = 3.0;
+
+/// Accent for pinned (user-prioritized) items: a purple border + left stripe.
+/// Echoes the desktop's pinned accent (`gui::theme::pinned_accent`, also purple)
+/// and stays clear of the yellow hover border, the green "done" progress fill,
+/// and the blue in-progress fill — so "this is a priority" never reads as a
+/// readiness or hover cue. Fixed here rather than pulled from `gui::theme`
+/// because this rasterizer is deliberately theme-independent and unit-testable
+/// without egui.
+fn pinned_accent() -> Color {
+    Color::from_rgba8(190, 120, 235, 255)
+}
+
 pub struct CellHit {
     pub item_id: String,
     /// Where to draw the hover-highlight border. Tight to the visible icon
@@ -154,6 +171,18 @@ pub fn apply_hover_highlight(pixmap: &mut Pixmap, hits: &[CellHit], hover_id: &s
     );
 }
 
+/// Truncate the (already priority-sorted) wishlist to the overlay's item cap,
+/// keeping the top `max_items` by priority. `max_items == 0` is the "no cap"
+/// sentinel — the list is left untouched (still bounded by the MAX_ROWS ceiling
+/// inside [`render`]). Applied before `render` so a deliberate cap quietly shows
+/// just the leaders, with no "+N more" badge — that indicator is reserved for
+/// the involuntary MAX_ROWS overflow.
+pub fn cap_wishlist(items: &mut Vec<ActiveItem>, max_items: u32) {
+    if max_items > 0 {
+        items.truncate(max_items as usize);
+    }
+}
+
 fn draw_cell<F>(pixmap: &mut Pixmap, item: &ActiveItem, rect: Rect, resolve_icon: &mut F)
 where
     F: FnMut(&str) -> Option<std::borrow::Cow<'static, [u8]>>,
@@ -170,9 +199,16 @@ where
     paint.set_color(bg_color);
     pixmap.fill_rect(rect, &paint, Transform::identity(), None);
 
-    // Border.
+    // Border. Pinned (user-prioritized) upgrades get a purple accent border so
+    // the items they need stand out in the headset; everything else keeps the
+    // neutral gray (see `pinned_accent`).
+    let (border_color, border_width) = if item.pinned {
+        (pinned_accent(), PINNED_BORDER_W)
+    } else {
+        (Color::from_rgba8(80, 84, 90, 255), 2.0)
+    };
     let mut border_paint = Paint::default();
-    border_paint.set_color(Color::from_rgba8(80, 84, 90, 255));
+    border_paint.set_color(border_color);
     let mut pb = PathBuilder::new();
     pb.push_rect(rect);
     if let Some(path) = pb.finish() {
@@ -180,7 +216,7 @@ where
             &path,
             &border_paint,
             &Stroke {
-                width: 2.0,
+                width: border_width,
                 ..Stroke::default()
             },
             Transform::identity(),
@@ -220,6 +256,20 @@ where
         item.collected.min(item.needed.max(1)),
         item.needed,
     );
+
+    // Left accent stripe for pinned items. Drawn after the icon + chip so it
+    // reads as a clean full-height bar, but before the "done" desaturate below
+    // so a finished pinned item dims along with the rest of its cell. It also
+    // survives the per-frame yellow hover border (`apply_hover_highlight`),
+    // which only traces the icon band — the stripe's top and bottom stay purple
+    // even while the cell is hovered.
+    if item.pinned {
+        let stripe =
+            Rect::from_xywh(rect.x(), rect.y(), PINNED_STRIPE_W, rect.height()).unwrap_or(rect);
+        let mut stripe_paint = Paint::default();
+        stripe_paint.set_color(pinned_accent());
+        pixmap.fill_rect(stripe, &stripe_paint, Transform::identity(), None);
+    }
 
     if done {
         // Desaturate overlay.
@@ -539,6 +589,39 @@ mod tests {
     }
 
     #[test]
+    fn pinned_item_paints_accent_a_plain_item_lacks() {
+        let plain = item("a", "Alpha", 5, 1);
+        let mut pinned = plain.clone();
+        pinned.pinned = true;
+
+        let (pm_plain, _) = render(std::slice::from_ref(&plain), 1, |_| None);
+        let (pm_pinned, _) = render(std::slice::from_ref(&pinned), 1, |_| None);
+
+        // Sample the left-edge stripe band: inside the cell, left of the icon
+        // (which starts 12px in), at mid-height so we clear the name band above
+        // and the progress chip below.
+        let x = CELL_PADDING + 3;
+        let y = CELL_PADDING + CELL_PX / 2;
+        let plain_px = pm_plain.pixel(x, y).expect("in-bounds pixel");
+        let pinned_px = pm_pinned.pixel(x, y).expect("in-bounds pixel");
+
+        assert_ne!(
+            (plain_px.red(), plain_px.green(), plain_px.blue()),
+            (pinned_px.red(), pinned_px.green(), pinned_px.blue()),
+            "pinned cell should paint an accent the plain cell does not"
+        );
+        // And specifically the purple accent (red + blue high, green the
+        // smallest channel), not merely any difference.
+        assert!(
+            pinned_px.red() > 120 && pinned_px.blue() > 160 && pinned_px.green() < pinned_px.red(),
+            "stripe pixel should be the purple pinned accent, got ({}, {}, {})",
+            pinned_px.red(),
+            pinned_px.green(),
+            pinned_px.blue()
+        );
+    }
+
+    #[test]
     fn caps_visible_at_max_rows_times_cols() {
         // 100 items at 5 cols, MAX_ROWS=8 → cap at 40 cells.
         let items: Vec<ActiveItem> = (0..100)
@@ -546,6 +629,24 @@ mod tests {
             .collect();
         let (_pm, hits) = render(&items, 5, |_| None);
         assert_eq!(hits.len(), (5 * MAX_ROWS) as usize);
+    }
+
+    #[test]
+    fn cap_wishlist_keeps_top_n_and_zero_means_all() {
+        let mut items: Vec<ActiveItem> = (0..10)
+            .map(|i| item(&format!("i{i}"), &format!("Item {i}"), 1, 0))
+            .collect();
+        // 0 is the no-cap sentinel: list untouched.
+        cap_wishlist(&mut items, 0);
+        assert_eq!(items.len(), 10);
+        // A positive cap keeps the first N (the priority leaders, since the
+        // input is already in priority order).
+        cap_wishlist(&mut items, 3);
+        assert_eq!(items.len(), 3);
+        assert_eq!(items[0].item_id, "i0");
+        // A cap larger than the remaining list is a no-op, not a panic.
+        cap_wishlist(&mut items, 99);
+        assert_eq!(items.len(), 3);
     }
 
     /// End-to-end snapshot using real embedded icons + the loaded data.json.
@@ -569,6 +670,11 @@ mod tests {
             .collect();
         for id in &ids {
             state.set_tracked_upgrade(id, true);
+        }
+        // Pin the first tracked upgrade so the snapshot exercises the pinned
+        // accent (purple border + left stripe) on the items it needs.
+        if let Some(first) = ids.first() {
+            state.set_pinned_upgrade(first, true);
         }
         let items = state.active_items();
         assert!(!items.is_empty(), "real data should produce active items");

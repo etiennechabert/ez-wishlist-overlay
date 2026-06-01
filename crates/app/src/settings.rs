@@ -31,6 +31,11 @@ pub mod bounds {
     /// from hammering the compositor mirror back-to-back; 15 s is a relaxed
     /// "walking between panels" pace.
     pub const AUTO_CAPTURE_INTERVAL_SECS: std::ops::RangeInclusive<u32> = 1..=15;
+    /// Cap on how many items the VR overlay shows (top priority first). `0` is
+    /// the sentinel for "no cap — show the whole wishlist" (still bounded by
+    /// the MAX_ROWS render ceiling). The upper end is a generous focus-list
+    /// size — ≈5 rows at the default 8 columns — past which "All" is the intent.
+    pub const OVERLAY_MAX_ITEMS: std::ops::RangeInclusive<u32> = 0..=40;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -284,6 +289,13 @@ pub struct VrSettings {
     /// overlays keep their position until they hide and reappear.
     #[serde(default = "default_height_offset_m")]
     pub height_offset_m: f32,
+    /// Cap on how many items the overlay shows, in priority order (pinned
+    /// first, then biggest grinds — see [`crate::state::AppState::active_items`]).
+    /// `0` means no cap: the whole wishlist, still bounded by the MAX_ROWS
+    /// render ceiling. `#[serde(default)]` → a settings file written before this
+    /// field loads as `0`, i.e. the unchanged "show everything" behavior.
+    #[serde(default = "default_max_items")]
+    pub max_items: u32,
 }
 
 fn default_grid_cols() -> u32 {
@@ -296,6 +308,12 @@ fn default_height_offset_m() -> f32 {
     crate::vr::anchor::HEIGHT_M
 }
 
+fn default_max_items() -> u32 {
+    // 0 = no cap: preserves the pre-existing "show the whole wishlist" behavior
+    // for users whose settings file predates this field.
+    0
+}
+
 impl Default for VrSettings {
     fn default() -> Self {
         // Defaults track the SPEC.md §7.2 baselines documented in vr/pose.rs.
@@ -305,6 +323,7 @@ impl Default for VrSettings {
             hide_pitch_deg: crate::vr::pose::HIDE_PITCH_DEG,
             grid_cols: default_grid_cols(),
             height_offset_m: default_height_offset_m(),
+            max_items: default_max_items(),
         }
     }
 }
@@ -324,6 +343,9 @@ impl VrSettings {
         self.grid_cols = self.grid_cols.clamp(*g.start(), *g.end());
         let h = bounds::HEIGHT_OFFSET_M;
         self.height_offset_m = self.height_offset_m.clamp(*h.start(), *h.end());
+        // `max_items` keeps its `0` = "no cap" sentinel (the range starts at 0);
+        // any positive value is clamped to the focus-list ceiling.
+        self.max_items = self.max_items.min(*bounds::OVERLAY_MAX_ITEMS.end());
     }
 }
 
@@ -411,6 +433,7 @@ mod tests {
             hide_pitch_deg: 50.0,
             grid_cols: 6,
             height_offset_m: 0.6,
+            max_items: 0,
         };
         vr.sanitize();
         assert!(
@@ -427,6 +450,7 @@ mod tests {
             hide_pitch_deg: -10.0,
             grid_cols: 99,
             height_offset_m: 99.0,
+            max_items: 999,
         };
         vr.sanitize();
         assert_eq!(vr.width_meters, 2.0);
@@ -434,6 +458,7 @@ mod tests {
         assert_eq!(vr.hide_pitch_deg, 0.0);
         assert_eq!(vr.grid_cols, *bounds::GRID_COLS.end());
         assert_eq!(vr.height_offset_m, *bounds::HEIGHT_OFFSET_M.end());
+        assert_eq!(vr.max_items, *bounds::OVERLAY_MAX_ITEMS.end());
     }
 
     #[test]
@@ -454,6 +479,44 @@ mod tests {
         };
         vr.sanitize();
         assert_eq!(vr.grid_cols, *bounds::GRID_COLS.start());
+    }
+
+    #[test]
+    fn sanitize_keeps_max_items_zero_sentinel() {
+        // 0 = "no cap" and must survive sanitize unchanged — the range starts
+        // at 0, so it must never be clamped up to a nonzero minimum.
+        let mut vr = VrSettings {
+            max_items: 0,
+            ..VrSettings::default()
+        };
+        vr.sanitize();
+        assert_eq!(vr.max_items, 0);
+    }
+
+    #[test]
+    fn max_items_defaults_to_zero_when_absent_from_vr() {
+        // A settings file written before this field has a `vr` object but no
+        // `max_items` key; the field's serde(default) must fill 0 (= show all),
+        // not error.
+        let s: Settings = serde_json::from_str(
+            r#"{"vr":{"width_meters":1.0,"show_pitch_deg":20.0,"hide_pitch_deg":10.0,"grid_cols":8,"height_offset_m":0.6}}"#,
+        )
+        .unwrap();
+        assert_eq!(s.vr.max_items, 0);
+    }
+
+    #[test]
+    fn max_items_round_trips() {
+        let s = Settings {
+            vr: VrSettings {
+                max_items: 6,
+                ..VrSettings::default()
+            },
+            ..Settings::default()
+        };
+        let json = serde_json::to_string(&s).unwrap();
+        let back: Settings = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.vr.max_items, 6);
     }
 
     #[test]
