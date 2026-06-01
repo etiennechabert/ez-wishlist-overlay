@@ -442,13 +442,16 @@ mod tests {
             for v in [Visuals::dark(), Visuals::light()] {
                 let dark = v.dark_mode;
                 let text = v.widgets.inactive.fg_stroke.color;
-                // Every fill that has egui widget text drawn on top of it:
-                // the hideout grid cells, the "Consume items required" action
-                // button, and the "Edit" button tinted on a customized recipe.
+                // Every fill that has egui widget text drawn on top of it: the
+                // hideout grid cells (incl. the gray unknown-recipe cell, whose
+                // Done/Edit controls stay enabled), the "Consume items required"
+                // action button, and the "Edit" button tinted on a customized
+                // recipe.
                 for (name, fill) in [
                     ("tracked cell", tracked_fill(dark)),
                     ("ready cell", ready_fill(dark)),
                     ("done cell", done_fill(dark)),
+                    ("unknown cell", unknown_fill(dark)),
                     ("Consume button", primary_action_fill(dark)),
                     ("Edit (customized) button", override_marker(dark)),
                 ] {
