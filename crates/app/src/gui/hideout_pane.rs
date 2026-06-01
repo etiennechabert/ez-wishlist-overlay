@@ -31,6 +31,17 @@ const ROW_H: f32 = 24.0;
 /// bar is wide enough to read the "c / n" overlay.
 const PROGRESS_NAME_W: f32 = 210.0;
 const PROGRESS_BAR_W: f32 = 180.0;
+/// Padding baked *inside* each By-progress row so its readiness tint reads as a
+/// rounded pill wrapping the widgets rather than a tight band: the row is this
+/// much taller than the bare content (`.y`, split above/below) and inset this
+/// much at the left and right ends (`.x`). Paired with [`PROGRESS_ROW_GAP`] so
+/// adjacent pills keep a visible gap, and [`PROGRESS_BG_ROUNDING`] for the
+/// corner radius.
+const PROGRESS_BG_PAD: egui::Vec2 = egui::vec2(8.0, 4.0);
+/// Vertical gap left between consecutive By-progress pills.
+const PROGRESS_ROW_GAP: f32 = 4.0;
+/// Corner radius of the By-progress readiness pill.
+const PROGRESS_BG_ROUNDING: f32 = 5.0;
 /// Visual left-indent applied to child rows so the hierarchy is unambiguous
 /// at a glance. ~one toggle-width — child toggle column aligns with the
 /// parent's name column.
@@ -985,6 +996,7 @@ fn progress_list(ui: &mut egui::Ui, state: &Arc<RwLock<AppState>>, save_tx: &Sen
         );
         return;
     }
+    ui.add_space(PROGRESS_ROW_GAP);
     for (idx, row) in rows.iter().enumerate() {
         progress_row(ui, state, save_tx, idx, row);
     }
@@ -1007,7 +1019,8 @@ fn progress_row(
     let accent_idx = ui.painter().add(egui::Shape::Noop);
 
     let inner = ui.horizontal(|ui| {
-        ui.set_min_height(ROW_H);
+        ui.set_min_height(ROW_H + 2.0 * PROGRESS_BG_PAD.y);
+        ui.add_space(PROGRESS_BG_PAD.x);
         ui.allocate_ui_with_layout(
             egui::vec2(PROGRESS_NAME_W, ROW_H),
             egui::Layout::left_to_right(egui::Align::Center),
@@ -1036,6 +1049,7 @@ fn progress_row(
 
         ui.add_space(8.0);
         upgrade_controls(ui, state, save_tx, &row.upgrade_id, true);
+        ui.add_space(PROGRESS_BG_PAD.x);
     });
 
     // Ready rows get the warm `ready_fill` so closeness-to-claimable pops before
@@ -1054,20 +1068,25 @@ fn progress_row(
         egui::Color32::TRANSPARENT
     };
     if bg != egui::Color32::TRANSPARENT {
-        ui.painter()
-            .set(bg_idx, egui::epaint::RectShape::filled(row_rect, 2.0, bg));
-    }
-    // Pinned rows get a thin violet left stripe — a priority cue independent of
-    // the readiness tint, painted over the bg.
-    if row.pinned {
-        let stripe =
-            egui::Rect::from_min_size(row_rect.left_top(), egui::vec2(3.0, row_rect.height()));
         ui.painter().set(
-            accent_idx,
-            egui::epaint::RectShape::filled(stripe, 0.0, theme::pinned_accent(dark)),
+            bg_idx,
+            egui::epaint::RectShape::filled(row_rect, PROGRESS_BG_ROUNDING, bg),
         );
     }
-    ui.add_space(2.0);
+    // Pinned rows get a thin violet left stripe — a priority cue independent of
+    // the readiness tint, painted over the bg. Inset to the pill's rounded
+    // corners so it doesn't poke past them.
+    if row.pinned {
+        let stripe = egui::Rect::from_min_size(
+            row_rect.left_top() + egui::vec2(0.0, PROGRESS_BG_ROUNDING),
+            egui::vec2(3.0, row_rect.height() - 2.0 * PROGRESS_BG_ROUNDING),
+        );
+        ui.painter().set(
+            accent_idx,
+            egui::epaint::RectShape::filled(stripe, 1.5, theme::pinned_accent(dark)),
+        );
+    }
+    ui.add_space(PROGRESS_ROW_GAP);
 }
 
 /// Small status chip on a By-progress row: "ready" once every material is in,
