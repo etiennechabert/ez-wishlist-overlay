@@ -930,7 +930,19 @@ fn row_actions(
     }
     if pending_delete(ui.ctx()).as_deref() == Some(id.as_str()) {
         if ui
-            .add(egui::Button::new("Confirm").fill(egui::Color32::DARK_RED))
+            .add(
+                // Force white text: egui auto-picks the button text color from
+                // the active theme, so a plain red fill renders dark text on red
+                // in light mode (unreadable). Pinning white keeps the
+                // destructive-confirm legible in both themes — dark mode is
+                // unchanged, light mode is fixed.
+                egui::Button::new(
+                    egui::RichText::new("Confirm")
+                        .color(egui::Color32::WHITE)
+                        .strong(),
+                )
+                .fill(DELETE_CONFIRM_FILL),
+            )
             .clicked()
         {
             state.write().delete_container(id);
@@ -1324,6 +1336,10 @@ const WARN_COL: egui::Color32 = egui::Color32::from_rgb(200, 140, 0);
 /// Red used for the "this REPLACES current contents" warning and the removed
 /// rows in the review diff. Matches the diff's `removed` swatch (210,90,90).
 const DANGER_COL: egui::Color32 = egui::Color32::from_rgb(210, 90, 90);
+/// Fill for the destructive delete-confirm button. A saturated red that reads
+/// clearly with the pinned white label in both light and dark themes — brighter
+/// than `Color32::DARK_RED` (139,0,0), which left white text low-contrast.
+const DELETE_CONFIRM_FILL: egui::Color32 = egui::Color32::from_rgb(176, 42, 42);
 
 /// The one-line caution shown both during the live scan and atop the review
 /// modal: applying a scan is a full replace, not a merge. `{name}` is the
