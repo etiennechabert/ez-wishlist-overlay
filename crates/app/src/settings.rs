@@ -43,7 +43,7 @@ pub struct Settings {
     pub theme: Theme,
     /// Status-color palette for the hideout grid (and the panes that share its
     /// readiness colors). See [`ColorScheme`]. `#[serde(default)]` loads an old
-    /// settings file (which lacks the key) as the hand-tuned `Default` palette.
+    /// settings file (which lacks the key) as the default `OkabeIto` palette.
     #[serde(default)]
     pub color_scheme: ColorScheme,
     /// Hideout tab layout. See [`HideoutView`]. `#[serde(default)]` means old
@@ -243,23 +243,24 @@ pub enum Theme {
     System,
 }
 
-/// Which palette paints the hideout status colors (tracked / nearly-ready /
-/// ready / done / pinned / customized / assumed). `Default` is the app's
-/// hand-tuned set; the other two are colorblind-safe palettes the user can
-/// switch to from Settings → Appearance:
-///   - `OkabeIto`: the Color-Universal-Design palette (Wong, *Nature Methods*
-///     2011) — the de-facto standard for colorblind-safe categorical colors.
-///   - `Ibm`: IBM Design Language's accessible 5-color palette.
+/// Which palette paints the hideout status colors (tracked / ready / done /
+/// pinned / customized / unknown). Both options are colorblind-safe:
+///   - `OkabeIto` (default): the Color-Universal-Design palette (Wong, *Nature
+///     Methods* 2011) — the de-facto standard for colorblind-safe categorical
+///     colors.
+///   - `Ibm`: IBM Design Language's accessible palette.
 ///
-/// Both keep the *readiness* states (the four cell fills) distinct under the
-/// common red-green deficiencies. Stored kebab-case for clean JSON
-/// (`"okabe-ito"`); a file written before this field existed loads as
-/// `Default` via the struct's `#[serde(default)]`.
+/// Both keep the *readiness* states (the cell fills) distinct under the common
+/// red-green deficiencies. Stored kebab-case for clean JSON (`"okabe-ito"`); a
+/// file written before this field existed loads as `OkabeIto` via the struct's
+/// `#[serde(default)]`. The `alias = "default"` maps the retired hand-tuned
+/// `"default"` scheme (written by builds ≤ 0.3.4) onto Okabe-Ito so an existing
+/// settings file keeps loading instead of being rejected as corrupt.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "kebab-case")]
 pub enum ColorScheme {
     #[default]
-    Default,
+    #[serde(alias = "default")]
     OkabeIto,
     Ibm,
 }
@@ -531,15 +532,36 @@ mod tests {
     }
 
     #[test]
-    fn color_scheme_defaults_to_default_when_absent() {
+    fn color_scheme_defaults_to_okabe_ito_when_absent() {
         // Settings files written before this field lack the key; serde(default)
-        // must fill it with the hand-tuned palette, not error.
+        // must fill it with the Okabe-Ito palette, not error.
         let s: Settings = serde_json::from_str("{}").unwrap();
-        assert_eq!(s.color_scheme, ColorScheme::Default);
+        assert_eq!(s.color_scheme, ColorScheme::OkabeIto);
     }
 
     #[test]
     fn color_scheme_round_trips() {
+        let s = Settings {
+            color_scheme: ColorScheme::Ibm,
+            ..Settings::default()
+        };
+        let json = serde_json::to_string(&s).unwrap();
+        assert!(json.contains("\"ibm\""));
+        let back: Settings = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.color_scheme, ColorScheme::Ibm);
+    }
+
+    #[test]
+    fn color_scheme_legacy_default_aliases_to_okabe_ito() {
+        // Builds ≤ 0.3.4 persisted the retired hand-tuned scheme as
+        // "default". The alias must map it onto Okabe-Ito so an existing
+        // settings file keeps loading rather than being backed up as corrupt.
+        let s: Settings = serde_json::from_str(r#"{"color_scheme":"default"}"#).unwrap();
+        assert_eq!(s.color_scheme, ColorScheme::OkabeIto);
+    }
+
+    #[test]
+    fn color_scheme_okabe_ito_round_trips() {
         let s = Settings {
             color_scheme: ColorScheme::OkabeIto,
             ..Settings::default()
