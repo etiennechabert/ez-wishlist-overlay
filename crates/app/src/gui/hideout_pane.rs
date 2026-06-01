@@ -1130,9 +1130,13 @@ fn editable_recipe_panel(
     module_name: &str,
     upgrade: &Upgrade,
 ) {
-    let (mut slots, overridden) = {
+    let (mut slots, overridden, unknown) = {
         let s = state.read();
-        (s.effective_slots(&upgrade.id), s.is_overridden(&upgrade.id))
+        (
+            s.effective_slots(&upgrade.id),
+            s.is_overridden(&upgrade.id),
+            matches!(s.recipe_knowledge(&upgrade.id), RecipeKnowledge::Unknown),
+        )
     };
     let original_slots = slots.clone();
 
@@ -1175,15 +1179,30 @@ fn editable_recipe_panel(
                 ui.label(egui::RichText::new(&upgrade.description).color(weak));
             }
             ui.add_space(2.0);
-            ui.label(
-                egui::RichText::new(
-                    "Wrong items or counts? Edit any slot below. \"Export corrections\" \
-                     in the header opens a GitHub issue so we can fold fixes into the bundled \
-                     dataset.",
-                )
-                .small()
-                .color(weak),
-            );
+            if unknown {
+                // We genuinely don't have this recipe — the most valuable thing a
+                // user can contribute. Encourage defining it AND sharing it back,
+                // in normal (not weak) text so it reads as an invitation rather
+                // than fine print.
+                ui.label(
+                    egui::RichText::new(
+                        "We don't have this upgrade's recipe yet — the slots below are a guess. \
+                         Fill in what it actually needs, then use \"Export corrections\" in the \
+                         header to share it so it ships for everyone.",
+                    )
+                    .small(),
+                );
+            } else {
+                ui.label(
+                    egui::RichText::new(
+                        "Wrong items or counts? Edit any slot below. \"Export corrections\" \
+                         in the header opens a GitHub issue so we can fold fixes into the bundled \
+                         dataset.",
+                    )
+                    .small()
+                    .color(weak),
+                );
+            }
             ui.add_space(6.0);
 
             egui::Grid::new(format!("reqs-grid-{}", upgrade.id))
