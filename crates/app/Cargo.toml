@@ -24,7 +24,13 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 image.workspace = true
 
-eframe = { version = "0.30.0", default-features = false, features = ["default_fonts", "glow", "persistence", "x11"] }
+# `accesskit` is required so the dev-only `egui_kittest` harness can drive the
+# GUI tests: kittest turns on `egui/accesskit` (it queries the accessibility
+# tree), and `egui-winit` only compiles against that extended `PlatformOutput`
+# when its own `accesskit` feature is on too — otherwise feature unification in
+# the test/check build breaks egui-winit (E0027). It's eframe's own default and
+# adds OS screen-reader support to the shipped app (no extra system libs).
+eframe = { version = "0.30.0", default-features = false, features = ["accesskit", "default_fonts", "glow", "persistence", "x11"] }
 egui = "0.30.0"
 egui_extras = { version = "0.30.0", features = ["image"] }
 rust-embed = { version = "8.5.0", features = ["interpolate-folder-path", "include-exclude"] }
@@ -82,6 +88,15 @@ windows = { version = "0.58", features = [
     "Storage",
     "Storage_Streams",
 ] }
+
+# Headless GUI tests for the egui panes — widget interaction (click a button,
+# assert the resulting state change) and theme-readability contrast checks.
+# `egui_kittest` is the official 0.30 harness; pulled in with NO features so it
+# brings only `kittest` + AccessKit (no `wgpu`/`image`), which keeps it building
+# and running in the normal Linux `cargo test` CI job without a GPU. See
+# `crates/app/src/gui/containers_pane.rs` `mod tests`.
+[dev-dependencies]
+egui_kittest = "0.30"
 
 [features]
 default = []
