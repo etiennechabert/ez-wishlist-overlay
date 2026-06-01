@@ -463,7 +463,7 @@
           "name": "Intel Center",
           "level": 2,
           "description": "Character experience gain +15%",
-          "cost": 180000,
+          "cost": 160000,
           "requirements": [
             {
               "item_id": "misc_b_opticaldisc",
@@ -597,20 +597,20 @@
           "cost": 70000,
           "requirements": [
             {
-              "item_id": "misc_b_bottledglucose",
-              "quantity": 1
-            },
-            {
-              "item_id": "misc_b_aspire",
-              "quantity": 1
+              "item_id": "misc_b_disinfectingwipes",
+              "quantity": 2
             },
             {
               "item_id": "misc_b_pipeline",
               "quantity": 1
             },
             {
-              "item_id": "misc_b_socket",
+              "item_id": "misc_b_lightbulb",
               "quantity": 2
+            },
+            {
+              "item_id": "misc_b_insulatingtape",
+              "quantity": 1
             }
           ]
         },
