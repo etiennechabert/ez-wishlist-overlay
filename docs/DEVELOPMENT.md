@@ -82,7 +82,7 @@ From a **plain PowerShell** (uses the bundled launcher to enter the VS Dev Shell
 
 See [`scripts/run-app.ps1`](../scripts/run-app.ps1) for the underlying setup.
 
-The window opens at 1200×800. User state persists to `%APPDATA%\etienneb\ez-wishlist-overlay\` on Windows (`state.json`, `overrides.json`, `settings.json`, `logs/`), or the platform equivalent (`~/Library/Application Support/...` on macOS) elsewhere.
+The window opens at 1200×800. User state persists to `%APPDATA%\etienneb\ez-wishlist-overlay\` on Windows (`state.json`, `overrides.json`, `settings.json`), or the platform equivalent (`~/Library/Application Support/...` on macOS) elsewhere. A sibling `debug/` directory holds this session's throwaway debug artifacts (VR capture screenshots + OCR sidecars); it's flushed empty on every launch and is safe to delete.
 
 ### Cargo aliases
 

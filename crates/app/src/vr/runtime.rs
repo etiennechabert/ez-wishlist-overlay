@@ -20,9 +20,11 @@ use std::time::Duration;
 
 const RETRY_DELAY: Duration = Duration::from_secs(5);
 
-/// Subdirectory under `PersistPaths::data_dir` where captured mirror-texture
-/// PNGs are written. Kept simple — the OCR test bed under `ocr_data/` is
-/// happy to consume from wherever.
+/// Subdirectory under `PersistPaths::debug_dir` where captured mirror-texture
+/// PNGs (and their OCR sidecars) are written. Lives inside the per-session
+/// `debug/` bundle that's flushed at startup, so captures never accumulate
+/// across sessions. The OCR test bed under `ocr_data/` is happy to consume
+/// from wherever.
 const SCREENSHOT_SUBDIR: &str = "vr_screenshots";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -816,7 +818,7 @@ fn next_screenshot_path(paths: &PersistPaths) -> PathBuf {
         .map(|d| d.subsec_nanos())
         .unwrap_or(0);
     paths
-        .data_dir
+        .debug_dir
         .join(SCREENSHOT_SUBDIR)
         .join(format!("{stamp}_{nanos:09}.png"))
 }

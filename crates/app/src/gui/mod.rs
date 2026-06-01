@@ -416,6 +416,7 @@ impl eframe::App for App {
                 &mut self.show_settings,
                 &self.settings,
                 &self.paths.data_dir,
+                &self.paths.debug_dir,
             );
             if outcome.changed {
                 self.settings_dirty = true;
