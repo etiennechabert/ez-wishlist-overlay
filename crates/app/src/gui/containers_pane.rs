@@ -1129,6 +1129,7 @@ mod tests {
     //!     regress to dark-on-dark in light mode.
     use super::*;
     use crate::data::GameData;
+    use crate::gui::theme::contrast::contrast_ratio;
     use egui_kittest::kittest::Queryable;
     use egui_kittest::Harness;
 
@@ -1252,25 +1253,5 @@ mod tests {
             "Confirm label/fill contrast {ratio:.2}:1 is below WCAG AA 4.5:1 — \
              a colored button must pin a readable label color"
         );
-    }
-
-    /// WCAG 2.x relative luminance of an opaque sRGB color (0.0..=1.0).
-    fn relative_luminance(c: egui::Color32) -> f64 {
-        fn lin(v: u8) -> f64 {
-            let s = v as f64 / 255.0;
-            if s <= 0.03928 {
-                s / 12.92
-            } else {
-                ((s + 0.055) / 1.055).powf(2.4)
-            }
-        }
-        0.2126 * lin(c.r()) + 0.7152 * lin(c.g()) + 0.0722 * lin(c.b())
-    }
-
-    /// WCAG 2.x contrast ratio between two opaque colors, in 1.0..=21.0.
-    fn contrast_ratio(a: egui::Color32, b: egui::Color32) -> f64 {
-        let (la, lb) = (relative_luminance(a), relative_luminance(b));
-        let (hi, lo) = if la >= lb { (la, lb) } else { (lb, la) };
-        (hi + 0.05) / (lo + 0.05)
     }
 }

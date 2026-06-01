@@ -283,6 +283,34 @@ pub fn source_text(dark: bool) -> Color32 {
     }
 }
 
+/// WCAG 2.x contrast math, shared by the theme-readability tests here and in
+/// `containers_pane`. Single source of truth so the two suites can't measure
+/// "is this legible?" differently. Test-only.
+#[cfg(test)]
+pub(crate) mod contrast {
+    use egui::Color32;
+
+    /// Relative luminance of an opaque sRGB color (0.0 = black, 1.0 = white).
+    pub(crate) fn relative_luminance(c: Color32) -> f64 {
+        fn lin(v: u8) -> f64 {
+            let s = v as f64 / 255.0;
+            if s <= 0.03928 {
+                s / 12.92
+            } else {
+                ((s + 0.055) / 1.055).powf(2.4)
+            }
+        }
+        0.2126 * lin(c.r()) + 0.7152 * lin(c.g()) + 0.0722 * lin(c.b())
+    }
+
+    /// Contrast ratio between two opaque colors, in 1.0..=21.0.
+    pub(crate) fn contrast_ratio(a: Color32, b: Color32) -> f64 {
+        let (la, lb) = (relative_luminance(a), relative_luminance(b));
+        let (hi, lo) = if la >= lb { (la, lb) } else { (lb, la) };
+        (hi + 0.05) / (lo + 0.05)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -335,6 +363,51 @@ mod tests {
                     ready_fill(dark),
                     "scheme {sc:?} dark={dark}: customized must differ from ready"
                 );
+            }
+        }
+        set_scheme(ColorScheme::OkabeIto);
+    }
+
+    /// Readability guard (issue #103): every label egui draws **on one of our
+    /// status-colored fills** must stay legible in both themes and both
+    /// colorblind schemes — no dark-on-dark cell/button text. We compare egui's
+    /// resting widget-text color (what a button/checkbox label actually paints
+    /// with) against each fill and require WCAG AA for UI / large text (3:1).
+    ///
+    /// Why 3.0 and not 4.5 (normal-text AA): these are deliberately *muted*
+    /// tints, and the dark-mode `ready` / `primary_action` fills sit at ~3.2
+    /// against egui's stroke by design — pushing them to 4.5 would mean louder
+    /// fills than the UI wants. 3.0 locks in today's floor (measured 3.17; the
+    /// rest range to ~9.8) so a future fill tweak can't quietly cross into
+    /// illegible territory the way the old `DARK_RED` Confirm button did.
+    #[test]
+    fn status_fill_labels_are_legible_in_all_themes_and_schemes() {
+        use super::contrast::contrast_ratio;
+        use egui::Visuals;
+        const MIN: f64 = 3.0;
+        for sc in SCHEMES {
+            set_scheme(sc);
+            for v in [Visuals::dark(), Visuals::light()] {
+                let dark = v.dark_mode;
+                let text = v.widgets.inactive.fg_stroke.color;
+                // Every fill that has egui widget text drawn on top of it:
+                // the hideout grid cells, the "Consume items required" action
+                // button, and the "Edit" button tinted on a customized recipe.
+                for (name, fill) in [
+                    ("tracked cell", tracked_fill(dark)),
+                    ("ready cell", ready_fill(dark)),
+                    ("done cell", done_fill(dark)),
+                    ("Consume button", primary_action_fill(dark)),
+                    ("Edit (customized) button", override_marker(dark)),
+                ] {
+                    let r = contrast_ratio(text, fill);
+                    assert!(
+                        r >= MIN,
+                        "scheme {sc:?} dark={dark}: label on the {name} fill is \
+                         {r:.2}:1, below {MIN}:1 — it would read as low-contrast \
+                         text on that tint"
+                    );
+                }
             }
         }
         set_scheme(ColorScheme::OkabeIto);
