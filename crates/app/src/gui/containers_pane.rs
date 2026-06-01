@@ -61,6 +61,16 @@ const W_ITEMS: f32 = 70.0;
 const W_WEIGHT: f32 = 95.0;
 const W_VALUE: f32 = 120.0;
 
+// Fill + label colors for the two-step delete "Confirm" button. The label
+// color is pinned rather than left to the theme on purpose: egui derives a
+// button's text color from the theme's widget stroke, which is *dark* in light
+// mode and renders near-invisibly on this red fill (the readability regression
+// issue #103 calls out). White clears WCAG AA against the fill, and because
+// both colors are explicit the contrast holds identically in light and dark.
+// `delete_confirm_button_text_is_readable_on_its_fill` in `mod tests` guards it.
+const DELETE_CONFIRM_FILL: egui::Color32 = egui::Color32::DARK_RED;
+const DELETE_CONFIRM_TEXT: egui::Color32 = egui::Color32::WHITE;
+
 fn resolve_icon_key(icon: &Option<String>) -> &str {
     icon.as_deref().unwrap_or(DEFAULT_CONTAINER_ICON)
 }
@@ -729,7 +739,10 @@ fn row_actions(
     }
     if pending_delete(ui.ctx()).as_deref() == Some(id.as_str()) {
         if ui
-            .add(egui::Button::new("Confirm").fill(egui::Color32::DARK_RED))
+            .add(
+                egui::Button::new(egui::RichText::new("Confirm").color(DELETE_CONFIRM_TEXT))
+                    .fill(DELETE_CONFIRM_FILL),
+            )
             .clicked()
         {
             state.write().delete_container(id);
@@ -1101,4 +1114,163 @@ fn set_picker_filter(ctx: &egui::Context, v: String) {
 fn notify(state: &Arc<RwLock<AppState>>, save_tx: &Sender<SaveTick>) {
     let v = state.read().version;
     let _ = save_tx.try_send(SaveTick { version: v });
+}
+
+#[cfg(test)]
+mod tests {
+    //! Headless GUI tests for the Containers pane, driving `ui` through
+    //! `egui_kittest` (issue #103). Two regression classes are covered without
+    //! a real window:
+    //!   * **interaction** — clicking Delete → Confirm actually removes the
+    //!     right container (and Cancel backs out), proving the wiring and the
+    //!     two-step guard;
+    //!   * **theme readability** — the colored Confirm button's pinned label
+    //!     color clears a WCAG contrast ratio against its fill, so it can't
+    //!     regress to dark-on-dark in light mode.
+    use super::*;
+    use crate::data::GameData;
+    use egui_kittest::kittest::Queryable;
+    use egui_kittest::Harness;
+
+    /// Minimal game data: the pane only consults the item catalog to sum KPI
+    /// weight/value, so an empty catalog (and no hideout modules) is enough to
+    /// render the rows and their Edit/Delete actions.
+    fn game_data() -> Arc<GameData> {
+        Arc::new(GameData {
+            data_version: "test".into(),
+            scraped_at: "now".into(),
+            source_repo: "test".into(),
+            source_commit: "deadbeef".into(),
+            modules: Vec::new(),
+            items: Vec::new(),
+        })
+    }
+
+    /// Build a headless harness driving [`ui`] over `state`. The closure owns a
+    /// clone of the `Arc`, its own icon cache, and a dead-end save channel (the
+    /// pane ignores send errors), so the harness is `'static` and the caller
+    /// keeps `state` for assertions. Sized wide and tall enough that every row
+    /// and its action buttons are laid out — and therefore reachable by the
+    /// AccessKit queries — rather than clipped.
+    fn harness(state: &Arc<RwLock<AppState>>) -> Harness<'static> {
+        let ui_state = Arc::clone(state);
+        let (save_tx, _save_rx) = crossbeam_channel::unbounded::<SaveTick>();
+        let mut icons = IconCache::new();
+        Harness::builder()
+            .with_size(egui::vec2(1000.0, 800.0))
+            .build_ui(move |ui| super::ui(ui, &ui_state, &mut icons, &save_tx))
+    }
+
+    #[test]
+    fn delete_confirm_removes_the_container() {
+        let state = Arc::new(RwLock::new(AppState::new(game_data())));
+        state.write().create_container("Backpack".into());
+        let mut h = harness(&state);
+        h.run();
+
+        // Two-step delete: the first click only arms the confirm, the second
+        // commits it.
+        h.get_by_label("Delete").click();
+        h.run();
+        h.get_by_label("Confirm").click();
+        h.run();
+
+        assert!(
+            state.read().containers.is_empty(),
+            "Delete → Confirm should remove the container"
+        );
+    }
+
+    #[test]
+    fn delete_confirm_keeps_other_containers() {
+        let state = Arc::new(RwLock::new(AppState::new(game_data())));
+        let alpha = state.write().create_container("Alpha".into());
+        let beta = state.write().create_container("Beta".into());
+        let mut h = harness(&state);
+        // Pin a deterministic row order so the first "Delete" is always Alpha's.
+        // (The default sort is value-descending; both containers are empty, so
+        // the value tiebreak would put them in a non-obvious order.)
+        set_sort_state(
+            &h.ctx,
+            Sort {
+                col: SortCol::Name,
+                desc: false,
+            },
+        );
+        h.run();
+
+        // Both rows render a "Delete"; the first belongs to Alpha.
+        h.get_all_by_label("Delete")
+            .next()
+            .expect("a Delete button per secondary container")
+            .click();
+        h.run();
+        h.get_by_label("Confirm").click();
+        h.run();
+
+        let s = state.read();
+        assert_eq!(s.containers.len(), 1, "exactly one container removed");
+        assert_eq!(s.containers[0].id, beta, "the untouched sibling remains");
+        assert!(
+            !s.containers.iter().any(|c| c.id == alpha),
+            "the targeted container is gone"
+        );
+    }
+
+    #[test]
+    fn delete_cancel_keeps_the_container() {
+        let state = Arc::new(RwLock::new(AppState::new(game_data())));
+        state.write().create_container("Backpack".into());
+        let mut h = harness(&state);
+        h.run();
+
+        h.get_by_label("Delete").click();
+        h.run();
+        // The guard's whole point: backing out leaves the container untouched.
+        h.get_by_label("Cancel").click();
+        h.run();
+
+        assert_eq!(
+            state.read().containers.len(),
+            1,
+            "Delete → Cancel must not remove anything"
+        );
+        // The row is back to offering Delete, not stuck mid-confirm.
+        assert!(h.query_by_label("Delete").is_some());
+        assert!(h.query_by_label("Confirm").is_none());
+    }
+
+    #[test]
+    fn delete_confirm_button_text_is_readable_on_its_fill() {
+        // The colored Confirm button pins its label color instead of inheriting
+        // the theme's (dark) button stroke, which would be near-invisible on the
+        // red fill in light mode. White must clear WCAG AA (4.5:1) against the
+        // fill; both colors are explicit, so the ratio holds in either theme.
+        let ratio = contrast_ratio(DELETE_CONFIRM_TEXT, DELETE_CONFIRM_FILL);
+        assert!(
+            ratio >= 4.5,
+            "Confirm label/fill contrast {ratio:.2}:1 is below WCAG AA 4.5:1 — \
+             a colored button must pin a readable label color"
+        );
+    }
+
+    /// WCAG 2.x relative luminance of an opaque sRGB color (0.0..=1.0).
+    fn relative_luminance(c: egui::Color32) -> f64 {
+        fn lin(v: u8) -> f64 {
+            let s = v as f64 / 255.0;
+            if s <= 0.03928 {
+                s / 12.92
+            } else {
+                ((s + 0.055) / 1.055).powf(2.4)
+            }
+        }
+        0.2126 * lin(c.r()) + 0.7152 * lin(c.g()) + 0.0722 * lin(c.b())
+    }
+
+    /// WCAG 2.x contrast ratio between two opaque colors, in 1.0..=21.0.
+    fn contrast_ratio(a: egui::Color32, b: egui::Color32) -> f64 {
+        let (la, lb) = (relative_luminance(a), relative_luminance(b));
+        let (hi, lo) = if la >= lb { (la, lb) } else { (lb, la) };
+        (hi + 0.05) / (lo + 0.05)
+    }
 }
