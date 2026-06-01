@@ -30,7 +30,15 @@ fn main() -> Result<()> {
 
     let paths = Arc::new(persist::PersistPaths::discover().context("resolve user data dir")?);
     paths.ensure_dirs().context("create user data dirs")?;
-    tracing::info!(data_dir = %paths.data_dir.display(), "user data");
+    // Start each session with an empty debug bundle: clears the previous
+    // run's screenshots/OCR sidecars (and migrates the legacy layout) before
+    // any thread can write a capture. Best-effort — never fails startup.
+    paths.flush_session_debug();
+    tracing::info!(
+        data_dir = %paths.data_dir.display(),
+        debug_dir = %paths.debug_dir.display(),
+        "user data",
+    );
 
     let data = Arc::new(assets::load_game_data().context("load embedded data.json")?);
     tracing::info!(

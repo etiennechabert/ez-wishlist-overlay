@@ -36,9 +36,11 @@ for digit-template work. The PNGs here are the **ground truth** for:
 
 In-app: press **Space** while the desktop window has focus (or click the
 "Capture VR screenshot" button in the Debug dialog). The capture is
-written to `<data_dir>/vr_screenshots/<timestamp>_<nanos>.png` (run the
-app once; it logs the path in the green "Capture saved" toast and the
-`captured compositor mirror` info-line).
+written to `<data_dir>/debug/vr_screenshots/<timestamp>_<nanos>.png`
+(run the app once; it logs the path in the green "Capture saved" toast
+and the `captured compositor mirror` info-line). The `debug/` bundle is
+cleared on every launch, so copy out anything you want to keep before
+restarting.
 
 After capturing a session's worth, identify and dedup with the OCR
 pipeline (run via your own diagnostic; no built-in CLI yet) and copy the

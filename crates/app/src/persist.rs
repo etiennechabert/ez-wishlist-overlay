@@ -13,7 +13,15 @@ pub struct PersistPaths {
     pub state_file: PathBuf,
     pub overrides_file: PathBuf,
     pub settings_file: PathBuf,
-    pub log_dir: PathBuf,
+    /// Per-session debug bundle: VR capture PNGs, OCR sidecar files, and
+    /// (when file-logging lands) `app.log`. Lives under `data_dir` but is
+    /// kept strictly separate from the user-data files so "Open debug
+    /// folder" never mixes throwaway output with `state.json` /
+    /// `overrides.json` / `settings.json`. Flushed empty at startup (see
+    /// [`PersistPaths::flush_session_debug`]) so it only ever holds the
+    /// current session — bounding disk use and making the "attach the
+    /// debug folder to a bug report" workflow unambiguous.
+    pub debug_dir: PathBuf,
 }
 
 impl PersistPaths {
@@ -24,22 +32,69 @@ impl PersistPaths {
         let state_file = data_dir.join("state.json");
         let overrides_file = data_dir.join("overrides.json");
         let settings_file = data_dir.join("settings.json");
-        let log_dir = data_dir.join("logs");
+        let debug_dir = data_dir.join("debug");
         Ok(Self {
             data_dir,
             state_file,
             overrides_file,
             settings_file,
-            log_dir,
+            debug_dir,
         })
     }
 
     pub fn ensure_dirs(&self) -> Result<()> {
         std::fs::create_dir_all(&self.data_dir)
             .with_context(|| format!("creating {}", self.data_dir.display()))?;
-        std::fs::create_dir_all(&self.log_dir)
-            .with_context(|| format!("creating {}", self.log_dir.display()))?;
         Ok(())
+    }
+
+    /// Clear last session's debug artifacts and recreate `debug/` empty, so
+    /// the directory only ever holds *this* session's bundle. Called once
+    /// from `main()` right after [`ensure_dirs`](Self::ensure_dirs), before
+    /// any thread can write a capture.
+    ///
+    /// Best-effort and scoped strictly to throwaway debug paths: a locked or
+    /// in-use file (a screenshot still open in a viewer, say) must never
+    /// block startup, so every failure is logged and swallowed. It only ever
+    /// touches `debug/` and the legacy dirs below — never `state.json`,
+    /// `overrides.json`, or `settings.json`.
+    ///
+    /// Also migrates the pre-consolidation layout: earlier builds wrote
+    /// captures to `<data_dir>/vr_screenshots/` and created an always-empty
+    /// `<data_dir>/logs/` that nothing ever wrote to. Both are superseded by
+    /// `debug/`; remove them so the data folder stops showing stale debug
+    /// output next to the user files.
+    pub fn flush_session_debug(&self) {
+        Self::remove_dir_best_effort(&self.debug_dir, "debug dir");
+        if let Err(e) = std::fs::create_dir_all(&self.debug_dir) {
+            tracing::warn!(
+                error = %e,
+                dir = %self.debug_dir.display(),
+                "could not recreate debug dir at startup (continuing)",
+            );
+        }
+
+        // Legacy locations from before the `debug/` consolidation. Removing
+        // them every launch is cheap (a no-op once gone) and simpler than
+        // tracking a one-time migration.
+        for legacy in ["vr_screenshots", "logs"] {
+            Self::remove_dir_best_effort(&self.data_dir.join(legacy), "legacy debug dir");
+        }
+    }
+
+    /// `remove_dir_all` that treats "already gone" as success and only warns
+    /// on a real failure. Used by the startup flush so a stubborn file can't
+    /// abort launch.
+    fn remove_dir_best_effort(dir: &std::path::Path, what: &str) {
+        match std::fs::remove_dir_all(dir) {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => tracing::warn!(
+                error = %e,
+                dir = %dir.display(),
+                "could not clear {what} at startup (continuing)",
+            ),
+        }
     }
 }
 
@@ -152,5 +207,88 @@ pub fn load_overrides(paths: &PersistPaths) -> OverridesLoadOutcome {
                 error: e.to_string(),
             }))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Build `PersistPaths` rooted at a unique temp dir so the
+    /// `flush_session_debug` filesystem tests can't collide with each other
+    /// or with a real install. The process-id + tag suffix keeps parallel
+    /// test runs isolated; the up-front wipe clears any leftovers from a
+    /// crashed prior run.
+    fn temp_paths(tag: &str) -> PersistPaths {
+        let root =
+            std::env::temp_dir().join(format!("ezwo-persist-test-{}-{tag}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        PersistPaths {
+            data_dir: root.clone(),
+            state_file: root.join("state.json"),
+            overrides_file: root.join("overrides.json"),
+            settings_file: root.join("settings.json"),
+            debug_dir: root.join("debug"),
+        }
+    }
+
+    fn count_entries(dir: &std::path::Path) -> usize {
+        std::fs::read_dir(dir).map(|it| it.count()).unwrap_or(0)
+    }
+
+    #[test]
+    fn flush_recreates_debug_empty_and_preserves_user_data() {
+        let paths = temp_paths("flush-preserve");
+        paths.ensure_dirs().unwrap();
+
+        // User-data files the flush must NEVER touch.
+        std::fs::write(&paths.state_file, b"STATE").unwrap();
+        std::fs::write(&paths.overrides_file, b"OVERRIDES").unwrap();
+        std::fs::write(&paths.settings_file, b"SETTINGS").unwrap();
+
+        // Last session's debug artifacts + the pre-consolidation layout.
+        std::fs::create_dir_all(paths.debug_dir.join("vr_screenshots")).unwrap();
+        std::fs::write(paths.debug_dir.join("vr_screenshots").join("old.png"), b"x").unwrap();
+        std::fs::create_dir_all(paths.data_dir.join("vr_screenshots")).unwrap();
+        std::fs::write(
+            paths.data_dir.join("vr_screenshots").join("legacy.png"),
+            b"x",
+        )
+        .unwrap();
+        std::fs::create_dir_all(paths.data_dir.join("logs")).unwrap();
+
+        paths.flush_session_debug();
+
+        // debug/ is back, and empty — this session starts from scratch.
+        assert!(paths.debug_dir.is_dir(), "debug dir should be recreated");
+        assert_eq!(
+            count_entries(&paths.debug_dir),
+            0,
+            "debug dir should be empty"
+        );
+        // Legacy locations migrated away.
+        assert!(!paths.data_dir.join("vr_screenshots").exists());
+        assert!(!paths.data_dir.join("logs").exists());
+        // User data is exactly as it was.
+        assert_eq!(std::fs::read(&paths.state_file).unwrap(), b"STATE");
+        assert_eq!(std::fs::read(&paths.overrides_file).unwrap(), b"OVERRIDES");
+        assert_eq!(std::fs::read(&paths.settings_file).unwrap(), b"SETTINGS");
+
+        let _ = std::fs::remove_dir_all(&paths.data_dir);
+    }
+
+    #[test]
+    fn flush_on_fresh_install_creates_empty_debug_dir() {
+        let paths = temp_paths("flush-fresh");
+        paths.ensure_dirs().unwrap();
+
+        // No debug/ or legacy dirs exist yet (first launch). Flush must still
+        // succeed and leave an empty debug/ behind — best-effort, no error.
+        paths.flush_session_debug();
+
+        assert!(paths.debug_dir.is_dir());
+        assert_eq!(count_entries(&paths.debug_dir), 0);
+
+        let _ = std::fs::remove_dir_all(&paths.data_dir);
     }
 }
