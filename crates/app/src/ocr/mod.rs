@@ -48,6 +48,11 @@ pub use pipeline::process_image;
 
 /// Which in-game screen a capture targets — selects the pipeline the worker
 /// runs and how it treats the queue.
+// `BoxScan` is only ever constructed by the Windows-gated VR capture path; the
+// worker (cross-platform) merely matches on it. On non-Windows nothing builds
+// the variant, so suppress `dead_code` at the enum level — same rationale as
+// `OcrPipelineResult` below.
+#[allow(dead_code)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum JobKind {
     /// The hideout Facility Upgrade panel (default). The worker keeps only the

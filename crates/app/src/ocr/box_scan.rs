@@ -174,10 +174,17 @@ pub fn tally(master: &[Tile]) -> (HashMap<ItemId, u32>, usize) {
 // NOTE: the thresholds and the tab-row / weight detection are a first pass.
 // They need tuning against real box-screen captures (Settings → `ocr_debug`),
 // since they depend on exactly how Windows.Media.Ocr segments these labels.
+//
+// Every item below is reached only by `process_box_image` (Windows) or the unit
+// tests; the non-test, non-Windows build sees them as dead. We keep them
+// compiled cross-target so the clustering tests run on Linux CI, so each
+// carries `#[allow(dead_code)]` (not `#[cfg(windows)]`, which would drop the
+// tests with the code).
 // ===========================================================================
 
 /// A single recognized text box — the platform-independent shape the grid
 /// clustering consumes, decoupled from the Windows-only `OcrWord`.
+#[allow(dead_code)]
 #[derive(Clone, Debug)]
 pub struct LabelBox {
     pub text: String,
@@ -187,6 +194,7 @@ pub struct LabelBox {
     pub h: f32,
 }
 
+#[allow(dead_code)]
 impl LabelBox {
     fn cy(&self) -> f32 {
         self.y + self.h / 2.0
@@ -209,6 +217,7 @@ pub struct BoxReadResult {
 /// They don't scroll, so they must be excluded from the stitched sequence.
 /// Hard-coded for the current English UI (one entry per visible word) — revisit
 /// if the game relabels or localizes these.
+#[allow(dead_code)]
 const TAB_WORDS: &[&str] = &[
     "all",
     "medical",
@@ -222,6 +231,7 @@ const TAB_WORDS: &[&str] = &[
 ];
 
 /// Number of category-tab words on a row (≥2 ⇒ this is the fixed tab strip).
+#[allow(dead_code)]
 fn tab_word_hits(row: &[&LabelBox]) -> usize {
     row.iter()
         .filter(|b| {
@@ -231,6 +241,7 @@ fn tab_word_hits(row: &[&LabelBox]) -> usize {
         .count()
 }
 
+#[allow(dead_code)]
 fn median<I: Iterator<Item = f32>>(vals: I) -> f32 {
     let mut v: Vec<f32> = vals.collect();
     if v.is_empty() {
@@ -250,6 +261,7 @@ fn median<I: Iterator<Item = f32>>(vals: I) -> f32 {
 /// fractional part — the capacity (`30`) is an integer, so requiring the dot
 /// distinguishes the two. Returns `(value, top_y)`; `top_y` also marks where
 /// the scrolling grid ends.
+#[allow(dead_code)]
 fn extract_weight(boxes: &[LabelBox], img_h: f32) -> Option<(f32, f32)> {
     let mut best: Option<&LabelBox> = None;
     for b in boxes {
@@ -269,6 +281,7 @@ fn extract_weight(boxes: &[LabelBox], img_h: f32) -> Option<(f32, f32)> {
 
 /// Parse a weight token, keeping only digits and a decimal separator and
 /// requiring a fractional part (so a bare capacity integer doesn't match).
+#[allow(dead_code)]
 fn parse_weight_token(s: &str) -> Option<f32> {
     let cleaned: String = s
         .trim()
@@ -284,6 +297,7 @@ fn parse_weight_token(s: &str) -> Option<f32> {
 
 /// Group boxes into visual rows by vertical position (boxes whose centres fall
 /// within ~0.7 of the median text height share a row). Returns rows top→bottom.
+#[allow(dead_code)]
 fn cluster_rows<'a>(boxes: &[&'a LabelBox]) -> Vec<Vec<&'a LabelBox>> {
     if boxes.is_empty() {
         return Vec::new();
@@ -313,6 +327,7 @@ fn cluster_rows<'a>(boxes: &[&'a LabelBox]) -> Vec<Vec<&'a LabelBox>> {
 /// Split one row's boxes into tiles by horizontal gaps: words within a tile's
 /// label sit close together, while the gap between tiles is much wider. Returns
 /// tiles left→right, each a list of its label words (left→right).
+#[allow(dead_code)]
 fn split_tiles<'a>(row: &[&'a LabelBox]) -> Vec<Vec<&'a LabelBox>> {
     let mut sorted = row.to_vec();
     sorted.sort_by(|a, b| a.x.total_cmp(&b.x));
@@ -337,6 +352,7 @@ fn split_tiles<'a>(row: &[&'a LabelBox]) -> Vec<Vec<&'a LabelBox>> {
 /// Best-effort drop of a clipped top/bottom row whose label is cut off (markedly
 /// shorter than the median row). The stitch's unknown-tolerance is the real
 /// safety net for any clipped row that slips through; this just reduces noise.
+#[allow(dead_code)]
 fn drop_clipped_rows(rows: &mut Vec<Vec<&LabelBox>>) {
     if rows.len() < 3 {
         return; // need interior rows to establish a "normal" height
@@ -365,6 +381,7 @@ fn drop_clipped_rows(rows: &mut Vec<Vec<&LabelBox>>) {
 /// labels into rows and tiles, resolves each tile via [`match_item`], and drops
 /// clipped edge rows. The fixed chrome must be excluded because it doesn't
 /// scroll — leaving it in would wreck the cross-capture alignment.
+#[allow(dead_code)]
 pub fn read_tiles(boxes: &[LabelBox], img_h: f32, data: &GameData) -> BoxReadResult {
     let weight = extract_weight(boxes, img_h);
     let grid_bottom = weight.map(|(_, y)| y).unwrap_or(img_h);

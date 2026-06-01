@@ -12,6 +12,12 @@
 //! window across a token stream. Kept platform-independent (no OCR / image
 //! types) so the matcher is unit-tested on every target, not just Windows.
 
+// Reached for real only by the Windows-gated box-scan reader (`read_tiles`),
+// plus the unit tests below (every target). The non-test, non-Windows build
+// therefore sees the whole matcher as dead; keep it compiled cross-target for
+// the tests and allow `dead_code` module-wide rather than per item.
+#![allow(dead_code)]
+
 use crate::data::{GameData, ItemId};
 use strsim::normalized_levenshtein;
 
