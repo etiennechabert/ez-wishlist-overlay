@@ -19,7 +19,7 @@ use std::path::{Path, PathBuf};
 
 /// One row of `<UpgradeId>.label.txt` ground truth. Parsed from the
 /// hand-labelled sibling file the user maintains for every fixture in
-/// `hideout_screenshots_native/`. Each label line is
+/// `screenshots/hideout/`. Each label line is
 /// `<item_id>  <owned>/<needed>` (whitespace-separated; `#` comments
 /// and blank lines ignored).
 #[derive(Debug, Clone)]
@@ -124,7 +124,7 @@ pub fn debug_path_for(source: &Path) -> PathBuf {
 
 /// Load `<source_stem>.label.txt` next to the source PNG if it
 /// exists. The format (per the hand-curated files under
-/// `hideout_screenshots_native/`) is:
+/// `screenshots/hideout/`) is:
 ///
 /// ```text
 /// # ModuleNameLvN — ground truth (owned / needed)

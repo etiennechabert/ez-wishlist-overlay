@@ -27,12 +27,12 @@ dev.log
 vr-fntable.txt
 ocr_data/
 
-# Native VR captures are now the OCR pipeline's ground-truth test set
-# (paired with `<UpgradeId>.label.txt` files). Committed as WebP q99
-# (~0.9 MB per capture, ~13 MB total; issue #110) because the
-# fixture-test + regression diagnostics depend on them. New
-# screenshots from `<data_dir>/debug/vr_screenshots/` should NOT be added
-# here unless they're meant as fixtures.
+# Native VR captures under `screenshots/` are the OCR pipeline's
+# ground-truth test set (paired with `.label.txt` files; see
+# screenshots/CLAUDE.md). Committed as WebP (hideout q99 ~13 MB; box/stash
+# q95) because the fixture-test + regression diagnostics depend on them.
+# New screenshots from `<data_dir>/debug/vr_screenshots/` should NOT be
+# added here unless they're meant as fixtures.
 
 # OCR debug dumps generated next to captured screenshots in debug builds.
 # Filenames are `<stem>.ocr-debug.<HHMMSS>.txt` (HHMMSS = when the dump

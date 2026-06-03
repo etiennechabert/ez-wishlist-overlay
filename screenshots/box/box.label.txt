@@ -1,10 +1,10 @@
-# "Big" container scan — ground-truth contents (item_id  count)
+# box scan — world container tablet — ground-truth contents (item_id  count)
 #
-# Source: big.shot0.png .. big.shot2.png (3 overlapping scroll captures of the
+# Source: box.shot0.webp .. box.shot2.webp (3 overlapping scroll captures of the
 # in-game container tablet screen), de-overlapped by row. This is the full set
 # of tiles in the box (22 total).
 #
-# Consumed by box_scan.rs `big_container_scan_matches_label` (PASSING as of
+# Consumed by box_scan.rs `box_scan_matches_label` (PASSING as of
 # issue #109): the layout-aware, de-sheared read_tiles emits a stable reading
 # order, so the stitch aligns all three shots and the tally matches this file.
 #

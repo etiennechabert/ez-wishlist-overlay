@@ -1,6 +1,6 @@
-# JUNK BOX scan — contents read off the captures (item_id  count)
+# stash scan — Johnny's-Service junk-box terminal — contents read off the captures (item_id  count)
 #
-# NON-AUTHORITATIVE REFERENCE — `junkbox_scan_matches_label` is `#[ignore]`d
+# NON-AUTHORITATIVE REFERENCE — `stash_scan_matches_label` is `#[ignore]`d
 # (issue #109). These 10 shots can't be stitched into the full box, so this file
 # is NOT a fixture the test asserts against; it documents what the captures show.
 #
@@ -23,7 +23,7 @@
 #
 # --- Data-name divergences found while labelling (in-game label ≠ data.json
 #     `Item.name`, so the box-scan can't match these until data.json is patched;
-#     out of scope for #109's big-scan fix, tracked for a follow-up):
+#     out of scope for #109's box-scan fix, tracked for a follow-up):
 #       misc_b_shampoo   in-game "Pet Shampoo"   data "Shampoo"
 #       misc_b_nail      in-game "Boxed Nails"   data "Nails"
 #       misc_b_bandaid   in-game "Band-aids"     data "Adhesive bandages"

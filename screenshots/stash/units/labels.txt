@@ -1,0 +1,7 @@
+# stash/units — <file>  <expected OCR name>  (whole item tile: icon + name + category)
+misc_notebook.webp  Notebook
+misc_b_shampoo.webp  Pet Shampoo
+misc_b_sparkplug.webp  Spark Plug
+misc_b_ionbattery.webp  Ion Battery
+misc_b_recorder.webp  Recorder
+misc_b_tape.webp  Tape

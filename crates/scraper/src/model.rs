@@ -13,7 +13,7 @@ pub struct GameData {
     pub scraped_at: String,
     pub source_repo: String,
     pub source_commit: String,
-    /// Hideout modules are owned by the hideout_screenshots skill (hand-
+    /// Hideout modules are owned by the screenshots labelling skill (hand-
     /// validated against in-game screenshots). The scraper reads the existing
     /// data.json's `modules` value and writes it back unchanged, so we treat
     /// it as opaque JSON here — that way fields like `cost` (added later by

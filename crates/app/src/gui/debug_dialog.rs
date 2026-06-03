@@ -138,17 +138,23 @@ pub fn show(
 
 #[cfg(debug_assertions)]
 fn render_ocr_fixture_runner(ui: &mut egui::Ui, ocr_job_tx: &Sender<OcrJob>, weak: Color32) {
-    // The fixtures sit at repo root next to `crates/`. We probe for the
-    // directory at runtime; if the dev moved the workspace or the
-    // binary is being run far from its build dir the button stays
-    // disabled and explains why.
-    let fixtures_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../hideout_screenshots_native");
+    // The hideout fixtures live under `screenshots/hideout/` at repo root. We
+    // probe for the directory at runtime; if the dev moved the workspace or the
+    // binary is being run far from its build dir the button stays disabled and
+    // explains why. The committed fixtures are WebP (q99); `.png` is still
+    // accepted for ad-hoc lossless captures dropped in alongside them.
+    let fixtures_dir =
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../screenshots/hideout");
     let mut fixtures: Vec<std::path::PathBuf> = std::fs::read_dir(&fixtures_dir)
         .map(|rd| {
             rd.filter_map(|e| e.ok())
                 .map(|e| e.path())
-                .filter(|p| p.extension().and_then(|s| s.to_str()) == Some("png"))
+                .filter(|p| {
+                    matches!(
+                        p.extension().and_then(|s| s.to_str()),
+                        Some("webp") | Some("png")
+                    )
+                })
                 .collect()
         })
         .unwrap_or_default();
