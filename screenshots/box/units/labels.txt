@@ -2,10 +2,17 @@
 # A `#hard  <file>  <name>` line is OCR'd + reported but not gated (engine can't
 # yet read that tile in isolation — an OCR-improvement target, not a regression).
 #hard  misc_b_uvlight.webp  UV lamp
-# (the stylised "UV" reads as "liv" in isolation)
 misc_copperwire.webp  Copper wire
 misc_b_piezometer.webp  Piezometer
 misc_b_oliveoil.webp  Olive oil
 misc_b_gunoil.webp  Gun oil
 misc_gunpowder.webp  Gunpowder
 misc_oilcan.webp  Oil can
+misc_b_lightbulb.webp  Energy-saving lamp
+misc_b_tapeplayer.webp  Tape player
+misc_b_transformer.webp  Voltage transformer
+misc_b_civilradio.webp  Civil Radio
+misc_barcleaner.webp  Cleaner
+misc_b_harddrive.webp  Hard Drive
+misc_blimbingrope.webp  Climbing rope
+misc_b_gaspipewrench.webp  Gas pipe pliers
