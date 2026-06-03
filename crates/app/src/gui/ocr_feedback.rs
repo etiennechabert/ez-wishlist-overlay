@@ -22,7 +22,7 @@
 //!   the in-headset card alongside the on-disk debug artifacts and
 //!   needs time to read both.
 
-use crate::ocr::OcrOutcome;
+use crate::ocr::{BoxScanStatus, BoxScanUpdate, OcrOutcome};
 use crate::state::{AppState, OcrProgression};
 
 #[derive(Clone, Debug)]
@@ -72,6 +72,39 @@ pub enum OcrFeedbackKind {
     },
     /// Pipeline errored out. The message is shown verbatim — kept brief.
     Failed(String),
+    /// Box/stash scan progress, published after each scroll capture while a
+    /// box-scan session is active. Mirrors the desktop live window in the
+    /// headset: what this shot read ("this capture") plus the cumulative
+    /// stitched series so far. Built by [`OcrFeedback::box_scan_progress`].
+    BoxScanProgress {
+        /// "Stash" or the container's name — shown as the card title.
+        target_name: String,
+        /// How many captures this session has stitched so far.
+        captures: u32,
+        /// Stitch outcome of the most recent capture.
+        status: BoxScanStatus,
+        /// Tiles the most recent capture appended to the series.
+        last_added: usize,
+        /// Tiles the most recent capture overlapped with the existing tail.
+        last_overlap: usize,
+        /// `(item_name, count)` read in the most recent capture alone, sorted
+        /// desc by count then name. The renderer caps how many it draws.
+        last_items: Vec<(String, u32)>,
+        /// Unrecognized tiles in the most recent capture alone.
+        last_unrecognized: usize,
+        /// Total recognized items across the whole stitched series.
+        total_items: u32,
+        /// Total unrecognized tiles across the whole stitched series.
+        total_unrecognized: usize,
+        /// `(item_name, count)` for the cumulative series, sorted desc by count
+        /// then name. The renderer caps how many it draws.
+        series_items: Vec<(String, u32)>,
+        /// The box's total-weight readout, when one was parsed.
+        observed_weight: Option<f32>,
+        /// Computed weight of the stitched series — `Some` only when
+        /// `observed_weight` is `Some` (the checksum needs both halves).
+        computed_weight: Option<f32>,
+    },
 }
 
 #[derive(Clone, Debug)]
@@ -199,6 +232,76 @@ impl OcrFeedback {
         }
     }
 
+    /// Build the box/stash-scan progress card from a [`BoxScanUpdate`].
+    ///
+    /// Item ids are resolved to names and the computed-weight checksum is
+    /// derived here — the worker holds `state` — so [`crate::vr::ocr_render`]
+    /// stays a pure formatter with no [`AppState`] dependency (same split as
+    /// [`Self::done`]). Both item lists are sorted desc by count then name so
+    /// the in-headset card and the desktop window agree on ordering (matches
+    /// `containers_pane::tally_rows` and its sort).
+    pub fn box_scan_progress(
+        state: &AppState,
+        target_name: String,
+        update: &BoxScanUpdate,
+    ) -> Self {
+        let rows = |t: &std::collections::HashMap<crate::data::ItemId, u32>| -> Vec<(String, u32)> {
+            let mut v: Vec<(String, u32)> = t
+                .iter()
+                .map(|(id, &n)| {
+                    let name = state
+                        .index
+                        .items_by_id
+                        .get(id)
+                        .map(|it| it.name.clone())
+                        .unwrap_or_else(|| id.clone());
+                    (name, n)
+                })
+                .collect();
+            v.sort_by(|a, b| {
+                b.1.cmp(&a.1)
+                    .then_with(|| a.0.to_lowercase().cmp(&b.0.to_lowercase()))
+            });
+            v
+        };
+
+        let total_items: u32 = update.tally.values().sum();
+        // Only meaningful against an observed readout — mirror the desktop's
+        // `if let Some(observed)` gate and its `computed_weight` formula.
+        let computed_weight = update.observed_weight.map(|_| {
+            update
+                .tally
+                .iter()
+                .map(|(id, &n)| {
+                    state
+                        .index
+                        .items_by_id
+                        .get(id)
+                        .and_then(|it| it.weight)
+                        .unwrap_or(0.0)
+                        * n as f32
+                })
+                .sum()
+        });
+
+        Self {
+            kind: OcrFeedbackKind::BoxScanProgress {
+                target_name,
+                captures: update.captures,
+                status: update.status,
+                last_added: update.last_added,
+                last_overlap: update.last_overlap,
+                last_items: rows(&update.last_tally),
+                last_unrecognized: update.last_unrecognized,
+                total_items,
+                total_unrecognized: update.unrecognized,
+                series_items: rows(&update.tally),
+                observed_weight: update.observed_weight,
+                computed_weight,
+            },
+        }
+    }
+
     /// Emit the same content the overlay shows to the tracing log, so the
     /// in-app Debug dialog and any stdout consumer have an audit trail of
     /// every OCR run. Called by the worker on each state transition; the
@@ -271,6 +374,131 @@ impl OcrFeedback {
             OcrFeedbackKind::Failed(msg) => {
                 tracing::warn!("OCR overlay: failed — {msg}");
             }
+            OcrFeedbackKind::BoxScanProgress {
+                target_name,
+                captures,
+                status,
+                last_added,
+                last_overlap,
+                last_unrecognized,
+                total_items,
+                total_unrecognized,
+                ..
+            } => {
+                tracing::info!(
+                    target = %target_name,
+                    captures = captures,
+                    ?status,
+                    added = last_added,
+                    overlap = last_overlap,
+                    last_unrecognized = last_unrecognized,
+                    total_items = total_items,
+                    total_unrecognized = total_unrecognized,
+                    "OCR overlay: box-scan progress",
+                );
+            }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::data::{GameData, Item};
+    use crate::ocr::ScanTarget;
+    use std::collections::HashMap;
+    use std::sync::Arc;
+
+    fn item(id: &str, name: &str, weight: Option<f32>) -> Item {
+        Item {
+            id: id.into(),
+            name: name.into(),
+            icon_path: String::new(),
+            category: None,
+            subcategory: None,
+            weight,
+            price: None,
+            rarity: None,
+        }
+    }
+
+    fn state_with_items(items: Vec<Item>) -> AppState {
+        AppState::new(Arc::new(GameData {
+            data_version: "test".into(),
+            scraped_at: "now".into(),
+            source_repo: "test".into(),
+            source_commit: "deadbeef".into(),
+            modules: vec![],
+            items,
+        }))
+    }
+
+    fn update(tally: HashMap<String, u32>, observed_weight: Option<f32>) -> BoxScanUpdate {
+        BoxScanUpdate {
+            target: ScanTarget::Stash,
+            captures: 2,
+            tally,
+            unrecognized: 1,
+            observed_weight,
+            status: BoxScanStatus::Ok,
+            last_tally: HashMap::new(),
+            last_unrecognized: 0,
+            last_added: 0,
+            last_overlap: 0,
+        }
+    }
+
+    #[test]
+    fn box_scan_progress_resolves_names_and_sorts() {
+        let state = state_with_items(vec![
+            item("a", "Apple", Some(1.0)),
+            item("b", "Banana", Some(2.0)),
+        ]);
+        let mut tally = HashMap::new();
+        tally.insert("a".to_string(), 1);
+        tally.insert("b".to_string(), 3);
+        // An id with no catalog entry must survive, falling back to the raw id.
+        tally.insert("ghost".to_string(), 2);
+
+        let fb = OcrFeedback::box_scan_progress(&state, "Stash".into(), &update(tally, Some(10.0)));
+        let OcrFeedbackKind::BoxScanProgress {
+            series_items,
+            total_items,
+            total_unrecognized,
+            computed_weight,
+            ..
+        } = fb.kind
+        else {
+            panic!("expected BoxScanProgress");
+        };
+
+        // Sorted desc by count: Banana(3), ghost(2), Apple(1).
+        assert_eq!(series_items[0], ("Banana".to_string(), 3));
+        assert_eq!(series_items[1], ("ghost".to_string(), 2));
+        assert_eq!(series_items[2], ("Apple".to_string(), 1));
+        assert_eq!(total_items, 6);
+        assert_eq!(total_unrecognized, 1);
+        // Banana 3×2.0 + Apple 1×1.0 + ghost 2×0.0 (unknown weight) = 7.0.
+        assert_eq!(computed_weight, Some(7.0));
+    }
+
+    #[test]
+    fn box_scan_progress_weight_none_without_observed() {
+        let state = state_with_items(vec![item("a", "Apple", Some(1.0))]);
+        let mut tally = HashMap::new();
+        tally.insert("a".to_string(), 1);
+
+        let fb = OcrFeedback::box_scan_progress(&state, "Stash".into(), &update(tally, None));
+        let OcrFeedbackKind::BoxScanProgress {
+            observed_weight,
+            computed_weight,
+            ..
+        } = fb.kind
+        else {
+            panic!("expected BoxScanProgress");
+        };
+        assert_eq!(observed_weight, None);
+        // No observed readout → no computed half (the checksum needs both).
+        assert_eq!(computed_weight, None);
     }
 }

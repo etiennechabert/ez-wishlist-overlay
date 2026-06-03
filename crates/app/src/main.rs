@@ -275,6 +275,7 @@ impl BoxSession {
 fn handle_box_capture(
     state: &Arc<RwLock<state::AppState>>,
     box_update_tx: &crossbeam_channel::Sender<ocr::BoxScanUpdate>,
+    ocr_feedback_tx: &crossbeam_channel::Sender<gui::OcrFeedback>,
     session: Option<&mut BoxSession>,
     job: ocr::OcrJob,
 ) {
@@ -296,6 +297,13 @@ fn handle_box_capture(
         session.last_weight = read.observed_weight;
     }
     let (tally, unrecognized) = ocr::box_scan::tally(&session.master);
+    // The most recent capture in isolation, for the "this capture" half of the
+    // overlay (the cumulative `tally` above mixes every shot together).
+    let (last_tally, last_unrecognized) = ocr::box_scan::tally(&read.tiles);
+    let (last_added, last_overlap) = match outcome {
+        ocr::box_scan::StitchOutcome::Merged { added, overlap } => (added, overlap),
+        ocr::box_scan::StitchOutcome::NeedsRecapture => (0, 0),
+    };
     let status = if read.tiles.is_empty() {
         ocr::BoxScanStatus::NoTiles
     } else {
@@ -334,14 +342,40 @@ fn handle_box_capture(
             }
         }
     }
-    let _ = box_update_tx.try_send(ocr::BoxScanUpdate {
+    let update = ocr::BoxScanUpdate {
         target: session.target.clone(),
         captures: session.captures,
         tally,
         unrecognized,
         observed_weight: session.last_weight,
         status,
-    });
+        last_tally,
+        last_unrecognized,
+        last_added,
+        last_overlap,
+    };
+
+    // Mirror the running state into the in-headset overlay so the user gets the
+    // same "this capture + series so far" feedback the desktop window shows,
+    // without breaking VR presence. Name + weight resolution needs `state`; do
+    // it inside a short read scope and drop the guard before sending.
+    let feedback = {
+        let s = state.read();
+        let target_name = match &session.target {
+            ocr::ScanTarget::Stash => "Stash".to_string(),
+            ocr::ScanTarget::Container(id) => s
+                .containers
+                .iter()
+                .find(|c| &c.id == id)
+                .map(|c| c.name.clone())
+                .unwrap_or_else(|| id.clone()),
+        };
+        gui::OcrFeedback::box_scan_progress(&s, target_name, &update)
+    };
+    feedback.log();
+    let _ = ocr_feedback_tx.try_send(feedback);
+
+    let _ = box_update_tx.try_send(update);
 }
 
 /// Spawn the OCR worker thread. Receives screenshot paths from the VR
@@ -409,7 +443,13 @@ fn spawn_ocr_worker(
                 // and the result is stitched into the session, not written to
                 // state.
                 if matches!(first.kind, ocr::JobKind::BoxScan) {
-                    handle_box_capture(&state, &box_update_tx, box_session.as_mut(), first);
+                    handle_box_capture(
+                        &state,
+                        &box_update_tx,
+                        &ocr_feedback_tx,
+                        box_session.as_mut(),
+                        first,
+                    );
                     continue;
                 }
 

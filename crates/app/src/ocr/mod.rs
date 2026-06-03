@@ -215,7 +215,10 @@ pub enum BoxScanStatus {
 
 /// OCR worker → GUI: running state of the active box-scan session, emitted
 /// after each capture. The GUI shows it as a live tally and, on Finish, writes
-/// it into the target store.
+/// it into the target store. The `last_*` fields describe the *most recent*
+/// capture in isolation (the cumulative `tally` mixes every shot together) so
+/// both the desktop window and the in-headset card can show "this capture"
+/// alongside "series so far".
 #[derive(Clone, Debug)]
 pub struct BoxScanUpdate {
     pub target: ScanTarget,
@@ -225,4 +228,15 @@ pub struct BoxScanUpdate {
     /// The box's total-weight readout, for the "computed vs observed" checksum.
     pub observed_weight: Option<f32>,
     pub status: BoxScanStatus,
+    /// Per-item counts read from *this* shot's tiles alone (not cumulative).
+    pub last_tally: std::collections::HashMap<crate::data::ItemId, u32>,
+    /// Unrecognized tiles in *this* shot alone.
+    pub last_unrecognized: usize,
+    /// Tiles this shot appended to the master sequence
+    /// ([`box_scan::StitchOutcome::Merged`]'s `added`; 0 on a re-capture,
+    /// `NeedsRecapture`, or `NoTiles`).
+    pub last_added: usize,
+    /// Tiles this shot overlapped with the existing tail (`Merged`'s `overlap`;
+    /// 0 otherwise).
+    pub last_overlap: usize,
 }

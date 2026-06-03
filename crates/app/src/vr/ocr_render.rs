@@ -11,6 +11,7 @@
 //! so they're easy to retune without hunting through the draw code.
 
 use crate::gui::{OcrFeedback, OcrFeedbackKind, OcrItemDelta};
+use crate::ocr::BoxScanStatus;
 use crate::vr::text;
 use tiny_skia::{Color, Paint, PathBuilder, Pixmap, Rect, Stroke, Transform};
 
@@ -50,6 +51,17 @@ const TITLE_PX: f32 = 48.0;
 const ROW_PX: f32 = 36.0;
 const SMALL_PX: f32 = 28.0;
 
+// Box/stash-scan card knobs. The card shows two sections ("This capture" +
+// "Series so far"), each an item list capped to keep the total under
+// `CARD_H_MAX`; overflow collapses to a "+N more" line. See the budget in
+// `measure_body_height`'s `BoxScanProgress` arm — worst case ≈ 1167 px.
+const BOX_LAST_MAX: usize = 5;
+const BOX_SERIES_MAX: usize = 8;
+/// A section heading row ("This capture" / "Series so far").
+const SECTION_LABEL_H: f32 = SMALL_PX + 10.0;
+/// The status line (this capture) and the totals line (series).
+const STATUS_ROW_H: f32 = ROW_PX + 8.0;
+
 // `tiny_skia::Color::from_rgba8` isn't a `const fn`, so these can't be
 // real `const`s — fns next best, called at the few sites that need
 // them.
@@ -84,6 +96,11 @@ fn failed_accent() -> Color {
 /// reads against it without being as loud as a solid `failed_accent` bar.
 fn banner_bg() -> Color {
     Color::from_rgba8(74, 30, 28, 255)
+}
+/// Accent for box/stash-scan cards — a teal distinct from the upgrade card's
+/// blue so the two read apart at a glance in the headset.
+fn box_accent() -> Color {
+    Color::from_rgba8(89, 190, 175, 255)
 }
 
 /// Render `feedback` to a fresh RGBA pixmap. Height auto-fits the body
@@ -138,6 +155,7 @@ fn accent_color(kind: &OcrFeedbackKind) -> Color {
         OcrFeedbackKind::NotAPanel => not_panel_accent(),
         OcrFeedbackKind::UnknownUpgrade { .. } => not_panel_accent(),
         OcrFeedbackKind::Failed(_) => failed_accent(),
+        OcrFeedbackKind::BoxScanProgress { .. } => box_accent(),
     }
 }
 
@@ -167,6 +185,36 @@ fn measure_body_height(kind: &OcrFeedbackKind) -> f32 {
                 SECTION_GAP * 0.5 + progression_notes.len() as f32 * PROG_NOTE_ROW_H
             };
             items_h + notes_h
+        }
+        OcrFeedbackKind::BoxScanProgress {
+            last_items,
+            series_items,
+            observed_weight,
+            ..
+        } => {
+            let last_rows = last_items.len().min(BOX_LAST_MAX);
+            let last_elided = if last_items.len() > BOX_LAST_MAX {
+                SMALL_PX + 8.0
+            } else {
+                0.0
+            };
+            let series_rows = series_items.len().min(BOX_SERIES_MAX);
+            let series_elided = if series_items.len() > BOX_SERIES_MAX {
+                SMALL_PX + 8.0
+            } else {
+                0.0
+            };
+            let weight_h = if observed_weight.is_some() {
+                SMALL_PX + 8.0
+            } else {
+                0.0
+            };
+            // "This capture": label + status + items (+ elision).
+            SECTION_LABEL_H + STATUS_ROW_H + last_rows as f32 * ITEM_ROW_H + last_elided
+                + SECTION_GAP
+                // "Series so far": label + totals + weight + items (+ elision).
+                + SECTION_LABEL_H + STATUS_ROW_H + weight_h + series_rows as f32 * ITEM_ROW_H
+                + series_elided
         }
     };
     header_block + body + footer_block
@@ -239,6 +287,7 @@ fn draw_header(pix: &mut Pixmap, kind: &OcrFeedbackKind, accent: Color, y_top: f
         OcrFeedbackKind::NotAPanel => "Not an upgrade panel".to_string(),
         OcrFeedbackKind::UnknownUpgrade { .. } => "Unknown upgrade".to_string(),
         OcrFeedbackKind::Failed(_) => "OCR failed".to_string(),
+        OcrFeedbackKind::BoxScanProgress { target_name, .. } => target_name.clone(),
     };
     text::draw_text(pix, &title, x, baseline, TITLE_PX, fg());
 
@@ -249,6 +298,14 @@ fn draw_header(pix: &mut Pixmap, kind: &OcrFeedbackKind, accent: Color, y_top: f
             let chip_x = pix.width() as f32 - PAD_X - cw;
             text::draw_text(pix, &chip, chip_x, baseline, SMALL_PX, weak());
         }
+    }
+
+    // Capture-count chip, parallel to the upgrade card's "Lv N".
+    if let OcrFeedbackKind::BoxScanProgress { captures, .. } = kind {
+        let chip = format!("{captures} shot{}", if *captures == 1 { "" } else { "s" });
+        let cw = text::measure_width(&chip, SMALL_PX);
+        let chip_x = pix.width() as f32 - PAD_X - cw;
+        text::draw_text(pix, &chip, chip_x, baseline, SMALL_PX, weak());
     }
 
     baseline
@@ -374,7 +431,124 @@ fn draw_body(pix: &mut Pixmap, kind: &OcrFeedbackKind, y_top: f32) -> f32 {
             }
             y
         }
+        OcrFeedbackKind::BoxScanProgress {
+            captures,
+            status,
+            last_added,
+            last_overlap,
+            last_items,
+            last_unrecognized,
+            total_items,
+            total_unrecognized,
+            series_items,
+            observed_weight,
+            computed_weight,
+            ..
+        } => {
+            let mut y = y_top;
+
+            // --- This capture ---
+            text::draw_text(pix, "This capture", PAD_X, y + SMALL_PX, SMALL_PX, weak());
+            y += SECTION_LABEL_H;
+
+            let (status_text, status_color) = match status {
+                BoxScanStatus::Ok => {
+                    let mut t = if *last_added == 0 {
+                        // A re-capture or scroll-up that added nothing new.
+                        format!("Already had these (overlap {last_overlap})")
+                    } else {
+                        format!("Added {last_added} · overlap {last_overlap}")
+                    };
+                    if *last_unrecognized > 0 {
+                        t.push_str(&format!(" · {last_unrecognized} unrecognized"));
+                    }
+                    let color = if *last_added == 0 { weak() } else { positive() };
+                    (t, color)
+                }
+                BoxScanStatus::NeedsRecapture => (
+                    "● Didn't line up — scroll up a little and recapture".to_string(),
+                    negative(),
+                ),
+                BoxScanStatus::NoTiles => (
+                    "● No items seen — make sure the box screen is visible".to_string(),
+                    negative(),
+                ),
+            };
+            text::draw_text(pix, &status_text, PAD_X, y + ROW_PX, ROW_PX, status_color);
+            y += STATUS_ROW_H;
+
+            y = draw_box_item_list(pix, last_items, BOX_LAST_MAX, y);
+
+            // --- Series so far ---
+            y += SECTION_GAP;
+            text::draw_text(pix, "Series so far", PAD_X, y + SMALL_PX, SMALL_PX, weak());
+            y += SECTION_LABEL_H;
+
+            let mut totals = format!(
+                "{total_items} item{} · {captures} shot{}",
+                if *total_items == 1 { "" } else { "s" },
+                if *captures == 1 { "" } else { "s" },
+            );
+            if *total_unrecognized > 0 {
+                totals.push_str(&format!(" · {total_unrecognized} unrecognized"));
+            }
+            text::draw_text(pix, &totals, PAD_X, y + ROW_PX, ROW_PX, fg());
+            y += STATUS_ROW_H;
+
+            if let Some(observed) = observed_weight {
+                // Mirror the desktop checksum: within ±10% (or 0.5 kg) is "close".
+                let computed = computed_weight.unwrap_or(0.0);
+                let close = (computed - observed).abs() <= (observed * 0.1).max(0.5);
+                let col = if close { positive() } else { negative() };
+                text::draw_text(
+                    pix,
+                    &format!("weight: computed {computed:.1} / observed {observed:.1} kg"),
+                    PAD_X,
+                    y + SMALL_PX,
+                    SMALL_PX,
+                    col,
+                );
+                y += SMALL_PX + 8.0;
+            }
+
+            y = draw_box_item_list(pix, series_items, BOX_SERIES_MAX, y);
+
+            y
+        }
     }
+}
+
+/// Draw up to `max` `(name, qty)` rows (already sorted), then a "+N more" line
+/// when the list ran longer. Returns the new y. Mirrors the per-list height in
+/// the `BoxScanProgress` arm of [`measure_body_height`] — keep them in sync.
+fn draw_box_item_list(pix: &mut Pixmap, items: &[(String, u32)], max: usize, y_top: f32) -> f32 {
+    let mut y = y_top;
+    for (name, qty) in items.iter().take(max) {
+        draw_box_item_row(pix, name, *qty, y);
+        y += ITEM_ROW_H;
+    }
+    if items.len() > max {
+        text::draw_text(
+            pix,
+            &format!("+{} more", items.len() - max),
+            PAD_X,
+            y + SMALL_PX,
+            SMALL_PX,
+            weak(),
+        );
+        y += SMALL_PX + 8.0;
+    }
+    y
+}
+
+/// One box-scan item line: name on the left, "×N" count on the right.
+fn draw_box_item_row(pix: &mut Pixmap, name: &str, qty: u32, y_top: f32) {
+    let baseline = y_top + ROW_PX * 0.95;
+    text::draw_text(pix, name, PAD_X, baseline, ROW_PX, fg());
+    let qty_text = format!("×{qty}");
+    let qty_w = text::measure_width(&qty_text, ROW_PX);
+    let qty_x = pix.width() as f32 - PAD_X - qty_w;
+    text::draw_text(pix, &qty_text, qty_x, baseline, ROW_PX, weak());
 }
 
 fn draw_item_row(pix: &mut Pixmap, item: &OcrItemDelta, y_top: f32) {
@@ -433,6 +607,9 @@ fn draw_footer(pix: &mut Pixmap, feedback: &OcrFeedback, auto_on: bool, baseline
     // describing the lifecycle mode instead.
     let manual_dismiss = cfg!(debug_assertions);
     let footer = match (&feedback.kind, auto_on, manual_dismiss) {
+        (OcrFeedbackKind::BoxScanProgress { .. }, ..) => {
+            "Scanning — Finish or Cancel in the desktop app."
+        }
         (OcrFeedbackKind::Processing, _, _) => "Working… replaced when the pipeline finishes.",
         (_, true, _) => "Auto-capture loop running — disable it in the desktop app to stop.",
         (_, false, true) => "Debug build — stays until the next OCR run replaces it.",
@@ -534,5 +711,105 @@ mod tests {
         }
         let pix = render(&fb, false);
         assert_eq!(pix.height(), CARD_H_MAX, "growth should clip at CARD_H_MAX");
+    }
+
+    fn box_progress_feedback() -> OcrFeedback {
+        OcrFeedback {
+            kind: OcrFeedbackKind::BoxScanProgress {
+                target_name: "Stash".into(),
+                captures: 3,
+                status: BoxScanStatus::Ok,
+                last_added: 6,
+                last_overlap: 2,
+                last_items: vec![("Bolts".into(), 4), ("Screws".into(), 2)],
+                last_unrecognized: 1,
+                total_items: 18,
+                total_unrecognized: 3,
+                series_items: vec![
+                    ("Bolts".into(), 7),
+                    ("Screws".into(), 5),
+                    ("Wire".into(), 4),
+                    ("Tape".into(), 2),
+                ],
+                observed_weight: Some(21.9),
+                computed_weight: Some(21.3),
+            },
+        }
+    }
+
+    #[test]
+    fn renders_box_scan_progress_within_bounds() {
+        let pix = render(&box_progress_feedback(), false);
+        assert_eq!(pix.width(), CARD_W);
+        assert!(pix.height() >= CARD_H_MIN);
+        assert!(pix.height() <= CARD_H_MAX);
+    }
+
+    #[test]
+    fn renders_box_scan_progress_caps_long_lists_within_max_height() {
+        // Far more items than any real box — the per-section caps + "+N more"
+        // elision must keep the card inside CARD_H_MAX (it never clips a row).
+        let mut fb = box_progress_feedback();
+        if let OcrFeedbackKind::BoxScanProgress {
+            last_items,
+            series_items,
+            ..
+        } = &mut fb.kind
+        {
+            for i in 0..30 {
+                last_items.push((format!("Filler {i}"), 1));
+                series_items.push((format!("Filler {i}"), 1));
+            }
+        }
+        let pix = render(&fb, false);
+        assert_eq!(pix.width(), CARD_W);
+        assert!(
+            pix.height() <= CARD_H_MAX,
+            "caps must keep the card within CARD_H_MAX"
+        );
+    }
+
+    #[test]
+    fn renders_box_scan_progress_needs_recapture() {
+        // A shot that didn't merge: empty this-capture list + warning status.
+        let mut fb = box_progress_feedback();
+        if let OcrFeedbackKind::BoxScanProgress {
+            status,
+            last_items,
+            last_added,
+            ..
+        } = &mut fb.kind
+        {
+            *status = BoxScanStatus::NeedsRecapture;
+            *last_added = 0;
+            last_items.clear();
+        }
+        let pix = render(&fb, false);
+        assert_eq!(pix.width(), CARD_W);
+        assert!(pix.height() >= CARD_H_MIN);
+        assert!(pix.height() <= CARD_H_MAX);
+    }
+
+    #[test]
+    fn renders_box_scan_progress_no_tiles_without_weight() {
+        // NoTiles + no weight readout exercises the no-weight measure/draw path.
+        let mut fb = box_progress_feedback();
+        if let OcrFeedbackKind::BoxScanProgress {
+            status,
+            last_items,
+            observed_weight,
+            computed_weight,
+            ..
+        } = &mut fb.kind
+        {
+            *status = BoxScanStatus::NoTiles;
+            last_items.clear();
+            *observed_weight = None;
+            *computed_weight = None;
+        }
+        let pix = render(&fb, false);
+        assert_eq!(pix.width(), CARD_W);
+        assert!(pix.height() >= CARD_H_MIN);
+        assert!(pix.height() <= CARD_H_MAX);
     }
 }

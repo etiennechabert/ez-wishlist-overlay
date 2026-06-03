@@ -572,6 +572,7 @@ fn render_loop(
                 frame_start,
                 ocr_debug,
                 auto_on,
+                box_scan_mode.load(Ordering::Relaxed),
                 dismiss,
             );
             if terminal {
@@ -1066,6 +1067,7 @@ struct OcrOverlayState {
 /// VR session and tear down the wishlist grid the user is actively
 /// looking at.
 #[cfg(target_os = "windows")]
+#[allow(clippy::too_many_arguments)]
 fn drive_ocr_overlay(
     session: &mut super::overlay::OverlaySession,
     feedback_rx: &Receiver<crate::gui::OcrFeedback>,
@@ -1073,6 +1075,7 @@ fn drive_ocr_overlay(
     frame_start: std::time::Instant,
     ocr_debug: bool,
     auto_on: bool,
+    box_scan_active: bool,
     auto_dismiss: Duration,
 ) -> bool {
     use crate::gui::OcrFeedbackKind;
@@ -1120,7 +1123,11 @@ fn drive_ocr_overlay(
     // artifacts; auto: the banner must stay up the whole session).
     // Otherwise terminal kinds fade after `auto_dismiss`. Processing
     // kinds never auto-fade — they're replaced when OCR finishes.
-    let manual_dismiss = ocr_debug || auto_on;
+    // A box-scan session pins the latest card the same way auto-capture does:
+    // captures are deliberate and seconds apart, so the "series so far" should
+    // stay up between them and only resume fading once the desktop Finish/Cancel
+    // clears box-scan mode.
+    let manual_dismiss = ocr_debug || auto_on || box_scan_active;
     let processing = matches!(current.feedback.kind, OcrFeedbackKind::Processing);
     let age = frame_start.duration_since(current.visible_since);
 
