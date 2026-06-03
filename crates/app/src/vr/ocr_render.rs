@@ -51,12 +51,14 @@ const TITLE_PX: f32 = 48.0;
 const ROW_PX: f32 = 36.0;
 const SMALL_PX: f32 = 28.0;
 
-// Box/stash-scan card knobs. The card shows two sections ("This capture" +
-// "Series so far"), each an item list capped to keep the total under
-// `CARD_H_MAX`; overflow collapses to a "+N more" line. See the budget in
-// `measure_body_height`'s `BoxScanProgress` arm — worst case ≈ 1167 px.
-const BOX_LAST_MAX: usize = 5;
-const BOX_SERIES_MAX: usize = 8;
+// Box/stash-scan card knobs. "This capture" lists *every* item the shot read —
+// the user verifies it against the on-screen tiles, so it must never elide. The
+// cumulative "Series so far" list can grow unbounded over a long scan, so it
+// stays capped with a "+N more" line (the desktop window has the full tally).
+// Because the per-capture list is uncapped, box cards get their own taller
+// height ceiling (BOX_CARD_H_MAX) instead of CARD_H_MAX.
+const BOX_SERIES_MAX: usize = 12;
+const BOX_CARD_H_MAX: u32 = 2816;
 /// A section heading row ("This capture" / "Series so far").
 const SECTION_LABEL_H: f32 = SMALL_PX + 10.0;
 /// The status line (this capture) and the totals line (series).
@@ -115,7 +117,14 @@ pub fn render(feedback: &OcrFeedback, auto_on: bool) -> Pixmap {
     // Banner height is added on top of the clamped body height so the
     // body layout (and CARD_H_MIN/MAX budget) is unchanged whether or
     // not the loop is running.
-    let total_h = (body_h as u32).clamp(CARD_H_MIN, CARD_H_MAX) + banner_h as u32;
+    // Box cards get a taller ceiling because "This capture" is uncapped; every
+    // other card keeps the standard CARD_H_MAX.
+    let max_h = if matches!(feedback.kind, OcrFeedbackKind::BoxScanProgress { .. }) {
+        BOX_CARD_H_MAX
+    } else {
+        CARD_H_MAX
+    };
+    let total_h = (body_h as u32).clamp(CARD_H_MIN, max_h) + banner_h as u32;
     let mut pix = Pixmap::new(CARD_W, total_h).expect("ocr card pixmap alloc");
     pix.fill(bg());
     draw_border(&mut pix, accent);
@@ -192,29 +201,19 @@ fn measure_body_height(kind: &OcrFeedbackKind) -> f32 {
             observed_weight,
             ..
         } => {
-            let last_rows = last_items.len().min(BOX_LAST_MAX);
-            let last_elided = if last_items.len() > BOX_LAST_MAX {
-                SMALL_PX + 8.0
-            } else {
-                0.0
-            };
-            let series_rows = series_items.len().min(BOX_SERIES_MAX);
-            let series_elided = if series_items.len() > BOX_SERIES_MAX {
-                SMALL_PX + 8.0
-            } else {
-                0.0
-            };
             let weight_h = if observed_weight.is_some() {
                 SMALL_PX + 8.0
             } else {
                 0.0
             };
-            // "This capture": label + status + items (+ elision).
-            SECTION_LABEL_H + STATUS_ROW_H + last_rows as f32 * ITEM_ROW_H + last_elided
+            // "This capture": label + status + every item (uncapped).
+            SECTION_LABEL_H + STATUS_ROW_H + box_list_height(last_items.len(), usize::MAX)
                 + SECTION_GAP
-                // "Series so far": label + totals + weight + items (+ elision).
-                + SECTION_LABEL_H + STATUS_ROW_H + weight_h + series_rows as f32 * ITEM_ROW_H
-                + series_elided
+                // "Series so far": label + totals + weight + capped items.
+                + SECTION_LABEL_H
+                + STATUS_ROW_H
+                + weight_h
+                + box_list_height(series_items.len(), BOX_SERIES_MAX)
         }
     };
     header_block + body + footer_block
@@ -477,7 +476,7 @@ fn draw_body(pix: &mut Pixmap, kind: &OcrFeedbackKind, y_top: f32) -> f32 {
             text::draw_text(pix, &status_text, PAD_X, y + ROW_PX, ROW_PX, status_color);
             y += STATUS_ROW_H;
 
-            y = draw_box_item_list(pix, last_items, BOX_LAST_MAX, y);
+            y = draw_box_item_list(pix, last_items, usize::MAX, y);
 
             // --- Series so far ---
             y += SECTION_GAP;
@@ -518,9 +517,17 @@ fn draw_body(pix: &mut Pixmap, kind: &OcrFeedbackKind, y_top: f32) -> f32 {
     }
 }
 
+/// Height [`draw_box_item_list`] consumes for `len` rows capped at `max`
+/// (`usize::MAX` = uncapped, no elision). Mirrors its draw logic — keep in sync.
+fn box_list_height(len: usize, max: usize) -> f32 {
+    let shown = len.min(max);
+    let elided = if len > shown { SMALL_PX + 8.0 } else { 0.0 };
+    shown as f32 * ITEM_ROW_H + elided
+}
+
 /// Draw up to `max` `(name, qty)` rows (already sorted), then a "+N more" line
-/// when the list ran longer. Returns the new y. Mirrors the per-list height in
-/// the `BoxScanProgress` arm of [`measure_body_height`] — keep them in sync.
+/// when the list ran longer. Pass `usize::MAX` to show every row (no elision).
+/// The height consumed is mirrored by [`box_list_height`] — keep them in sync.
 fn draw_box_item_list(pix: &mut Pixmap, items: &[(String, u32)], max: usize, y_top: f32) -> f32 {
     let mut y = y_top;
     for (name, qty) in items.iter().take(max) {
@@ -742,31 +749,40 @@ mod tests {
         let pix = render(&box_progress_feedback(), false);
         assert_eq!(pix.width(), CARD_W);
         assert!(pix.height() >= CARD_H_MIN);
-        assert!(pix.height() <= CARD_H_MAX);
+        assert!(pix.height() <= BOX_CARD_H_MAX);
     }
 
     #[test]
-    fn renders_box_scan_progress_caps_long_lists_within_max_height() {
-        // Far more items than any real box — the per-section caps + "+N more"
-        // elision must keep the card inside CARD_H_MAX (it never clips a row).
-        let mut fb = box_progress_feedback();
-        if let OcrFeedbackKind::BoxScanProgress {
-            last_items,
-            series_items,
-            ..
-        } = &mut fb.kind
-        {
-            for i in 0..30 {
-                last_items.push((format!("Filler {i}"), 1));
-                series_items.push((format!("Filler {i}"), 1));
+    fn box_card_shows_every_last_item_and_caps_series() {
+        let mk = |last: usize, series: usize| {
+            let mut fb = box_progress_feedback();
+            if let OcrFeedbackKind::BoxScanProgress {
+                last_items,
+                series_items,
+                ..
+            } = &mut fb.kind
+            {
+                *last_items = (0..last).map(|i| (format!("L{i}"), 1)).collect();
+                *series_items = (0..series).map(|i| (format!("S{i}"), 1)).collect();
             }
-        }
-        let pix = render(&fb, false);
-        assert_eq!(pix.width(), CARD_W);
+            render(&fb, false).height()
+        };
+        // "This capture" is uncapped: 10 more items add exactly 10 row-heights.
+        let h_last10 = mk(10, 4);
+        let h_last20 = mk(20, 4);
         assert!(
-            pix.height() <= CARD_H_MAX,
-            "caps must keep the card within CARD_H_MAX"
+            (h_last20 as f32 - h_last10 as f32 - 10.0 * ITEM_ROW_H).abs() < 2.0,
+            "every per-capture item must render its own row (no cap)"
         );
+        // "Series so far" is capped: items past the cap collapse to one "+N more"
+        // line, so the card height stops growing.
+        assert_eq!(
+            mk(3, BOX_SERIES_MAX + 5),
+            mk(3, BOX_SERIES_MAX + 50),
+            "series past the cap must not grow the card"
+        );
+        // Even a pathological pair stays within the box ceiling.
+        assert!(mk(40, 40) <= BOX_CARD_H_MAX);
     }
 
     #[test]
@@ -787,7 +803,7 @@ mod tests {
         let pix = render(&fb, false);
         assert_eq!(pix.width(), CARD_W);
         assert!(pix.height() >= CARD_H_MIN);
-        assert!(pix.height() <= CARD_H_MAX);
+        assert!(pix.height() <= BOX_CARD_H_MAX);
     }
 
     #[test]
@@ -810,6 +826,6 @@ mod tests {
         let pix = render(&fb, false);
         assert_eq!(pix.width(), CARD_W);
         assert!(pix.height() >= CARD_H_MIN);
-        assert!(pix.height() <= CARD_H_MAX);
+        assert!(pix.height() <= BOX_CARD_H_MAX);
     }
 }
