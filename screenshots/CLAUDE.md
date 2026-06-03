@@ -144,17 +144,22 @@ per item (icon + name, plus the owned/needed counter for hideout). The
 the item's name, validating that **each item reads correctly in an isolated
 shape**, not just embedded in the full panel/scan.
 
-- **Crop:** one whole tile per item, at full resolution, tight enough to exclude
-  neighbours and the title/tab bars. **Place crops from the committed geometry,
-  not by eye:** box/stash tile positions come from the `.boxes.json` word boxes;
-  hideout from the per-cell `strip rect` in the `.ocr-debug` dumps (the
-  identification test drops one next to each capture) — the whole tile is
-  `x .. x+w` × `(y − 3.7·h) .. (y + 1.9·h)` around that count strip. When a name
-  was OCR-dropped (some stash tiles, e.g. CD), crop by the grid position instead.
-  Commit as WebP with Pillow:
-  `Image.open(cap).crop((l,t,r,b)).save(out, "WEBP", quality=95, method=6)`. Name
-  `<item_id>.webp` (hideout, where an item recurs across panels:
-  `<UpgradeId>__<item_id>.webp`).
+- **Crop:** one whole tile per item, at full resolution. **Place crops from the
+  committed geometry, not by eye:**
+  - **box/stash** — from the `.boxes.json` word boxes (item-name centres). When a
+    name was OCR-dropped (some stash tiles, e.g. CD, Beard oil), crop by the grid
+    position instead.
+  - **hideout** — the panels are tilted and some cells fall back to a bad count
+    position, so derive per panel from the `.ocr-debug` dumps' per-cell count
+    centres: `pitch` = median column spacing; the **row is a line** fit by
+    Theil-Sen through the cells (robust to the 1–2 bad-fallback cells); crop each
+    tile `≈ pitch` wide × `0.78·pitch` tall, centred on its column with a small
+    **right bias** (the name sits right of the count strip because the icon is on
+    the left), `(y − 0.56·pitch) .. (y + 0.22·pitch)` on the fitted line.
+  - Commit as WebP with Pillow:
+    `Image.open(cap).crop((l,t,r,b)).save(out, "WEBP", quality=95, method=6)`.
+    Name `<item_id>.webp` (hideout, where an item recurs across panels:
+    `<UpgradeId>__<item_id>.webp`).
 - **Label — `units/labels.txt`** (`<file>  <expected OCR name>` per line):
   ```
   misc_copperwire.webp  Copper wire
