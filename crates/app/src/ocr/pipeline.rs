@@ -701,7 +701,7 @@ pub fn process_image(
 #[cfg(all(test, target_os = "windows"))]
 mod fixture_tests {
     //! Integration-style coverage driven by the **native-resolution
-    //! PNG fixtures** in `hideout_screenshots_native/`. Each fixture's
+    //! PNG fixtures** in `screenshots/hideout/`. Each fixture's
     //! filename is the `Upgrade.id` ground truth (e.g.
     //! `BookcaseLv1.png` ↔ `Upgrade.id = "BookcaseLv1"`). We assert
     //! identification + cell ordering match `data.json` here; per-cell
@@ -709,10 +709,11 @@ mod fixture_tests {
     //! diagnostic (run with `--ignored`) and the sibling
     //! `.ocr-debug.txt` dumps.
     //!
-    //! The old `hideout_screenshots/` Steam-F12 JPGs are no longer
-    //! part of the test suite — their lossy compression destroyed
-    //! the chunky pixel-art digit font and made digit-OCR results
-    //! unrepresentative of what the runtime sees on real captures.
+    //! The old Steam-F12 JPGs (formerly `hideout_screenshots/`) were
+    //! dropped from the repo entirely — their lossy compression
+    //! destroyed the chunky pixel-art digit font and made digit-OCR
+    //! results unrepresentative of what the runtime sees on real
+    //! captures.
 
     use crate::ocr;
     use std::path::PathBuf;
@@ -724,7 +725,7 @@ mod fixture_tests {
 
     fn fixture_dir() -> PathBuf {
         // CARGO_MANIFEST_DIR is `crates/app`; native captures live at repo root.
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../hideout_screenshots_native")
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../screenshots/hideout")
     }
 
     /// True for the "primary" fixture captures (e.g. `BookcaseLv1.webp`).
@@ -750,7 +751,7 @@ mod fixture_tests {
     /// design plan: ≥ 18/20). Owned-count digits are not asserted; the
     /// JPGs are the regression-detection floor for identification + cell
     /// ordering, not for digit accuracy.
-    /// One-shot bootstrap: walk every PNG in `hideout_screenshots_native/`,
+    /// One-shot bootstrap: walk every PNG in `screenshots/hideout/`,
     /// identify the upgrade, crop each cell's owned/needed count strip,
     /// connected-component it, and save labeled PNG templates under
     /// `crates/app/src/assets/ocr_templates/`.
@@ -783,8 +784,8 @@ mod fixture_tests {
         use crate::ocr::{anchor, engine};
         use image::GenericImageView;
 
-        let in_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../hideout_screenshots_native");
+        let in_dir =
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../screenshots/hideout");
         let out_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../../target/ocr_cells_wide");
         std::fs::create_dir_all(&out_dir).expect("create out dir");
@@ -864,8 +865,8 @@ mod fixture_tests {
         use image::GenericImageView;
 
         let data = load_data();
-        let in_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../hideout_screenshots_native");
+        let in_dir =
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../screenshots/hideout");
         let out_dir =
             std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/assets/ocr_templates");
 
@@ -1087,7 +1088,7 @@ mod fixture_tests {
         use image::GenericImageView;
         let data = load_data();
         let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../hideout_screenshots_native/BookcaseLv1.webp");
+            .join("../../screenshots/hideout/BookcaseLv1.webp");
         let img = image::open(&path).expect("open");
         let (img_w, img_h) = img.dimensions();
         let words = engine::recognize_image(&img).expect("OCR");
@@ -1129,7 +1130,7 @@ mod fixture_tests {
         use image::GenericImageView;
         let data = load_data();
         let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../hideout_screenshots_native/BookcaseLv1.webp");
+            .join("../../screenshots/hideout/BookcaseLv1.webp");
         let img = image::open(&path).expect("open");
         let (img_w, img_h) = img.dimensions();
         let words = engine::recognize_image(&img).expect("OCR");
@@ -1182,7 +1183,7 @@ mod fixture_tests {
         use image::GenericImageView;
         let data = load_data();
         let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../hideout_screenshots_native/BookcaseLv1.webp");
+            .join("../../screenshots/hideout/BookcaseLv1.webp");
         let img = image::open(&path).expect("open Bookcase");
         let (img_w, img_h) = img.dimensions();
         let words = engine::recognize_image(&img).expect("OCR");
@@ -1231,8 +1232,8 @@ mod fixture_tests {
         use image::GenericImageView;
 
         let data = load_data();
-        let in_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../hideout_screenshots_native");
+        let in_dir =
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../screenshots/hideout");
         let out_dir =
             std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/ocr_cells");
         std::fs::create_dir_all(&out_dir).expect("create output dir");
@@ -1333,14 +1334,14 @@ mod fixture_tests {
     }
 
     #[test]
-    #[ignore = "bootstrap — run with --ignored after populating hideout_screenshots_native/"]
+    #[ignore = "bootstrap — run with --ignored after populating screenshots/hideout/"]
     fn extract_digit_templates_from_native_pngs() {
         use crate::ocr::{anchor, engine, prep, templates};
         use image::GenericImageView;
 
         let data = load_data();
-        let in_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../hideout_screenshots_native");
+        let in_dir =
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../screenshots/hideout");
         let out_dir =
             std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/assets/ocr_templates");
         std::fs::create_dir_all(&out_dir).expect("create output dir");
@@ -1547,8 +1548,8 @@ mod fixture_tests {
     #[ignore = "diagnostic — run with --ignored"]
     fn read_native_pngs() {
         let data = load_data();
-        let in_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../hideout_screenshots_native");
+        let in_dir =
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../screenshots/hideout");
         let mut entries: Vec<_> = std::fs::read_dir(&in_dir)
             .unwrap_or_else(|e| panic!("read_dir {}: {e}", in_dir.display()))
             .filter_map(|e| e.ok())
@@ -1609,22 +1610,27 @@ mod fixture_tests {
         }
     }
 
-    /// Structured, **noise-aware** eval report for the OCR-improvement
-    /// loop (the `ocr-tune` skill / `scripts/ocr-eval-compare.ps1`).
+    /// Structured, **noise-aware** eval report scoring all three assets
+    /// **independently** (the `ocr-tune` skill / `scripts/ocr-eval.ps1` /
+    /// `scripts/ocr-eval-compare.ps1`).
     ///
-    /// Runs the full pipeline over every native fixture `OCR_EVAL_RUNS`
-    /// times (default 3) so the Windows.Media.Ocr run-to-run jitter
-    /// (~±2 cells, documented on `owned_count_accuracy_floor_on_native_pngs`)
-    /// shows up as a `min/median/max` band instead of one fragile
-    /// number, then emits a machine-readable JSON report. A change is
-    /// only a real improvement when it clears that band — comparing two
-    /// single runs would chase noise.
+    /// Emits one JSON object with a per-asset section:
+    ///   - `hideout` — runs the full pipeline over every `screenshots/hideout/`
+    ///     fixture `OCR_EVAL_RUNS` times (default 3) so the Windows.Media.Ocr
+    ///     run-to-run jitter (~±2 cells, documented on
+    ///     `owned_count_accuracy_floor_on_native_pngs`) shows up as a
+    ///     `min/median/max` band instead of one fragile number. A change is
+    ///     only a real improvement when it clears that band.
+    ///   - `box` / `stash` — deterministic, graded tile accuracy
+    ///     (`tiles_correct / tiles_total`, `exact_match`, `missing`, `extra`)
+    ///     from the frozen `.boxes.json` fixtures, via
+    ///     `box_scan::tests::score_scan`. No live engine, so no band.
     ///
     /// This is the *fine-grained signal* the tuning loop diffs before vs
-    /// after a change (per-fixture + per-cell deltas, the noise band, and
-    /// `wrong_writes_max` for data-safety). The hard pass/fail **gates**
-    /// stay where they are — `identification_…` (15/15) and
-    /// `owned_count_accuracy_floor_…` (≥45) and `big_container_scan_…`
+    /// after a change (per-fixture + per-cell deltas, the noise band,
+    /// `wrong_writes_max` for data-safety, and the box/stash tile scores).
+    /// The hard pass/fail **gates** stay where they are — `identification_…`
+    /// (15/15) and `owned_count_accuracy_floor_…` (≥45) and `box_scan_…`
     /// (exact) — so a regression that breaks a gate fails the normal
     /// `cargo test ocr` run and the loop reverts regardless of this JSON.
     ///
@@ -1683,12 +1689,39 @@ mod fixture_tests {
             /// means the pipeline would overwrite real progress with garbage.
             wrong_writes_max: usize,
         }
+        /// The hideout asset: live-OCR owned-count band + identification.
+        #[derive(serde::Serialize)]
+        struct HideoutReport {
+            totals: Totals,
+            fixtures: Vec<FixtureReport>,
+        }
+        /// A box-scan asset (box / stash): deterministic, graded tile accuracy
+        /// from the frozen `.boxes.json` fixtures. Scored independently of the
+        /// noisy hideout band — these don't run the live engine.
+        #[derive(serde::Serialize)]
+        struct ScanAssetReport {
+            scans: Vec<crate::ocr::box_scan::tests::ScanScore>,
+            /// Aggregate `tiles_correct / tiles_total` across this asset's
+            /// scans, in [0, 1].
+            score: f64,
+            tiles_correct: u32,
+            tiles_total: u32,
+            /// True when every scan in this asset matches its label exactly
+            /// (the gate-equivalent for `box`).
+            all_exact: bool,
+            /// Why this asset isn't gated, when applicable (e.g. stash).
+            note: Option<String>,
+        }
+        /// Combined report scoring each asset type **independently**: `hideout`
+        /// (live OCR, noise band), `box` and `stash` (deterministic tile score).
         #[derive(serde::Serialize)]
         struct Report {
             runs: usize,
             templates_loaded: usize,
-            totals: Totals,
-            fixtures: Vec<FixtureReport>,
+            hideout: HideoutReport,
+            #[serde(rename = "box")]
+            box_: ScanAssetReport,
+            stash: ScanAssetReport,
         }
 
         fn median(mut v: Vec<usize>) -> usize {
@@ -1832,19 +1865,66 @@ mod fixture_tests {
             });
         }
 
+        let totals = Totals {
+            fixtures: fixtures.len(),
+            identified: identified_fixtures,
+            labelled: tot_labelled,
+            correct_min: *tot_correct_per_run.iter().min().unwrap_or(&0),
+            correct_median: median(tot_correct_per_run.clone()),
+            correct_max: *tot_correct_per_run.iter().max().unwrap_or(&0),
+            wrong_writes_max: *tot_wrong_per_run.iter().max().unwrap_or(&0),
+        };
+
+        // --- box + stash: deterministic, graded tile accuracy from the frozen
+        //     `.boxes.json` fixtures (reuses the box-scan test scorer). Scored
+        //     independently of the noisy hideout band — no live engine here. ---
+        let asset_report = |scans: Vec<crate::ocr::box_scan::tests::ScanScore>,
+                            note: Option<&str>|
+         -> ScanAssetReport {
+            let tiles_correct: u32 = scans.iter().map(|s| s.tiles_correct).sum();
+            let tiles_total: u32 = scans.iter().map(|s| s.tiles_total).sum();
+            ScanAssetReport {
+                score: if tiles_total > 0 {
+                    tiles_correct as f64 / tiles_total as f64
+                } else {
+                    0.0
+                },
+                tiles_correct,
+                tiles_total,
+                all_exact: scans.iter().all(|s| s.exact_match),
+                scans,
+                note: note.map(str::to_string),
+            }
+        };
+
+        let box_shots: Vec<String> = (0..3).map(|i| format!("box.shot{i}.boxes.json")).collect();
+        let box_ = asset_report(
+            vec![crate::ocr::box_scan::tests::score_scan(
+                "box",
+                &box_shots,
+                "box.label.txt",
+            )],
+            None,
+        );
+
+        let stash_shots: Vec<String> = (0..10)
+            .map(|i| format!("stash.shot{i:02}.boxes.json"))
+            .collect();
+        let stash = asset_report(
+            vec![crate::ocr::box_scan::tests::score_scan(
+                "stash",
+                &stash_shots,
+                "stash.label.txt",
+            )],
+            Some("stitch-blocked captures (scroll gaps + dropped OCR tiles); informational, not gated"),
+        );
+
         let report = Report {
             runs,
             templates_loaded: crate::ocr::templates::EMBEDDED.len(),
-            totals: Totals {
-                fixtures: fixtures.len(),
-                identified: identified_fixtures,
-                labelled: tot_labelled,
-                correct_min: *tot_correct_per_run.iter().min().unwrap_or(&0),
-                correct_median: median(tot_correct_per_run.clone()),
-                correct_max: *tot_correct_per_run.iter().max().unwrap_or(&0),
-                wrong_writes_max: *tot_wrong_per_run.iter().max().unwrap_or(&0),
-            },
-            fixtures,
+            hideout: HideoutReport { totals, fixtures },
+            box_,
+            stash,
         };
         let json = serde_json::to_string_pretty(&report).expect("serialize eval report");
 
@@ -1860,18 +1940,28 @@ mod fixture_tests {
             println!("{json}");
             println!("<<<END_OCR_EVAL_JSON>>>");
         }
-        // Human-readable one-liner on stderr regardless of output sink.
+        // Human-readable per-asset scorecard on stderr regardless of output sink.
+        let h = &report.hideout.totals;
         eprintln!(
-            "eval: {}/{} identified; owned-count min/med/max = {}/{}/{} of {} labelled \
+            "eval hideout: {}/{} identified; owned-count min/med/max = {}/{}/{} of {} labelled \
              (runs={}, wrong_writes_max={})",
-            report.totals.identified,
-            report.totals.fixtures,
-            report.totals.correct_min,
-            report.totals.correct_median,
-            report.totals.correct_max,
-            report.totals.labelled,
+            h.identified,
+            h.fixtures,
+            h.correct_min,
+            h.correct_median,
+            h.correct_max,
+            h.labelled,
             report.runs,
-            report.totals.wrong_writes_max,
+            h.wrong_writes_max,
+        );
+        eprintln!(
+            "eval box:     {}/{} tiles (exact={});  stash: {}/{} tiles (exact={})",
+            report.box_.tiles_correct,
+            report.box_.tiles_total,
+            report.box_.all_exact,
+            report.stash.tiles_correct,
+            report.stash.tiles_total,
+            report.stash.all_exact,
         );
     }
 
@@ -1888,7 +1978,7 @@ mod fixture_tests {
         let path = match std::env::var_os("OCR_DUMP_PATH") {
             Some(p) => std::path::PathBuf::from(p),
             None => std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                .join("../../hideout_screenshots_native/CryptoMiningLv2.webp"),
+                .join("../../screenshots/hideout/CryptoMiningLv2.webp"),
         };
         eprintln!("OCR dump for: {}", path.display());
         let img = image::open(&path).expect("open PNG");
@@ -1905,7 +1995,7 @@ mod fixture_tests {
     }
 
     /// Identification + cell-ordering regression. For every native
-    /// capture in `hideout_screenshots_native/`:
+    /// capture in `screenshots/hideout/`:
     ///   - pipeline must return `Some(outcome)`,
     ///   - `outcome.upgrade_id` must equal the filename stem (the
     ///     ground-truth Upgrade.id),
@@ -2083,5 +2173,240 @@ mod fixture_tests {
             correct >= 45,
             "owned-count accuracy regressed below floor: {correct}/{labelled} (want ≥ 45)"
         );
+    }
+}
+
+/// Validates the hideout upgrade **database** (`data.json`) against the
+/// hand-labelled ground truth in `screenshots/hideout/*.label.txt`. The in-game
+/// panel is the source of truth (see `screenshots/CLAUDE.md`), so a divergence
+/// here means `data.json` drifted and must be patched — not the label. Pure data
+/// check (no OCR engine), so it runs on **every** target.
+#[cfg(test)]
+mod hideout_data_validation {
+    use std::collections::BTreeMap;
+    use std::path::PathBuf;
+
+    /// `item_id → needed`, parsed from `<item_id>  <owned>/<needed>` label
+    /// lines. `#` comments + blank lines ignored; malformed rows skipped.
+    fn label_needs(text: &str) -> BTreeMap<String, u32> {
+        let mut out = BTreeMap::new();
+        for line in text.lines() {
+            let line = line.trim();
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+            let mut it = line.split_whitespace();
+            let (Some(id), Some(xy)) = (it.next(), it.next()) else {
+                continue;
+            };
+            if let Some((_, needed)) = xy.split_once('/') {
+                if let Ok(n) = needed.parse::<u32>() {
+                    out.insert(id.to_string(), n);
+                }
+            }
+        }
+        out
+    }
+
+    /// Every `screenshots/hideout/<UpgradeId>.label.txt` must agree with that
+    /// upgrade's `requirements` in `data.json`: the same set of `item_id`s, each
+    /// with the same `needed` quantity. The screenshots are ground truth, so a
+    /// failure means patch `data.json` (per `screenshots/CLAUDE.md`), not the
+    /// label.
+    #[test]
+    fn hideout_labels_match_data_json() {
+        let data: crate::data::GameData =
+            serde_json::from_str(include_str!("../assets/data.json")).expect("data.json parses");
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../screenshots/hideout");
+
+        let mut checked = 0usize;
+        let mut errs: Vec<String> = Vec::new();
+        for entry in std::fs::read_dir(&dir)
+            .unwrap_or_else(|e| panic!("read {}: {e}", dir.display()))
+            .flatten()
+        {
+            let path = entry.path();
+            // Drive off each capture; read its sibling label.
+            if path.extension().and_then(|s| s.to_str()) != Some("webp") {
+                continue;
+            }
+            let stem = path.file_stem().unwrap().to_string_lossy().into_owned();
+            let label_path = dir.join(format!("{stem}.label.txt"));
+            let Ok(text) = std::fs::read_to_string(&label_path) else {
+                errs.push(format!("{stem}: missing {stem}.label.txt"));
+                continue;
+            };
+            let Some(upgrade) = data
+                .modules
+                .iter()
+                .flat_map(|m| &m.upgrades)
+                .find(|u| u.id == stem)
+            else {
+                errs.push(format!("{stem}: no matching Upgrade.id in data.json"));
+                continue;
+            };
+
+            let got = label_needs(&text);
+            let want: BTreeMap<String, u32> = upgrade
+                .requirements
+                .iter()
+                .map(|r| (r.item_id.clone(), r.quantity))
+                .collect();
+            if got != want {
+                errs.push(format!(
+                    "{stem}: label (item_id→needed) {got:?} != data.json requirements {want:?}"
+                ));
+            }
+            checked += 1;
+        }
+
+        assert!(
+            checked >= 15,
+            "expected >= 15 hideout fixtures, found {checked}"
+        );
+        assert!(
+            errs.is_empty(),
+            "hideout screenshot labels disagree with data.json (screenshots are ground \
+             truth — patch data.json, see screenshots/CLAUDE.md):\n  {}",
+            errs.join("\n  "),
+        );
+    }
+}
+
+/// Per-item **isolated-OCR** validation. Each asset folder has a `units/`
+/// subdirectory of hand-cropped **whole item tiles** (icon + name, plus the
+/// owned/needed counter for hideout); `units/labels.txt` maps
+/// `<file>  <expected text>`. These tests OCR each lone crop and require the
+/// engine to recover every token of the expected text — proving each item
+/// reads correctly in an isolated shape, not just embedded in the full
+/// panel/scan. Windows-only (uses the live engine); the committed crop set is
+/// the curated, known-OCRable one, so a failure is a real regression.
+#[cfg(all(test, target_os = "windows"))]
+mod unit_ocr_tests {
+    use crate::ocr::engine;
+    use std::path::{Path, PathBuf};
+
+    fn units_dir(asset: &str) -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../screenshots")
+            .join(asset)
+            .join("units")
+    }
+
+    /// `(file, expected text, is_hard)` from `units/labels.txt`. A normal line
+    /// `<file>  <text…>` is a **gated** unit (must OCR correctly). A line
+    /// `#hard  <file>  <text…>` is a **known-hard** unit — still OCR'd and
+    /// reported as an improvement target, but it does not fail the gate (the
+    /// engine can't yet read that tile in isolation, e.g. a stylised "UV" or a
+    /// tiny angled hideout name). Other `#…` lines are comments.
+    fn load_unit_labels(dir: &Path) -> Vec<(String, String, bool)> {
+        let Ok(text) = std::fs::read_to_string(dir.join("labels.txt")) else {
+            return Vec::new();
+        };
+        let mut out = Vec::new();
+        for raw in text.lines() {
+            let line = raw.trim();
+            if line.is_empty() {
+                continue;
+            }
+            let (line, hard) = match line.strip_prefix("#hard") {
+                Some(rest) => (rest.trim(), true),
+                None if line.starts_with('#') => continue,
+                None => (line, false),
+            };
+            let mut it = line.splitn(2, char::is_whitespace);
+            if let (Some(f), Some(e)) = (it.next(), it.next()) {
+                out.push((f.to_string(), e.trim().to_string(), hard));
+            }
+        }
+        out
+    }
+
+    /// OCR a crop → its words lowercased, space-joined.
+    fn ocr_text(path: &Path) -> String {
+        let img = image::open(path).unwrap_or_else(|e| panic!("open {}: {e}", path.display()));
+        engine::recognize_image(&img)
+            .unwrap_or_default()
+            .iter()
+            .map(|w| w.text.to_lowercase())
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+
+    /// Every alphanumeric token of `expect` appears (substring-either-way, to
+    /// tolerate the engine splitting/merging glyphs) in the OCR `haystack`.
+    fn reads_expected(haystack: &str, expect: &str) -> bool {
+        expect.split_whitespace().all(|tok| {
+            let t: String = tok
+                .to_lowercase()
+                .chars()
+                .filter(|c| c.is_alphanumeric())
+                .collect();
+            t.is_empty()
+                || haystack
+                    .split_whitespace()
+                    .map(|w| -> String { w.chars().filter(|c| c.is_alphanumeric()).collect() })
+                    .any(|w| !w.is_empty() && (w.contains(&t) || t.contains(&w)))
+        })
+    }
+
+    /// Assert every committed unit crop for `asset` OCRs to its expected text.
+    /// Skips (vacuously) if the asset has no labelled units yet.
+    fn assert_units(asset: &str) {
+        let dir = units_dir(asset);
+        let labels = load_unit_labels(&dir);
+        if labels.is_empty() {
+            eprintln!("{asset}: no units in {} — skipping", dir.display());
+            return;
+        }
+        let mut fails = Vec::new();
+        let (mut gated, mut gated_ok) = (0usize, 0usize);
+        for (file, expect, hard) in &labels {
+            let path = dir.join(file);
+            let got = if path.exists() {
+                ocr_text(&path)
+            } else {
+                "<missing>".to_string()
+            };
+            let ok = path.exists() && reads_expected(&got, expect);
+            let tag = if *hard { "hard" } else { "gate" };
+            let mark = if ok { "ok " } else { "ERR" };
+            eprintln!("  [{mark}|{tag}] {asset}/{file}: expect={expect:?} got={got:?}");
+            if !*hard {
+                gated += 1;
+                if ok {
+                    gated_ok += 1;
+                } else {
+                    fails.push(format!(
+                        "{asset}/{file}: expected {expect:?}, OCR read {got:?}"
+                    ));
+                }
+            }
+        }
+        eprintln!(
+            "{asset} units: {gated_ok}/{gated} gated passed ({} known-hard reported)",
+            labels.len() - gated,
+        );
+        assert!(
+            fails.is_empty(),
+            "isolated-OCR unit failures (fix the crop or the pipeline, or mark the line \
+             `#hard` if it's a tracked OCR limitation):\n  {}",
+            fails.join("\n  "),
+        );
+    }
+
+    #[test]
+    fn box_units_ocr_in_isolation() {
+        assert_units("box");
+    }
+
+    #[test]
+    fn stash_units_ocr_in_isolation() {
+        assert_units("stash");
+    }
+
+    #[test]
+    fn hideout_units_ocr_in_isolation() {
+        assert_units("hideout");
     }
 }

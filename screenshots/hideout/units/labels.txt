@@ -1,0 +1,64 @@
+# hideout/units — <file>  <expected OCR name>  (whole requirement tile: icon + name + count)
+# All 15 panels (59 cells). Crops placed from each capture's .ocr-debug cell geometry:
+# column pitch + Theil-Sen row line (inliers only, so bad-fallback cells are predicted).
+# A `#hard  <file>  <name>` line is OCR'd + reported but not gated (engine can't read it
+# in isolation — tiny far-angled name). These are OCR-tune targets, not crop bugs.
+BookcaseLv1__misc_b_civilradio.webp  Civil radio
+BookcaseLv1__misc_b_socket.webp  Socket
+CryptoMiningLv2__misc_b_pcfan.webp  CPU Fan
+CryptoMiningLv2__misc_bpu.webp  CPU
+CryptoMiningLv2__misc_floppydisk.webp  Floppydisk
+GeneratorLv2__misc_b_lighterfluid.webp  Lighter fluid
+GeneratorLv2__misc_b_sparkplug.webp  Spark Plug
+GeneratorLv2__misc_oilcan.webp  Oil can
+GunsmithLv2__misc_b_ceramic_adhesive.webp  Ceramic adhesive
+GunsmithLv2__misc_b_nail.webp  Nails
+GunsmithLv2__misc_b_pipeline.webp  Valve
+GunsmithLv2__misc_floppydisk.webp  Floppydisk
+IntelligentLv2__misc_b_tape.webp  Tape
+IntelligentLv2__misc_notebook.webp  Notebook
+IntelligentLv2__misc_radio.webp  Radio
+KitchenAreaLv1__misc_b_oliveoil.webp  Olive oil
+KitchenAreaLv1__misc_b_plier_large.webp  Large plier
+KitchenAreaLv1__misc_b_saltcan.webp  Salt can
+MedDeskLv1__misc_b_disinfectingwipes.webp  Disinfectant wipes
+MedDeskLv1__misc_b_insulatingtape.webp  Insulating Tape
+MedDeskLv1__misc_b_lightbulb.webp  Energy-saving lamp
+MedDeskLv1__misc_b_pipeline.webp  Valve
+MoreitemLv1__misc_b_recorder.webp  Recorder
+PlantingLv1__misc_b_insulatingtape.webp  Insulating Tape
+PlantingLv1__misc_b_lightbulb.webp  Energy-saving lamp
+PlantingLv1__misc_b_pipeline.webp  Valve
+QualityLv1__misc_b_powerbank.webp  Power Bank
+QualityLv1__misc_b_recorder.webp  Recorder
+StorageZoneLock1Lv1__misc_b_gastank_large.webp  Large gas can
+StorageZoneLock1Lv1__misc_b_nail.webp  Nails
+StorageZoneLock1Lv1__misc_b_screw.webp  Bolts
+StorageZoneLock2Lv1__misc_b_wrench.webp  Wrench
+StorageZoneLock2Lv1__misc_screwdriver.webp  Screwdriver
+StorageZoneLock3Lv1__misc_b_piezometer.webp  Piezometer
+StorageZoneLock3Lv1__misc_b_smokelesspowder.webp  Smokeless powder
+StorageZoneLock3Lv1__misc_gunpowder.webp  Gunpowder
+StoragevaluableLv1__misc_b_flashlight.webp  Flash light
+StoragevaluableLv1__misc_b_tapeplayer.webp  Tape player
+StoragevaluableLv1__misc_wastechip.webp  Waste Chip
+WaterCollectorLv2__misc_b_insulatingtape.webp  Insulating Tape
+WaterCollectorLv2__misc_b_nail.webp  Nails
+WaterCollectorLv2__misc_b_pipeline.webp  Valve
+WaterCollectorLv2__misc_b_spraycan.webp  Spray Can
+#hard  BookcaseLv1__misc_b_flashlight.webp  Flash light
+#hard  BookcaseLv1__misc_b_lightbulb.webp  Energy-saving lamp
+#hard  CryptoMiningLv2__misc_b_ram.webp  RAM
+#hard  GeneratorLv2__misc_b_insulatingtape.webp  Insulating Tape
+#hard  IntelligentLv2__misc_b_opticaldisc.webp  CD
+#hard  KitchenAreaLv1__misc_b_gastank.webp  Gas can
+#hard  MoreitemLv1__misc_b_1battery.webp  Size D battery
+#hard  MoreitemLv1__misc_hammer.webp  Hammer
+#hard  PlantingLv1__misc_b_disinfectingwipes.webp  Disinfectant wipes
+#hard  QualityLv1__misc_b_ram.webp  RAM
+#hard  QualityLv1__misc_b_tape.webp  Tape
+#hard  StorageZoneLock1Lv1__misc_b_disinfectingwipes.webp  Disinfectant wipes
+#hard  StorageZoneLock2Lv1__misc_b_batter_large.webp  Storage Battery
+#hard  StorageZoneLock2Lv1__misc_b_gastank_large.webp  Large gas can
+#hard  StorageZoneLock3Lv1__misc_b_visionmodule.webp  Imaging module
+#hard  StoragevaluableLv1__misc_b_ionbattery.webp  Ion Battery

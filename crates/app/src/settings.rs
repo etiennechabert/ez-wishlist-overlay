@@ -74,7 +74,7 @@ pub struct Settings {
     /// for the matched upgrade. Defaults to ON now that the per-digit
     /// templates ship under `crates/app/src/assets/ocr_templates/` and
     /// the pipeline has been validated against
-    /// `hideout_screenshots_native/` (15/15 upgrades identified, owned
+    /// `screenshots/hideout/` (15/15 upgrades identified, owned
     /// counts read correctly across the committed digit templates).
     #[serde(default = "default_ocr_enabled")]
     pub ocr_enabled: bool,

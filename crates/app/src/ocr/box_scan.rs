@@ -172,7 +172,8 @@ pub fn tally(master: &[Tile]) -> (HashMap<ItemId, u32>, usize) {
 // Windows-gated.
 //
 // The thresholds below are tuned against the real captures in
-// `box_screenshots_native/` (regenerate the OCR with `ocr_debug`). They are
+// `screenshots/box/` and `screenshots/stash/` (regenerate the OCR with
+// `ocr_debug`). They are
 // expressed in multiples of the median text height so they scale with capture
 // resolution rather than being pixel-absolute.
 //
@@ -705,8 +706,11 @@ pub fn process_box_image(
     Ok(BoxReadResult::default())
 }
 
+// `pub(crate)` so the Windows-only `eval_report_json` diagnostic in
+// `pipeline.rs` can reuse `run_box_scan` / `load_box_label` / `score_scan`
+// to score the box + stash assets in the same combined report.
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     /// Build a tile sequence from a string spec: each whitespace-separated
@@ -722,7 +726,7 @@ mod tests {
     }
 
     // ===================================================================
-    // Native-capture regression fixtures (`box_screenshots_native/`).
+    // Native-capture regression fixtures (`screenshots/box/`, `screenshots/stash/`).
     //
     // Real box-screen captures keep getting flushed from the debug dir, so we
     // freeze each one's Windows.Media.Ocr output (the word boxes) to JSON next
@@ -733,11 +737,11 @@ mod tests {
     // are regenerated from them by `regen_box_fixtures` (Windows, --ignored).
     //
     // Expected results live in `<scan>.label.txt` (`<item_id>  <count>` lines).
-    // `big` now passes (issue #109). `junkbox` stays `#[ignore]`d: its 10 shots
-    // can't be stitched into one sequence — consecutive shots past shot 04 don't
-    // share a row (scroll gaps) and the OCR drops whole tiles, so the overlap
-    // alignment can't bridge them. See `junkbox_scan_matches_label` and
-    // `box_screenshots_native/CLAUDE.md`.
+    // The `box` scan now passes (issue #109). The `stash` scan stays
+    // `#[ignore]`d: its 10 shots can't be stitched into one sequence —
+    // consecutive shots past shot 04 don't share a row (scroll gaps) and the OCR
+    // drops whole tiles, so the overlap alignment can't bridge them. See
+    // `stash_scan_matches_label` and `screenshots/CLAUDE.md`.
     // ===================================================================
 
     #[derive(serde::Serialize, serde::Deserialize)]
@@ -755,21 +759,28 @@ mod tests {
         h: f32,
     }
 
-    fn box_fixture_dir() -> std::path::PathBuf {
-        // `BOX_FIXTURE_DIR` points `regen_box_fixtures` at a scratch copy (e.g.
-        // to compare OCR across image formats) without touching the committed
-        // set. Unset → the committed fixtures next to the crate.
-        std::env::var_os("BOX_FIXTURE_DIR")
+    /// Fixture dir for a box-scan `category` — `"box"` (the world
+    /// container tablet) or `"stash"` (the Johnny's-Service submit
+    /// terminal) — each a subfolder of `screenshots/`. The per-category
+    /// env override `<CATEGORY>_FIXTURE_DIR` (e.g. `BOX_FIXTURE_DIR`,
+    /// `STASH_FIXTURE_DIR`) points `regen_box_fixtures` at a scratch
+    /// copy (e.g. to compare OCR across image formats) without touching
+    /// the committed set. Unset → the committed fixtures under
+    /// `screenshots/<category>/`.
+    fn fixture_dir(category: &str) -> std::path::PathBuf {
+        let env_key = format!("{}_FIXTURE_DIR", category.to_uppercase());
+        std::env::var_os(&env_key)
             .map(std::path::PathBuf::from)
             .unwrap_or_else(|| {
                 std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                    .join("../../box_screenshots_native")
+                    .join("../../screenshots")
+                    .join(category)
             })
     }
 
     impl BoxFixture {
-        fn load(name: &str) -> Self {
-            let p = box_fixture_dir().join(name);
+        fn load(category: &str, name: &str) -> Self {
+            let p = fixture_dir(category).join(name);
             let s = std::fs::read_to_string(&p)
                 .unwrap_or_else(|e| panic!("read fixture {}: {e}", p.display()));
             serde_json::from_str(&s)
@@ -792,11 +803,11 @@ mod tests {
     /// Run every shot of a scan (frozen-OCR fixtures, in scroll order) through
     /// `read_tiles` + `stitch` and return the final tally — what would be
     /// written into the container.
-    fn run_box_scan(shots: &[String]) -> HashMap<ItemId, u32> {
+    pub(crate) fn run_box_scan(category: &str, shots: &[String]) -> HashMap<ItemId, u32> {
         let data = crate::assets::load_game_data().expect("embedded data.json");
         let mut master: Vec<Tile> = Vec::new();
         for shot in shots {
-            let fx = BoxFixture::load(shot);
+            let fx = BoxFixture::load(category, shot);
             let res = read_tiles(&fx.label_boxes(), fx.img_h, &data);
             stitch(&mut master, &res.tiles);
         }
@@ -804,8 +815,8 @@ mod tests {
     }
 
     /// Parse a `<scan>.label.txt` ground-truth tally (`<item_id>  <count>`).
-    fn load_box_label(name: &str) -> HashMap<ItemId, u32> {
-        let p = box_fixture_dir().join(name);
+    pub(crate) fn load_box_label(category: &str, name: &str) -> HashMap<ItemId, u32> {
+        let p = fixture_dir(category).join(name);
         std::fs::read_to_string(&p)
             .unwrap_or_else(|e| panic!("read label {}: {e}", p.display()))
             .lines()
@@ -820,53 +831,134 @@ mod tests {
             .collect()
     }
 
+    /// One item whose read count diverges from the ground-truth label, for
+    /// triaging a partial scan score.
+    #[derive(serde::Serialize, Clone)]
+    #[allow(dead_code)] // fields read via serde only in the Windows eval
+    pub(crate) struct ScanDiff {
+        pub item_id: String,
+        pub read: u32,
+        pub label: u32,
+    }
+
+    /// Graded tile-accuracy score for one box-scan, independent of the strict
+    /// pass/fail gate. `tiles_correct = Σ min(read, label)` over item ids and
+    /// `tiles_total = Σ label`, so a partial scan (e.g. the un-stitchable
+    /// `stash`) gets a meaningful fraction instead of a bare `false`.
+    #[derive(serde::Serialize, Clone)]
+    #[allow(dead_code)] // fields read via serde only in the Windows eval
+    pub(crate) struct ScanScore {
+        /// The scan category (`"box"` / `"stash"`).
+        pub scan: String,
+        pub tiles_correct: u32,
+        pub tiles_total: u32,
+        /// Strict equality — the same thing the gate test asserts.
+        pub exact_match: bool,
+        /// Σ max(0, label − read): ground-truth tiles the scan failed to read.
+        pub missing: u32,
+        /// Σ max(0, read − label): tiles the scan over-counted / hallucinated.
+        pub extra: u32,
+        /// Per-item mismatches (only items where read ≠ label).
+        pub diffs: Vec<ScanDiff>,
+    }
+
+    /// Score a scan's stitched tally against its `<scan>.label.txt`. Reuses the
+    /// same pure `read_tiles` / `stitch` / `tally` path as `run_box_scan`, so it
+    /// runs on every target from the frozen `.boxes.json` fixtures. Used by the
+    /// combined `eval_report_json` (Windows) to score box + stash independently.
+    #[allow(dead_code)] // called only from the Windows-gated eval diagnostic
+    pub(crate) fn score_scan(category: &str, shots: &[String], label_file: &str) -> ScanScore {
+        let read = run_box_scan(category, shots);
+        let label = load_box_label(category, label_file);
+
+        let mut keys: std::collections::BTreeSet<&ItemId> = read.keys().collect();
+        keys.extend(label.keys());
+
+        let (mut tiles_correct, mut tiles_total, mut missing, mut extra) = (0u32, 0u32, 0u32, 0u32);
+        let mut diffs = Vec::new();
+        for k in keys {
+            let r = *read.get(k).unwrap_or(&0);
+            let l = *label.get(k).unwrap_or(&0);
+            tiles_total += l;
+            tiles_correct += r.min(l);
+            missing += l.saturating_sub(r);
+            extra += r.saturating_sub(l);
+            if r != l {
+                diffs.push(ScanDiff {
+                    item_id: k.clone(),
+                    read: r,
+                    label: l,
+                });
+            }
+        }
+        diffs.sort_by(|a, b| a.item_id.cmp(&b.item_id));
+
+        ScanScore {
+            scan: category.to_string(),
+            tiles_correct,
+            tiles_total,
+            exact_match: read == label,
+            missing,
+            extra,
+            diffs,
+        }
+    }
+
     /// (Windows-only, ignored) Regenerate every `<stem>.boxes.json` from the
-    /// capture images (PNG / JPEG / WebP) in the fixture dir. Run after
-    /// adding/replacing a capture:
+    /// capture images (PNG / JPEG / WebP) across **both** box-scan categories
+    /// (`screenshots/box/` and `screenshots/stash/`). Run after adding/replacing
+    /// a capture:
     ///   cargo test -p ez-wishlist-overlay regen_box_fixtures -- --ignored
     #[test]
     #[ignore]
     #[cfg(target_os = "windows")]
     fn regen_box_fixtures() {
         use image::GenericImageView;
-        for entry in std::fs::read_dir(box_fixture_dir()).expect("fixture dir") {
-            let path = entry.unwrap().path();
-            let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
-            if !matches!(ext, "png" | "jpg" | "jpeg" | "webp") {
-                continue;
+        for category in ["box", "stash"] {
+            for entry in std::fs::read_dir(fixture_dir(category)).expect("fixture dir") {
+                let path = entry.unwrap().path();
+                let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+                if !matches!(ext, "png" | "jpg" | "jpeg" | "webp") {
+                    continue;
+                }
+                let img = image::open(&path).expect("open image");
+                let words = crate::ocr::engine::recognize_image(&img).expect("ocr");
+                let fx = BoxFixture {
+                    img_h: img.dimensions().1 as f32,
+                    boxes: words
+                        .iter()
+                        .map(|w| FxWord {
+                            text: w.text.clone(),
+                            x: w.rect.x,
+                            y: w.rect.y,
+                            w: w.rect.width,
+                            h: w.rect.height,
+                        })
+                        .collect(),
+                };
+                let out = path.with_extension("boxes.json");
+                std::fs::write(&out, serde_json::to_string_pretty(&fx).unwrap()).expect("write");
+                eprintln!("wrote {} ({} boxes)", out.display(), fx.boxes.len());
             }
-            let img = image::open(&path).expect("open image");
-            let words = crate::ocr::engine::recognize_image(&img).expect("ocr");
-            let fx = BoxFixture {
-                img_h: img.dimensions().1 as f32,
-                boxes: words
-                    .iter()
-                    .map(|w| FxWord {
-                        text: w.text.clone(),
-                        x: w.rect.x,
-                        y: w.rect.y,
-                        w: w.rect.width,
-                        h: w.rect.height,
-                    })
-                    .collect(),
-            };
-            let out = path.with_extension("boxes.json");
-            std::fs::write(&out, serde_json::to_string_pretty(&fx).unwrap()).expect("write");
-            eprintln!("wrote {} ({} boxes)", out.display(), fx.boxes.len());
         }
     }
 
-    /// "Big" container scan (3 overlapping scroll shots) → its full 22-tile
-    /// contents. The de-sheared, layout-aware `read_tiles` produces a stable
-    /// reading order across the three shots, so `stitch` aligns the overlaps and
-    /// the tally matches `big.label.txt` exactly (issue #109).
+    /// `box` scan — the world container tablet (3 overlapping scroll shots) →
+    /// its full 22-tile contents. The de-sheared, layout-aware `read_tiles`
+    /// produces a stable reading order across the three shots, so `stitch`
+    /// aligns the overlaps and the tally matches `box.label.txt` exactly
+    /// (issue #109).
     #[test]
-    fn big_container_scan_matches_label() {
-        let shots: Vec<String> = (0..3).map(|i| format!("big.shot{i}.boxes.json")).collect();
-        assert_eq!(run_box_scan(&shots), load_box_label("big.label.txt"));
+    fn box_scan_matches_label() {
+        let shots: Vec<String> = (0..3).map(|i| format!("box.shot{i}.boxes.json")).collect();
+        assert_eq!(
+            run_box_scan("box", &shots),
+            load_box_label("box", "box.label.txt")
+        );
     }
 
-    /// JUNK BOX scan (10 scroll shots) → its full contents.
+    /// `stash` scan — the Johnny's-Service submit terminal (10 scroll shots) →
+    /// its full contents.
     ///
     /// STILL `#[ignore]`d after issue #109 — but the cause is the *captures*, not
     /// `read_tiles` (the subtitle-as-tab-strip bug that dropped the whole grid is
@@ -880,15 +972,20 @@ mod tests {
     ///     the rigid position-wise overlap alignment even within the 00–04 run.
     ///
     /// Un-ignoring needs better captures (every row overlapping, lossless) and/or
-    /// a gap-tolerant stitch. `junkbox.label.txt` is kept as a verified reference
-    /// of the contents; see `box_screenshots_native/CLAUDE.md`.
+    /// a gap-tolerant stitch. `stash.label.txt` is kept as a verified reference
+    /// of the contents; see `screenshots/CLAUDE.md`. The `eval_report_json`
+    /// diagnostic still scores this scan's partial tile accuracy (it's a graded
+    /// signal, not a gate).
     #[test]
     #[ignore]
-    fn junkbox_scan_matches_label() {
+    fn stash_scan_matches_label() {
         let shots: Vec<String> = (0..10)
-            .map(|i| format!("junkbox.shot{i:02}.boxes.json"))
+            .map(|i| format!("stash.shot{i:02}.boxes.json"))
             .collect();
-        assert_eq!(run_box_scan(&shots), load_box_label("junkbox.label.txt"));
+        assert_eq!(
+            run_box_scan("stash", &shots),
+            load_box_label("stash", "stash.label.txt")
+        );
     }
 
     #[test]

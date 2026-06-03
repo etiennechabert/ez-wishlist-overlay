@@ -1,0 +1,16 @@
+# stash/units — <file>  <expected OCR name>  (whole item tile: icon + name + category)
+# A `#hard  <file>  <name>` line is OCR'd + reported but not gated (engine can't read it in isolation).
+# shot00 distinct items (row1 + Size D battery + Flash light + CD had their names OCR-dropped/garbled).
+misc_b_wrench.webp  Wrench
+misc_b_pesticide.webp  Pesticide
+#hard  misc_b_beardoil.webp  BeardOil
+misc_b_lighter.webp  Lighter
+#hard  misc_b_1battery.webp  Size D battery
+#hard  misc_b_flashlight.webp  Flash light
+#hard  misc_b_opticaldisc.webp  CD
+misc_notebook.webp  Notebook
+misc_b_shampoo.webp  Pet Shampoo
+misc_b_sparkplug.webp  Spark Plug
+misc_b_ionbattery.webp  Ion Battery
+misc_b_recorder.webp  Recorder
+misc_b_tape.webp  Tape

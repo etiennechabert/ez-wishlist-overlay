@@ -83,7 +83,7 @@ fn main() -> Result<()> {
     let catalog = items::ItemCatalog::from_upstream(&public_data)?;
 
     // Hideout module data is hand-validated against in-game screenshots (see
-    // hideout_screenshots/CLAUDE.md). The scraper must never overwrite it,
+    // screenshots/CLAUDE.md). The scraper must never overwrite it,
     // so we read the existing data.json and carry its `modules` field over.
     let existing_modules = read_existing_modules(&args.output.join("data.json"));
 
@@ -157,7 +157,7 @@ fn main() -> Result<()> {
 
 /// Read the `modules` value from an existing `data.json`, returning an empty
 /// array if the file doesn't exist or can't be parsed. Hideout module data
-/// is authored by hand (via the hideout_screenshots skill) and must survive
+/// is authored by hand (via the screenshots labelling skill) and must survive
 /// scraper re-runs — we pass it through as opaque JSON to preserve any
 /// fields the skill has added that aren't in our typed schema.
 fn read_existing_modules(path: &Path) -> serde_json::Value {

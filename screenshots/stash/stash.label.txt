@@ -1,0 +1,85 @@
+# stash scan — Johnny's-Service junk-box terminal — contents read off the captures (item_id  count)
+#
+# NON-AUTHORITATIVE REFERENCE — `stash_scan_matches_label` is `#[ignore]`d
+# (issue #109). These 10 shots can't be stitched into the full box, so this file
+# is NOT a fixture the test asserts against; it documents what the captures show.
+#
+# Why it can't be a full tally:
+#   - SCROLL GAPS: shots 00→01→02→03→04 each share one full row (a clean scroll),
+#     but 04→05, 05→06, 06→07, 07→08, 08→09 share *no* row — rows fall between the
+#     shots, so the box's lower portion is sampled in disjoint windows that can't
+#     be de-overlapped or de-duplicated.
+#   - DROPPED OCR TILES: the engine omits whole labels (e.g. shot02 drops "Tape";
+#     "Wire Cutter"→"Cutter", "CPU Fan"→"CPU"), so even within 00–04 a rigid
+#     position-wise stitch breaks.
+#
+# The BODY below is the firm part: the contiguous shots 00–04 run (the top 11
+# rows = 55 tiles), de-overlapped row by row. Everything in it is verified
+# against the images. Item types that appear ONLY in the disjoint lower shots
+# (05–09) are listed under "ADDITIONAL TYPES" as comments — present in the box,
+# but not countable from these captures.
+#
+# Format: `<item_id>  <count>` — text after the count is a comment.
+#
+# --- Data-name divergences found while labelling (in-game label ≠ data.json
+#     `Item.name`, so the box-scan can't match these until data.json is patched;
+#     out of scope for #109's box-scan fix, tracked for a follow-up):
+#       misc_b_shampoo   in-game "Pet Shampoo"   data "Shampoo"
+#       misc_b_nail      in-game "Boxed Nails"   data "Nails"
+#       misc_b_bandaid   in-game "Band-aids"     data "Adhesive bandages"
+#       misc_b_match     in-game "Windproof Matches" data "Matches"   (lower shots)
+# --- Duplicate names in data.json (two ids share one name — the matcher can't
+#     tell them apart; the id chosen here is best-guess):
+#       "Size D battery" = misc_1batterie_2 + misc_b_1battery
+#       "Gas can"        = misc_b_gastank + misc_b_tape_large
+
+# === Contiguous run, shots 00–04 (verified de-overlap of the top 11 rows) ===
+misc_b_wrench            3    Wrench
+misc_b_pesticide         1    Pesticide
+misc_b_beardoil          2    Beard oil
+misc_b_lighter           1    Lighter
+misc_b_1battery          2    Size D battery (duplicate name — see header)
+misc_b_flashlight        1    Flash light
+misc_b_opticaldisc       5    CD
+misc_notebook            2    Notebook
+misc_b_shampoo           2    Pet Shampoo (name divergence — see header)
+misc_b_sparkplug         1    Spark Plug
+misc_b_tape              2    Tape
+misc_b_ionbattery        1    Ion Battery
+misc_b_recorder          3    Recorder
+misc_b_oldphone          1    Old Phone
+misc_b_gastank_large     2    Large gas can
+misc_screwdriver         1    Screwdriver
+misc_b_ceramic_adhesive  2    Ceramic adhesive
+misc_b_wirecutting       1    Wire Cutter
+misc_b_pcfan             2    CPU Fan
+misc_b_nail              4    Boxed Nails (name divergence — see header)
+misc_b_ram               1    RAM
+misc_b_deodorant         1    Deodorant
+misc_b_rat_poison        2    Rat Poison
+misc_b_pipeline          1    Valve
+misc_b_saltcan           2    Salt can
+misc_b_tire_sealant      1    Tire Sealant
+misc_b_wd40              2    WD-40
+misc_b_rustedcleaner     1    Rust cleaner
+misc_b_insulatingtape    1    Insulating Tape
+misc_b_glue_large        1    Instant glue
+misc_b_bandaid           1    Band-aids (name divergence — see header)
+misc_b_moldboard         1    Moldboard
+misc_b_lighterfluid      1    Lighter fluid
+
+# === ADDITIONAL TYPES in the lower shots 05–09 (present, counts indeterminate
+#     due to scroll gaps — NOT included in the tally above) ===
+#   misc_blimbingrope        Climbing rope
+#   misc_b_gastank           Gas can (combustible; duplicate name — see header)
+#   misc_b_newphone          New Phone
+#   misc_b_aspire            Aspirin
+#   misc_b_asthmamedication  Asthma medicine
+#   misc_b_gunoil            Gun Oil
+#   misc_b_iodophor          Iodine
+#   misc_b_superglue         Super Glue
+#   misc_b_match             Windproof Matches (name divergence — see header)
+#   misc_barcleaner          Cleaner
+#   misc_b_medicalscissors   Medical scissors
+#   misc_wrench              Small Wrench
+#   misc_floppydisk          Floppy disk

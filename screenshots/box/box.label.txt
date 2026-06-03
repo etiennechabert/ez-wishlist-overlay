@@ -1,0 +1,26 @@
+# box scan — world container tablet — ground-truth contents (item_id  count)
+#
+# Source: box.shot0.webp .. box.shot2.webp (3 overlapping scroll captures of the
+# in-game container tablet screen), de-overlapped by row. This is the full set
+# of tiles in the box (22 total).
+#
+# Consumed by box_scan.rs `box_scan_matches_label` (PASSING as of
+# issue #109): the layout-aware, de-sheared read_tiles emits a stable reading
+# order, so the stitch aligns all three shots and the tally matches this file.
+#
+# Format: `<item_id>  <count>` — text after the count is a comment.
+misc_b_uvlight         1    UV lamp
+misc_copperwire        1    Copper Wire (NOT misc_b_wire)
+misc_b_piezometer      2    Piezometer
+misc_b_oliveoil        1    Olive oil
+misc_b_gunoil          1    Gun Oil
+misc_gunpowder         1    Gunpowder
+misc_oilcan            1    Oil can
+misc_b_lightbulb       1    Energy-saving lamp
+misc_b_tapeplayer      1    Tape player (catalog name is mislabeled "Civil radio")
+misc_b_transformer     1    Voltage transformer
+misc_b_civilradio      2    Civil radio
+misc_barcleaner        2    Cleaner — blue spray bottle, best-guess Household Cleaner
+misc_b_harddrive       2    Hard drive
+misc_blimbingrope      4    Climbing rope (catalog id is misspelled)
+misc_b_gaspipewrench   1    Gas pipe pliers

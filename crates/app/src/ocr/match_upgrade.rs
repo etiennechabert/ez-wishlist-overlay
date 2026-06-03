@@ -1,7 +1,7 @@
 //! Resolve an OCR'd upgrade title to a specific `Upgrade.id` in `data.json`.
 //!
 //! Strict matching against `module.name`, per the Phase 0 invariant
-//! (see `hideout_screenshots_native/CLAUDE.md`): the row-label text
+//! (see `screenshots/CLAUDE.md`): the row-label text
 //! in-game is canonical and equals `module.name` for every module. We
 //! tolerate OCR character errors via Levenshtein distance — never
 //! tolerate dataset drift via fallbacks to `upgrade.name`,

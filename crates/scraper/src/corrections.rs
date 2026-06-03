@@ -8,7 +8,7 @@
 //! matcher resolve the wrong id.
 //!
 //! Each entry below is verified against an in-game capture committed under
-//! `box_screenshots_native/`. This mirrors how hideout module data is handled:
+//! `screenshots/box/` & `screenshots/stash/`. This mirrors how hideout module data is handled:
 //! screenshots are the ground truth and the dataset is patched to match — never
 //! a synonym/fallback shim in the match path. Keep the table minimal: one entry
 //! per *observed* divergence, not speculative fixes for every upstream duplicate.
@@ -17,11 +17,11 @@
 const NAME_CORRECTIONS: &[(&str, &str)] = &[
     // Upstream names this "Civil radio", colliding with the actual civil radio
     // (`misc_b_civilradio`). In-game the tile reads "Tape player" (a cassette
-    // deck — see box_screenshots_native/big.shot1).
+    // deck — see screenshots/box/box.shot1).
     ("misc_b_tapeplayer", "Tape player"),
     // Upstream names this "Household Cleaner", colliding with
     // `misc_householdleaner`. In-game the tile reads just "Cleaner" (spray
-    // bottle — see big.shot1 and junkbox.shot07).
+    // bottle — see screenshots/box/box.shot1 and screenshots/stash/stash.shot07).
     ("misc_barcleaner", "Cleaner"),
 ];
 
