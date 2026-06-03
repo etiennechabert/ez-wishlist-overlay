@@ -1481,6 +1481,25 @@ fn box_scan_live_window(ctx: &egui::Context, state: &Arc<RwLock<AppState>>, scan
                     }
                     ui.label(line);
 
+                    // What the most recent shot contributed, distinct from the
+                    // cumulative line above (the in-headset card shows the same).
+                    let mut last_line = match u.status {
+                        BoxScanStatus::Ok => format!(
+                            "This capture: +{} (overlap {})",
+                            u.last_added, u.last_overlap
+                        ),
+                        BoxScanStatus::NeedsRecapture => "This capture: didn't line up".to_string(),
+                        BoxScanStatus::NoTiles => "This capture: no items seen".to_string(),
+                    };
+                    if u.last_unrecognized > 0 {
+                        last_line.push_str(&format!(" · {} unrecognized", u.last_unrecognized));
+                    }
+                    ui.label(
+                        egui::RichText::new(last_line)
+                            .small()
+                            .color(ui.visuals().weak_text_color()),
+                    );
+
                     match u.status {
                         BoxScanStatus::NeedsRecapture => warn_label(
                             ui,
