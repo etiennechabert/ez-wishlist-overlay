@@ -19,8 +19,8 @@ GunsmithLv2__misc_b_ceramic_adhesive.webp  Ceramic adhesive
 #hard  GunsmithLv2__misc_floppydisk.webp  Floppydisk
 IntelligentLv2__misc_b_opticaldisc.webp  CD
 IntelligentLv2__misc_b_tape.webp  Tape
-#hard  IntelligentLv2__misc_notebook.webp  Notebook
-#hard  IntelligentLv2__misc_radio.webp  Portable Radio
+IntelligentLv2__misc_notebook.webp  Notebook
+IntelligentLv2__misc_radio.webp  Radio
 KitchenAreaLv1__misc_b_oliveoil.webp  Olive oil
 KitchenAreaLv1__misc_b_saltcan.webp  Salt can
 KitchenAreaLv1__misc_b_gastank.webp  Gas can
