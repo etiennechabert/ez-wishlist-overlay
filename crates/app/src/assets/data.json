@@ -40,20 +40,20 @@
           "description": "Manual ammo reloading time -20%",
           "requirements": [
             {
+              "item_id": "misc_b_tape",
+              "quantity": 8
+            },
+            {
               "item_id": "misc_b_antiquebook",
               "quantity": 4
             },
             {
-              "item_id": "misc_b_civilradio",
-              "quantity": 4
-            },
-            {
-              "item_id": "misc_b_glue_large",
-              "quantity": 8
-            },
-            {
-              "item_id": "misc_bomputertextbook",
+              "item_id": "misc_b_recorder",
               "quantity": 5
+            },
+            {
+              "item_id": "misc_b_powerbank",
+              "quantity": 4
             }
           ]
         },
@@ -64,20 +64,20 @@
           "description": "Manual ammo reloading time -30%",
           "requirements": [
             {
-              "item_id": "misc_b_antiquebook",
-              "quantity": 6
-            },
-            {
-              "item_id": "misc_b_digitalsensor",
-              "quantity": 1
-            },
-            {
-              "item_id": "misc_b_horrornovel",
-              "quantity": 10
+              "item_id": "misc_b_transformer",
+              "quantity": 2
             },
             {
               "item_id": "misc_bomputertextbook",
               "quantity": 8
+            },
+            {
+              "item_id": "misc_b_digitalsensor",
+              "quantity": 2
+            },
+            {
+              "item_id": "misc_b_antiquebook",
+              "quantity": 6
             }
           ]
         }
@@ -94,20 +94,20 @@
           "description": "In-Raid Hydration Consumption -5%",
           "requirements": [
             {
-              "item_id": "misc_b_nut",
-              "quantity": 5
-            },
-            {
-              "item_id": "misc_b_screw",
-              "quantity": 5
-            },
-            {
-              "item_id": "misc_b_socket",
+              "item_id": "misc_b_gastank",
               "quantity": 2
             },
             {
-              "item_id": "misc_b_wire",
-              "quantity": 5
+              "item_id": "misc_b_plier_large",
+              "quantity": 1
+            },
+            {
+              "item_id": "misc_wastechip",
+              "quantity": 2
+            },
+            {
+              "item_id": "misc_b_wirecutting",
+              "quantity": 1
             }
           ]
         },
@@ -118,20 +118,20 @@
           "description": "In-Raid Hydration Consumption -10%",
           "requirements": [
             {
-              "item_id": "misc_b_electricdrill",
-              "quantity": 2
+              "item_id": "misc_b_nut",
+              "quantity": 5
+            },
+            {
+              "item_id": "misc_barcleaner",
+              "quantity": 3
+            },
+            {
+              "item_id": "misc_b_gameconsole",
+              "quantity": 1
             },
             {
               "item_id": "misc_b_saltcan",
               "quantity": 6
-            },
-            {
-              "item_id": "misc_barcleaner",
-              "quantity": 5
-            },
-            {
-              "item_id": "misc_copperwire",
-              "quantity": 5
             }
           ]
         },
@@ -142,20 +142,20 @@
           "description": "In-Raid Hydration Consumption -15%",
           "requirements": [
             {
-              "item_id": "misc_b_antiqueteaset",
-              "quantity": 1
-            },
-            {
-              "item_id": "misc_b_civilradio",
-              "quantity": 6
-            },
-            {
-              "item_id": "misc_b_gameconsole",
-              "quantity": 4
-            },
-            {
               "item_id": "misc_b_nut",
               "quantity": 12
+            },
+            {
+              "item_id": "misc_b_electricdrill",
+              "quantity": 3
+            },
+            {
+              "item_id": "misc_copperwire",
+              "quantity": 3
+            },
+            {
+              "item_id": "misc_b_lighter",
+              "quantity": 3
             }
           ]
         }
@@ -172,20 +172,20 @@
           "description": "Generate periodic income using GPUs.",
           "requirements": [
             {
-              "item_id": "misc_b_ceramic_adhesive",
+              "item_id": "misc_bpu",
+              "quantity": 1
+            },
+            {
+              "item_id": "misc_b_rustedcleaner",
+              "quantity": 5
+            },
+            {
+              "item_id": "misc_b_ram",
               "quantity": 6
             },
             {
               "item_id": "misc_b_harddrive",
               "quantity": 5
-            },
-            {
-              "item_id": "misc_b_pcfan",
-              "quantity": 5
-            },
-            {
-              "item_id": "misc_bpu",
-              "quantity": 1
             }
           ]
         },
@@ -221,20 +221,20 @@
           "description": "Unlock more slots; Increase money output.",
           "requirements": [
             {
-              "item_id": "misc_b_ceramic_adhesive",
-              "quantity": 6
-            },
-            {
-              "item_id": "misc_b_harddrive",
-              "quantity": 6
+              "item_id": "misc_bpu",
+              "quantity": 4
             },
             {
               "item_id": "misc_b_pcfan",
               "quantity": 8
             },
             {
-              "item_id": "misc_bpu",
-              "quantity": 4
+              "item_id": "misc_b_ram",
+              "quantity": 6
+            },
+            {
+              "item_id": "misc_b_harddrive",
+              "quantity": 6
             }
           ]
         },
@@ -245,20 +245,20 @@
           "description": "Unlock more slots; Increase money output.",
           "requirements": [
             {
-              "item_id": "misc_b_dataline",
+              "item_id": "misc_bpu",
+              "quantity": 6
+            },
+            {
+              "item_id": "misc_b_pcfan",
               "quantity": 10
             },
             {
-              "item_id": "misc_b_militaryusbdrive",
-              "quantity": 6
-            },
-            {
-              "item_id": "misc_b_visionmodule",
-              "quantity": 6
-            },
-            {
-              "item_id": "misc_floppydisk",
+              "item_id": "misc_b_ram",
               "quantity": 8
+            },
+            {
+              "item_id": "misc_b_harddrive",
+              "quantity": 6
             }
           ]
         }
@@ -307,20 +307,20 @@
           "description": "Increase Fuel capacity, reduce power consumption.\nSupport upgrades for more facilities.",
           "requirements": [
             {
-              "item_id": "misc_b_marinestoragebattery",
-              "quantity": 3
+              "item_id": "misc_b_visionmodule",
+              "quantity": 4
+            },
+            {
+              "item_id": "misc_b_sparkplug",
+              "quantity": 4
             },
             {
               "item_id": "misc_b_transformer",
-              "quantity": 8
+              "quantity": 2
             },
             {
-              "item_id": "misc_b_visionmodule",
-              "quantity": 8
-            },
-            {
-              "item_id": "misc_oilcan",
-              "quantity": 12
+              "item_id": "misc_b_marinestoragebattery",
+              "quantity": 3
             }
           ]
         }
@@ -337,15 +337,15 @@
           "description": "Weapon parts storage capacity + 10kg",
           "requirements": [
             {
-              "item_id": "misc_b_lightbulb",
+              "item_id": "misc_b_screw",
+              "quantity": 2
+            },
+            {
+              "item_id": "misc_b_gastank",
               "quantity": 2
             },
             {
               "item_id": "misc_b_rustedcleaner",
-              "quantity": 2
-            },
-            {
-              "item_id": "misc_b_tapemeasure",
               "quantity": 2
             },
             {
@@ -386,20 +386,20 @@
           "description": "Weapon parts storage capacity + 10kg",
           "requirements": [
             {
-              "item_id": "misc_b_civilradio",
-              "quantity": 4
+              "item_id": "misc_b_powerbank",
+              "quantity": 6
             },
             {
               "item_id": "misc_b_oldphone",
               "quantity": 10
             },
             {
-              "item_id": "misc_b_powerbank",
+              "item_id": "misc_b_sparkplug",
               "quantity": 6
             },
             {
-              "item_id": "misc_hammer",
-              "quantity": 6
+              "item_id": "misc_b_civilradio",
+              "quantity": 4
             }
           ]
         },
@@ -410,20 +410,20 @@
           "description": "Weapon parts storage capacity + 10kg",
           "requirements": [
             {
-              "item_id": "misc_b_electricdrill",
-              "quantity": 6
+              "item_id": "misc_b_superglue",
+              "quantity": 10
             },
             {
               "item_id": "misc_b_newphone",
               "quantity": 10
             },
             {
-              "item_id": "misc_b_recorder",
-              "quantity": 12
+              "item_id": "misc_b_glue_large",
+              "quantity": 8
             },
             {
-              "item_id": "misc_b_superglue",
-              "quantity": 10
+              "item_id": "misc_b_electricdrill",
+              "quantity": 6
             }
           ]
         }
@@ -490,12 +490,8 @@
           "description": "Character experience gain +20%",
           "requirements": [
             {
-              "item_id": "misc_b_powerbank",
-              "quantity": 3
-            },
-            {
-              "item_id": "misc_b_recorder",
-              "quantity": 2
+              "item_id": "misc_b_opticaldisc",
+              "quantity": 6
             },
             {
               "item_id": "misc_b_tape",
@@ -504,6 +500,10 @@
             {
               "item_id": "misc_videotape",
               "quantity": 2
+            },
+            {
+              "item_id": "misc_b_powerbank",
+              "quantity": 3
             }
           ]
         },
@@ -514,20 +514,20 @@
           "description": "Character experience gain +30%",
           "requirements": [
             {
-              "item_id": "misc_b_visionmodule",
-              "quantity": 1
+              "item_id": "misc_b_opticaldisc",
+              "quantity": 10
             },
             {
-              "item_id": "misc_b_wirecutting",
-              "quantity": 6
+              "item_id": "misc_b_digitalsensor",
+              "quantity": 4
             },
             {
               "item_id": "misc_floppydisk",
               "quantity": 3
             },
             {
-              "item_id": "misc_notebook",
-              "quantity": 6
+              "item_id": "misc_b_visionmodule",
+              "quantity": 1
             }
           ]
         }
@@ -567,21 +567,72 @@
           "name": "Kitchen Area",
           "level": 2,
           "description": "Increased Energy & Hydration Cap",
-          "requirements": []
+          "requirements": [
+            {
+              "item_id": "misc_b_gastank",
+              "quantity": 4
+            },
+            {
+              "item_id": "misc_b_insulatingtape",
+              "quantity": 4
+            },
+            {
+              "item_id": "misc_b_pesticide",
+              "quantity": 5
+            },
+            {
+              "item_id": "misc_b_wd40",
+              "quantity": 5
+            }
+          ]
         },
         {
           "id": "KitchenAreaLv3",
           "name": "Kitchen Area",
           "level": 3,
           "description": "Increased Energy & Hydration Cap",
-          "requirements": []
+          "requirements": [
+            {
+              "item_id": "misc_b_oliveoil",
+              "quantity": 5
+            },
+            {
+              "item_id": "misc_b_insulatingtape",
+              "quantity": 4
+            },
+            {
+              "item_id": "misc_b_saltcan",
+              "quantity": 6
+            },
+            {
+              "item_id": "misc_b_lighter",
+              "quantity": 4
+            }
+          ]
         },
         {
           "id": "KitchenAreaLv4",
           "name": "Kitchen Area",
           "level": 4,
           "description": "Increased Energy & Hydration Cap",
-          "requirements": []
+          "requirements": [
+            {
+              "item_id": "misc_copperwire",
+              "quantity": 5
+            },
+            {
+              "item_id": "misc_b_gaspipewrench",
+              "quantity": 4
+            },
+            {
+              "item_id": "misc_b_insulatingtape",
+              "quantity": 4
+            },
+            {
+              "item_id": "misc_b_lighter",
+              "quantity": 5
+            }
+          ]
         }
       ]
     },
@@ -621,16 +672,16 @@
           "description": "Drink recovery +20%.",
           "requirements": [
             {
-              "item_id": "misc_b_aspire",
-              "quantity": 6
+              "item_id": "misc_b_uvlight",
+              "quantity": 3
             },
             {
               "item_id": "misc_b_medicalkit",
-              "quantity": 4
+              "quantity": 6
             },
             {
-              "item_id": "misc_b_uvlight",
-              "quantity": 5
+              "item_id": "misc_b_asthmamedication",
+              "quantity": 4
             },
             {
               "item_id": "misc_bentrifuge",
@@ -645,16 +696,16 @@
           "description": "Drink recovery +30%.",
           "requirements": [
             {
-              "item_id": "misc_b_bottledglucose",
-              "quantity": 4
-            },
-            {
-              "item_id": "misc_b_iodophor",
+              "item_id": "misc_b_uvlight",
               "quantity": 5
             },
             {
-              "item_id": "misc_b_toiletpaper",
-              "quantity": 8
+              "item_id": "misc_b_medicalkit",
+              "quantity": 9
+            },
+            {
+              "item_id": "misc_b_asthmamedication",
+              "quantity": 5
             },
             {
               "item_id": "misc_bentrifuge",
@@ -675,20 +726,16 @@
           "description": "Access to a syringe holder.\nUnlocks Med Desk, Plant Stand, Operating Bed",
           "requirements": [
             {
-              "item_id": "misc_b_aspire",
+              "item_id": "misc_b_disinfectingwipes",
               "quantity": 1
-            },
-            {
-              "item_id": "misc_b_asthmamedication",
-              "quantity": 2
             },
             {
               "item_id": "misc_b_bandaid",
-              "quantity": 3
+              "quantity": 2
             },
             {
-              "item_id": "misc_b_iodophor",
-              "quantity": 1
+              "item_id": "misc_b_toiletpaper",
+              "quantity": 2
             }
           ]
         }
@@ -705,19 +752,19 @@
           "description": "In-Raid Energy Consumption -5%",
           "requirements": [
             {
-              "item_id": "misc_b_pcfan",
-              "quantity": 6
+              "item_id": "misc_b_oliveoil",
+              "quantity": 2
             },
             {
-              "item_id": "misc_b_plier",
-              "quantity": 4
+              "item_id": "misc_b_plier_large",
+              "quantity": 1
             },
             {
-              "item_id": "misc_b_wirecutting",
-              "quantity": 4
+              "item_id": "misc_b_tire_sealant",
+              "quantity": 2
             },
             {
-              "item_id": "misc_wastechip",
+              "item_id": "misc_b_moldboard",
               "quantity": 1
             }
           ]
@@ -729,20 +776,20 @@
           "description": "In-Raid Energy Consumption -10%",
           "requirements": [
             {
-              "item_id": "misc_b_nut",
+              "item_id": "misc_b_plier_large",
               "quantity": 8
             },
             {
-              "item_id": "misc_b_oliveoil",
-              "quantity": 3
-            },
-            {
-              "item_id": "misc_b_screw",
+              "item_id": "misc_b_gastank",
               "quantity": 8
             },
             {
               "item_id": "misc_wastechip",
               "quantity": 5
+            },
+            {
+              "item_id": "misc_b_oliveoil",
+              "quantity": 3
             }
           ]
         },
@@ -753,20 +800,20 @@
           "description": "In-Raid Energy Consumption -15%",
           "requirements": [
             {
-              "item_id": "misc_b_digitalsensor",
-              "quantity": 1
+              "item_id": "misc_copperwire",
+              "quantity": 6
+            },
+            {
+              "item_id": "misc_b_lighter",
+              "quantity": 6
             },
             {
               "item_id": "misc_b_wd40",
               "quantity": 12
             },
             {
-              "item_id": "misc_b_wire",
-              "quantity": 12
-            },
-            {
-              "item_id": "misc_copperwire",
-              "quantity": 6
+              "item_id": "misc_b_digitalsensor",
+              "quantity": 2
             }
           ]
         }
@@ -834,20 +881,20 @@
           "description": "Free limb damage repair available every hour.\nFaster health regeneration in Hideout.",
           "requirements": [
             {
-              "item_id": "misc_b_aspire",
-              "quantity": 1
+              "item_id": "misc_b_medicalkit",
+              "quantity": 2
             },
             {
-              "item_id": "misc_b_bottledglucose",
+              "item_id": "misc_b_flashlight",
+              "quantity": 2
+            },
+            {
+              "item_id": "misc_b_pipeline",
               "quantity": 1
             },
             {
               "item_id": "misc_b_iodophor",
               "quantity": 1
-            },
-            {
-              "item_id": "misc_b_medicalscissors",
-              "quantity": 2
             }
           ]
         },
@@ -858,16 +905,16 @@
           "description": "Faster health regeneration in Hideout.",
           "requirements": [
             {
-              "item_id": "misc_b_disinfectingwipes",
-              "quantity": 4
-            },
-            {
-              "item_id": "misc_b_medicalkit",
-              "quantity": 2
+              "item_id": "misc_b_bottledglucose",
+              "quantity": 5
             },
             {
               "item_id": "misc_b_medicalscissors",
               "quantity": 3
+            },
+            {
+              "item_id": "misc_b_bandaid",
+              "quantity": 2
             },
             {
               "item_id": "misc_bentrifuge",
@@ -882,16 +929,16 @@
           "description": "Faster health regeneration in Hideout.",
           "requirements": [
             {
-              "item_id": "misc_b_asthmamedication",
-              "quantity": 3
-            },
-            {
-              "item_id": "misc_b_bandaid",
-              "quantity": 3
+              "item_id": "misc_b_bottledglucose",
+              "quantity": 10
             },
             {
               "item_id": "misc_b_medicalscissors",
-              "quantity": 4
+              "quantity": 5
+            },
+            {
+              "item_id": "misc_b_uvlight",
+              "quantity": 3
             },
             {
               "item_id": "misc_bentrifuge",
@@ -937,20 +984,20 @@
           "description": "Food recovery +20%.",
           "requirements": [
             {
-              "item_id": "misc_b_ceramic_adhesive",
-              "quantity": 2
-            },
-            {
-              "item_id": "misc_b_gaspipewrench",
-              "quantity": 2
-            },
-            {
               "item_id": "misc_b_moldboard",
               "quantity": 6
             },
             {
+              "item_id": "misc_b_aspire",
+              "quantity": 2
+            },
+            {
               "item_id": "misc_b_pesticide",
               "quantity": 5
+            },
+            {
+              "item_id": "misc_b_gaspipewrench",
+              "quantity": 2
             }
           ]
         },
@@ -961,20 +1008,20 @@
           "description": "Food recovery +30%.",
           "requirements": [
             {
-              "item_id": "misc_b_flashlight",
-              "quantity": 8
+              "item_id": "misc_b_moldboard",
+              "quantity": 12
+            },
+            {
+              "item_id": "misc_b_match",
+              "quantity": 6
+            },
+            {
+              "item_id": "misc_b_iodophor",
+              "quantity": 6
             },
             {
               "item_id": "misc_b_gaspipewrench",
               "quantity": 3
-            },
-            {
-              "item_id": "misc_b_match",
-              "quantity": 14
-            },
-            {
-              "item_id": "misc_b_smallshovel",
-              "quantity": 8
             }
           ]
         }
@@ -1014,14 +1061,48 @@
           "name": "Procurement Quality",
           "level": 2,
           "description": "Higher quality",
-          "requirements": []
+          "requirements": [
+            {
+              "item_id": "misc_bpu",
+              "quantity": 5
+            },
+            {
+              "item_id": "misc_copperwire",
+              "quantity": 9
+            },
+            {
+              "item_id": "misc_b_transformer",
+              "quantity": 2
+            },
+            {
+              "item_id": "misc_b_piezometer",
+              "quantity": 4
+            }
+          ]
         },
         {
           "id": "QualityLv3",
           "name": "Procurement Quality",
           "level": 3,
           "description": "Higher quality",
-          "requirements": []
+          "requirements": [
+            {
+              "item_id": "misc_graphiccard",
+              "quantity": 3
+            },
+            {
+              "item_id": "misc_b_militaryusbdrive",
+              "quantity": 2
+            },
+            {
+              "item_id": "misc_b_militaryharddrive",
+              "quantity": 1
+            },
+            {
+              "item_id": "misc_b_digitalsensor",
+              "quantity": 2
+            }
+          ]
         }
       ]
     },
@@ -1036,19 +1117,19 @@
           "description": "Food and drinks Storage.\nRegenerate Energy faster inside Hideout.",
           "requirements": [
             {
-              "item_id": "misc_b_rustedcleaner",
+              "item_id": "misc_oilcan",
               "quantity": 2
             },
             {
-              "item_id": "misc_b_saltcan",
+              "item_id": "misc_blimbingrope",
               "quantity": 2
             },
             {
-              "item_id": "misc_b_wd40",
-              "quantity": 2
+              "item_id": "misc_b_spraycan",
+              "quantity": 1
             },
             {
-              "item_id": "misc_copperwire",
+              "item_id": "misc_b_plier_large",
               "quantity": 1
             }
           ]
@@ -1061,19 +1142,19 @@
           "requirements": [
             {
               "item_id": "misc_b_oliveoil",
-              "quantity": 1
+              "quantity": 2
             },
             {
-              "item_id": "misc_b_saltcan",
-              "quantity": 3
-            },
-            {
-              "item_id": "misc_b_socket",
+              "item_id": "misc_b_match",
               "quantity": 2
             },
             {
               "item_id": "misc_b_wirecutting",
-              "quantity": 3
+              "quantity": 4
+            },
+            {
+              "item_id": "misc_b_socket",
+              "quantity": 2
             }
           ]
         },
@@ -1084,20 +1165,20 @@
           "description": "Regenerate Energy faster inside Hideout.",
           "requirements": [
             {
-              "item_id": "misc_b_gaspipewrench",
+              "item_id": "misc_b_oliveoil",
+              "quantity": 4
+            },
+            {
+              "item_id": "misc_b_match",
               "quantity": 4
             },
             {
               "item_id": "misc_b_plier_large",
-              "quantity": 3
+              "quantity": 8
             },
             {
-              "item_id": "misc_b_wrench",
+              "item_id": "misc_copperwire",
               "quantity": 2
-            },
-            {
-              "item_id": "misc_wastechip",
-              "quantity": 3
             }
           ]
         }
@@ -1163,19 +1244,19 @@
           "description": "Character experience gain +10%",
           "requirements": [
             {
-              "item_id": "misc_b_lightbulb",
+              "item_id": "misc_b_toiletpaper",
               "quantity": 8
             },
             {
-              "item_id": "misc_b_piezometer",
-              "quantity": 3
+              "item_id": "misc_b_deodorant",
+              "quantity": 8
             },
             {
-              "item_id": "misc_b_pipeline",
+              "item_id": "misc_b_shampoo",
               "quantity": 5
             },
             {
-              "item_id": "misc_b_spraycan",
+              "item_id": "misc_b_piezometer",
               "quantity": 5
             }
           ]
@@ -1193,20 +1274,20 @@
           "description": "Infinite ammo for firearms testing.",
           "requirements": [
             {
-              "item_id": "misc_b_ceramic_adhesive",
-              "quantity": 1
-            },
-            {
               "item_id": "misc_b_gunoil",
               "quantity": 2
             },
             {
-              "item_id": "misc_b_tire_sealant",
-              "quantity": 3
+              "item_id": "misc_b_insulatingtape",
+              "quantity": 2
             },
             {
-              "item_id": "misc_gunpowder",
+              "item_id": "misc_b_ceramic_adhesive",
               "quantity": 1
+            },
+            {
+              "item_id": "misc_b_tire_sealant",
+              "quantity": 3
             }
           ]
         }
@@ -1248,20 +1329,20 @@
           "description": "Increase weight bearing capacity to 80",
           "requirements": [
             {
-              "item_id": "misc_b_gameconsole",
-              "quantity": 4
-            },
-            {
-              "item_id": "misc_b_insulatingtape",
-              "quantity": 10
+              "item_id": "misc_b_superglue",
+              "quantity": 2
             },
             {
               "item_id": "misc_b_magazine",
-              "quantity": 4
+              "quantity": 5
+            },
+            {
+              "item_id": "misc_b_insulatingtape",
+              "quantity": 8
             },
             {
               "item_id": "misc_blimbingrope",
-              "quantity": 3
+              "quantity": 5
             }
           ]
         },
@@ -1272,20 +1353,20 @@
           "description": "Increase weight bearing capacity to 90",
           "requirements": [
             {
-              "item_id": "misc_b_defibrillator",
-              "quantity": 1
-            },
-            {
-              "item_id": "misc_b_deodorant",
-              "quantity": 8
-            },
-            {
-              "item_id": "misc_b_superglue",
-              "quantity": 4
+              "item_id": "misc_b_gameconsole",
+              "quantity": 2
             },
             {
               "item_id": "misc_b_tire_sealant",
+              "quantity": 8
+            },
+            {
+              "item_id": "misc_b_deodorant",
               "quantity": 6
+            },
+            {
+              "item_id": "misc_b_defibrillator",
+              "quantity": 1
             }
           ]
         }
@@ -1378,7 +1459,7 @@
             },
             {
               "item_id": "misc_b_visionmodule",
-              "quantity": 8
+              "quantity": 6
             }
           ]
         }
@@ -1443,7 +1524,24 @@
           "name": "Storage",
           "level": 3,
           "description": "Expand Junk Box Capacity",
-          "requirements": []
+          "requirements": [
+            {
+              "item_id": "misc_wastechip",
+              "quantity": 8
+            },
+            {
+              "item_id": "misc_screwdriver",
+              "quantity": 8
+            },
+            {
+              "item_id": "misc_b_storagebattery",
+              "quantity": 2
+            },
+            {
+              "item_id": "misc_b_militaryharddrive",
+              "quantity": 1
+            }
+          ]
         }
       ]
     },
@@ -1459,19 +1557,19 @@
           "requirements": [
             {
               "item_id": "misc_1batterie_2",
-              "quantity": 5
+              "quantity": 3
             },
             {
               "item_id": "misc_b_1battery",
-              "quantity": 5
+              "quantity": 3
+            },
+            {
+              "item_id": "misc_b_ionbattery",
+              "quantity": 3
             },
             {
               "item_id": "misc_b_civilradio",
-              "quantity": 2
-            },
-            {
-              "item_id": "misc_remote",
-              "quantity": 1
+              "quantity": 3
             }
           ]
         },
@@ -1482,20 +1580,20 @@
           "description": "Scavenger mode CD -20%",
           "requirements": [
             {
-              "item_id": "misc_b_electricdrill",
-              "quantity": 1
+              "item_id": "misc_1batterie_2",
+              "quantity": 5
             },
             {
-              "item_id": "misc_b_gaspipewrench",
-              "quantity": 3
-            },
-            {
-              "item_id": "misc_b_transformer",
-              "quantity": 1
+              "item_id": "misc_b_1battery",
+              "quantity": 5
             },
             {
               "item_id": "misc_videotape",
-              "quantity": 2
+              "quantity": 1
+            },
+            {
+              "item_id": "misc_b_electricdrill",
+              "quantity": 1
             }
           ]
         },
@@ -1506,19 +1604,19 @@
           "description": "Scavenger mode CD -30%",
           "requirements": [
             {
-              "item_id": "misc_b_dataline",
+              "item_id": "misc_1batterie_2",
               "quantity": 8
             },
             {
-              "item_id": "misc_b_rat_poison",
-              "quantity": 2
-            },
-            {
-              "item_id": "misc_remote",
-              "quantity": 4
+              "item_id": "misc_b_1battery",
+              "quantity": 8
             },
             {
               "item_id": "misc_videotape",
+              "quantity": 5
+            },
+            {
+              "item_id": "misc_b_rat_poison",
               "quantity": 2
             }
           ]
@@ -1567,19 +1665,15 @@
           "description": "Access to a drink holder.\nRegenerate Hydration faster inside Hideout.",
           "requirements": [
             {
-              "item_id": "misc_b_plier_large",
+              "item_id": "misc_b_rustedcleaner",
               "quantity": 1
             },
             {
-              "item_id": "misc_b_wire",
+              "item_id": "misc_hammer",
               "quantity": 1
             },
             {
-              "item_id": "misc_barcleaner",
-              "quantity": 1
-            },
-            {
-              "item_id": "misc_screwdriver",
+              "item_id": "misc_b_nail",
               "quantity": 1
             }
           ]
@@ -1616,20 +1710,20 @@
           "description": "Regenerate Hydration faster inside Hideout.",
           "requirements": [
             {
-              "item_id": "misc_b_piezometer",
-              "quantity": 3
-            },
-            {
-              "item_id": "misc_b_spraycan",
-              "quantity": 5
-            },
-            {
-              "item_id": "misc_b_storagebattery",
-              "quantity": 1
+              "item_id": "misc_b_pipeline",
+              "quantity": 10
             },
             {
               "item_id": "misc_barcleaner",
               "quantity": 4
+            },
+            {
+              "item_id": "misc_b_storagebattery",
+              "quantity": 3
+            },
+            {
+              "item_id": "misc_b_piezometer",
+              "quantity": 1
             }
           ]
         }
