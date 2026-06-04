@@ -14,6 +14,7 @@ misc_b_ionbattery.webp  Ion Battery
 misc_b_lighter.webp  Lighter
 misc_b_lighterfluid.webp  Lighter fluid
 misc_b_moldboard.webp  Moldboard
+misc_b_newphone.webp  New Phone
 misc_b_oldphone.webp  Old Phone
 misc_b_pcfan.webp  CPU Fan
 misc_b_pesticide.webp  Pesticide
@@ -24,7 +25,6 @@ misc_b_shampoo.webp  Pet Shampoo
 misc_b_sparkplug.webp  Spark Plug
 misc_b_tape.webp  Tape
 misc_b_tire_sealant.webp  Tire sealant
-misc_b_wd40.webp  WD-40
 misc_b_wirecutting.webp  Wire Cutter
 misc_b_wrench.webp  Wrench
 misc_bpu.webp  CPU
@@ -33,7 +33,7 @@ misc_screwdriver.webp  Screwdriver
 #hard  misc_b_1battery.webp  Size D battery
 #hard  misc_b_beardoil.webp  BeardOil
 #hard  misc_b_flashlight.webp  Flash light
-#hard  misc_b_newphone.webp  New Phone
 #hard  misc_b_opticaldisc.webp  CD
 #hard  misc_b_pipeline.webp  Valve
 #hard  misc_b_rustedcleaner.webp  Rust cleaner
+#hard  misc_b_wd40.webp  WD-40
