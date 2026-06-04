@@ -1,16 +1,39 @@
 # stash/units — <file>  <expected OCR name>  (whole item tile: icon + name + category)
-# A `#hard  <file>  <name>` line is OCR'd + reported but not gated (engine can't read it in isolation).
-# shot00 distinct items (row1 + Size D battery + Flash light + CD had their names OCR-dropped/garbled).
-misc_b_wrench.webp  Wrench
-misc_b_pesticide.webp  Pesticide
-#hard  misc_b_beardoil.webp  BeardOil
+# All distinct items the box-scan matched across the 10 scroll shots (dump_stash_unit_tiles).
+# Crops placed from each tile's name-bbox (expanded up for the icon), best mid-screen shot.
+# A `#hard  <file>  <name>` line is OCR'd + reported but not gated (engine can't read it solo).
+misc_b_aspire.webp  Aspirin
+misc_b_asthmamedication.webp  Asthma medicine
+misc_b_ceramic_adhesive.webp  Ceramic adhesive
+misc_b_deodorant.webp  Deodorant
+misc_b_gastank_large.webp  Large gas can
+misc_b_glue_large.webp  Instant glue
+misc_b_gunoil.webp  Gun Oil
+misc_b_insulatingtape.webp  Insulating Tape
+misc_b_ionbattery.webp  Ion Battery
 misc_b_lighter.webp  Lighter
-#hard  misc_b_1battery.webp  Size D battery
-#hard  misc_b_flashlight.webp  Flash light
-#hard  misc_b_opticaldisc.webp  CD
-misc_notebook.webp  Notebook
+misc_b_lighterfluid.webp  Lighter fluid
+misc_b_moldboard.webp  Moldboard
+misc_b_oldphone.webp  Old Phone
+misc_b_pcfan.webp  CPU Fan
+misc_b_pesticide.webp  Pesticide
+misc_b_rat_poison.webp  Rat poison
+misc_b_recorder.webp  Recorder
+misc_b_saltcan.webp  Salt can
 misc_b_shampoo.webp  Pet Shampoo
 misc_b_sparkplug.webp  Spark Plug
-misc_b_ionbattery.webp  Ion Battery
-misc_b_recorder.webp  Recorder
 misc_b_tape.webp  Tape
+misc_b_tire_sealant.webp  Tire sealant
+misc_b_wd40.webp  WD-40
+misc_b_wirecutting.webp  Wire Cutter
+misc_b_wrench.webp  Wrench
+misc_bpu.webp  CPU
+misc_notebook.webp  Notebook
+misc_screwdriver.webp  Screwdriver
+#hard  misc_b_1battery.webp  Size D battery
+#hard  misc_b_beardoil.webp  BeardOil
+#hard  misc_b_flashlight.webp  Flash light
+#hard  misc_b_newphone.webp  New Phone
+#hard  misc_b_opticaldisc.webp  CD
+#hard  misc_b_pipeline.webp  Valve
+#hard  misc_b_rustedcleaner.webp  Rust cleaner
