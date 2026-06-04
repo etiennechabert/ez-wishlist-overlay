@@ -146,9 +146,14 @@ shape**, not just embedded in the full panel/scan.
 
 - **Crop:** one whole tile per item, at full resolution. **Place crops from the
   committed geometry, not by eye:**
-  - **box/stash** — from the `.boxes.json` word boxes (item-name centres). When a
-    name was OCR-dropped (some stash tiles, e.g. CD, Beard oil), crop by the grid
-    position instead.
+  - **box/stash** — from the `.boxes.json` word boxes (item-name centres). For
+    the full stash set across all 10 scroll shots, the `dump_stash_unit_tiles`
+    diagnostic (`box_scan.rs`, `--ignored`) runs the box-scan matcher over every
+    shot and prints `(shot, item_id, name-bbox)` per tile; the cropper picks each
+    item's best mid-screen occurrence and expands the bbox up for the icon. When
+    a name was OCR-dropped (e.g. CD, Beard oil) crop by grid position; when the
+    matcher locked onto the **product label on the icon** (gun oil, ceramic
+    adhesive…), the tile name is *below* it, so bias the crop down.
   - **hideout** — the panels are tilted and some cells fall back to a bad count
     position, so derive per panel from the `.ocr-debug` dumps' per-cell count
     centres: `pitch` = median column spacing; the **row is a line** fit by

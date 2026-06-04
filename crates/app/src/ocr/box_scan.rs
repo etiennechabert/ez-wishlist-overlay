@@ -943,6 +943,56 @@ pub(crate) mod tests {
         }
     }
 
+    /// (Ignored authoring aid) Dump `(shot, item_id, name-bbox)` for every
+    /// recognized tile across all 10 stash shots, mirroring `read_tiles`'
+    /// clustering. Used to generate the per-item `screenshots/stash/units/`
+    /// crops without hand-identifying each tile: the cropper expands each
+    /// name-bbox up for the icon and labels by `item_id`. Cross-platform (runs
+    /// on the frozen `.boxes.json`, no live engine). Run:
+    ///   cargo test -p ez-wishlist-overlay dump_stash_unit_tiles -- --ignored --nocapture
+    #[test]
+    #[ignore = "authoring aid — print (shot, item_id, name bbox) per stash tile"]
+    fn dump_stash_unit_tiles() {
+        let data = crate::assets::load_game_data().expect("embedded data.json");
+        println!("<<<STASH_TILES>>>");
+        for i in 0..10 {
+            let fx = BoxFixture::load("stash", &format!("stash.shot{i:02}.boxes.json"));
+            let boxes = fx.label_boxes();
+            let refs: Vec<&LabelBox> = boxes.iter().collect();
+            let med_h = median(refs.iter().map(|b| b.h)).max(1.0);
+            let slope = shear_slope(&refs, med_h);
+            for block in &cluster_rows(&refs, slope, med_h * 4.0) {
+                for sub in split_subrows(block, slope, med_h) {
+                    let cells = split_tiles(&sub);
+                    let cat = cells.iter().filter(|t| is_category_tile(t)).count();
+                    if cat > 0 && cat * 2 >= cells.len() {
+                        continue; // category sub-row (tab strip / subtitles)
+                    }
+                    for t in &cells {
+                        let tokens: Vec<&str> = t.iter().map(|b| b.text.as_str()).collect();
+                        if let Some(id) = match_item(&data, &tokens) {
+                            let x0 = t.iter().map(|b| b.x).fold(f32::INFINITY, f32::min);
+                            let y0 = t.iter().map(|b| b.y).fold(f32::INFINITY, f32::min);
+                            let x1 = t
+                                .iter()
+                                .map(|b| b.right())
+                                .fold(f32::NEG_INFINITY, f32::max);
+                            let y1 = t
+                                .iter()
+                                .map(|b| b.y + b.h)
+                                .fold(f32::NEG_INFINITY, f32::max);
+                            println!(
+                                "{i:02}\t{id}\t{x0:.0}\t{y0:.0}\t{x1:.0}\t{y1:.0}\t{}",
+                                tokens.join(" ")
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        println!("<<<END_STASH_TILES>>>");
+    }
+
     /// `box` scan — the world container tablet (3 overlapping scroll shots) →
     /// its full 22-tile contents. The de-sheared, layout-aware `read_tiles`
     /// produces a stable reading order across the three shots, so `stitch`
