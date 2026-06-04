@@ -1625,6 +1625,10 @@ mod fixture_tests {
     ///     (`tiles_correct / tiles_total`, `exact_match`, `missing`, `extra`)
     ///     from the frozen `.boxes.json` fixtures, via
     ///     `box_scan::tests::score_scan`. No live engine, so no band.
+    ///   - `units` — per-asset isolated-OCR tally over the hand-cropped
+    ///     `screenshots/<asset>/units/` tiles (`gated_ok/gated_total` + the
+    ///     `#hard` count), via `unit_ocr_tests::score_units`. Live engine, one
+    ///     pass each.
     ///
     /// This is the *fine-grained signal* the tuning loop diffs before vs
     /// after a change (per-fixture + per-cell deltas, the noise band,
@@ -1722,6 +1726,10 @@ mod fixture_tests {
             #[serde(rename = "box")]
             box_: ScanAssetReport,
             stash: ScanAssetReport,
+            /// Per-asset isolated-OCR unit tallies (gated pass / total + `#hard`),
+            /// from `unit_ocr_tests`. The hand-cropped `screenshots/<asset>/units/`
+            /// tiles, scored independently of the full-panel/full-scan numbers.
+            units: Vec<super::unit_ocr_tests::UnitScore>,
         }
 
         fn median(mut v: Vec<usize>) -> usize {
@@ -1925,6 +1933,10 @@ mod fixture_tests {
             hideout: HideoutReport { totals, fixtures },
             box_,
             stash,
+            units: ["hideout", "box", "stash"]
+                .iter()
+                .map(|a| super::unit_ocr_tests::score_units(a).0)
+                .collect(),
         };
         let json = serde_json::to_string_pretty(&report).expect("serialize eval report");
 
@@ -1963,6 +1975,18 @@ mod fixture_tests {
             report.stash.tiles_total,
             report.stash.all_exact,
         );
+        let units = report
+            .units
+            .iter()
+            .map(|u| {
+                format!(
+                    "{} {}/{} gated, {} hard",
+                    u.asset, u.gated_ok, u.gated_total, u.hard_total
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(";  ");
+        eprintln!("eval units:   {units}");
     }
 
     /// Diagnostic: dump every OCR'd word for one native PNG, with
@@ -2352,15 +2376,27 @@ mod unit_ocr_tests {
 
     /// Assert every committed unit crop for `asset` OCRs to its expected text.
     /// Skips (vacuously) if the asset has no labelled units yet.
-    fn assert_units(asset: &str) {
+    /// Per-asset isolated-OCR unit tally, surfaced in the eval scorecard.
+    #[derive(serde::Serialize, Clone)]
+    pub(crate) struct UnitScore {
+        pub asset: String,
+        /// Gated units that OCR their name in isolation, and the gated total.
+        pub gated_ok: usize,
+        pub gated_total: usize,
+        /// `#hard` units that nonetheless read (bonus), and the `#hard` total.
+        pub hard_ok: usize,
+        pub hard_total: usize,
+    }
+
+    /// OCR every committed unit crop for `asset` and tally gated / `#hard` pass
+    /// counts (printing a per-unit line). Returns the score plus the list of
+    /// **gated** failures (empty ⇒ the gate passes). Shared by the gate test
+    /// (`assert_units`) and the `eval_report_json` scorecard.
+    pub(crate) fn score_units(asset: &str) -> (UnitScore, Vec<String>) {
         let dir = units_dir(asset);
         let labels = load_unit_labels(&dir);
-        if labels.is_empty() {
-            eprintln!("{asset}: no units in {} — skipping", dir.display());
-            return;
-        }
         let mut fails = Vec::new();
-        let (mut gated, mut gated_ok) = (0usize, 0usize);
+        let (mut gated_total, mut gated_ok, mut hard_total, mut hard_ok) = (0usize, 0, 0, 0);
         for (file, expect, hard) in &labels {
             let path = dir.join(file);
             let got = if path.exists() {
@@ -2372,8 +2408,13 @@ mod unit_ocr_tests {
             let tag = if *hard { "hard" } else { "gate" };
             let mark = if ok { "ok " } else { "ERR" };
             eprintln!("  [{mark}|{tag}] {asset}/{file}: expect={expect:?} got={got:?}");
-            if !*hard {
-                gated += 1;
+            if *hard {
+                hard_total += 1;
+                if ok {
+                    hard_ok += 1;
+                }
+            } else {
+                gated_total += 1;
                 if ok {
                     gated_ok += 1;
                 } else {
@@ -2384,9 +2425,27 @@ mod unit_ocr_tests {
             }
         }
         eprintln!(
-            "{asset} units: {gated_ok}/{gated} gated passed ({} known-hard reported)",
-            labels.len() - gated,
+            "{asset} units: {gated_ok}/{gated_total} gated passed ({hard_total} known-hard reported)"
         );
+        (
+            UnitScore {
+                asset: asset.to_string(),
+                gated_ok,
+                gated_total,
+                hard_ok,
+                hard_total,
+            },
+            fails,
+        )
+    }
+
+    fn assert_units(asset: &str) {
+        let dir = units_dir(asset);
+        if load_unit_labels(&dir).is_empty() {
+            eprintln!("{asset}: no units in {} — skipping", dir.display());
+            return;
+        }
+        let (_score, fails) = score_units(asset);
         assert!(
             fails.is_empty(),
             "isolated-OCR unit failures (fix the crop or the pipeline, or mark the line \
