@@ -115,6 +115,11 @@ Write-Output ('  box      tiles {0}/{1} ({2})   exact={3}' -f `
         $bx.tiles_correct, $bx.tiles_total, (Format-Pct $bx.tiles_correct $bx.tiles_total), $bx.all_exact)
 Write-Output ('  stash    tiles {0}/{1} ({2})   exact={3}   (informational, not gated)' -f `
         $st.tiles_correct, $st.tiles_total, (Format-Pct $st.tiles_correct $st.tiles_total), $st.all_exact)
+Write-Output '  ----  per-item isolated-OCR units (hand-cropped tiles) ----'
+foreach ($u in $r.units) {
+    Write-Output ('  units {0,-8} {1}/{2} gated ({3})   {4} #hard' -f `
+            $u.asset, $u.gated_ok, $u.gated_total, (Format-Pct $u.gated_ok $u.gated_total), $u.hard_total)
+}
 Write-Output '========================================================================'
 Write-Output ('  gates: {0}      full report: {1}' -f $(if ($gatesExit -eq 0) { 'PASS' } else { 'FAIL' }), $Out)
 
