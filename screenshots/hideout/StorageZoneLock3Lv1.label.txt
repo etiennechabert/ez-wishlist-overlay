@@ -2,4 +2,4 @@
 misc_gunpowder           1/10
 misc_b_smokelesspowder   0/10
 misc_b_piezometer        1/8
-misc_b_visionmodule      0/8
+misc_b_visionmodule      0/6
