@@ -1333,8 +1333,8 @@ fn notify(state: &Arc<RwLock<AppState>>, save_tx: &Sender<SaveTick>) {
 
 // --- Box-scan session UI ---------------------------------------------------
 
-const SCAN_HINT: &str = "Open the box's screen in-game and press SPACE at each scroll \
-                         position. Overlap shots by a row or two so nothing is missed between them.";
+const SCAN_HINT: &str = "Open the box's screen in-game and scroll slowly — it captures \
+                         automatically as new rows come into view. Press SPACE to grab one by hand.";
 const WARN_COL: egui::Color32 = egui::Color32::from_rgb(200, 140, 0);
 /// Red used for the "this REPLACES current contents" warning and the removed
 /// rows in the review diff. Matches the diff's `removed` swatch (210,90,90).
@@ -1508,6 +1508,11 @@ fn box_scan_live_window(ctx: &egui::Context, state: &Arc<RwLock<AppState>>, scan
 
     let mut finish = false;
     let mut cancel = false;
+    // The scan window's hands-free toggle (default on, re-armed on each scan
+    // start). Mirrors the finish/cancel pattern: read current state, let the
+    // checkbox edit a local, push the change to the runtime after the window.
+    let mut auto_capture = scan.vr.box_auto_capture_enabled();
+    let mut auto_changed = false;
 
     egui::Window::new(format!("Box scan — {target_name}"))
         .collapsible(false)
@@ -1520,6 +1525,17 @@ fn box_scan_live_window(ctx: &egui::Context, state: &Arc<RwLock<AppState>>, scan
                     .small()
                     .color(ui.visuals().weak_text_color()),
             );
+            ui.add_space(4.0);
+            if ui
+                .checkbox(&mut auto_capture, "Auto-capture while scrolling")
+                .on_hover_text(
+                    "On: captures continuously as you scroll (recommended). \
+                     Off: capture each scroll position yourself with SPACE.",
+                )
+                .changed()
+            {
+                auto_changed = true;
+            }
             // Up-front flush caution: the user should know this is a replace
             // before they invest several captures, not only at the review step.
             ui.add_space(4.0);
@@ -1621,6 +1637,9 @@ fn box_scan_live_window(ctx: &egui::Context, state: &Arc<RwLock<AppState>>, scan
             });
         });
 
+    if auto_changed {
+        scan.vr.set_box_auto_capture(auto_capture);
+    }
     if finish {
         if let Some(BoxScanUi::Scanning {
             target,
