@@ -249,8 +249,12 @@ fn init_logging(buf: log_buffer::LogBuffer) {
 /// [`ocr::BoxCommand`] and reads the running tally via [`ocr::BoxScanUpdate`].
 struct BoxSession {
     target: ocr::ScanTarget,
-    /// Reading-order tiles stitched across every capture so far.
-    master: Vec<ocr::box_scan::Tile>,
+    /// Unique grid rows merged across every capture so far (in first-capture
+    /// order). The cross-capture dedup is by row composition, not tile position.
+    rows: Vec<ocr::box_scan::ScanRow>,
+    /// Next id to stamp on a freshly-merged row, so the desktop review can
+    /// address a specific row to drop.
+    next_row_id: u64,
     captures: u32,
     /// Most recent total-weight readout, kept for the GUI's checksum.
     last_weight: Option<f32>,
@@ -260,16 +264,17 @@ impl BoxSession {
     fn new(target: ocr::ScanTarget) -> Self {
         Self {
             target,
-            master: Vec::new(),
+            rows: Vec::new(),
+            next_row_id: 0,
             captures: 0,
             last_weight: None,
         }
     }
 }
 
-/// Handle one box-scan capture: OCR the screenshot into tiles, stitch them into
-/// the active session, and publish the running tally to the GUI. Unlike the
-/// upgrade path this never touches `AppState` — the GUI owns the eventual
+/// Handle one box-scan capture: OCR the screenshot into rows, merge them into
+/// the active session's unique-row set, and publish the running tally to the GUI.
+/// Unlike the upgrade path this never touches `AppState` — the GUI owns the eventual
 /// write, behind a confirm/preview, on Finish. Platform-independent: the OCR
 /// call ([`ocr::box_scan::process_box_image`]) has a non-Windows stub.
 fn handle_box_capture(
@@ -291,43 +296,38 @@ fn handle_box_capture(
             return;
         }
     };
-    let outcome = ocr::box_scan::stitch(&mut session.master, &read.tiles);
+    let merge =
+        ocr::box_scan::merge_capture(&mut session.rows, &mut session.next_row_id, &read.tile_rows);
     session.captures += 1;
     if read.observed_weight.is_some() {
         session.last_weight = read.observed_weight;
     }
-    let (tally, unrecognized) = ocr::box_scan::tally(&session.master);
+    let (tally, unrecognized) = ocr::box_scan::tally_rows(&session.rows);
     // The most recent capture in isolation, for the "this capture" half of the
     // overlay (the cumulative `tally` above mixes every shot together).
     let (last_tally, last_unrecognized) = ocr::box_scan::tally(&read.tiles);
-    let (last_added, last_overlap) = match outcome {
-        ocr::box_scan::StitchOutcome::Merged { added, overlap } => (added, overlap),
-        ocr::box_scan::StitchOutcome::NeedsRecapture => (0, 0),
-    };
-    let status = if read.tiles.is_empty() {
+    let status = if read.tile_rows.is_empty() {
         ocr::BoxScanStatus::NoTiles
     } else {
-        match outcome {
-            ocr::box_scan::StitchOutcome::NeedsRecapture => ocr::BoxScanStatus::NeedsRecapture,
-            ocr::box_scan::StitchOutcome::Merged { .. } => ocr::BoxScanStatus::Ok,
-        }
+        ocr::BoxScanStatus::Ok
     };
     tracing::info!(
         target = ?session.target,
         captures = session.captures,
-        tiles_this_shot = read.tiles.len(),
-        total = session.master.len(),
+        rows_this_shot = read.tile_rows.len(),
+        rows_added = merge.rows_added,
+        total_rows = session.rows.len(),
         ?status,
-        "box-scan: capture stitched",
+        "box-scan: capture merged",
     );
     // Recognition debug dump: `source_path` is `Some` only when `ocr_debug` is on
     // (the capture saved a PNG to attach to a bug report). Drop a text sidecar
     // next to it so a mis-read scan is diagnosable — today only the raw PNG is
-    // kept, which can't explain why the stitch refused or a tile went unmatched.
+    // kept, which can't explain why a row didn't merge or a tile went unmatched.
     if let Some(src) = job.source_path.as_deref() {
         let dump = ocr::box_scan::format_capture_dump(
             &read,
-            outcome,
+            merge,
             &tally,
             unrecognized,
             session.captures,
@@ -351,8 +351,9 @@ fn handle_box_capture(
         status,
         last_tally,
         last_unrecognized,
-        last_added,
-        last_overlap,
+        last_rows_added: merge.rows_added,
+        last_rows_duplicate: merge.rows_duplicate,
+        rows: session.rows.clone(),
     };
 
     // Mirror the running state into the in-headset overlay so the user gets the
@@ -386,7 +387,7 @@ fn handle_box_capture(
 /// just triggers another screenshot.
 ///
 /// Box-scan jobs ([`ocr::JobKind::BoxScan`]) take a separate path: the worker
-/// owns a [`BoxSession`], stitches every capture (no stale-drain), and reports
+/// owns a [`BoxSession`], merges every capture's rows (no stale-drain), and reports
 /// the running tally to the GUI via `box_update_tx` instead of writing state.
 #[allow(clippy::too_many_arguments)]
 fn spawn_ocr_worker(
@@ -425,7 +426,7 @@ fn spawn_ocr_worker(
             while let Ok(first) = ocr_job_rx.recv() {
                 // Apply any pending box-scan commands first — a `Start` must
                 // initialise the session before the capture that woke us is
-                // stitched into it.
+                // merged into it.
                 while let Ok(cmd) = box_cmd_rx.try_recv() {
                     match cmd {
                         ocr::BoxCommand::Start { target } => {
@@ -440,7 +441,7 @@ fn spawn_ocr_worker(
 
                 // Box-scan captures take a wholly separate path: no stale-drain
                 // (every scroll position is load-bearing), no upgrade parsing,
-                // and the result is stitched into the session, not written to
+                // and the result is merged into the session, not written to
                 // state.
                 if matches!(first.kind, ocr::JobKind::BoxScan) {
                     handle_box_capture(

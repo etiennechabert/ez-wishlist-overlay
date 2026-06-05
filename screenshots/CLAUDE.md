@@ -17,8 +17,8 @@ Three asset types, each scored **independently** by the pipeline:
 | Asset | In-game screen | OCR exercised | Label = ground truth for |
 |---|---|---|---|
 | **hideout** | Facility Upgrade panel | full pipeline (identify upgrade + read each item's `owned/needed` counter) | per-cell owned-count + identification |
-| **box** | a world container tablet (category tab strip: All / Medical / … / Tool) | `read_tiles` + `stitch` over the de-overlapped scroll shots | the stitched item tally (passes exactly) |
-| **stash** | the "JOHNNY'S SERVICE" junk-box submit terminal ("only miscellaneous items can be stored here") | same as box | the item tally (captures un-stitchable — scored, not gated) |
+| **box** | a world container tablet (category tab strip: All / Medical / … / Tool) | `read_tiles` + `merge_capture` (row-uniqueness dedup) over the scroll shots | the merged item tally (passes exactly) |
+| **stash** | the "JOHNNY'S SERVICE" junk-box submit terminal ("only miscellaneous items can be stored here") | same as box | the item tally (captures have scroll gaps — scored, not gated) |
 
 > Both box and stash are titled "JUNK BOX" in-game — they're different screens.
 > `box` is the physical world container; `stash` is the player's submit terminal.
@@ -108,7 +108,7 @@ frozen OCR below, not the image, and q95 preserves every item name).
 - **`<scan>.shotN.webp`** — the 3096×3312 capture frame, in scroll order
   (`box.shot0..2`, `stash.shot00..09`).
 - **`<scan>.shotN.boxes.json`** — the **frozen Windows.Media.Ocr output** (word
-  boxes + image height) for that frame. `read_tiles`/`stitch` are pure and
+  boxes + image height) for that frame. `read_tiles`/`merge_capture` are pure and
   platform-independent, so these let the post-OCR pipeline be regression-tested
   on **every** target (Linux CI included) without re-running the Windows-only,
   nondeterministic engine. Regenerate after adding/replacing a capture:
@@ -117,16 +117,26 @@ frozen OCR below, not the image, and q95 preserves every item name).
   ```
   (`BOX_FIXTURE_DIR` / `STASH_FIXTURE_DIR` point it at a scratch copy.)
 - **`<scan>.label.txt`** — the ground-truth tally, **one per scan** (not per
-  shot): `<item_id>  <count>` lines. A box scan only means something *stitched*,
-  so the label is the full de-overlapped contents, not a per-frame snapshot.
+  shot): `<item_id>  <count>` lines. A box scan only means something *merged*,
+  so the label is the full deduped contents, not a per-frame snapshot.
+
+**Merge model.** Captures are merged by **row uniqueness**: each grid row is
+identified by its multiset of recognized items (tolerant of one drifted/missing
+tile), and a row already seen is dropped as overlap. This is immune to scroll
+distance and clipped boundary rows — it replaced an earlier position-rigid stitch
+that broke whenever a tile was dropped or a boundary row was half-captured. The
+one cost: two *distinct* rows with the identical composition collapse to one and
+under-count (the desktop review step renders the rows so the user can drop a bad
+one before applying).
 
 **Status.** `box` passes exactly (`box_scan_matches_label`, 22 tiles). `stash`
-stays `#[ignore]`d (`stash_scan_matches_label`): its 10 shots can't be stitched
-— shots 00–04 share a row each (clean scroll) but 04→09 have scroll gaps (no
-shared row) and the OCR drops whole tiles, so the overlap alignment can't bridge
-them. `stash.label.txt` is a **verified reference** of the contents (the
-contiguous 00–04 run + the additional types seen in the lower shots); the eval
-still scores its partial tile accuracy as an informational signal.
+stays `#[ignore]`d (`stash_scan_matches_label`): row-uniqueness fixed the
+dropped-tile desync, but its 10 shots have real **scroll gaps** — shots 00–04
+share a row each (clean scroll) but 04→09 skip rows entirely, so some grid rows
+appear in no capture at all and can't be recovered by any merge. `stash.label.txt`
+is a **verified reference** of the contents (the contiguous 00–04 run + the
+additional types seen in the lower shots); the eval still scores its partial tile
+accuracy as an informational signal.
 
 **To refresh a box/stash label:** read the item names off the capture frames,
 map each to its `item_id` (next section), and write `<item_id>  <count>`. A box

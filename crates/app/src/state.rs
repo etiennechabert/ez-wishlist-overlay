@@ -25,7 +25,7 @@ pub enum ContainerKind {
     /// A backpack or pouch — no screen; contents entered manually.
     #[default]
     Bag,
-    /// An item case with a contents screen — supports the scroll-and-stitch OCR
+    /// An item case with a contents screen — supports the scroll-and-merge OCR
     /// scan. Serialized as `"Case"`; the `"Box"` alias loads profiles written
     /// before this kind was renamed from `Box`.
     #[serde(alias = "Box")]

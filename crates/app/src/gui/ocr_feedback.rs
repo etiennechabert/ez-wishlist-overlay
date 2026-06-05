@@ -75,18 +75,18 @@ pub enum OcrFeedbackKind {
     /// Box/stash scan progress, published after each scroll capture while a
     /// box-scan session is active. Mirrors the desktop live window in the
     /// headset: what this shot read ("this capture") plus the cumulative
-    /// stitched series so far. Built by [`OcrFeedback::box_scan_progress`].
+    /// merged series so far. Built by [`OcrFeedback::box_scan_progress`].
     BoxScanProgress {
         /// "Stash" or the container's name — shown as the card title.
         target_name: String,
-        /// How many captures this session has stitched so far.
+        /// How many captures this session has merged so far.
         captures: u32,
-        /// Stitch outcome of the most recent capture.
+        /// Merge outcome of the most recent capture.
         status: BoxScanStatus,
-        /// Tiles the most recent capture appended to the series.
-        last_added: usize,
-        /// Tiles the most recent capture overlapped with the existing tail.
-        last_overlap: usize,
+        /// Rows the most recent capture added to the series.
+        last_rows_added: usize,
+        /// Rows the most recent capture overlapped (already present) and skipped.
+        last_rows_duplicate: usize,
         /// `(item_name, count)` read in the most recent capture alone, sorted
         /// desc by count then name. The renderer caps how many it draws.
         last_items: Vec<(String, u32)>,
@@ -289,8 +289,8 @@ impl OcrFeedback {
                 target_name,
                 captures: update.captures,
                 status: update.status,
-                last_added: update.last_added,
-                last_overlap: update.last_overlap,
+                last_rows_added: update.last_rows_added,
+                last_rows_duplicate: update.last_rows_duplicate,
                 last_items: rows(&update.last_tally),
                 last_unrecognized: update.last_unrecognized,
                 total_items,
@@ -378,8 +378,8 @@ impl OcrFeedback {
                 target_name,
                 captures,
                 status,
-                last_added,
-                last_overlap,
+                last_rows_added,
+                last_rows_duplicate,
                 last_unrecognized,
                 total_items,
                 total_unrecognized,
@@ -389,8 +389,8 @@ impl OcrFeedback {
                     target = %target_name,
                     captures = captures,
                     ?status,
-                    added = last_added,
-                    overlap = last_overlap,
+                    rows_added = last_rows_added,
+                    rows_duplicate = last_rows_duplicate,
                     last_unrecognized = last_unrecognized,
                     total_items = total_items,
                     total_unrecognized = total_unrecognized,
@@ -443,8 +443,9 @@ mod tests {
             status: BoxScanStatus::Ok,
             last_tally: HashMap::new(),
             last_unrecognized: 0,
-            last_added: 0,
-            last_overlap: 0,
+            last_rows_added: 0,
+            last_rows_duplicate: 0,
+            rows: Vec::new(),
         }
     }
 

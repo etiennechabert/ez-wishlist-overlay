@@ -433,8 +433,8 @@ fn draw_body(pix: &mut Pixmap, kind: &OcrFeedbackKind, y_top: f32) -> f32 {
         OcrFeedbackKind::BoxScanProgress {
             captures,
             status,
-            last_added,
-            last_overlap,
+            last_rows_added,
+            last_rows_duplicate,
             last_items,
             last_unrecognized,
             total_items,
@@ -452,22 +452,22 @@ fn draw_body(pix: &mut Pixmap, kind: &OcrFeedbackKind, y_top: f32) -> f32 {
 
             let (status_text, status_color) = match status {
                 BoxScanStatus::Ok => {
-                    let mut t = if *last_added == 0 {
-                        // A re-capture or scroll-up that added nothing new.
-                        format!("Already had these (overlap {last_overlap})")
+                    let mut t = if *last_rows_added == 0 {
+                        // A re-capture of rows we already have — fine, not an error.
+                        format!("Already had these ({last_rows_duplicate} rows)")
                     } else {
-                        format!("Added {last_added} · overlap {last_overlap}")
+                        format!("Added {last_rows_added} rows · {last_rows_duplicate} already had")
                     };
                     if *last_unrecognized > 0 {
                         t.push_str(&format!(" · {last_unrecognized} unrecognized"));
                     }
-                    let color = if *last_added == 0 { weak() } else { positive() };
+                    let color = if *last_rows_added == 0 {
+                        weak()
+                    } else {
+                        positive()
+                    };
                     (t, color)
                 }
-                BoxScanStatus::NeedsRecapture => (
-                    "● Didn't line up — scroll up a little and recapture".to_string(),
-                    negative(),
-                ),
                 BoxScanStatus::NoTiles => (
                     "● No items seen — make sure the box screen is visible".to_string(),
                     negative(),
@@ -726,8 +726,8 @@ mod tests {
                 target_name: "Stash".into(),
                 captures: 3,
                 status: BoxScanStatus::Ok,
-                last_added: 6,
-                last_overlap: 2,
+                last_rows_added: 2,
+                last_rows_duplicate: 1,
                 last_items: vec![("Bolts".into(), 4), ("Screws".into(), 2)],
                 last_unrecognized: 1,
                 total_items: 18,
@@ -786,19 +786,17 @@ mod tests {
     }
 
     #[test]
-    fn renders_box_scan_progress_needs_recapture() {
-        // A shot that didn't merge: empty this-capture list + warning status.
+    fn renders_box_scan_progress_all_duplicate() {
+        // A re-capture of rows we already have: nothing added (not an error).
         let mut fb = box_progress_feedback();
         if let OcrFeedbackKind::BoxScanProgress {
-            status,
-            last_items,
-            last_added,
+            last_rows_added,
+            last_rows_duplicate,
             ..
         } = &mut fb.kind
         {
-            *status = BoxScanStatus::NeedsRecapture;
-            *last_added = 0;
-            last_items.clear();
+            *last_rows_added = 0;
+            *last_rows_duplicate = 3;
         }
         let pix = render(&fb, false);
         assert_eq!(pix.width(), CARD_W);

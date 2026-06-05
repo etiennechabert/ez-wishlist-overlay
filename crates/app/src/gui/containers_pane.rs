@@ -23,6 +23,7 @@ use crate::gui::hideout_pane::{
 };
 use crate::gui::items_db_pane::format_price;
 use crate::gui::{icon_cache::IconCache, theme, SaveTick};
+use crate::ocr::box_scan::ScanRow;
 use crate::ocr::{BoxCommand, BoxScanStatus, BoxScanUpdate, ScanTarget};
 use crate::state::{AppState, ContainerId, ContainerKind};
 use crossbeam_channel::Sender;
@@ -170,12 +171,13 @@ pub enum BoxScanUi {
         target_name: String,
         latest: Option<BoxScanUpdate>,
     },
-    /// Capturing finished; the confirm/preview modal is up, awaiting Apply.
+    /// Capturing finished; the confirm/preview modal is up, awaiting Apply. Holds
+    /// the captured rows (not a flat tally) so the user can drop a bad row in
+    /// review — the tally/diff are recomputed from whatever rows survive.
     Reviewing {
         target: ScanTarget,
         target_name: String,
-        tally: HashMap<ItemId, u32>,
-        unrecognized: usize,
+        rows: Vec<ScanRow>,
         observed_weight: Option<f32>,
     },
 }
@@ -1332,7 +1334,7 @@ fn notify(state: &Arc<RwLock<AppState>>, save_tx: &Sender<SaveTick>) {
 // --- Box-scan session UI ---------------------------------------------------
 
 const SCAN_HINT: &str = "Open the box's screen in-game and press SPACE at each scroll \
-                         position. Overlap shots by about one row so they line up.";
+                         position. Overlap shots by a row or two so nothing is missed between them.";
 const WARN_COL: egui::Color32 = egui::Color32::from_rgb(200, 140, 0);
 /// Red used for the "this REPLACES current contents" warning and the removed
 /// rows in the review diff. Matches the diff's `removed` swatch (210,90,90).
@@ -1361,6 +1363,61 @@ fn computed_weight(s: &AppState, tally: &HashMap<ItemId, u32>) -> f32 {
                 * n as f32
         })
         .sum()
+}
+
+/// One captured row rendered as its tile item names, left→right; `—` marks an
+/// unrecognized tile.
+fn row_label(s: &AppState, row: &ScanRow) -> String {
+    row.tiles
+        .iter()
+        .map(|t| match t {
+            Some(id) => s
+                .index
+                .items_by_id
+                .get(id)
+                .map(|it| it.name.clone())
+                .unwrap_or_else(|| id.clone()),
+            None => "—".to_string(),
+        })
+        .collect::<Vec<_>>()
+        .join(" · ")
+}
+
+/// Render a scan's captured rows "as captured", one labelled line each. With a
+/// `drop_sink`, every row gets a ✕ that pushes its id into the sink (the caller
+/// removes it after the frame); without one the list is read-only. Used
+/// read-only in the live scan window and with drop enabled in the review modal.
+fn rows_view(
+    ui: &mut egui::Ui,
+    s: &AppState,
+    rows: &[ScanRow],
+    mut drop_sink: Option<&mut Vec<u64>>,
+    id_salt: &str,
+) {
+    ui.label(
+        egui::RichText::new(format!("Rows captured ({})", rows.len()))
+            .small()
+            .color(ui.visuals().weak_text_color()),
+    );
+    egui::ScrollArea::vertical()
+        .max_height(180.0)
+        .id_salt(id_salt)
+        .show(ui, |ui| {
+            for row in rows {
+                ui.horizontal(|ui| {
+                    if let Some(sink) = drop_sink.as_deref_mut() {
+                        if ui
+                            .add(egui::Button::new("Drop").small())
+                            .on_hover_text("Drop this row from the scan")
+                            .clicked()
+                        {
+                            sink.push(row.id);
+                        }
+                    }
+                    ui.label(row_label(s, row));
+                });
+            }
+        });
 }
 
 /// `(id, name, count)` rows for a tally, names resolved from the data index.
@@ -1485,10 +1542,9 @@ fn box_scan_live_window(ctx: &egui::Context, state: &Arc<RwLock<AppState>>, scan
                     // cumulative line above (the in-headset card shows the same).
                     let mut last_line = match u.status {
                         BoxScanStatus::Ok => format!(
-                            "This capture: +{} (overlap {})",
-                            u.last_added, u.last_overlap
+                            "This capture: +{} rows ({} already had)",
+                            u.last_rows_added, u.last_rows_duplicate
                         ),
-                        BoxScanStatus::NeedsRecapture => "This capture: didn't line up".to_string(),
                         BoxScanStatus::NoTiles => "This capture: no items seen".to_string(),
                     };
                     if u.last_unrecognized > 0 {
@@ -1500,16 +1556,11 @@ fn box_scan_live_window(ctx: &egui::Context, state: &Arc<RwLock<AppState>>, scan
                             .color(ui.visuals().weak_text_color()),
                     );
 
-                    match u.status {
-                        BoxScanStatus::NeedsRecapture => warn_label(
-                            ui,
-                            "Last shot didn't line up — scroll back up a little and recapture.",
-                        ),
-                        BoxScanStatus::NoTiles => warn_label(
+                    if u.status == BoxScanStatus::NoTiles {
+                        warn_label(
                             ui,
                             "Last shot saw no items — make sure the box screen is visible.",
-                        ),
-                        BoxScanStatus::Ok => {}
+                        );
                     }
 
                     if let Some(observed) = u.observed_weight {
@@ -1529,20 +1580,27 @@ fn box_scan_live_window(ctx: &egui::Context, state: &Arc<RwLock<AppState>>, scan
                         );
                     }
 
-                    let mut rows = tally_rows(&state.read(), &u.tally);
-                    rows.sort_by(|a, b| {
+                    let mut item_rows = tally_rows(&state.read(), &u.tally);
+                    item_rows.sort_by(|a, b| {
                         b.2.cmp(&a.2)
                             .then_with(|| a.1.to_lowercase().cmp(&b.1.to_lowercase()))
                     });
-                    if !rows.is_empty() {
+                    if !item_rows.is_empty() {
                         egui::ScrollArea::vertical()
                             .max_height(220.0)
                             .id_salt("box-scan-tally")
                             .show(ui, |ui| {
-                                for (_, name, qty) in &rows {
+                                for (_, name, qty) in &item_rows {
                                     ui.label(format!("  {qty} × {name}"));
                                 }
                             });
+                    }
+
+                    // The same rows shown read-only "as captured"; the user can
+                    // drop a bad one in the Finish & review step.
+                    if !u.rows.is_empty() {
+                        ui.separator();
+                        rows_view(ui, &state.read(), &u.rows, None, "box-scan-rows-live");
                     }
                 }
             }
@@ -1572,14 +1630,13 @@ fn box_scan_live_window(ctx: &egui::Context, state: &Arc<RwLock<AppState>>, scan
         {
             scan.vr.set_box_scan_mode(false);
             let _ = scan.cmd_tx.send(BoxCommand::Finish);
-            let (tally, unrecognized, observed_weight) = latest
-                .map(|u| (u.tally, u.unrecognized, u.observed_weight))
+            let (rows, observed_weight) = latest
+                .map(|u| (u.rows, u.observed_weight))
                 .unwrap_or_default();
             *scan.ui_state = Some(BoxScanUi::Reviewing {
                 target,
                 target_name,
-                tally,
-                unrecognized,
+                rows,
                 observed_weight,
             });
         }
@@ -1601,26 +1658,30 @@ fn box_review_modal(
     scan: &mut ScanCtx,
 ) {
     // Own a snapshot, ending the borrow on `scan.ui_state` before we mutate it.
-    let (target, target_name, tally, unrecognized, observed_weight) = match scan.ui_state.as_ref() {
+    let (target, target_name, rows, observed_weight) = match scan.ui_state.as_ref() {
         Some(BoxScanUi::Reviewing {
             target,
             target_name,
-            tally,
-            unrecognized,
+            rows,
             observed_weight,
         }) => (
             target.clone(),
             target_name.clone(),
-            tally.clone(),
-            *unrecognized,
+            rows.clone(),
             *observed_weight,
         ),
         _ => return,
     };
+    // The tally/diff are derived from the surviving rows, so dropping a row below
+    // immediately re-prices the review next frame.
+    let (tally, unrecognized) = crate::ocr::box_scan::tally_rows(&rows);
 
     let mut open = true;
     let mut apply = false;
     let mut discard = false;
+    // Rows the user clicked ✕ on this frame; applied to the Reviewing state after
+    // the window closes (immediate-mode: can't mutate `scan.ui_state` mid-render).
+    let mut dropped: Vec<u64> = Vec::new();
 
     egui::Window::new(format!("Apply box scan to {target_name}?"))
         .open(&mut open)
@@ -1663,6 +1724,12 @@ fn box_review_modal(
                     .color(ui.visuals().weak_text_color()),
                 );
             }
+            ui.separator();
+
+            // Captured rows, with a ✕ to drop a bad one (a clipped half-row,
+            // mis-merge, or hallucinated row). Dropping re-prices the diff below
+            // next frame.
+            rows_view(ui, &s, &rows, Some(&mut dropped), "box-review-rows");
             ui.separator();
 
             // Diff over the union of current + scanned ids.
@@ -1777,6 +1844,12 @@ fn box_review_modal(
         *scan.ui_state = None;
     } else if discard || !open {
         *scan.ui_state = None;
+    } else if !dropped.is_empty() {
+        // Apply this frame's row drops to the live Reviewing state; the tally and
+        // diff recompute from the survivors next frame.
+        if let Some(BoxScanUi::Reviewing { rows, .. }) = scan.ui_state.as_mut() {
+            rows.retain(|r| !dropped.contains(&r.id));
+        }
     }
 }
 
@@ -1934,5 +2007,67 @@ mod tests {
             "Confirm label/fill contrast {ratio:.2}:1 is below WCAG AA 4.5:1 — \
              a colored button must pin a readable label color"
         );
+    }
+
+    /// Like [`harness`] but shares the box-scan UI state with the caller, so a
+    /// test can seed a `Reviewing` session and read back what survives a row drop
+    /// (the plain `harness` owns `box_scan` privately inside the closure).
+    fn review_harness(
+        state: &Arc<RwLock<AppState>>,
+        box_scan: &Arc<RwLock<Option<BoxScanUi>>>,
+    ) -> Harness<'static> {
+        let ui_state = Arc::clone(state);
+        let box_scan = Arc::clone(box_scan);
+        let (save_tx, _save_rx) = crossbeam_channel::unbounded::<SaveTick>();
+        let (box_cmd_tx, _box_cmd_rx) = crossbeam_channel::unbounded::<BoxCommand>();
+        let vr = Arc::new(crate::vr::Runtime::disconnected_for_test());
+        let mut icons = IconCache::new();
+        Harness::builder()
+            .with_size(egui::vec2(1000.0, 800.0))
+            .build_ui(move |ui| {
+                let mut guard = box_scan.write();
+                super::ui(
+                    ui,
+                    &ui_state,
+                    &mut icons,
+                    &save_tx,
+                    &vr,
+                    &box_cmd_tx,
+                    &mut guard,
+                );
+            })
+    }
+
+    #[test]
+    fn review_drop_removes_a_row_from_the_scan() {
+        let state = Arc::new(RwLock::new(AppState::new(game_data())));
+        let row = |id: u64, ids: &[&str]| ScanRow {
+            id,
+            tiles: ids.iter().map(|s| Some(s.to_string())).collect(),
+        };
+        // A two-row Reviewing session, awaiting Apply.
+        let box_scan = Arc::new(RwLock::new(Some(BoxScanUi::Reviewing {
+            target: ScanTarget::Stash,
+            target_name: "Stash".into(),
+            rows: vec![row(10, &["a", "b", "c"]), row(11, &["d", "e", "f"])],
+            observed_weight: None,
+        })));
+
+        let mut h = review_harness(&state, &box_scan);
+        h.run();
+
+        // One "Drop" per captured row; drop the first (id 10).
+        h.get_all_by_label("Drop")
+            .next()
+            .expect("a Drop button per captured row")
+            .click();
+        h.run();
+
+        let guard = box_scan.read();
+        let Some(BoxScanUi::Reviewing { rows, .. }) = &*guard else {
+            panic!("should still be reviewing after a row drop");
+        };
+        assert_eq!(rows.len(), 1, "dropping a row must remove exactly one");
+        assert_eq!(rows[0].id, 11, "the first row (id 10) is the one dropped");
     }
 }
