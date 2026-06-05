@@ -1756,7 +1756,7 @@
     },
     {
       "id": "misc_b_1battery",
-      "name": "Size D battery",
+      "name": "Size D Battery1",
       "icon_path": "icons/misc_b_1battery.png",
       "category": "misc",
       "subcategory": "Power",

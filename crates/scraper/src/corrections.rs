@@ -29,6 +29,22 @@ const NAME_CORRECTIONS: &[(&str, &str)] = &[
     // unmatched. The hideout panel uses item_id (count read positionally), so
     // the rename only affects the box-scan matcher + the display name.
     ("misc_b_nail", "Boxed Nails"),
+    // `misc_b_1battery` and `misc_1batterie_2` are TWO real items the game labels
+    // "Size D Battery1" / "Size D Battery2"; upstream collapsed both to a bare
+    // "Size D battery". The stash holds Battery1 (`misc_b_1battery`) — verified in
+    // screenshots/stash/stash.shot00, where the tile OCRs "Size D batteryl" (the
+    // trailing 1 misread as l) and elsewhere as just "Battery" (suffix dropped).
+    // Because that digit is OCR-fragile, "batteryl" sits one edit from BOTH
+    // "battery1" and "battery2", so the matcher ties; giving the OBSERVED id its
+    // true, longer name lets match_item's longest-name tie-break land the tile on
+    // `misc_b_1battery` (stash 42->44/55).
+    //
+    // DELIBERATELY leave `misc_1batterie_2` as upstream "Size D battery": we have
+    // no capture of Battery2 (don't guess an unobserved name), AND naming it the
+    // symmetric "Size D Battery2" would re-tie the two candidates and break the
+    // resolution above. Do NOT "fix" it for consistency without a Battery2 capture
+    // and a matcher that can read the trailing digit.
+    ("misc_b_1battery", "Size D Battery1"),
 ];
 
 /// Corrected display name for an upstream item: the [`NAME_CORRECTIONS`] entry
@@ -55,6 +71,21 @@ mod tests {
             "Cleaner"
         );
         assert_eq!(correct_name("misc_b_nail", "Nails"), "Boxed Nails");
+        assert_eq!(
+            correct_name("misc_b_1battery", "Size D battery"),
+            "Size D Battery1"
+        );
+    }
+
+    #[test]
+    fn leaves_battery2_twin_uncorrected() {
+        // Load-bearing asymmetry: the Battery2 twin must keep the bare upstream
+        // name so the matcher's longest-name tie-break resolves OCR-mangled
+        // battery tiles to the observed Battery1 id. See NAME_CORRECTIONS comment.
+        assert_eq!(
+            correct_name("misc_1batterie_2", "Size D battery"),
+            "Size D battery"
+        );
     }
 
     #[test]
