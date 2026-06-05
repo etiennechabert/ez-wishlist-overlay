@@ -2286,7 +2286,7 @@
     },
     {
       "id": "misc_b_nail",
-      "name": "Nails",
+      "name": "Boxed Nails",
       "icon_path": "icons/misc_b_nail.png",
       "category": "misc",
       "subcategory": "Building",

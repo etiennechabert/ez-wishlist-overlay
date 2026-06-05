@@ -23,6 +23,12 @@ const NAME_CORRECTIONS: &[(&str, &str)] = &[
     // `misc_householdleaner`. In-game the tile reads just "Cleaner" (spray
     // bottle — see screenshots/box/box.shot1 and screenshots/stash/stash.shot07).
     ("misc_barcleaner", "Cleaner"),
+    // Upstream names this "Nails"; in-game the stash tile reads "Boxed Nails"
+    // (the OCR sees "Boxed" + "Nail(s)" — see screenshots/stash/stash.shot02-04),
+    // so the bare "Nails" name scored below threshold and the tile went
+    // unmatched. The hideout panel uses item_id (count read positionally), so
+    // the rename only affects the box-scan matcher + the display name.
+    ("misc_b_nail", "Boxed Nails"),
 ];
 
 /// Corrected display name for an upstream item: the [`NAME_CORRECTIONS`] entry
@@ -48,6 +54,7 @@ mod tests {
             correct_name("misc_barcleaner", "Household Cleaner"),
             "Cleaner"
         );
+        assert_eq!(correct_name("misc_b_nail", "Nails"), "Boxed Nails");
     }
 
     #[test]
