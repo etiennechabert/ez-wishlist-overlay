@@ -899,7 +899,7 @@ fn next_screenshot_path(paths: &PersistPaths) -> PathBuf {
 ///
 /// `box_scan` tags the job [`crate::ocr::JobKind::BoxScan`] and switches the
 /// dispatch to a *blocking* send, because every scroll capture is load-bearing
-/// — dropping one would leave a gap in the stitched list.
+/// — dropping one could leave a row out of the merged list.
 #[cfg(target_os = "windows")]
 #[allow(clippy::too_many_arguments)]
 fn capture_and_forward(
@@ -944,8 +944,8 @@ fn capture_and_forward(
             // Upgrade captures: best-effort `try_send` — if the worker is busy
             // we drop this shot (it only keeps the latest anyway) so the render
             // loop never blocks. Box-scan captures: blocking `send`, because a
-            // dropped scroll position would gap the stitched list. Safe to
-            // block here — box captures are deliberate and seconds apart.
+            // dropped scroll position could drop a row from the merged list. Safe
+            // to block here — box captures are deliberate and seconds apart.
             if box_scan {
                 let _ = ocr_tx.send(job);
             } else {

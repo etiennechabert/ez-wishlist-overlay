@@ -1,5 +1,5 @@
-//! Box-container screen OCR: read a scrollable grid of item tiles and stitch a
-//! series of overlapping scroll captures into one item list.
+//! Box-container screen OCR: read a scrollable grid of item tiles and merge a
+//! series of overlapping scroll captures into one item list by row uniqueness.
 //!
 //! A "box" container shows its contents on an in-game screen as a grid of tiles
 //! (icon on top, name label below, ~4 columns) plus a total-weight readout
@@ -7,22 +7,33 @@
 //! everything; the user takes several while scrolling down and we merge them.
 //!
 //! This module has two clearly separated halves:
-//!   - The **stitch core** ([`stitch`], [`tally`]) operates on reading-order
-//!     sequences of [`Tile`] (`Option<ItemId>`, `None` = a tile we couldn't
-//!     match). It is pure, platform-independent, and unit-tested on every
-//!     target — it carries no OCR or image types.
+//!   - The **merge core** ([`merge_capture`], [`rows_match`], [`tally_rows`])
+//!     operates on rows of [`Tile`] (`Option<ItemId>`, `None` = a tile we
+//!     couldn't match). It is pure, platform-independent, and unit-tested on
+//!     every target — it carries no OCR or image types.
 //!   - The **OCR geometry** ([`process_box_image`], Windows-only) turns one
-//!     screenshot into a `Vec<Tile>`. It lives behind `#[cfg(windows)]` like
-//!     the rest of [`crate::ocr`].
+//!     screenshot into rows of tiles ([`BoxReadResult::tile_rows`]). It lives
+//!     behind `#[cfg(windows)]` like the rest of [`crate::ocr`].
 //!
-//! ## Why sequence alignment, not per-item dedup
+//! ## Row-uniqueness merge, not position alignment
 //!
-//! Identical items appear as *separate* tiles (a box with two piezometers shows
-//! two tiles), so the owned count is the tile count. Consecutive scroll
-//! captures overlap, and the same item can legitimately repeat in non-adjacent
-//! rows — so we cannot dedup by item identity. Instead we align each new
-//! capture against the running `master` sequence by its overlapping run and
-//! append only the genuinely new tail. See [`stitch`].
+//! A scan accumulates the *unique rows* of the grid. Each new capture's rows are
+//! folded into the running set: a row already present (by the items composing
+//! it) is a re-seen overlap and dropped; a genuinely new row is appended. A row
+//! is identified by its **multiset of recognized items**, tolerant of one
+//! drifted/missing tile so a marginal OCR pass still matches ([`rows_match`]).
+//!
+//! This replaced an earlier position-rigid sequence stitch that required the new
+//! capture's prefix to align index-for-index with the running tail: one dropped
+//! or clipped boundary tile shifted every later tile and collapsed the match, so
+//! the 2nd+ capture almost always refused to merge. Row uniqueness is immune to
+//! scroll distance and clipped boundary rows — overlap is handled by dropping
+//! duplicate rows, not by finding a seam.
+//!
+//! The one cost: two *distinct* rows with the identical item composition (only
+//! possible when many duplicate stackable items fill ≥2 full identical rows)
+//! collapse to one and under-count. The desktop review step renders the captured
+//! rows so the user can see and drop a bad one before applying.
 
 use crate::data::{GameData, ItemId};
 use crate::ocr::match_item::match_item;
@@ -32,125 +43,101 @@ use std::collections::HashMap;
 /// the label to any `Item.name` (below the matcher's threshold).
 pub type Tile = Option<ItemId>;
 
-/// Minimum number of *concrete* agreements (positions where both sequences
-/// name the same known item) needed to trust an overlap. Below this we refuse
-/// to merge rather than risk silently doubling the box: an all-`None` or
-/// single-tile "overlap" is just as likely coincidence as a real seam. In
-/// practice this means consecutive captures must overlap by at least two
-/// recognized tiles — i.e. don't scroll a full page between shots.
-const MIN_OVERLAP_CONFIDENCE: usize = 2;
-
-/// What folding one new capture into the running `master` sequence did.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum StitchOutcome {
-    /// The capture was merged. `added` new tiles were appended (0 when the
-    /// capture was fully contained — a re-capture or scroll-up), after an
-    /// overlap of `overlap` tiles with the existing tail.
-    Merged { added: usize, overlap: usize },
-    /// No confident overlap with `master` — the capture was *not* merged. The
-    /// caller should ask the user to re-take it with more overlap (scroll up a
-    /// little). Merging here would either double-count or skip a gap.
-    NeedsRecapture,
+/// One captured grid row: the tiles composing it, left→right as read, plus a
+/// session-unique `id` so the desktop review step can address a row to drop.
+/// Rows are the unit of cross-capture dedup ([`merge_capture`]); see module docs.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ScanRow {
+    pub id: u64,
+    pub tiles: Vec<Tile>,
 }
 
-/// Element equality across two equal-length slices, tolerant of unrecognized
-/// tiles: a `None` on either side never *breaks* an alignment (it's a
-/// wildcard) but never *confirms* it either. Returns the number of concrete
-/// agreements (both `Some` and equal), or `None` if any position is a hard
-/// contradiction (both `Some`, different items).
-fn align(a: &[Tile], b: &[Tile]) -> Option<usize> {
-    debug_assert_eq!(a.len(), b.len());
-    let mut score = 0;
-    for (x, y) in a.iter().zip(b) {
-        if let (Some(p), Some(q)) = (x, y) {
-            if p == q {
-                score += 1;
-            } else {
-                return None;
-            }
+/// What folding one new capture's rows into the running unique-row set did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct CaptureMerge {
+    /// Rows genuinely new this capture (appended to the running set).
+    pub rows_added: usize,
+    /// Rows already present (overlap with an earlier capture) and skipped.
+    pub rows_duplicate: usize,
+}
+
+/// The recognized (`Some`) item ids in a row, in order — `None` tiles dropped.
+fn known_items(tiles: &[Tile]) -> Vec<&ItemId> {
+    tiles.iter().filter_map(|t| t.as_ref()).collect()
+}
+
+/// Multiset-intersection size of two rows' recognized items: how many items they
+/// share, counting multiplicity (two `nail`s on each side count as two).
+fn shared_items(a: &[Tile], b: &[Tile]) -> usize {
+    let mut remaining = known_items(b);
+    let mut shared = 0;
+    for id in known_items(a) {
+        if let Some(pos) = remaining.iter().position(|x| *x == id) {
+            remaining.swap_remove(pos);
+            shared += 1;
         }
     }
-    Some(score)
+    shared
 }
 
-fn count_known(tiles: &[Tile]) -> usize {
-    tiles.iter().filter(|t| t.is_some()).count()
-}
-
-/// Fold a new capture's reading-order tiles into the accumulating `master`
-/// sequence, returning what happened.
+/// Do two captured rows describe the *same* physical grid row?
 ///
-/// Algorithm (see module docs for the rationale):
-///   1. Empty `master` → seed it with `new`.
-///   2. **Scroll-down (primary):** find the overlap `k` where the suffix of
-///      `master` aligns with the prefix of `new` ([`align`]). Among all `k`
-///      with no hard contradiction, pick the one with the most concrete
-///      agreements (ties → larger `k`, which appends fewer tiles). If that best
-///      overlap clears [`MIN_OVERLAP_CONFIDENCE`], append `new[k..]`.
-///   3. **Scroll-up / re-capture (fallback):** otherwise, if `new` sits
-///      entirely inside `master` (a contiguous run that aligns), it's a view we
-///      already have → no-op.
-///   4. Otherwise there's no trustworthy seam → [`StitchOutcome::NeedsRecapture`].
-pub fn stitch(master: &mut Vec<Tile>, new: &[Tile]) -> StitchOutcome {
-    if new.is_empty() {
-        return StitchOutcome::Merged {
-            added: 0,
-            overlap: 0,
-        };
+/// Identity is the **multiset of recognized items** — order-independent (shear
+/// can reorder a row) and position-independent (a dropped tile doesn't shift a
+/// seam). "One drift, ≥2 must match": for a row of ≥3 recognized items we
+/// tolerate a single drifted or missing tile (so ≥2 still agree); a 1–2 item row
+/// carries too little signal, so it must match exactly. An all-`None` row never
+/// matches — but [`read_tiles`] drops those as chrome before they reach here.
+pub fn rows_match(a: &[Tile], b: &[Tile]) -> bool {
+    let la = known_items(a).len();
+    let lb = known_items(b).len();
+    let maxlen = la.max(lb);
+    if maxlen == 0 {
+        return false;
     }
-    if master.is_empty() {
-        master.extend_from_slice(new);
-        return StitchOutcome::Merged {
-            added: new.len(),
-            overlap: 0,
-        };
+    let shared = shared_items(a, b);
+    if maxlen >= 3 {
+        // Tolerate one drift/missing; ≥2 agreements is implied (maxlen − 1 ≥ 2).
+        shared + 1 >= maxlen
+    } else {
+        // 1–2 item rows: require an exact composition (same length, all shared).
+        la == lb && shared == maxlen
     }
-
-    // Primary: suffix(master, k) vs prefix(new, k). Iterate k ascending so a
-    // score tie keeps the larger k (more overlap, fewer tiles appended).
-    let max_k = master.len().min(new.len());
-    let mut best: Option<(usize, usize)> = None; // (k, score)
-    for k in 1..=max_k {
-        if let Some(score) = align(&master[master.len() - k..], &new[..k]) {
-            best = match best {
-                Some((_, best_score)) if best_score > score => best,
-                _ => Some((k, score)),
-            };
-        }
-    }
-    if let Some((k, score)) = best {
-        if score >= MIN_OVERLAP_CONFIDENCE {
-            let added = new.len() - k;
-            master.extend_from_slice(&new[k..]);
-            return StitchOutcome::Merged { added, overlap: k };
-        }
-    }
-
-    // Fallback: is `new` a contiguous run already inside `master`? (scroll-up
-    // or a re-capture of an earlier view). Require either MIN_OVERLAP_CONFIDENCE
-    // concrete agreements or — for a short `new` with fewer known tiles — that
-    // every known tile lines up, so a mostly-unknown capture can't no-op-match
-    // by coincidence.
-    if new.len() <= master.len() {
-        let known = count_known(new);
-        for off in 0..=(master.len() - new.len()) {
-            if let Some(score) = align(&master[off..off + new.len()], new) {
-                if score >= MIN_OVERLAP_CONFIDENCE || (known > 0 && score == known) {
-                    return StitchOutcome::Merged {
-                        added: 0,
-                        overlap: new.len(),
-                    };
-                }
-            }
-        }
-    }
-
-    StitchOutcome::NeedsRecapture
 }
 
-/// Count each recognized item across the stitched sequence; report how many
-/// tiles stayed unrecognized (surfaced to the user, never written to a
-/// container).
+/// Fold one capture's rows into the running unique-row set `master`.
+///
+/// Each new row that [`rows_match`]es a row already in `master` is a re-seen
+/// overlap and dropped; the rest are appended, each assigned a fresh id from
+/// `next_id`. Returns how many rows were new vs. duplicate. Order-independent and
+/// idempotent: re-capturing a view we already have adds nothing. Two *distinct*
+/// rows with identical compositions collapse to one (the documented under-count
+/// cost of row uniqueness — surfaced for manual fixup in the desktop review).
+pub fn merge_capture(
+    master: &mut Vec<ScanRow>,
+    next_id: &mut u64,
+    new_rows: &[Vec<Tile>],
+) -> CaptureMerge {
+    let mut out = CaptureMerge::default();
+    for row in new_rows {
+        if master.iter().any(|m| rows_match(&m.tiles, row)) {
+            out.rows_duplicate += 1;
+        } else {
+            master.push(ScanRow {
+                id: *next_id,
+                tiles: row.clone(),
+            });
+            *next_id += 1;
+            out.rows_added += 1;
+        }
+    }
+    out
+}
+
+/// Count each recognized item across a flat tile sequence; report how many tiles
+/// stayed unrecognized (surfaced to the user, never written to a container). Used
+/// for the per-shot "this capture" tally; the running scan tally goes through
+/// [`tally_rows`].
 pub fn tally(master: &[Tile]) -> (HashMap<ItemId, u32>, usize) {
     let mut counts: HashMap<ItemId, u32> = HashMap::new();
     let mut unrecognized = 0usize;
@@ -158,6 +145,24 @@ pub fn tally(master: &[Tile]) -> (HashMap<ItemId, u32>, usize) {
         match tile {
             Some(id) => *counts.entry(id.clone()).or_insert(0) += 1,
             None => unrecognized += 1,
+        }
+    }
+    (counts, unrecognized)
+}
+
+/// Count each recognized item across a scan's unique rows; report how many tiles
+/// stayed unrecognized. This is the running tally the worker publishes and the
+/// desktop review applies — it recomputes from whatever rows survive (so dropping
+/// a row in review just drops its items).
+pub fn tally_rows(rows: &[ScanRow]) -> (HashMap<ItemId, u32>, usize) {
+    let mut counts: HashMap<ItemId, u32> = HashMap::new();
+    let mut unrecognized = 0usize;
+    for row in rows {
+        for tile in &row.tiles {
+            match tile {
+                Some(id) => *counts.entry(id.clone()).or_insert(0) += 1,
+                None => unrecognized += 1,
+            }
         }
     }
     (counts, unrecognized)
@@ -215,7 +220,14 @@ impl LabelBox {
 /// ([`format_capture_dump`]) so a failed scan is debuggable in-app.
 #[derive(Clone, Debug, Default)]
 pub struct BoxReadResult {
+    /// Every `Names`-row tile flattened in reading order — the per-shot "this
+    /// capture" tally and the `ocr_debug` dump. The cross-capture merge uses
+    /// [`tile_rows`](Self::tile_rows) instead.
     pub tiles: Vec<Tile>,
+    /// One entry per `Names` sub-row: the tiles composing that grid row, in
+    /// reading order. This is the unit fed to [`merge_capture`] — the merge
+    /// dedups whole rows, never individual tiles.
+    pub tile_rows: Vec<Vec<Tile>>,
     pub observed_weight: Option<f32>,
     /// Estimated perspective-shear slope used to de-tilt rows ([`shear_slope`]).
     pub slope: f32,
@@ -536,6 +548,7 @@ pub fn read_tiles(boxes: &[LabelBox], img_h: f32, data: &GameData) -> BoxReadRes
     let blocks = cluster_rows(&refs, slope, med_h * 4.0);
 
     let mut tiles: Vec<Tile> = Vec::new();
+    let mut tile_rows: Vec<Vec<Tile>> = Vec::new();
     let mut rows: Vec<RowReport> = Vec::new();
     for block in &blocks {
         for sub in split_subrows(block, slope, med_h) {
@@ -573,13 +586,16 @@ pub fn read_tiles(boxes: &[LabelBox], img_h: f32, data: &GameData) -> BoxReadRes
                 cells: resolved.clone(),
             });
             if kind == RowKind::Names {
-                tiles.extend(resolved.into_iter().map(|(_, m)| m));
+                let row_tiles: Vec<Tile> = resolved.into_iter().map(|(_, m)| m).collect();
+                tiles.extend(row_tiles.iter().cloned());
+                tile_rows.push(row_tiles);
             }
         }
     }
 
     BoxReadResult {
         tiles,
+        tile_rows,
         observed_weight,
         slope,
         rows,
@@ -604,7 +620,7 @@ fn join_text(tile: &[&LabelBox]) -> String {
 #[allow(dead_code)]
 pub fn format_capture_dump(
     read: &BoxReadResult,
-    outcome: StitchOutcome,
+    outcome: CaptureMerge,
     tally: &HashMap<ItemId, u32>,
     unrecognized: usize,
     captures: u32,
@@ -621,21 +637,17 @@ pub fn format_capture_dump(
             let _ = writeln!(s, "observed weight : —");
         }
     }
-    match outcome {
-        StitchOutcome::Merged { added, overlap } => {
-            let _ = writeln!(
-                s,
-                "stitch          : merged (overlap {overlap}, added {added})"
-            );
-        }
-        StitchOutcome::NeedsRecapture => {
-            let _ = writeln!(
-                s,
-                "stitch          : NEEDS RECAPTURE (no confident overlap)"
-            );
-        }
-    }
-    let _ = writeln!(s, "tiles this shot : {}", read.tiles.len());
+    let _ = writeln!(
+        s,
+        "merge           : +{} new row(s), {} duplicate row(s)",
+        outcome.rows_added, outcome.rows_duplicate
+    );
+    let _ = writeln!(
+        s,
+        "this shot       : {} row(s), {} tile(s)",
+        read.tile_rows.len(),
+        read.tiles.len()
+    );
     let _ = writeln!(s);
 
     let _ = writeln!(s, "=== ROWS (reading order, de-sheared) ===");
@@ -713,16 +725,13 @@ pub fn process_box_image(
 pub(crate) mod tests {
     use super::*;
 
-    /// Build a tile sequence from a string spec: each whitespace-separated
-    /// token is an item id, or `_` for an unrecognized (`None`) tile.
+    /// Build one row's tiles from a string spec: each whitespace-separated token
+    /// is an item id, or `_` for an unrecognized (`None`) tile. Doubles as a flat
+    /// tile sequence for the `tally` test.
     fn seq(spec: &str) -> Vec<Tile> {
         spec.split_whitespace()
             .map(|t| if t == "_" { None } else { Some(t.to_string()) })
             .collect()
-    }
-
-    fn count(master: &[Tile], id: &str) -> u32 {
-        *tally(master).0.get(id).unwrap_or(&0)
     }
 
     // ===================================================================
@@ -730,18 +739,18 @@ pub(crate) mod tests {
     //
     // Real box-screen captures keep getting flushed from the debug dir, so we
     // freeze each one's Windows.Media.Ocr output (the word boxes) to JSON next
-    // to its PNG. `read_tiles` + `stitch` are pure and platform-independent, so
-    // these fixtures let us regression-test the whole post-OCR pipeline on every
+    // to its PNG. `read_tiles` + `merge_capture` are pure and platform-independent,
+    // so these fixtures let us regression-test the whole post-OCR pipeline on every
     // target (incl. Linux CI) without re-running the Windows-only, slightly
     // nondeterministic engine. The PNGs are the ground truth; the `.boxes.json`
     // are regenerated from them by `regen_box_fixtures` (Windows, --ignored).
     //
     // Expected results live in `<scan>.label.txt` (`<item_id>  <count>` lines).
-    // The `box` scan now passes (issue #109). The `stash` scan stays
-    // `#[ignore]`d: its 10 shots can't be stitched into one sequence —
-    // consecutive shots past shot 04 don't share a row (scroll gaps) and the OCR
-    // drops whole tiles, so the overlap alignment can't bridge them. See
-    // `stash_scan_matches_label` and `screenshots/CLAUDE.md`.
+    // The `box` scan passes. The `stash` scan may stay `#[ignore]`d: row-uniqueness
+    // is immune to the dropped-tile desync that blocked the old position stitch,
+    // but its 10 shots have real *scroll gaps* (rows that appear in no shot at all)
+    // past shot 04 — those rows are simply missing data and under-count, which no
+    // merge can recover. See `stash_scan_matches_label` and `screenshots/CLAUDE.md`.
     // ===================================================================
 
     #[derive(serde::Serialize, serde::Deserialize)]
@@ -801,17 +810,18 @@ pub(crate) mod tests {
     }
 
     /// Run every shot of a scan (frozen-OCR fixtures, in scroll order) through
-    /// `read_tiles` + `stitch` and return the final tally — what would be
+    /// `read_tiles` + `merge_capture` and return the final tally — what would be
     /// written into the container.
     pub(crate) fn run_box_scan(category: &str, shots: &[String]) -> HashMap<ItemId, u32> {
         let data = crate::assets::load_game_data().expect("embedded data.json");
-        let mut master: Vec<Tile> = Vec::new();
+        let mut master: Vec<ScanRow> = Vec::new();
+        let mut next_id = 0u64;
         for shot in shots {
             let fx = BoxFixture::load(category, shot);
             let res = read_tiles(&fx.label_boxes(), fx.img_h, &data);
-            stitch(&mut master, &res.tiles);
+            merge_capture(&mut master, &mut next_id, &res.tile_rows);
         }
-        tally(&master).0
+        tally_rows(&master).0
     }
 
     /// Parse a `<scan>.label.txt` ground-truth tally (`<item_id>  <count>`).
@@ -995,9 +1005,8 @@ pub(crate) mod tests {
 
     /// `box` scan — the world container tablet (3 overlapping scroll shots) →
     /// its full 22-tile contents. The de-sheared, layout-aware `read_tiles`
-    /// produces a stable reading order across the three shots, so `stitch`
-    /// aligns the overlaps and the tally matches `box.label.txt` exactly
-    /// (issue #109).
+    /// produces stable rows across the three shots, so `merge_capture` dedups the
+    /// overlapping rows and the tally matches `box.label.txt` exactly (issue #109).
     #[test]
     fn box_scan_matches_label() {
         let shots: Vec<String> = (0..3).map(|i| format!("box.shot{i}.boxes.json")).collect();
@@ -1010,22 +1019,19 @@ pub(crate) mod tests {
     /// `stash` scan — the Johnny's-Service submit terminal (10 scroll shots) →
     /// its full contents.
     ///
-    /// STILL `#[ignore]`d after issue #109 — but the cause is the *captures*, not
-    /// `read_tiles` (the subtitle-as-tab-strip bug that dropped the whole grid is
-    /// fixed; each shot now reads its 15-tile grid). Two capture defects defeat
-    /// the sequence stitch and can't be papered over in code:
-    ///   - **Scroll gaps:** shots 00–04 each share a full row (a clean scroll),
-    ///     but 04→05→06→07→08→09 share *no* row — rows fall between shots, so no
-    ///     overlap exists for `stitch` to anchor on.
-    ///   - **Dropped tiles:** the OCR omits whole labels (e.g. shot02 is missing
-    ///     "Tape"; "Wire Cutter"→"Cutter") which shifts later columns and breaks
-    ///     the rigid position-wise overlap alignment even within the 00–04 run.
+    /// Row-uniqueness fixed one of the two old blockers: the OCR dropping whole
+    /// labels (shot02 missing "Tape"; "Wire Cutter"→"Cutter") used to shift later
+    /// columns and break the rigid position stitch — but the row merge tolerates
+    /// one drifted/missing tile, so those rows now dedup correctly.
     ///
-    /// Un-ignoring needs better captures (every row overlapping, lossless) and/or
-    /// a gap-tolerant stitch. `stash.label.txt` is kept as a verified reference
-    /// of the contents; see `screenshots/CLAUDE.md`. The `eval_report_json`
-    /// diagnostic still scores this scan's partial tile accuracy (it's a graded
-    /// signal, not a gate).
+    /// What remains is genuine **scroll gaps**: shots 00–04 share a full row each
+    /// (clean scroll), but 04→05→06→07→08→09 share *no* row — some grid rows fall
+    /// between shots and appear in no capture at all. Those rows are missing data;
+    /// no merge can invent them, so the tally under-counts and this stays
+    /// `#[ignore]`d. Un-ignoring needs better captures (no row skipped between
+    /// shots). `stash.label.txt` is kept as a verified reference of the contents;
+    /// see `screenshots/CLAUDE.md`. The `eval_report_json` diagnostic still scores
+    /// this scan's partial tile accuracy (a graded signal, not a gate).
     #[test]
     #[ignore]
     fn stash_scan_matches_label() {
@@ -1038,152 +1044,132 @@ pub(crate) mod tests {
         );
     }
 
-    #[test]
-    fn seeds_on_first_capture() {
+    /// Merge a series of captures (each a list of rows) and return the final
+    /// unique-row set. `seq` builds one row's tiles from a token spec.
+    fn merge_all(captures: &[Vec<Vec<Tile>>]) -> Vec<ScanRow> {
         let mut master = Vec::new();
-        let out = stitch(&mut master, &seq("a b c d"));
-        assert_eq!(
-            out,
-            StitchOutcome::Merged {
-                added: 4,
-                overlap: 0
-            }
-        );
-        assert_eq!(master, seq("a b c d"));
+        let mut next = 0u64;
+        for cap in captures {
+            merge_capture(&mut master, &mut next, cap);
+        }
+        master
     }
 
     #[test]
-    fn appends_clean_overlap() {
-        let mut master = seq("a b c d");
-        // Scrolled down: shots share [c d], reveal [e f].
-        let out = stitch(&mut master, &seq("c d e f"));
-        assert_eq!(
-            out,
-            StitchOutcome::Merged {
-                added: 2,
-                overlap: 2
-            }
-        );
-        assert_eq!(master, seq("a b c d e f"));
+    fn rows_match_identical() {
+        assert!(rows_match(&seq("a b c"), &seq("a b c")));
     }
 
     #[test]
-    fn keeps_legit_duplicate_rows() {
-        // Two real piezometers in different rows must NOT collapse.
-        let mut master = seq("a piezometer b c");
-        let out = stitch(&mut master, &seq("b c piezometer d"));
-        assert_eq!(
-            out,
-            StitchOutcome::Merged {
-                added: 2,
-                overlap: 2
-            }
-        );
-        assert_eq!(master, seq("a piezometer b c piezometer d"));
-        assert_eq!(count(&master, "piezometer"), 2);
+    fn rows_match_tolerates_one_drift_on_big_rows() {
+        // ≥3-item row: one drifted tile (c→x) or one missing tile (→_) still
+        // identifies the same physical row.
+        assert!(rows_match(&seq("a b c"), &seq("a b x")));
+        assert!(rows_match(&seq("a b c"), &seq("a b _")));
     }
 
     #[test]
-    fn unknown_in_overlap_does_not_break_alignment() {
-        // One tile failed OCR (`_`) in the overlap region of the new capture;
-        // the concrete agreements on either side still anchor the seam.
-        let mut master = seq("a b c d");
-        let out = stitch(&mut master, &seq("c _ e f"));
-        // Overlap k=2: c==c (concrete), d vs _ (wildcard). Score 1 < MIN(2)...
-        // so this specific seam is too weak — needs more overlap.
-        assert_eq!(out, StitchOutcome::NeedsRecapture);
-
-        // With a third shared tile the seam is confident despite the unknown.
-        let mut master = seq("a b c d e");
-        let out = stitch(&mut master, &seq("c _ e f g"));
-        assert_eq!(
-            out,
-            StitchOutcome::Merged {
-                added: 2,
-                overlap: 3
-            }
-        );
-        assert_eq!(master, seq("a b c d e f g"));
+    fn rows_match_rejects_two_drifts() {
+        // Two tiles differ → too far apart to be the same row.
+        assert!(!rows_match(&seq("a b c"), &seq("a x y")));
     }
 
     #[test]
-    fn refuses_no_overlap() {
-        // Scrolled too far: no shared tiles. Merging would either gap or
-        // double-count, so refuse and ask for a re-shot.
-        let mut master = seq("a b c d");
-        let out = stitch(&mut master, &seq("e f g h"));
-        assert_eq!(out, StitchOutcome::NeedsRecapture);
-        assert_eq!(master, seq("a b c d")); // untouched
+    fn rows_match_short_rows_need_exact() {
+        // 1–2 item rows carry too little signal to tolerate a drift: exact only.
+        assert!(rows_match(&seq("a b"), &seq("a b")));
+        assert!(!rows_match(&seq("a b"), &seq("a x")));
+        assert!(rows_match(&seq("a"), &seq("a")));
+        assert!(!rows_match(&seq("a"), &seq("b")));
+        // Different known-lengths are different rows.
+        assert!(!rows_match(&seq("a b"), &seq("a")));
     }
 
     #[test]
-    fn refuses_single_tile_overlap() {
-        // Only one concrete agreement at the seam — too weak to trust.
-        let mut master = seq("a b c d");
-        let out = stitch(&mut master, &seq("d e f g"));
-        assert_eq!(out, StitchOutcome::NeedsRecapture);
-        assert_eq!(master, seq("a b c d"));
+    fn rows_match_ignores_order_and_unknowns() {
+        // Shear can reorder a row; an unrecognized tile neither confirms nor
+        // breaks a match (it's dropped from the comparison).
+        assert!(rows_match(&seq("a b c"), &seq("c b a")));
+        assert!(rows_match(&seq("a b c _"), &seq("a b c")));
     }
 
     #[test]
-    fn rejects_contradictory_overlap() {
-        // A k with a hard contradiction is discarded; no other k is confident.
-        let mut master = seq("a b c d");
-        let out = stitch(&mut master, &seq("x y c d")); // tail [c d] but offset
-                                                        // k=2 -> suffix [c d] vs prefix [x y]: hard mismatch, rejected.
-                                                        // k=4 -> [a b c d] vs [x y c d]: a vs x mismatch, rejected.
-        assert_eq!(out, StitchOutcome::NeedsRecapture);
+    fn rows_match_all_unknown_never_matches() {
+        assert!(!rows_match(&seq("_ _"), &seq("_ _")));
     }
 
     #[test]
-    fn scroll_up_recapture_is_noop() {
-        // `new` is a contiguous interior run we already have.
-        let mut master = seq("a b c d e f");
-        let out = stitch(&mut master, &seq("b c d"));
-        assert_eq!(
-            out,
-            StitchOutcome::Merged {
-                added: 0,
-                overlap: 3
-            }
-        );
-        assert_eq!(master, seq("a b c d e f")); // unchanged
-    }
-
-    #[test]
-    fn exact_recapture_of_tail_appends_nothing() {
-        let mut master = seq("a b c d");
-        let out = stitch(&mut master, &seq("c d"));
-        assert_eq!(
-            out,
-            StitchOutcome::Merged {
-                added: 0,
-                overlap: 2
-            }
-        );
-        assert_eq!(master, seq("a b c d"));
-    }
-
-    #[test]
-    fn three_capture_scroll_sequence() {
-        let mut master = Vec::new();
-        assert!(matches!(
-            stitch(&mut master, &seq("a b c d")),
-            StitchOutcome::Merged { .. }
-        ));
-        assert!(matches!(
-            stitch(&mut master, &seq("c d e f")),
-            StitchOutcome::Merged { .. }
-        ));
-        assert!(matches!(
-            stitch(&mut master, &seq("e f g h")),
-            StitchOutcome::Merged { .. }
-        ));
-        assert_eq!(master, seq("a b c d e f g h"));
-        let (counts, unrecognized) = tally(&master);
+    fn seeds_then_dedups_overlap() {
+        // Capture 1: [a b c],[d e f]. Capture 2 overlaps on [d e f], reveals [g h i].
+        let master = merge_all(&[
+            vec![seq("a b c"), seq("d e f")],
+            vec![seq("d e f"), seq("g h i")],
+        ]);
+        assert_eq!(master.len(), 3); // [d e f] deduped, not appended twice
+        let (counts, unrecognized) = tally_rows(&master);
         assert_eq!(unrecognized, 0);
-        assert_eq!(counts.len(), 8);
+        assert_eq!(counts.len(), 9);
         assert!(counts.values().all(|&c| c == 1));
+    }
+
+    #[test]
+    fn merge_reports_added_and_duplicate() {
+        let mut master = Vec::new();
+        let mut next = 0u64;
+        let m1 = merge_capture(&mut master, &mut next, &[seq("a b c"), seq("d e f")]);
+        assert_eq!(
+            m1,
+            CaptureMerge {
+                rows_added: 2,
+                rows_duplicate: 0
+            }
+        );
+        let m2 = merge_capture(&mut master, &mut next, &[seq("d e f"), seq("g h i")]);
+        assert_eq!(
+            m2,
+            CaptureMerge {
+                rows_added: 1,
+                rows_duplicate: 1
+            }
+        );
+    }
+
+    #[test]
+    fn dedups_overlap_despite_one_drift() {
+        // The shared row re-reads with one tile drifted (f→x) — still recognized
+        // as the same row, so it isn't double-counted.
+        let master = merge_all(&[
+            vec![seq("a b c"), seq("d e f")],
+            vec![seq("d e x"), seq("g h i")],
+        ]);
+        assert_eq!(master.len(), 3);
+    }
+
+    #[test]
+    fn keeps_distinct_rows_sharing_one_item() {
+        // Two rows that each hold a piezometer but are otherwise different are
+        // distinct rows — the duplicate item is NOT collapsed (it shares only one
+        // of three items, below the one-drift threshold).
+        let master = merge_all(&[vec![seq("a piezometer b"), seq("c piezometer d")]]);
+        assert_eq!(master.len(), 2);
+        let (counts, _) = tally_rows(&master);
+        assert_eq!(counts.get("piezometer"), Some(&2));
+    }
+
+    #[test]
+    fn collapses_identical_rows_documented_undercount() {
+        // Two DISTINCT physical rows with the same composition collapse to one —
+        // the known under-count cost of row uniqueness, surfaced for manual fixup
+        // in the desktop review step.
+        let master = merge_all(&[vec![seq("nail nail nail"), seq("nail nail nail")]]);
+        assert_eq!(master.len(), 1);
+    }
+
+    #[test]
+    fn ids_are_unique_and_increasing() {
+        let master = merge_all(&[vec![seq("a b c"), seq("d e f")], vec![seq("g h i")]]);
+        let ids: Vec<u64> = master.iter().map(|r| r.id).collect();
+        assert_eq!(ids, vec![0, 1, 2]);
     }
 
     #[test]
@@ -1349,12 +1335,13 @@ pub(crate) mod tests {
         ];
         let res = read_tiles(&boxes, 500.0, &data);
         let mut master = Vec::new();
-        let outcome = stitch(&mut master, &res.tiles);
-        let (counts, unrecognized) = tally(&master);
-        let dump = format_capture_dump(&res, outcome, &counts, unrecognized, 1);
+        let mut next_id = 0u64;
+        let merge = merge_capture(&mut master, &mut next_id, &res.tile_rows);
+        let (counts, unrecognized) = tally_rows(&master);
+        let dump = format_capture_dump(&res, merge, &counts, unrecognized, 1);
         assert!(dump.contains("BOX-SCAN CAPTURE #1"));
         assert!(dump.contains("shear slope"));
-        assert!(dump.contains("merged")); // first capture seeds → Merged
+        assert!(dump.contains("new row")); // merge summary: "+N new row(s)"
         assert!(dump.contains("uvlight")); // resolved tile shown in the tally
         assert!(dump.contains("(skipped: tab strip / subtitles)"));
     }

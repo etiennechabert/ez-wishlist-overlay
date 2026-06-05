@@ -1924,7 +1924,7 @@ mod fixture_tests {
                 &stash_shots,
                 "stash.label.txt",
             )],
-            Some("stitch-blocked captures (scroll gaps + dropped OCR tiles); informational, not gated"),
+            Some("captures have real scroll gaps (rows in no shot); informational, not gated"),
         );
 
         let report = Report {

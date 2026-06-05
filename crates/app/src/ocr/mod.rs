@@ -31,9 +31,10 @@ pub mod debug_dump;
 pub mod engine;
 #[cfg(target_os = "windows")]
 pub mod match_upgrade;
-// Box-container screen OCR + scroll-stitch. The stitch core (`stitch`/`tally`)
-// is platform-independent and unit-tested on every target; the OCR geometry
-// (`process_box_image`) is Windows-gated inside the module.
+// Box-container screen OCR + row-uniqueness merge. The merge core
+// (`merge_capture`/`rows_match`/`tally_rows`) is platform-independent and
+// unit-tested on every target; the OCR geometry (`process_box_image`) is
+// Windows-gated inside the module.
 pub mod box_scan;
 // Tile-label → `Item.id` fuzzy matcher (sibling of `match_upgrade`), kept
 // platform-independent so it's CI-testable.
@@ -61,7 +62,7 @@ pub enum JobKind {
     UpgradePanel,
     /// A box container's contents screen. Every capture is a distinct scroll
     /// position, so the worker processes them all in order (no stale-drain) and
-    /// stitches them into the active box-scan session.
+    /// merges their rows into the active box-scan session.
     BoxScan,
 }
 
@@ -203,12 +204,10 @@ pub enum BoxCommand {
 /// Outcome of the most recent box-scan capture, for the live preview.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BoxScanStatus {
-    /// Merged cleanly (or a no-op re-capture / scroll-up).
+    /// Rows were merged into the running set (possibly all duplicates — a
+    /// re-capture of a view we already have, which is fine).
     Ok,
-    /// No confident overlap with what we've scanned so far — the user should
-    /// re-take this shot with more overlap (scroll up a little).
-    NeedsRecapture,
-    /// The capture recognized no item tiles (not on the box screen, or OCR
+    /// The capture recognized no item rows (not on the box screen, or OCR
     /// missed everything).
     NoTiles,
 }
@@ -232,11 +231,13 @@ pub struct BoxScanUpdate {
     pub last_tally: std::collections::HashMap<crate::data::ItemId, u32>,
     /// Unrecognized tiles in *this* shot alone.
     pub last_unrecognized: usize,
-    /// Tiles this shot appended to the master sequence
-    /// ([`box_scan::StitchOutcome::Merged`]'s `added`; 0 on a re-capture,
-    /// `NeedsRecapture`, or `NoTiles`).
-    pub last_added: usize,
-    /// Tiles this shot overlapped with the existing tail (`Merged`'s `overlap`;
-    /// 0 otherwise).
-    pub last_overlap: usize,
+    /// Rows this shot added to the running set
+    /// ([`box_scan::CaptureMerge::rows_added`]; 0 when every row was already seen).
+    pub last_rows_added: usize,
+    /// Rows this shot overlapped (already present) and skipped
+    /// ([`box_scan::CaptureMerge::rows_duplicate`]).
+    pub last_rows_duplicate: usize,
+    /// The scan's current unique rows, in first-capture order. The desktop
+    /// renders these "as captured" and lets the user drop one before applying.
+    pub rows: Vec<box_scan::ScanRow>,
 }
