@@ -2,10 +2,12 @@
 //!
 //! Sibling of [`crate::ocr::match_upgrade`], but for the *box container*
 //! screen: each tile shows an item icon with its name below. We OCR the label,
-//! normalize it, and pick the closest `Item.name` by normalized Levenshtein
-//! distance — tolerating OCR character error, never tolerating dataset drift
-//! (no synonym shims / id fallbacks; the in-game label is canonical and equals
-//! `Item.name`).
+//! normalize it, and pick the closest `Item.name` by a **confusion-aware**
+//! normalized edit distance — tolerating the character errors the game's pixel
+//! font routinely produces (a `1` read as `l`, a `D` as `O`, an `o` as `0`),
+//! never tolerating dataset drift (no synonym shims / id fallbacks; the in-game
+//! label is canonical and equals `Item.name`). The confusion handling is a
+//! general per-glyph cost, not a per-item alias.
 //!
 //! Unlike `match_upgrade`, the caller has already isolated one tile's label, so
 //! we compare the whole label against each candidate rather than sliding a
@@ -19,7 +21,6 @@
 #![allow(dead_code)]
 
 use crate::data::{GameData, ItemId};
-use strsim::normalized_levenshtein;
 
 /// Minimum normalized-Levenshtein score (1.0 = identical) for a tile label to
 /// resolve to an item. Starts level with [`crate::ocr::match_upgrade`]'s 0.80;
@@ -28,6 +29,77 @@ use strsim::normalized_levenshtein;
 /// Tune against real box-screen captures — if labels truncate in narrow tiles
 /// we may need a prefix-aware variant rather than a looser threshold.
 const MIN_SCORE: f64 = 0.80;
+
+/// OCR glyph confusions for the game's pixel font, as unordered `(a, b)` pairs
+/// over the normalized alphabet (lowercase letters + digits). A substitution
+/// between a confusable pair costs [`CONFUSE_COST`] instead of a full `1.0`, so
+/// a label whose only error is a glyph the OCR routinely mistakes still resolves
+/// — without loosening [`MIN_SCORE`] for genuine mismatches. Observed in real
+/// captures: `1`↔`l` ("batteryl" for "Battery1"), `d`↔`o` ("co" for "CD"),
+/// `o`↔`0` ("piez0meter"), `i`↔`l` ("wlre" for "wire"). General per-glyph cost,
+/// NOT a per-item synonym.
+const CONFUSABLE: &[(char, char)] = &[
+    ('o', '0'),
+    ('o', 'd'),
+    ('d', '0'),
+    ('l', '1'),
+    ('i', '1'),
+    ('i', 'l'),
+    ('s', '5'),
+    ('b', '8'),
+    ('z', '2'),
+    ('g', '9'),
+];
+
+/// Substitution cost for a [`CONFUSABLE`] pair (vs `1.0` for an unrelated
+/// substitution). `0.3` lets a *single* confusion clear [`MIN_SCORE`] even on a
+/// two-character name (`1 − 0.3/2 = 0.85`), while two unrelated errors on a
+/// short name still fall short.
+const CONFUSE_COST: f64 = 0.3;
+
+fn confusable(a: char, b: char) -> bool {
+    CONFUSABLE
+        .iter()
+        .any(|&(x, y)| (a == x && b == y) || (a == y && b == x))
+}
+
+/// Weighted Levenshtein distance where a [`CONFUSABLE`] substitution costs
+/// [`CONFUSE_COST`]; every other edit (substitution, insert, delete) costs `1.0`.
+fn weighted_levenshtein(a: &[char], b: &[char]) -> f64 {
+    let mut prev: Vec<f64> = (0..=b.len()).map(|j| j as f64).collect();
+    let mut cur = vec![0.0; b.len() + 1];
+    for (i, &ca) in a.iter().enumerate() {
+        cur[0] = (i + 1) as f64;
+        for (j, &cb) in b.iter().enumerate() {
+            let sub_cost = if ca == cb {
+                0.0
+            } else if confusable(ca, cb) {
+                CONFUSE_COST
+            } else {
+                1.0
+            };
+            cur[j + 1] = (prev[j] + sub_cost)
+                .min(prev[j + 1] + 1.0)
+                .min(cur[j] + 1.0);
+        }
+        std::mem::swap(&mut prev, &mut cur);
+    }
+    prev[b.len()]
+}
+
+/// Confusion-aware similarity in `[0, 1]` (1.0 = identical). Mirrors
+/// `strsim::normalized_levenshtein` (distance ÷ longer length) but with the
+/// confusion-aware cost above, so [`MIN_SCORE`] keeps its meaning for clean
+/// matches while a single font-confusion error no longer rejects a short name.
+fn confusion_aware_score(a: &str, b: &str) -> f64 {
+    let a: Vec<char> = a.chars().collect();
+    let b: Vec<char> = b.chars().collect();
+    let maxlen = a.len().max(b.len());
+    if maxlen == 0 {
+        return 1.0;
+    }
+    1.0 - weighted_levenshtein(&a, &b) / maxlen as f64
+}
 
 /// Resolve one tile's OCR'd label `tokens` to an `Item.id`.
 ///
@@ -48,7 +120,7 @@ pub fn match_item(data: &GameData, tokens: &[&str]) -> Option<ItemId> {
         if cand.is_empty() {
             continue;
         }
-        let score = normalized_levenshtein(&label, &cand);
+        let score = confusion_aware_score(&label, &cand);
         if score < MIN_SCORE {
             continue;
         }
@@ -202,5 +274,34 @@ mod tests {
             match_item(&data, &["Oil", "can."]).as_deref(),
             Some("oilcan")
         );
+    }
+
+    #[test]
+    fn resolves_confusable_short_name() {
+        // "CD" misread as "CO" (d↔o): on a 2-char name one confusion is 50% of
+        // the string, yet the confusion-aware cost still clears MIN_SCORE.
+        let mut data = fixture();
+        data.items.push(item("cd", "CD"));
+        assert_eq!(match_item(&data, &["CO"]).as_deref(), Some("cd"));
+        assert_eq!(match_item(&data, &["CD"]).as_deref(), Some("cd"));
+    }
+
+    #[test]
+    fn unrelated_errors_on_short_name_still_reject() {
+        let mut data = fixture();
+        data.items.push(item("cd", "CD"));
+        // Shares nothing confusable with "CD" — must not be forced to match.
+        assert_eq!(match_item(&data, &["xy"]), None);
+    }
+
+    #[test]
+    fn confusion_aware_score_costs_known_confusions_less() {
+        // d↔o is a confusable pair: 1 − 0.3/2 = 0.85 (clears 0.80).
+        assert!((confusion_aware_score("co", "cd") - 0.85).abs() < 1e-9);
+        assert!((confusion_aware_score("cd", "cd") - 1.0).abs() < 1e-9);
+        // An unrelated 1-char substitution on a 2-char name: 1 − 1/2 = 0.5.
+        assert!((confusion_aware_score("cx", "cd") - 0.5).abs() < 1e-9);
+        // Insertions stay full cost: "cd" vs "cde" = 1 − 1/3.
+        assert!((confusion_aware_score("cd", "cde") - (1.0 - 1.0 / 3.0)).abs() < 1e-9);
     }
 }
