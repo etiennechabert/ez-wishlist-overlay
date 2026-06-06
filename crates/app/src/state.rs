@@ -751,14 +751,19 @@ impl AppState {
     /// Aggregate every tracked-but-not-completed upgrade into a flat per-item
     /// view.
     pub fn active_items(&self) -> Vec<ActiveItem> {
-        // Per item: (needed units, source labels, pinned). `pinned` is OR'd
-        // across every contributing upgrade — a shared item (e.g. bolts wanted
-        // by three upgrades) counts as pinned if ANY tracked upgrade needing it
-        // is pinned. The per-item view can't represent "pinned for upgrade A but
-        // not B", and floating a shared material up for the pinned goal is the
-        // sensible reading. The loop already iterates `tracked − completed`, so
-        // a pin on a completed upgrade is filtered out here for free.
-        let mut totals: BTreeMap<ItemId, (u32, Vec<String>, bool)> = BTreeMap::new();
+        // Per item: (needed units, source labels, pinned-needed units). The
+        // last field sums how many of this item the user's *pinned* upgrades
+        // collectively call for; it's resolved to the `pinned` flag below, once
+        // the owned total is known, as `owned < pinned_needed`. Summing across
+        // pinned upgrades (rather than testing each in isolation) is what makes
+        // two pinned upgrades that share an item behave correctly: the item
+        // stays pinned until you own enough to satisfy BOTH at once — sum(reqs),
+        // not max(reqs) — and clears the moment the combined pinned demand is
+        // met, even while OTHER, unpinned tracked upgrades still want more.
+        // Pinning one upgrade therefore no longer lights up materials it already
+        // has enough of (the reported surprise). The loop iterates `tracked −
+        // completed`, so a pin on a completed upgrade contributes nothing here.
+        let mut totals: BTreeMap<ItemId, (u32, Vec<String>, u32)> = BTreeMap::new();
 
         for id in self.tracked_upgrades.difference(&self.completed_upgrades) {
             let Some(uref) = self.index.upgrades_by_id.get(id) else {
@@ -779,18 +784,30 @@ impl AppState {
             for req in self.effective_requirements(id) {
                 let entry = totals
                     .entry(req.item_id.clone())
-                    .or_insert_with(|| (0, Vec::new(), false));
+                    .or_insert_with(|| (0, Vec::new(), 0));
                 entry.0 += req.quantity;
                 entry.1.push(label.clone());
-                entry.2 |= pinned;
+                // Accumulate the pinned demand for this item; the flag is
+                // derived from the sum vs the owned total below.
+                if pinned {
+                    entry.2 += req.quantity;
+                }
             }
         }
 
         let mut out: Vec<ActiveItem> = totals
             .into_iter()
-            .filter_map(|(item_id, (needed, sources, pinned))| {
+            .filter_map(|(item_id, (needed, sources, pinned_needed))| {
                 let item = self.index.items_by_id.get(&item_id)?;
                 let collected = self.owned_total(&item_id);
+                // Pinned iff the pinned upgrades, taken together, still need more
+                // of this item than is owned. `<` (not `<=`): owning exactly the
+                // combined pinned demand counts as satisfied, so the accent
+                // clears — mirroring `is_upgrade_ready` and the struck-through
+                // per-upgrade rows. Items no pinned upgrade needs have
+                // `pinned_needed == 0`, so this is `collected < 0` → never
+                // pinned.
+                let pinned = collected < pinned_needed;
                 Some(ActiveItem {
                     item_id,
                     name: item.name.clone(),
@@ -809,9 +826,13 @@ impl AppState {
         //      pinned item you've already finished sinks rather than squatting
         //      top-left in the overlay.
         //   2. Among the not-done, pinned-sourced items first — a deliberate
-        //      user priority. Pinning bumps `version` (one overlay re-render);
-        //      collecting never changes pinned-ness, so this never reshuffles
-        //      the grid on a click.
+        //      user priority (pinning/unpinning bumps `version`, one overlay
+        //      re-render). An item is pinned-sourced only while the pinned
+        //      upgrades together still need more of it than is owned (see the
+        //      aggregation above), so collecting it up to that combined demand
+        //      drops it out of the pinned band. That's a single reshuffle at the
+        //      boundary — the same shape as bullet 1's "done sinks", at an
+        //      equally meaningful moment (the pins no longer need that item).
         //   3. Then descending NEEDED quantity so the biggest grinds sit
         //      top-left. We deliberately key on `needed` rather than
         //      `needed - collected` — keying on the remaining count makes the
@@ -909,9 +930,11 @@ pub struct ActiveItem {
     pub needed: u32,
     pub collected: u32,
     pub sources: Vec<String>,
-    /// True if at least one tracked-not-completed upgrade that needs this item
-    /// is pinned. Floats the item to the front of the overlay/wishlist order and
-    /// lets the desktop preview tag it. OR'd across the item's source upgrades.
+    /// True while the user's pinned upgrades, taken together, still need more of
+    /// this item than is owned (`owned < Σ pinned reqs`). Floats the item to the
+    /// front of the overlay/wishlist order and lets the desktop preview tag it.
+    /// Clears once the combined pinned demand is met, so a pin never flags a
+    /// material it already has enough of — even if unpinned upgrades want more.
     pub pinned: bool,
 }
 
@@ -2288,6 +2311,83 @@ mod tests {
         assert!(
             rows[1].collected >= rows[1].needed,
             "the pinned-but-done item sinks last"
+        );
+    }
+
+    #[test]
+    fn pin_skips_items_already_satisfied_for_that_upgrade() {
+        // The reported surprise: pinning an upgrade lit up EVERY material in its
+        // recipe as pinned — including ones already stocked to that upgrade's
+        // requirement — because the per-item view OR'd the pin across the whole
+        // recipe. Such items still read as globally "short" only because OTHER
+        // tracked upgrades want more of them, so the pin surfaced materials the
+        // pinned upgrade doesn't actually need. A pin must flag only what its
+        // own upgrade still lacks.
+        let mut s = AppState::new(fixture());
+        // lv1 (bolts×5 + screws×3) is the pinned goal; lv2 (bolts×7) is also
+        // tracked, so bolts is shared and its aggregate need (12) outruns lv1's.
+        s.set_tracked_upgrade(&"workbench_lv1".to_string(), true);
+        s.set_tracked_upgrade(&"workbench_lv2".to_string(), true);
+        s.set_pinned_upgrade(&"workbench_lv1".to_string(), true);
+        // Stock bolts to exactly lv1's requirement: satisfied *for lv1*, yet
+        // still 5/12 against the combined tracked demand.
+        s.set_collected(&"bolts".to_string(), 5);
+
+        let items = s.active_items();
+        let bolts = items.iter().find(|a| a.item_id == "bolts").unwrap();
+        let screws = items.iter().find(|a| a.item_id == "screws").unwrap();
+        assert!(
+            !bolts.pinned,
+            "bolts is satisfied for the pinned upgrade (5/5) — the pin must not \
+             flag it even though it's 5/12 across all tracked upgrades"
+        );
+        assert!(
+            screws.pinned,
+            "screws is still short for the pinned upgrade (0/3) — that's what the pin highlights"
+        );
+        // The pin's genuinely-needed item leads, even past the larger bolts grind.
+        assert_eq!(
+            items[0].item_id, "screws",
+            "the pin's still-needed item leads"
+        );
+    }
+
+    #[test]
+    fn pin_sums_shared_item_across_pinned_upgrades() {
+        // Two pinned upgrades that share an item are considered together: the
+        // item stays pinned until you own enough to satisfy BOTH at once —
+        // sum(reqs), not max(reqs). A per-upgrade check would wrongly clear the
+        // pin once each upgrade's individual cost was covered.
+        let mut s = AppState::new(fixture());
+        // lv1 wants bolts×5, lv2 wants bolts×7 → combined pinned demand 12.
+        s.set_tracked_upgrade(&"workbench_lv1".to_string(), true);
+        s.set_tracked_upgrade(&"workbench_lv2".to_string(), true);
+        s.set_pinned_upgrade(&"workbench_lv1".to_string(), true);
+        s.set_pinned_upgrade(&"workbench_lv2".to_string(), true);
+
+        // Own 7: clears each upgrade's bolts cost in isolation (≥5 and ≥7), but
+        // not the two together (need 12) → still pinned.
+        s.set_collected(&"bolts".to_string(), 7);
+        let bolts = s
+            .active_items()
+            .into_iter()
+            .find(|a| a.item_id == "bolts")
+            .unwrap();
+        assert!(
+            bolts.pinned,
+            "7 bolts covers 5 and 7 separately but not the combined 12 — still pinned"
+        );
+
+        // Own the full combined demand → the pin clears.
+        s.set_collected(&"bolts".to_string(), 12);
+        let bolts = s
+            .active_items()
+            .into_iter()
+            .find(|a| a.item_id == "bolts")
+            .unwrap();
+        assert!(
+            !bolts.pinned,
+            "12 bolts satisfies both pinned upgrades together — pin clears"
         );
     }
 
