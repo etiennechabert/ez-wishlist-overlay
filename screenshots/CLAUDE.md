@@ -254,8 +254,13 @@ insert the entry alphabetically, and confirm a suspicious id with the user first
     `cargo test -p ez-wishlist-overlay write_box_scan_results -- --ignored`):
     - `box/<scan>.shotN.ocr-result.txt` — per-**image**: what that one scroll
       frame's OCR read. A high-level summary first (item tiles recognized, texts
-      dropped as chrome, the items found), then a row-by-row trace of every OCR
-      text and the catalog item it resolved to (or "no match").
+      dropped as chrome, the items found by grid row), then a row-by-row trace of
+      every OCR text and the catalog item it resolved to (or "no match"). In the
+      by-row view, `?` = a tile that OCR'd but matched no catalog item; `∅` = an
+      **interior** grid cell the engine read *nothing* for (a silently-dropped
+      tile, inferred from a column-width gap — e.g. CD and Beard Oil in
+      `stash.shot00`). Such cells never reach the matcher; the cross-shot merge is
+      what recovers them.
     - `box/box.ocr-result.txt`, `stash/stash.ocr-result.txt` — the **merged**
       scan: captured-vs-label, with a per-item `OK / MISSING / EXTRA` breakdown so
       the gaps (e.g. stash's scroll gaps) are visible at a glance.

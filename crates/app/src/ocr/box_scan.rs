@@ -255,6 +255,11 @@ pub struct RowReport {
     pub ry: f32,
     pub kind: RowKind,
     pub cells: Vec<(String, Tile)>,
+    /// Each cell's x-centre, parallel to [`cells`](Self::cells). Lets a reader
+    /// recover the on-screen column layout — used to spot a tile the OCR
+    /// dropped entirely (a column-width gap between two adjacent cells).
+    #[allow(dead_code)] // read by the (test-only) sidecar generator
+    pub cxs: Vec<f32>,
 }
 
 /// Category words shown on the box screen. The fixed top **tab strip** (All /
@@ -562,6 +567,12 @@ pub fn read_tiles(boxes: &[LabelBox], img_h: f32, data: &GameData) -> BoxReadRes
         for sub in split_subrows(block, slope, med_h) {
             let ry = median(sub.iter().map(|b| deshear(b, slope)));
             let cells = split_tiles(&sub);
+            // Each tile's x-centre, parallel to `cells`, so the row report keeps
+            // the column layout (used to flag an OCR-dropped tile downstream).
+            let cxs: Vec<f32> = cells
+                .iter()
+                .map(|t| median(t.iter().map(|b| b.cx())))
+                .collect();
 
             // Skip a category sub-row (tab strip or per-item subtitles): one whose
             // tiles are mostly category words.
@@ -571,6 +582,7 @@ pub fn read_tiles(boxes: &[LabelBox], img_h: f32, data: &GameData) -> BoxReadRes
                     ry,
                     kind: RowKind::Category,
                     cells: cells.iter().map(|t| (join_text(t), None)).collect(),
+                    cxs,
                 });
                 continue;
             }
@@ -610,6 +622,7 @@ pub fn read_tiles(boxes: &[LabelBox], img_h: f32, data: &GameData) -> BoxReadRes
                 ry,
                 kind,
                 cells: resolved.clone(),
+                cxs,
             });
             if kind == RowKind::Names {
                 let row_tiles: Vec<Tile> = resolved.into_iter().map(|(_, m)| m).collect();
@@ -991,6 +1004,100 @@ pub(crate) mod tests {
         (items, unrecognized)
     }
 
+    /// Lay each `Names` row out left→right as display labels — an item id, `?`
+    /// for a tile that OCR'd but matched nothing, or `∅` for an **interior** grid
+    /// cell the OCR dropped entirely (no text at all). Returns the per-row labels
+    /// and the total `∅` inserted.
+    ///
+    /// A drop is read off the geometry: the column **pitch** is the median of the
+    /// adjacent within-row x-centre gaps (a second pass keeps only single-column
+    /// gaps so a double-gap can't inflate it). A gap of ≈ k·pitch between two
+    /// neighbours then means `k − 1` cells with no text fell between them. Only a
+    /// gap within 35% of a clean multiple counts, and only *between* a row's own
+    /// first and last tile — so a short boundary row, or a chrome token drifting
+    /// in at an edge, is never mistaken for a dropped tile. CD and Beard Oil in
+    /// `stash.shot00` (each an interior column the engine read nothing for) are
+    /// the motivating cases.
+    fn rows_with_silent_drops(read: &BoxReadResult) -> (Vec<Vec<String>>, usize) {
+        let names: Vec<&RowReport> = read
+            .rows
+            .iter()
+            .filter(|r| r.kind == RowKind::Names)
+            .collect();
+
+        // Each row's cells as (x-centre, label, is_matched-item), left→right.
+        // `?` tiles (OCR'd but unmatched) are kept in the layout but treated as
+        // untrustworthy anchors below: an unmatched token can be off-grid chrome
+        // that drifted into the row (e.g. the panel's far-right text), so a gap
+        // touching one is not evidence of a missing grid cell.
+        let laid_out: Vec<Vec<(f32, String, bool)>> = names
+            .iter()
+            .map(|r| {
+                let mut cells: Vec<(f32, String, bool)> = r
+                    .cxs
+                    .iter()
+                    .copied()
+                    .zip(r.cells.iter())
+                    .map(|(cx, (_, m))| {
+                        (
+                            cx,
+                            m.clone().unwrap_or_else(|| "?".to_string()),
+                            m.is_some(),
+                        )
+                    })
+                    .collect();
+                cells.sort_by(|a, b| a.0.total_cmp(&b.0));
+                cells
+            })
+            .collect();
+
+        // Column pitch from the gaps between *consecutive matched tiles* (real
+        // items sit on the grid; `?`/off-grid chrome is excluded). Two-pass
+        // median so a double-gap (a drop) can't inflate it.
+        let mut gaps: Vec<f32> = Vec::new();
+        for row in &laid_out {
+            let xs: Vec<f32> = row.iter().filter(|c| c.2).map(|c| c.0).collect();
+            for w in xs.windows(2) {
+                gaps.push(w[1] - w[0]);
+            }
+        }
+        let pitch = if gaps.is_empty() {
+            0.0
+        } else {
+            let seed = median(gaps.iter().copied());
+            let singles = median(gaps.iter().copied().filter(|&g| g < seed * 1.5));
+            if singles > 0.0 {
+                singles
+            } else {
+                seed
+            }
+        };
+
+        let mut out: Vec<Vec<String>> = Vec::new();
+        let mut drops = 0usize;
+        for row in &laid_out {
+            let mut labels: Vec<String> = Vec::new();
+            for (i, (cx, label, matched)) in row.iter().enumerate() {
+                // A dropped cell is inferred only *between two matched items*: a
+                // gap of ≈ k·pitch (within 35% of a clean multiple) means k−1
+                // grid cells with no text fell between them.
+                if i > 0 && pitch > 0.0 && *matched && row[i - 1].2 {
+                    let gap = cx - row[i - 1].0;
+                    let k = (gap / pitch).round() as i32;
+                    if k >= 2 && (gap - k as f32 * pitch).abs() <= 0.35 * pitch {
+                        for _ in 0..(k - 1) {
+                            labels.push("∅".to_string());
+                            drops += 1;
+                        }
+                    }
+                }
+                labels.push(label.clone());
+            }
+            out.push(labels);
+        }
+        (out, drops)
+    }
+
     /// Render the per-image result text for one scroll shot: a high-level
     /// summary, the items it found, then the row-by-row OCR trace. Pure.
     #[allow(dead_code)] // used by the (ignored) committed-sidecar generator
@@ -998,6 +1105,7 @@ pub(crate) mod tests {
         use std::fmt::Write as _;
         let (items, unrec) = shot_tally(read);
         let recognized: u32 = items.iter().map(|(_, n)| n).sum();
+        let (row_labels, silent_drops) = rows_with_silent_drops(read);
         let mut s = String::new();
         let _ = writeln!(s, "# {stem} — what the OCR read in this one screenshot");
         let _ = writeln!(
@@ -1040,6 +1148,21 @@ pub(crate) mod tests {
             s,
             "    readout, category tabs/subtitles — i.e. screen chrome, not items)"
         );
+        if silent_drops > 0 {
+            let _ = writeln!(
+                s,
+                "  {silent_drops} grid cell(s) produced no OCR text at all — a tile the"
+            );
+            let _ = writeln!(
+                s,
+                "    engine dropped entirely (inferred from a column-width gap; marked \"∅\""
+            );
+            let _ = writeln!(
+                s,
+                "    below). These never reach the matcher, so the merge across shots is"
+            );
+            let _ = writeln!(s, "    what recovers them.");
+        }
         let _ = writeln!(s, "#");
         let _ = writeln!(
             s,
@@ -1053,16 +1176,15 @@ pub(crate) mod tests {
             s,
             "  reads against the screenshot row for row; \"?\" = a tile that OCR'd but"
         );
-        let _ = writeln!(s, "  matched no catalog item):");
-        if read.tile_rows.is_empty() {
+        let _ = writeln!(
+            s,
+            "  matched no catalog item, \"∅\" = a cell the OCR read nothing for):"
+        );
+        if row_labels.is_empty() {
             let _ = writeln!(s, "    (none — no item rows recognized in this shot)");
         } else {
-            for (i, row) in read.tile_rows.iter().enumerate() {
-                let cells: Vec<String> = row
-                    .iter()
-                    .map(|t| t.clone().unwrap_or_else(|| "?".to_string()))
-                    .collect();
-                let _ = writeln!(s, "    row {:>2}: {}", i + 1, cells.join(", "));
+            for (i, labels) in row_labels.iter().enumerate() {
+                let _ = writeln!(s, "    row {:>2}: {}", i + 1, labels.join(", "));
             }
         }
         let _ = writeln!(s, "#");
@@ -1610,6 +1732,57 @@ pub(crate) mod tests {
         ];
         let res = read_tiles(&boxes, 500.0, &data);
         assert_eq!(res.tiles, vec![Some("copperwire".to_string())]);
+    }
+
+    #[test]
+    fn silent_drop_marks_interior_gap_only() {
+        // A full row pins the column pitch at ~300. In the other row the middle
+        // column produced no OCR text, leaving a double-gap (0 → 600) between its
+        // neighbours — that interior hole is flagged "∅". A row that is merely
+        // short at its right edge (no trailing tile) is NOT flagged.
+        let names = |cells: Vec<(&str, Tile)>, cxs: Vec<f32>| RowReport {
+            ry: 0.0,
+            kind: RowKind::Names,
+            cells: cells.into_iter().map(|(t, m)| (t.to_string(), m)).collect(),
+            cxs,
+        };
+        let read = BoxReadResult {
+            rows: vec![
+                names(
+                    vec![
+                        ("A", Some("a".into())),
+                        ("B", Some("b".into())),
+                        ("C", Some("c".into())),
+                    ],
+                    vec![0.0, 300.0, 600.0],
+                ),
+                names(
+                    vec![("A", Some("a".into())), ("C", Some("c".into()))],
+                    vec![0.0, 600.0],
+                ),
+                names(
+                    vec![("A", Some("a".into())), ("B", Some("b".into()))],
+                    vec![0.0, 300.0],
+                ),
+                // A wide gap to an *unmatched* token (off-grid chrome that drifted
+                // in) must NOT be read as dropped cells.
+                names(
+                    vec![("A", Some("a".into())), ("junk", None)],
+                    vec![0.0, 1200.0],
+                ),
+            ],
+            ..Default::default()
+        };
+        let (labels, drops) = rows_with_silent_drops(&read);
+        assert_eq!(drops, 1, "exactly one interior cell dropped");
+        assert_eq!(labels[0], ["a", "b", "c"], "full row untouched");
+        assert_eq!(labels[1], ["a", "∅", "c"], "interior hole flagged");
+        assert_eq!(labels[2], ["a", "b"], "short trailing edge not flagged");
+        assert_eq!(
+            labels[3],
+            ["a", "?"],
+            "gap to an unmatched token not filled"
+        );
     }
 
     #[test]

@@ -15,7 +15,7 @@
   captured items by grid row — top to bottom, left to right, the same
   order they sit on screen (the OCR groups tiles into rows too, so this
   reads against the screenshot row for row; "?" = a tile that OCR'd but
-  matched no catalog item):
+  matched no catalog item, "∅" = a cell the OCR read nothing for):
     row  1: ?, ?, ?, misc_b_recorder, misc_b_rustedcleaner, ?
     row  2: ?, misc_floppydisk, misc_b_tape, ?, misc_b_deodorant
     row  3: misc_b_ceramic_adhesive, misc_b_ceramic_adhesive, misc_b_gastank_large

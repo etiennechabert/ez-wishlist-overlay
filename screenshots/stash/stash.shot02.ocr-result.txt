@@ -11,14 +11,18 @@
   recognized 10 item tile(s) across 3 grid row(s)
   dropped 2 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
+  3 grid cell(s) produced no OCR text at all — a tile the
+    engine dropped entirely (inferred from a column-width gap; marked "∅"
+    below). These never reach the matcher, so the merge across shots is
+    what recovers them.
 #
   captured items by grid row — top to bottom, left to right, the same
   order they sit on screen (the OCR groups tiles into rows too, so this
   reads against the screenshot row for row; "?" = a tile that OCR'd but
-  matched no catalog item):
+  matched no catalog item, "∅" = a cell the OCR read nothing for):
     row  1: misc_b_ceramic_adhesive, misc_b_recorder, ?, misc_bpu
-    row  2: misc_b_recorder, misc_b_opticaldisc, misc_b_nail, ?
-    row  3: misc_b_nail, misc_b_nail, misc_b_ceramic_adhesive, misc_b_deodorant
+    row  2: misc_b_recorder, misc_b_opticaldisc, ∅, ∅, misc_b_nail, ?
+    row  3: misc_b_nail, misc_b_nail, ∅, misc_b_ceramic_adhesive, misc_b_deodorant
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
