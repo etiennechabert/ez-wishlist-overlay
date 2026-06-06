@@ -29,22 +29,27 @@ const NAME_CORRECTIONS: &[(&str, &str)] = &[
     // unmatched. The hideout panel uses item_id (count read positionally), so
     // the rename only affects the box-scan matcher + the display name.
     ("misc_b_nail", "Boxed Nails"),
-    // `misc_b_1battery` and `misc_1batterie_2` are TWO real items the game labels
-    // "Size D Battery1" / "Size D Battery2"; upstream collapsed both to a bare
-    // "Size D battery". The stash holds Battery1 (`misc_b_1battery`) — verified in
-    // screenshots/stash/stash.shot00, where the tile OCRs "Size D batteryl" (the
-    // trailing 1 misread as l) and elsewhere as just "Battery" (suffix dropped).
-    // Because that digit is OCR-fragile, "batteryl" sits one edit from BOTH
-    // "battery1" and "battery2", so the matcher ties; giving the OBSERVED id its
-    // true, longer name lets match_item's longest-name tie-break land the tile on
-    // `misc_b_1battery` (stash 42->44/55).
+    // `misc_b_1battery` and `misc_1batterie_2` are TWO real items; upstream
+    // collapsed both to a bare "Size D battery". The game distinguishes them —
+    // note the id<->name INVERSION, confirmed against in-game captures:
+    //   misc_b_1battery   -> "Size D battery2"  (white SiLurGor 2-pack)
+    //   misc_1batterie_2  -> "Size D battery1"  (yellow SiLurGor 2-pack)
+    // Ground truth is the captured Procurement System (Moreitem) Lv1 panel, whose
+    // `misc_b_1battery` requirement tile reads "Size D battery2"
+    // (screenshots/hideout/units/MoreitemLv1__misc_b_1battery.webp). The yellow
+    // "battery1" tile in the stash is therefore `misc_1batterie_2`
+    // (screenshots/stash/units/misc_1batterie_2.webp). This corrects the inverted
+    // mapping shipped in #126, which had read the stash tile as `misc_b_1battery`.
     //
-    // DELIBERATELY leave `misc_1batterie_2` as upstream "Size D battery": we have
-    // no capture of Battery2 (don't guess an unobserved name), AND naming it the
-    // symmetric "Size D Battery2" would re-tie the two candidates and break the
-    // resolution above. Do NOT "fix" it for consistency without a Battery2 capture
-    // and a matcher that can read the trailing digit.
-    ("misc_b_1battery", "Size D Battery1"),
+    // OCR note: the stash tile OCRs "Size D batteryl" (trailing 1 read as l).
+    // match_item's confusion-aware distance makes l<->1 cheap but l<->2 full-cost,
+    // so "batteryl" still resolves to "battery1" = `misc_1batterie_2` even with
+    // both twins named — i.e. the symmetric names are safe (the earlier worry that
+    // a symmetric name would re-tie the candidates predates that confusion cost).
+    // A *fully dropped* digit ("Size D battery", no suffix) is genuinely ambiguous
+    // and not recoverable from the label alone.
+    ("misc_b_1battery", "Size D battery2"),
+    ("misc_1batterie_2", "Size D battery1"),
 ];
 
 /// Corrected display name for an upstream item: the [`NAME_CORRECTIONS`] entry
@@ -71,20 +76,19 @@ mod tests {
             "Cleaner"
         );
         assert_eq!(correct_name("misc_b_nail", "Nails"), "Boxed Nails");
-        assert_eq!(
-            correct_name("misc_b_1battery", "Size D battery"),
-            "Size D Battery1"
-        );
     }
 
     #[test]
-    fn leaves_battery2_twin_uncorrected() {
-        // Load-bearing asymmetry: the Battery2 twin must keep the bare upstream
-        // name so the matcher's longest-name tie-break resolves OCR-mangled
-        // battery tiles to the observed Battery1 id. See NAME_CORRECTIONS comment.
+    fn disambiguates_size_d_battery_twins() {
+        // Both ship from upstream as a bare "Size D battery"; the game gives them
+        // distinct names, with an id<->name inversion (see NAME_CORRECTIONS).
+        assert_eq!(
+            correct_name("misc_b_1battery", "Size D battery"),
+            "Size D battery2"
+        );
         assert_eq!(
             correct_name("misc_1batterie_2", "Size D battery"),
-            "Size D battery"
+            "Size D battery1"
         );
     }
 

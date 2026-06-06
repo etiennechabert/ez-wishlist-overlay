@@ -1746,7 +1746,7 @@
   "items": [
     {
       "id": "misc_1batterie_2",
-      "name": "Size D battery",
+      "name": "Size D battery1",
       "icon_path": "icons/misc_1batterie_2.png",
       "category": "misc",
       "subcategory": "Power",
@@ -1756,7 +1756,7 @@
     },
     {
       "id": "misc_b_1battery",
-      "name": "Size D Battery1",
+      "name": "Size D battery2",
       "icon_path": "icons/misc_b_1battery.png",
       "category": "misc",
       "subcategory": "Power",

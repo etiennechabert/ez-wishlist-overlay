@@ -30,15 +30,19 @@
 #       misc_b_match     in-game "Windproof Matches" data "Matches"   (lower shots)
 # --- Duplicate names in data.json (two ids share one name — the matcher can't
 #     tell them apart; the id chosen here is best-guess):
-#       "Size D battery" = misc_1batterie_2 + misc_b_1battery
 #       "Gas can"        = misc_b_gastank + misc_b_tape_large
+#     The "Size D battery" pair is now disambiguated to battery1/battery2 (note the
+#     id<->name inversion: misc_1batterie_2 = "Size D battery1" [yellow pack],
+#     misc_b_1battery = "Size D battery2" [white pack]). This stash holds the
+#     yellow "battery1" = misc_1batterie_2; its tile OCRs "Size D batteryl" and the
+#     confusion-aware matcher (l<->1 cheap, l<->2 not) resolves it to battery1.
 
 # === Contiguous run, shots 00–04 (verified de-overlap of the top 11 rows) ===
 misc_b_wrench            3    Wrench
 misc_b_pesticide         1    Pesticide
 misc_b_beardoil          2    Beard oil
 misc_b_lighter           1    Lighter
-misc_b_1battery          2    Size D battery (duplicate name — see header)
+misc_1batterie_2         2    Size D battery1 (yellow pack; the white "battery2" is misc_b_1battery — see header)
 misc_b_flashlight        1    Flash light
 misc_b_opticaldisc       5    CD
 misc_notebook            2    Notebook

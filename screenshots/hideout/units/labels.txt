@@ -52,7 +52,7 @@ WaterCollectorLv2__misc_b_spraycan.webp  Spray Can
 #hard  GeneratorLv2__misc_b_insulatingtape.webp  Insulating Tape
 #hard  IntelligentLv2__misc_b_opticaldisc.webp  CD
 #hard  KitchenAreaLv1__misc_b_gastank.webp  Gas can
-#hard  MoreitemLv1__misc_b_1battery.webp  Size D battery
+#hard  MoreitemLv1__misc_b_1battery.webp  Size D battery2
 #hard  MoreitemLv1__misc_hammer.webp  Hammer
 #hard  PlantingLv1__misc_b_disinfectingwipes.webp  Disinfectant wipes
 #hard  QualityLv1__misc_b_ram.webp  RAM

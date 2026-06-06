@@ -30,7 +30,7 @@ misc_b_wrench.webp  Wrench
 misc_bpu.webp  CPU
 misc_notebook.webp  Notebook
 misc_screwdriver.webp  Screwdriver
-#hard  misc_b_1battery.webp  Size D battery
+#hard  misc_1batterie_2.webp  Size D battery1
 #hard  misc_b_beardoil.webp  BeardOil
 #hard  misc_b_flashlight.webp  Flash light
 #hard  misc_b_opticaldisc.webp  CD
