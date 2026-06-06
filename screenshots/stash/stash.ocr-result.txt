@@ -1,0 +1,8 @@
+# OCR result - stash scan   (auto-generated; do not edit by hand)
+# Source: read_tiles + merge_capture over the frozen .boxes.json shots.
+#   Deterministic (no live engine) -> no run-to-run jitter.
+# Regenerate with scripts/ocr-eval.ps1 then scripts/ocr-write-results.ps1.
+#
+tiles:       46/55 correct
+exact-match: FAIL (does not match label exactly)
+note:        captures have real scroll gaps (rows in no shot); informational, not gated

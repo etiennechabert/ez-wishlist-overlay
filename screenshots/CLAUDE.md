@@ -244,6 +244,16 @@ insert the entry alphabetically, and confirm a suspicious id with the user first
 - **Before/after a change:** `./scripts/ocr-eval-compare.ps1 -Baseline a.json
   -Candidate b.json` → KEEP / REVERT / NOISE. Hideout is compared against its
   run-to-run noise band; box/stash are deterministic.
+- **Committed per-fixture results:** `./scripts/ocr-write-results.ps1 -Json
+  score.json` turns an eval report into a `<stem>.ocr-result.txt` sidecar next to
+  **each** capture (hideout per-cell PASS/FAIL of the owned-count read vs the
+  label + identification; box/stash scan-level tile tally). These are
+  **auto-generated read-outs, NOT ground truth** — never hand-edit them and never
+  treat them as labels (the `.label.txt` files are the only ground truth). They're
+  committed so the repo records, at a glance, which capture the OCR currently
+  reads; refresh them after an OCR change (`ocr-eval.ps1` then this). Distinct
+  from the gitignored timestamped `*.ocr-debug.*.txt` / `*.cell*.png` in-flight
+  dumps.
 - **Hard gates** (run by normal `cargo test … ocr`): hideout
   `identification_and_cell_ordering_on_native_pngs` (15/15) +
   `owned_count_accuracy_floor_on_native_pngs` (≥45); box `box_scan_matches_label`

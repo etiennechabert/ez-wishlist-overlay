@@ -1,0 +1,14 @@
+# OCR result - StoragevaluableLv1   (auto-generated; do not edit by hand)
+# Source: full OCR pipeline over the sibling .webp. Regenerate with
+#   scripts/ocr-eval.ps1  then  scripts/ocr-write-results.ps1  (see screenshots/CLAUDE.md).
+# The Windows OCR engine is non-deterministic: a read like "2x4,UNREADx1" varied
+# across runs (FLAKY); a PASS means the cell read correctly on every run.
+#
+identification: PASS (resolved on every run)
+owned-count:    4/4 cells correct  (band 4-4 over 5 runs; wrong reads: 0)
+#
+# status  cell  item_id                         read              label (owned/needed)
+  PASS   [0]  misc_wastechip                  1                 1/2
+  PASS   [1]  misc_b_flashlight               2                 2/2
+  PASS   [2]  misc_b_ionbattery               5                 5/2
+  PASS   [3]  misc_b_tapeplayer               1                 1/1
