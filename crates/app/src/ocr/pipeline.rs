@@ -2161,7 +2161,9 @@ mod fixture_tests {
             let Some(labels) = crate::ocr::debug_dump::load_labels(&path) else {
                 continue;
             };
-            let Ok(img) = image::open(&path) else { continue };
+            let Ok(img) = image::open(&path) else {
+                continue;
+            };
             let (img_w, img_h) = img.dimensions();
             let Ok(words) = engine::recognize_image(&img) else {
                 continue;
@@ -2244,7 +2246,8 @@ mod fixture_tests {
                                 templates,
                                 req.quantity,
                             );
-                            let Some((px, py)) = templates::split_progress(&recog.recognised) else {
+                            let Some((px, py)) = templates::split_progress(&recog.recognised)
+                            else {
                                 continue;
                             };
                             if py != req.quantity {
@@ -2255,7 +2258,8 @@ mod fixture_tests {
                             };
                             let appl = super::digits_clear_confidence(&recog, req.quantity);
                             if best.as_ref().map(|b| mc > b.0).unwrap_or(true) {
-                                best = Some((mc, y - consensus_y as i32, recog.recognised, px, appl));
+                                best =
+                                    Some((mc, y - consensus_y as i32, recog.recognised, px, appl));
                             }
                         }
                     }
