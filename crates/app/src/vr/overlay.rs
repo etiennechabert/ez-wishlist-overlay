@@ -39,6 +39,18 @@ const OCR_OFFSET_X_M: f32 = 0.0;
 const OCR_OFFSET_Y_M: f32 = -0.18;
 const OCR_OFFSET_Z_M: f32 = -1.2;
 
+const GUIDE_OVERLAY_KEY: &str = "com.etienneb.ez-wishlist-overlay.guide\0";
+const GUIDE_OVERLAY_NAME: &str = "EZ Wishlist Capture Guide\0";
+/// Default metric width of the head-locked capture guide box (issue #136).
+/// Overridden per-frame from `VrSettings::guide_width_m`; this is just the
+/// value pushed at init before the loop applies the user's setting.
+const GUIDE_OVERLAY_WIDTH_M: f32 = 0.9;
+/// Head-locked guide-box offsets, HMD local frame. Centered on the gaze and
+/// ~1 m in front so the user can line the panel/container up inside it.
+const GUIDE_OFFSET_X_M: f32 = 0.0;
+const GUIDE_OFFSET_Y_M: f32 = 0.0;
+const GUIDE_OFFSET_Z_M: f32 = -1.0;
+
 /// Owns the OpenVR runtime + a single overlay handle for the program's
 /// lifetime. Drop runs `VR_Shutdown` via `Context::drop`.
 pub struct OverlaySession {
@@ -59,6 +71,14 @@ pub struct OverlaySession {
     /// fade in/out runs in parallel with the wishlist's so we track it
     /// separately.
     last_ocr_alpha: f32,
+    /// Third overlay: the head-locked capture guide box (issue #136), shown
+    /// while a capture mode is active. Created in the same session as the other
+    /// two so they share fn-table acquisition + cleanup.
+    guide_handle: openvr::overlay::OverlayHandle,
+    /// Skip-redundant alpha cache for the guide overlay's fade.
+    last_guide_alpha: f32,
+    /// Skip-redundant width cache for the guide overlay (set from settings).
+    last_guide_width: f32,
     /// IVRInput state for click detection. None if the action manifest
     /// failed to load — the rest of the overlay still works, just no
     /// trigger detection.
@@ -152,6 +172,39 @@ impl OverlaySession {
             .map_err(|e| anyhow::anyhow!("{e:?}"))
             .context("SetOverlayTransformTrackedDeviceRelative(ocr → HMD)")?;
 
+        // Third overlay: the capture guide box. Head-locked like the OCR card
+        // but centered on the gaze (so the user lines the panel up inside it).
+        // Hidden + transparent until a capture mode arms it.
+        let guide_handle = overlay
+            .create_overlay(GUIDE_OVERLAY_KEY, GUIDE_OVERLAY_NAME)
+            .map_err(|e| anyhow::anyhow!("{e:?}"))
+            .context("CreateOverlay(guide)")?;
+        overlay
+            .set_width(guide_handle, GUIDE_OVERLAY_WIDTH_M)
+            .map_err(|e| anyhow::anyhow!("{e:?}"))
+            .context("SetOverlayWidthInMeters(guide)")?;
+        overlay
+            .set_visibility(guide_handle, false)
+            .map_err(|e| anyhow::anyhow!("{e:?}"))
+            .context("HideOverlay(guide)")?;
+        overlay
+            .set_opacity(guide_handle, 0.0)
+            .map_err(|e| anyhow::anyhow!("{e:?}"))
+            .context("SetOverlayAlpha(guide)")?;
+        let guide_relative = openvr::pose::Matrix3x4([
+            [1.0, 0.0, 0.0, GUIDE_OFFSET_X_M],
+            [0.0, 1.0, 0.0, GUIDE_OFFSET_Y_M],
+            [0.0, 0.0, 1.0, GUIDE_OFFSET_Z_M],
+        ]);
+        overlay
+            .set_transform_tracked_device_relative(
+                guide_handle,
+                tracked_device_index::HMD,
+                &guide_relative,
+            )
+            .map_err(|e| anyhow::anyhow!("{e:?}"))
+            .context("SetOverlayTransformTrackedDeviceRelative(guide → HMD)")?;
+
         // Mark the overlay interactive so the controller laser intersects it
         // and SteamVR emits MouseButtonDown events on trigger pulls. The
         // `openvr` 0.9.0 safe wrapper omits `SetOverlayInputMethod` and
@@ -182,6 +235,9 @@ impl OverlaySession {
             last_width: width_meters,
             last_alpha: 0.0,
             last_ocr_alpha: 0.0,
+            guide_handle,
+            last_guide_alpha: 0.0,
+            last_guide_width: GUIDE_OVERLAY_WIDTH_M,
             input,
         })
     }
@@ -228,6 +284,70 @@ impl OverlaySession {
             .map_err(|e| anyhow::anyhow!("{e:?}"))
             .context("SetOverlayAlpha(ocr)")?;
         self.last_ocr_alpha = a;
+        Ok(())
+    }
+
+    /// Push an RGBA8 frame to the capture guide-box overlay.
+    pub fn submit_guide_rgba(&mut self, bytes: &[u8], width: u32, height: u32) -> Result<()> {
+        debug_assert_eq!(bytes.len(), (width * height * 4) as usize);
+        let mut overlay = self
+            .ctx
+            .overlay()
+            .map_err(|e| anyhow::anyhow!("{e:?}"))
+            .context("IVROverlay interface")?;
+        overlay
+            .set_raw_data(self.guide_handle, bytes, width as usize, height as usize, 4)
+            .map_err(|e| anyhow::anyhow!("{e:?}"))
+            .context("SetOverlayRaw(guide)")
+    }
+
+    /// Show/hide the capture guide-box overlay.
+    pub fn set_guide_visible(&mut self, visible: bool) -> Result<()> {
+        let mut overlay = self
+            .ctx
+            .overlay()
+            .map_err(|e| anyhow::anyhow!("{e:?}"))
+            .context("IVROverlay interface")?;
+        overlay
+            .set_visibility(self.guide_handle, visible)
+            .map_err(|e| anyhow::anyhow!("{e:?}"))
+            .context("Show/HideOverlay(guide)")
+    }
+
+    pub fn set_guide_alpha(&mut self, alpha: f32) -> Result<()> {
+        let a = alpha.clamp(0.0, 1.0);
+        if (a - self.last_guide_alpha).abs() < 1.0 / 256.0 {
+            return Ok(());
+        }
+        let mut overlay = self
+            .ctx
+            .overlay()
+            .map_err(|e| anyhow::anyhow!("{e:?}"))
+            .context("IVROverlay interface")?;
+        overlay
+            .set_opacity(self.guide_handle, a)
+            .map_err(|e| anyhow::anyhow!("{e:?}"))
+            .context("SetOverlayAlpha(guide)")?;
+        self.last_guide_alpha = a;
+        Ok(())
+    }
+
+    /// Set the guide box's metric width (from `VrSettings::guide_width_m`).
+    /// Skips the call when unchanged.
+    pub fn set_guide_width(&mut self, width_meters: f32) -> Result<()> {
+        if (width_meters - self.last_guide_width).abs() < f32::EPSILON {
+            return Ok(());
+        }
+        let mut overlay = self
+            .ctx
+            .overlay()
+            .map_err(|e| anyhow::anyhow!("{e:?}"))
+            .context("IVROverlay interface")?;
+        overlay
+            .set_width(self.guide_handle, width_meters)
+            .map_err(|e| anyhow::anyhow!("{e:?}"))
+            .context("SetOverlayWidthInMeters(guide)")?;
+        self.last_guide_width = width_meters;
         Ok(())
     }
 
