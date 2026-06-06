@@ -216,9 +216,13 @@ map each on-screen item to its `item_id` by display name, watching for:
   `misc_b_storagebattery` ("Car Battery" in JSON, larger item in-game) and
   `misc_b_batter_large` ("Storage Battery" in JSON, the small one in-game) —
   compare icons and ask the user.
-- **Two items can share a display name** (e.g. `misc_1batterie_2` and
-  `misc_b_1battery` both "Size D battery"). Disambiguate by the upstream icon
-  filename suffix.
+- **Two items can share a display name** — disambiguate by the upstream icon
+  filename suffix and the in-game label; never collapse them. Still live:
+  `misc_b_gastank` + `misc_b_tape_large` are both "Gas can". Resolved:
+  `misc_1batterie_2` and `misc_b_1battery` were both upstream "Size D battery"; the
+  game distinguishes them with an **id↔name inversion** — `misc_1batterie_2` =
+  "Size D battery1" (yellow pack), `misc_b_1battery` = "Size D battery2" (white
+  pack) — now corrected in `crates/scraper/src/corrections.rs`.
 - **Digit OCR ambiguity:** `0/2/8` and `6/8` confuse in the small counter font.
   Crop + upscale before assuming; ask the user if still blurry.
 - **"Storage Zone Upgraded: 0/3" at a panel's top is a global status counter,

@@ -16,3 +16,13 @@ misc_barcleaner.webp  Cleaner
 misc_b_harddrive.webp  Hard Drive
 misc_blimbingrope.webp  Climbing rope
 misc_b_gaspipewrench.webp  Gas pipe pliers
+
+# --- added from the 2026-06-06 small-box auto-capture (more distinct icons) ---
+# 2 icons not present in any units/ folder before: videotape, medicalkit.
+# (tile truncates "Portable medical kit" to "Portable medical")
+misc_videotape.webp  Videotape
+misc_b_medicalkit.webp  Portable medical
+misc_b_plier_large.webp  Large Plier
+misc_b_powerbank.webp  Power Bank
+misc_b_visionmodule.webp  Imaging module
+misc_hammer.webp  Hammer
