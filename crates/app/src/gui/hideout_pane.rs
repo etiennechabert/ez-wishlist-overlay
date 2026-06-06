@@ -1105,7 +1105,7 @@ fn progress_row(
     // Ready rows get the warm `ready_fill` so closeness-to-claimable pops before
     // the eye reaches the bar (the grid signals this per-cell; here the row IS
     // the upgrade). Everything else falls back to the hover/stripe neutrals; the
-    // "N items to go" chip and the bucket order already carry near-completeness.
+    // bucket order (nearly-ready first) already carries near-completeness.
     let row_rect = inner.response.rect;
     let hovered = ui.rect_contains_pointer(row_rect);
     let bg = if row.ready {
@@ -1263,25 +1263,19 @@ fn toggle_progress_expanded(ctx: &egui::Context, upgrade_id: &UpgradeId) {
     ctx.data_mut(|d| d.insert_temp(key, now));
 }
 
-/// Small status chip on a By-progress row: "ready" once every material is in,
-/// or "N item(s) to go" for a nearly-ready upgrade (1–2 distinct items short).
-/// Quiet for everything else — the progress bar already carries the unit count
-/// and the bucket order already groups them. Strong text contrasts with the
-/// row's readiness tint in both themes; no glyphs (the bundled fonts render
-/// ✓/★ as tofu — see `progress_badge`).
+/// Small "ready" chip on a By-progress row — shown once every material is in,
+/// a plain-language echo of the warm readiness tint and the row's float to the
+/// top. Quiet otherwise: the progress bar carries the unit count and clicking
+/// the row open lists each item's exact shortfall, so the old "N items to go"
+/// hint was dropped — its *distinct-item* count clashed with the bar's *unit*
+/// count (two different "to go" numbers on one row) and is now redundant with
+/// the inline breakdown. Strong text contrasts with the readiness tint in both
+/// themes; no glyphs (the bundled fonts render ✓/★ as tofu — see
+/// `progress_badge`).
 fn progress_status_chip(ui: &mut egui::Ui, row: &UpgradeProgressRow) {
-    let strong = ui.visuals().strong_text_color();
     if row.ready {
+        let strong = ui.visuals().strong_text_color();
         ui.label(egui::RichText::new("ready").small().strong().color(strong));
-    } else if (1..=2).contains(&row.shortfall.items_missing) {
-        let n = row.shortfall.items_missing;
-        let noun = if n == 1 { "item" } else { "items" };
-        ui.label(
-            egui::RichText::new(format!("{n} {noun} to go"))
-                .small()
-                .strong()
-                .color(strong),
-        );
     }
 }
 
