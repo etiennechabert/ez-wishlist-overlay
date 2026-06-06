@@ -512,13 +512,16 @@ fn render_loop(
         if auto_on {
             let (ocr_enabled, interval) = {
                 let s = settings.read();
-                // Box scan captures continuously: the single-flight latch already
-                // paces successes to OCR throughput (~2-3 s/frame), which is the
-                // cadence we want while the user scrolls. A small floor (not 0)
-                // keeps a *failed* capture from retrying every ~11 ms frame. The
-                // upgrade panel uses the user's configured interval.
+                // Box scan auto-captures while the user scrolls, but with a **1 s
+                // floor** between captures. The single-flight latch already
+                // serializes them (the next capture waits for the prior OCR to
+                // finish), but capturing the 3K mirror texture + running OCR
+                // back-to-back (a sub-second floor) destabilizes the system during
+                // a live VR scan with the game running — so space captures out by
+                // at least a second. Also keeps a *failed* capture from retrying
+                // every ~11 ms frame. The upgrade panel uses the user's interval.
                 let interval = if box_scan_on {
-                    Duration::from_millis(300)
+                    Duration::from_secs(1)
                 } else {
                     Duration::from_secs(s.auto_capture_interval_secs as u64)
                 };
