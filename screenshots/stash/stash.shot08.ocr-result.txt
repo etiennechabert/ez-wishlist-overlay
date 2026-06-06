@@ -1,0 +1,69 @@
+# stash.shot08 — what the OCR read in this one screenshot
+# (auto-generated; do not edit by hand — see screenshots/CLAUDE.md)
+#
+# This is ONE scroll shot of the stash grid. The grid is taller than the
+# screen, so the full contents come from merging every shot — that merged
+# result, scored against the label, lives in stash.ocr-result.txt. This file
+# just shows what the OCR pulled out of this single frame, regenerated from
+# the frozen stash.shot08.boxes.json (so it never runs the game).
+#
+## SUMMARY
+  recognized 4 item tile(s) across 2 grid row(s)
+  dropped 5 text(s) that matched no catalog item (window title, weight
+    readout, category tabs/subtitles — i.e. screen chrome, not items)
+#
+  items found in this frame:
+    2 x misc_1batterie_2
+    1 x misc_b_asthmamedication
+    1 x misc_b_lighter
+#
+## DETAIL — every text the OCR produced, row by row
+#   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
+#   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
+  [chrome]
+    105                            -> (no match)
+  [chrome]
+    JUNK BOX                       -> (no match)
+  [chrome]
+    0 3379294                      -> (no match)
+  [items ]
+    Insulating Building rape       -> (no match)
+    Wire Tool Cutter               -> (no match)
+    Combustible WD-40              -> (no match)
+    Super Building Glue            -> (no match)
+    Site D batteryl                -> misc_1batterie_2
+  [chrome]
+    JOHNNY'S SERVICE               -> (no match)
+  [chrome]
+    1MtjTiii                       -> (no match)
+  [chrome]
+    UPGRADE                        -> (no match)
+  [items ]
+    Asthma medicine                -> misc_b_asthmamedication
+    Size O batteryl                -> misc_1batterie_2
+    Cutter                         -> (no match)
+    Lighter                        -> misc_b_lighter
+  [tabs  ]
+    Medical Supplies               -> (no match)
+    Power                          -> (no match)
+    Tool                           -> (no match)
+    Combustible                    -> (no match)
+    Medical Supplies               -> (no match)
+  [chrome]
+    SHOP EXPRESS                   -> (no match)
+  [chrome]
+    RESTOCK                        -> (no match)
+  [chrome]
+    Super Building Glue            -> (no match)
+    Recorder Intel                 -> (no match)
+    Moldboard Tool                 -> (no match)
+    Medical Medical Supplies       -> (no match)
+    Insulating Building Tape       -> (no match)
+  [chrome]
+    JUNK BOX                       -> (no match)
+  [chrome]
+    SUBMIT                         -> (no match)
+  [chrome]
+    21.86/40 KG                    -> (no match)
+  [chrome]
+    - ONLY MISCELLANEOUS ITEMS CAN BE STORED HERE -> (no match)

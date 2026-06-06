@@ -933,6 +933,264 @@ pub(crate) mod tests {
         }
     }
 
+    // -----------------------------------------------------------------------
+    // Committed, human-readable per-image OCR result sidecars (box / stash).
+    //
+    // Each scroll-shot's frozen `.boxes.json` is the *raw* OCR (word boxes) —
+    // unreadable at a glance. These render the same frozen input through the
+    // real pipeline into a `<shot>.ocr-result.txt` that says, in plain terms,
+    // what the OCR made of that one image: a high-level summary first (how many
+    // item tiles it recognized, how many texts it threw away), then the row-by-
+    // row detail (every text it read and the catalog item it resolved to, or
+    // "no match"). Deterministic and pure (`read_tiles` only), so they regen
+    // identically on any platform and stay in lockstep with the `.boxes.json`.
+    // Written by the ignored `write_box_scan_results` test; the merged,
+    // label-scored result of the whole scan stays in `<scan>.ocr-result.txt`.
+    // -----------------------------------------------------------------------
+
+    /// Tally one frame's recognized tiles → `(item_id → count, unrecognized)`.
+    fn shot_tally(read: &BoxReadResult) -> (Vec<(ItemId, u32)>, usize) {
+        let mut counts: HashMap<ItemId, u32> = HashMap::new();
+        let mut unrecognized = 0usize;
+        for row in &read.tile_rows {
+            for tile in row {
+                match tile {
+                    Some(id) => *counts.entry(id.clone()).or_insert(0) += 1,
+                    None => unrecognized += 1,
+                }
+            }
+        }
+        let mut items: Vec<(ItemId, u32)> = counts.into_iter().collect();
+        items.sort_by(|a, b| a.0.cmp(&b.0));
+        (items, unrecognized)
+    }
+
+    /// Render the per-image result text for one scroll shot: a high-level
+    /// summary, the items it found, then the row-by-row OCR trace. Pure.
+    #[allow(dead_code)] // used by the (ignored) committed-sidecar generator
+    fn shot_result_text(stem: &str, scan: &str, read: &BoxReadResult) -> String {
+        use std::fmt::Write as _;
+        let (items, unrec) = shot_tally(read);
+        let recognized: u32 = items.iter().map(|(_, n)| n).sum();
+        let mut s = String::new();
+        let _ = writeln!(s, "# {stem} — what the OCR read in this one screenshot");
+        let _ = writeln!(
+            s,
+            "# (auto-generated; do not edit by hand — see screenshots/CLAUDE.md)"
+        );
+        let _ = writeln!(s, "#");
+        let _ = writeln!(
+            s,
+            "# This is ONE scroll shot of the {scan} grid. The grid is taller than the"
+        );
+        let _ = writeln!(
+            s,
+            "# screen, so the full contents come from merging every shot — that merged"
+        );
+        let _ = writeln!(
+            s,
+            "# result, scored against the label, lives in {scan}.ocr-result.txt. This file"
+        );
+        let _ = writeln!(
+            s,
+            "# just shows what the OCR pulled out of this single frame, regenerated from"
+        );
+        let _ = writeln!(
+            s,
+            "# the frozen {stem}.boxes.json (so it never runs the game)."
+        );
+        let _ = writeln!(s, "#");
+        let _ = writeln!(s, "## SUMMARY");
+        let _ = writeln!(
+            s,
+            "  recognized {recognized} item tile(s) across {} grid row(s)",
+            read.tile_rows.len()
+        );
+        let _ = writeln!(
+            s,
+            "  dropped {unrec} text(s) that matched no catalog item (window title, weight"
+        );
+        let _ = writeln!(
+            s,
+            "    readout, category tabs/subtitles — i.e. screen chrome, not items)"
+        );
+        let _ = writeln!(s, "#");
+        let _ = writeln!(s, "  items found in this frame:");
+        if items.is_empty() {
+            let _ = writeln!(s, "    (none — no item tiles recognized in this shot)");
+        } else {
+            for (id, n) in &items {
+                let _ = writeln!(s, "    {n} x {id}");
+            }
+        }
+        let _ = writeln!(s, "#");
+        let _ = writeln!(s, "## DETAIL — every text the OCR produced, row by row");
+        let _ = writeln!(
+            s,
+            "#   \"-> id\" resolved to that catalog item;  \"-> (no match)\" was dropped."
+        );
+        let _ = writeln!(
+            s,
+            "#   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI."
+        );
+        for r in &read.rows {
+            let tag = match r.kind {
+                RowKind::Names => "items ",
+                RowKind::Category => "tabs  ",
+                RowKind::Chrome => "chrome",
+            };
+            let _ = writeln!(s, "  [{tag}]");
+            for (text, resolved) in &r.cells {
+                match resolved {
+                    Some(id) => {
+                        let _ = writeln!(s, "    {text:<30} -> {id}");
+                    }
+                    None => {
+                        let _ = writeln!(s, "    {text:<30} -> (no match)");
+                    }
+                }
+            }
+        }
+        s
+    }
+
+    /// Render the merged-scan result text: what the whole scan captured vs the
+    /// ground-truth label, item by item, so a glance shows what was and wasn't
+    /// found. Pure. `read` is the merged tally; `label` the per-scan ground truth.
+    #[allow(dead_code)] // used by the (ignored) committed-sidecar generator
+    fn scan_result_text(
+        scan: &str,
+        read: &HashMap<ItemId, u32>,
+        label: &HashMap<ItemId, u32>,
+        note: Option<&str>,
+    ) -> String {
+        use std::fmt::Write as _;
+        let mut keys: std::collections::BTreeSet<&ItemId> = read.keys().collect();
+        keys.extend(label.keys());
+        let (mut captured, mut total, mut missing, mut extra) = (0u32, 0u32, 0u32, 0u32);
+        let mut rows: Vec<(String, u32, u32)> = Vec::new();
+        for k in keys {
+            let r = *read.get(k).unwrap_or(&0);
+            let l = *label.get(k).unwrap_or(&0);
+            total += l;
+            captured += r.min(l);
+            missing += l.saturating_sub(r);
+            extra += r.saturating_sub(l);
+            rows.push((k.clone(), r, l));
+        }
+        rows.sort_by(|a, b| a.0.cmp(&b.0));
+        let exact = *read == *label;
+
+        let mut s = String::new();
+        let _ = writeln!(s, "# {scan} — merged scan result vs the ground-truth label");
+        let _ = writeln!(
+            s,
+            "# (auto-generated; do not edit by hand — see screenshots/CLAUDE.md)"
+        );
+        let _ = writeln!(s, "#");
+        let _ = writeln!(
+            s,
+            "# The {scan} grid spans several scroll shots; this is the merged tally of all"
+        );
+        let _ = writeln!(
+            s,
+            "# of them (regenerated from the frozen .boxes.json — no game), compared to"
+        );
+        let _ = writeln!(
+            s,
+            "# {scan}.label.txt. Per-shot reads are in the sibling {scan}.shotN.ocr-result.txt."
+        );
+        let _ = writeln!(s, "#");
+        let _ = writeln!(s, "## SUMMARY");
+        let _ = writeln!(
+            s,
+            "  captured {captured}/{total} label tile(s)  ({missing} missing, {extra} extra)"
+        );
+        let _ = writeln!(
+            s,
+            "  exact match: {}",
+            if exact {
+                "YES — the scan reads the label exactly"
+            } else {
+                "NO — see the per-item breakdown below"
+            }
+        );
+        if let Some(n) = note {
+            let _ = writeln!(s, "  note: {n}");
+        }
+        let _ = writeln!(s, "#");
+        let _ = writeln!(s, "## PER ITEM   (read = scan count, label = ground truth)");
+        let _ = writeln!(s, "# status  read/label  item_id");
+        for (id, r, l) in &rows {
+            let status = if r == l {
+                "OK     "
+            } else if r < l {
+                "MISSING"
+            } else {
+                "EXTRA  "
+            };
+            let _ = writeln!(s, "  {status}  {r:>3}/{l:<3}    {id}");
+        }
+        s
+    }
+
+    /// Shot fixtures per scan, in scroll order: `(category, [boxes.json names])`.
+    /// Single source of truth shared by the eval scorer and the sidecar writer.
+    #[allow(dead_code)]
+    fn scan_shots(category: &str) -> Vec<String> {
+        match category {
+            "box" => (0..3).map(|i| format!("box.shot{i}.boxes.json")).collect(),
+            "stash" => (0..10)
+                .map(|i| format!("stash.shot{i:02}.boxes.json"))
+                .collect(),
+            other => panic!("unknown scan category {other:?}"),
+        }
+    }
+
+    /// (Ignored) Regenerate the committed, human-readable per-image OCR result
+    /// sidecars for both box-scan categories — one `<shot>.ocr-result.txt` per
+    /// scroll-shot image (what that frame's OCR read) plus the merged
+    /// `<scan>.ocr-result.txt` (captured vs label). Pure and deterministic (reads
+    /// only the frozen `.boxes.json`), so it runs on every platform and the files
+    /// stay in lockstep with the fixtures:
+    ///   cargo test -p ez-wishlist-overlay write_box_scan_results -- --ignored
+    #[test]
+    #[ignore = "regenerates committed box/stash .ocr-result.txt sidecars"]
+    fn write_box_scan_results() {
+        let data = crate::assets::load_game_data().expect("embedded data.json");
+        let notes: std::collections::HashMap<&str, &str> = [(
+            "stash",
+            "captures have real scroll gaps (some grid rows appear in no shot), so a \
+             partial capture is expected here — informational, not gated",
+        )]
+        .into_iter()
+        .collect();
+
+        let mut written = 0usize;
+        for category in ["box", "stash"] {
+            let shots = scan_shots(category);
+            // Per-shot: one sidecar per scroll-shot image.
+            for shot in &shots {
+                let fx = BoxFixture::load(category, shot);
+                let read = read_tiles(&fx.label_boxes(), fx.img_h, &data);
+                let stem = shot.trim_end_matches(".boxes.json");
+                let text = shot_result_text(stem, category, &read);
+                let out = fixture_dir(category).join(format!("{stem}.ocr-result.txt"));
+                std::fs::write(&out, text)
+                    .unwrap_or_else(|e| panic!("write {}: {e}", out.display()));
+                written += 1;
+            }
+            // Merged scan: captured vs label.
+            let read = run_box_scan(category, &shots);
+            let label = load_box_label(category, &format!("{category}.label.txt"));
+            let text = scan_result_text(category, &read, &label, notes.get(category).copied());
+            let out = fixture_dir(category).join(format!("{category}.ocr-result.txt"));
+            std::fs::write(&out, text).unwrap_or_else(|e| panic!("write {}: {e}", out.display()));
+            written += 1;
+        }
+        eprintln!("wrote {written} box/stash .ocr-result.txt sidecars");
+    }
+
     /// (Windows-only, ignored) Regenerate every `<stem>.boxes.json` from the
     /// capture images (PNG / JPEG / WebP) across **both** box-scan categories
     /// (`screenshots/box/` and `screenshots/stash/`). Run after adding/replacing

@@ -1,0 +1,67 @@
+# stash.shot07 — what the OCR read in this one screenshot
+# (auto-generated; do not edit by hand — see screenshots/CLAUDE.md)
+#
+# This is ONE scroll shot of the stash grid. The grid is taller than the
+# screen, so the full contents come from merging every shot — that merged
+# result, scored against the label, lives in stash.ocr-result.txt. This file
+# just shows what the OCR pulled out of this single frame, regenerated from
+# the frozen stash.shot07.boxes.json (so it never runs the game).
+#
+## SUMMARY
+  recognized 2 item tile(s) across 2 grid row(s)
+  dropped 3 text(s) that matched no catalog item (window title, weight
+    readout, category tabs/subtitles — i.e. screen chrome, not items)
+#
+  items found in this frame:
+    1 x misc_b_aspire
+    1 x misc_b_gunoil
+#
+## DETAIL — every text the OCR produced, row by row
+#   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
+#   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
+  [chrome]
+    140                            -> (no match)
+  [chrome]
+    105                            -> (no match)
+  [chrome]
+    JUNK BOX                       -> (no match)
+  [chrome]
+    0 3379284                      -> (no match)
+  [chrome]
+    Screwdriver rooi               -> (no match)
+    Screwdriver rooi               -> (no match)
+    Combustible G" can             -> (no match)
+    Notebook Intel                 -> (no match)
+    Intel                          -> (no match)
+  [items ]
+    ASPIR'N                        -> misc_b_aspire
+    JOHNNY'S SERVICE               -> (no match)
+  [chrome]
+    UPGRADE                        -> (no match)
+  [chrome]
+    Insulating Building rape       -> (no match)
+    Combustible WD.40              -> (no match)
+    Medical Aspirin Supplies       -> (no match)
+    Super Building Glue            -> (no match)
+    Combustible G" can             -> (no match)
+  [chrome]
+    SHOP EXPRESS                   -> (no match)
+  [chrome]
+    RESTOCK                        -> (no match)
+  [items ]
+    Gun oil                        -> misc_b_gunoil
+    Windproof Match"               -> (no match)
+    Cle•mer                        -> (no match)
+  [tabs  ]
+    Combustible                    -> (no match)
+    Combustible                    -> (no match)
+    Electric                       -> (no match)
+    Household                      -> (no match)
+    Combustible                    -> (no match)
+  [chrome]
+    JUNK BOX                       -> (no match)
+  [chrome]
+    SUBMIT                         -> (no match)
+  [chrome]
+    - ONLY MISCELLANEOUS ITEMS CAN BE STORED HERE -> (no match)
+    21.86/40 KG                    -> (no match)

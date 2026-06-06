@@ -1,0 +1,84 @@
+# stash.shot00 — what the OCR read in this one screenshot
+# (auto-generated; do not edit by hand — see screenshots/CLAUDE.md)
+#
+# This is ONE scroll shot of the stash grid. The grid is taller than the
+# screen, so the full contents come from merging every shot — that merged
+# result, scored against the label, lives in stash.ocr-result.txt. This file
+# just shows what the OCR pulled out of this single frame, regenerated from
+# the frozen stash.shot00.boxes.json (so it never runs the game).
+#
+## SUMMARY
+  recognized 11 item tile(s) across 3 grid row(s)
+  dropped 3 text(s) that matched no catalog item (window title, weight
+    readout, category tabs/subtitles — i.e. screen chrome, not items)
+#
+  items found in this frame:
+    1 x misc_1batterie_2
+    1 x misc_b_flashlight
+    1 x misc_b_ionbattery
+    1 x misc_b_lighter
+    1 x misc_b_pesticide
+    1 x misc_b_recorder
+    1 x misc_b_sparkplug
+    1 x misc_b_tape
+    2 x misc_b_wrench
+    1 x misc_notebook
+#
+## DETAIL — every text the OCR produced, row by row
+#   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
+#   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
+  [chrome]
+    10                             -> (no match)
+  [chrome]
+    JUNK BOX                       -> (no match)
+  [chrome]
+    3378294                        -> (no match)
+  [items ]
+    Wrench                         -> misc_b_wrench
+    Wrench                         -> misc_b_wrench
+    Pesticide                      -> misc_b_pesticide
+    Lighter                        -> misc_b_lighter
+  [tabs  ]
+    root                           -> (no match)
+    Tool                           -> (no match)
+    Household                      -> (no match)
+    Household                      -> (no match)
+    Combustible                    -> (no match)
+  [chrome]
+    SLurG•r                        -> (no match)
+    JOHNNY'S SERVICE               -> (no match)
+  [chrome]
+    UPGRADE                        -> (no match)
+  [items ]
+    Size O batteryl                -> misc_1batterie_2
+    Rash light                     -> misc_b_flashlight
+    Notebook                       -> misc_notebook
+    Pet Shampoo                    -> (no match)
+  [tabs  ]
+    Power                          -> (no match)
+    Electric                       -> (no match)
+    Intel                          -> (no match)
+    Intel                          -> (no match)
+    Household                      -> (no match)
+  [chrome]
+    SHOP EXPRESS                   -> (no match)
+  [items ]
+    Pet Shampoo                    -> (no match)
+    Spark Plug                     -> misc_b_sparkplug
+    Tape                           -> misc_b_tape
+    Ion Battery                    -> misc_b_ionbattery
+    Recorder                       -> misc_b_recorder
+    RESTOCK                        -> (no match)
+  [tabs  ]
+    Household                      -> (no match)
+    Tool                           -> (no match)
+    Intel                          -> (no match)
+    Power                          -> (no match)
+    Intel                          -> (no match)
+  [chrome]
+    JUNK BOX                       -> (no match)
+  [chrome]
+    SUBMIT                         -> (no match)
+  [chrome]
+    - ONLY MISCELLANEOUS ITEMS CAN BE STORED HERE -> (no match)
+    21.86/40 KG                    -> (no match)
