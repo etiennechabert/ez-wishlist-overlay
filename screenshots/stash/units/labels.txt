@@ -37,3 +37,23 @@ misc_screwdriver.webp  Screwdriver
 #hard  misc_b_pipeline.webp  Valve
 #hard  misc_b_rustedcleaner.webp  Rust cleaner
 #hard  misc_b_wd40.webp  WD-40
+
+# --- added from the 2026-06-06 auto-capture scan (more distinct icons) ---
+# 4 icons not present in any units/ folder before: iodophor, medicalscissors,
+# superglue, misc_wrench (Small Wrench, distinct from misc_b_wrench).
+misc_b_iodophor.webp  Iodine
+misc_b_medicalscissors.webp  Medical scissors
+misc_b_superglue.webp  Super Glue
+misc_wrench.webp  Small Wrench
+misc_b_disinfectingwipes.webp  Disinfectant wipes
+misc_b_gastank.webp  Gas can
+misc_b_harddrive.webp  Hard Drive
+misc_b_lightbulb.webp  Energy-saving lamp
+misc_b_nail.webp  Boxed Nails
+misc_b_piezometer.webp  Piezometer
+misc_blimbingrope.webp  Climbing rope
+misc_floppydisk.webp  Floppy disk
+# RAM + Socket read in-context but not in isolation here (busy diagonal icon);
+# both are gated in hideout/units/ — kept as stash-rendering improvement targets.
+#hard  misc_b_ram.webp  RAM
+#hard  misc_b_socket.webp  Socket
