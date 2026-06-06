@@ -8,8 +8,8 @@
 # the frozen stash.shot04.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 13 item tile(s) across 3 grid row(s)
-  dropped 1 text(s) that matched no catalog item (window title, weight
+  recognized 14 item tile(s) across 3 grid row(s)
+  dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   captured items by grid row — top to bottom, left to right, the same
@@ -17,7 +17,7 @@
   reads against the screenshot row for row; "?" = a tile that OCR'd but
   matched no catalog item):
     row  1: misc_b_saltcan, misc_b_saltcan, misc_b_tire_sealant, misc_b_pcfan, misc_1batterie_2
-    row  2: ?, misc_b_rustedcleaner, misc_b_insulatingtape, misc_b_glue_large
+    row  2: misc_b_wd40, misc_b_rustedcleaner, misc_b_insulatingtape, misc_b_glue_large
     row  3: misc_b_moldboard, misc_b_wd40, misc_b_lighterfluid, misc_b_nail, misc_b_beardoil
 #
 ## DETAIL — every text the OCR produced, row by row
@@ -43,7 +43,7 @@
   [chrome]
     UPGRADE                        -> (no match)
   [items ]
-    wa-40                          -> (no match)
+    wa-40                          -> misc_b_wd40
     RIBt cleaner                   -> misc_b_rustedcleaner
     Insulating Tape                -> misc_b_insulatingtape
     Instant glue                   -> misc_b_glue_large

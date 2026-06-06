@@ -36,8 +36,8 @@ const MIN_SCORE: f64 = 0.80;
 /// a label whose only error is a glyph the OCR routinely mistakes still resolves
 /// — without loosening [`MIN_SCORE`] for genuine mismatches. Observed in real
 /// captures: `1`↔`l` ("batteryl" for "Battery1"), `d`↔`o` ("co" for "CD"),
-/// `o`↔`0` ("piez0meter"), `i`↔`l` ("wlre" for "wire"). General per-glyph cost,
-/// NOT a per-item synonym.
+/// `o`↔`0` ("piez0meter"), `i`↔`l` ("wlre" for "wire"), `a`↔`d` ("wa-40" for
+/// "WD-40"). General per-glyph cost, NOT a per-item synonym.
 const CONFUSABLE: &[(char, char)] = &[
     ('o', '0'),
     ('o', 'd'),
@@ -49,6 +49,7 @@ const CONFUSABLE: &[(char, char)] = &[
     ('b', '8'),
     ('z', '2'),
     ('g', '9'),
+    ('a', 'd'),
 ];
 
 /// Substitution cost for a [`CONFUSABLE`] pair (vs `1.0` for an unrelated
@@ -284,6 +285,17 @@ mod tests {
         data.items.push(item("cd", "CD"));
         assert_eq!(match_item(&data, &["CO"]).as_deref(), Some("cd"));
         assert_eq!(match_item(&data, &["CD"]).as_deref(), Some("cd"));
+    }
+
+    #[test]
+    fn resolves_wd40_with_a_for_d_confusion() {
+        // Real stash capture: "WD-40" OCRs as "wa-40" (d read as a). a↔d is
+        // confusable (cost 0.3): "wa40" vs "wd40" = 1 − 0.3/4 = 0.925, clears the
+        // 0.80 floor; without the pair it scored 0.75 and went unmatched.
+        let mut data = fixture();
+        data.items.push(item("wd40", "WD-40"));
+        assert_eq!(match_item(&data, &["wa-40"]).as_deref(), Some("wd40"));
+        assert_eq!(match_item(&data, &["WD-40"]).as_deref(), Some("wd40"));
     }
 
     #[test]

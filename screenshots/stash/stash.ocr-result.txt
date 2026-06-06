@@ -6,7 +6,7 @@
 # stash.label.txt. Per-shot reads are in the sibling stash.shotN.ocr-result.txt.
 #
 ## SUMMARY
-  captured 48/55 label tile(s)  (7 missing, 27 extra)
+  captured 49/55 label tile(s)  (6 missing, 27 extra)
   exact match: NO — see the per-item breakdown below
   note: captures have real scroll gaps (some grid rows appear in no shot), so a partial capture is expected here — informational, not gated
 #
@@ -44,7 +44,7 @@
   OK         1/1      misc_b_sparkplug
   OK         2/2      misc_b_tape
   EXTRA      2/1      misc_b_tire_sealant
-  MISSING    1/2      misc_b_wd40
+  OK         2/2      misc_b_wd40
   OK         1/1      misc_b_wirecutting
   OK         3/3      misc_b_wrench
   EXTRA      2/0      misc_bpu
