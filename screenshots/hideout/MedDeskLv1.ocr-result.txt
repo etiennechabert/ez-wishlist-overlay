@@ -1,0 +1,14 @@
+# OCR result - MedDeskLv1   (auto-generated; do not edit by hand)
+# Source: full OCR pipeline over the sibling .webp. Regenerate with
+#   scripts/ocr-eval.ps1  then  scripts/ocr-write-results.ps1  (see screenshots/CLAUDE.md).
+# The Windows OCR engine is non-deterministic: a read like "2x4,UNREADx1" varied
+# across runs (FLAKY); a PASS means the cell read correctly on every run.
+#
+identification: PASS (resolved on every run)
+owned-count:    3/4 cells correct  (band 3-3 over 5 runs; wrong reads: 0)
+#
+# status  cell  item_id                         read              label (owned/needed)
+  PASS   [0]  misc_b_disinfectingwipes        2                 2/2
+  PASS   [1]  misc_b_pipeline                 2                 2/1
+  PASS   [2]  misc_b_lightbulb                1                 1/2
+  FAIL   [3]  misc_b_insulatingtape           UNREAD            0/1
