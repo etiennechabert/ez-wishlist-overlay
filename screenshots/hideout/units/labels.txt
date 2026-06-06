@@ -46,19 +46,19 @@ WaterCollectorLv2__misc_b_insulatingtape.webp  Insulating Tape
 WaterCollectorLv2__misc_b_nail.webp  Nails
 WaterCollectorLv2__misc_b_pipeline.webp  Valve
 WaterCollectorLv2__misc_b_spraycan.webp  Spray Can
-#hard  BookcaseLv1__misc_b_flashlight.webp  Flash light
-#hard  BookcaseLv1__misc_b_lightbulb.webp  Energy-saving lamp
-#hard  CryptoMiningLv2__misc_b_ram.webp  RAM
-#hard  GeneratorLv2__misc_b_insulatingtape.webp  Insulating Tape
-#hard  IntelligentLv2__misc_b_opticaldisc.webp  CD
-#hard  KitchenAreaLv1__misc_b_gastank.webp  Gas can
-#hard  MoreitemLv1__misc_b_1battery.webp  Size D battery2
-#hard  MoreitemLv1__misc_hammer.webp  Hammer
-#hard  PlantingLv1__misc_b_disinfectingwipes.webp  Disinfectant wipes
-#hard  QualityLv1__misc_b_ram.webp  RAM
-#hard  QualityLv1__misc_b_tape.webp  Tape
-#hard  StorageZoneLock1Lv1__misc_b_disinfectingwipes.webp  Disinfectant wipes
-#hard  StorageZoneLock2Lv1__misc_b_batter_large.webp  Storage Battery
-#hard  StorageZoneLock2Lv1__misc_b_gastank_large.webp  Large gas can
-#hard  StorageZoneLock3Lv1__misc_b_visionmodule.webp  Imaging module
-#hard  StoragevaluableLv1__misc_b_ionbattery.webp  Ion Battery
+BookcaseLv1__misc_b_flashlight.webp  Flash light
+BookcaseLv1__misc_b_lightbulb.webp  Energy-saving lamp
+CryptoMiningLv2__misc_b_ram.webp  RAM
+GeneratorLv2__misc_b_insulatingtape.webp  Insulating Tape
+IntelligentLv2__misc_b_opticaldisc.webp  CD
+KitchenAreaLv1__misc_b_gastank.webp  Gas can
+MoreitemLv1__misc_b_1battery.webp  Size D battery2
+MoreitemLv1__misc_hammer.webp  Hammer
+PlantingLv1__misc_b_disinfectingwipes.webp  Disinfectant wipes
+QualityLv1__misc_b_ram.webp  RAM
+QualityLv1__misc_b_tape.webp  Tape
+StorageZoneLock1Lv1__misc_b_disinfectingwipes.webp  Disinfectant wipes
+StorageZoneLock2Lv1__misc_b_batter_large.webp  Storage Battery
+StorageZoneLock2Lv1__misc_b_gastank_large.webp  Large gas can
+StorageZoneLock3Lv1__misc_b_visionmodule.webp  Imaging module
+StoragevaluableLv1__misc_b_ionbattery.webp  Ion Battery

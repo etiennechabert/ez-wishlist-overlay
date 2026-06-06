@@ -1,7 +1,7 @@
 # box/units — <file>  <expected OCR name>  (one whole item tile per unit)
 # A `#hard  <file>  <name>` line is OCR'd + reported but not gated (engine can't
 # yet read that tile in isolation — an OCR-improvement target, not a regression).
-#hard  misc_b_uvlight.webp  UV lamp
+misc_b_uvlight.webp  UV lamp
 misc_copperwire.webp  Copper wire
 misc_b_piezometer.webp  Piezometer
 misc_b_oliveoil.webp  Olive oil
