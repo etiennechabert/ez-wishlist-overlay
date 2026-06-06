@@ -8,23 +8,17 @@
 # the frozen stash.shot01.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 14 item tile(s) across 3 grid row(s)
-  dropped 1 text(s) that matched no catalog item (window title, weight
+  recognized 15 item tile(s) across 3 grid row(s)
+  dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
-  items found in this frame:
-    1 x misc_b_ceramic_adhesive
-    1 x misc_b_gastank_large
-    1 x misc_b_ionbattery
-    1 x misc_b_oldphone
-    2 x misc_b_recorder
-    1 x misc_b_sparkplug
-    2 x misc_b_tape
-    1 x misc_b_wirecutting
-    1 x misc_b_wrench
-    1 x misc_bpu
-    1 x misc_notebook
-    1 x misc_screwdriver
+  captured items by grid row — top to bottom, left to right, the same
+  order they sit on screen (the OCR groups tiles into rows too, so this
+  reads against the screenshot row for row; "?" = a tile that OCR'd but
+  matched no catalog item):
+    row  1: misc_b_shampoo, misc_b_sparkplug, misc_b_tape, misc_b_ionbattery, misc_b_recorder
+    row  2: misc_b_wrench, misc_b_oldphone, misc_notebook, misc_b_gastank_large, misc_screwdriver
+    row  3: misc_b_ceramic_adhesive, misc_b_recorder, misc_b_wirecutting, misc_bpu, misc_b_tape
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
@@ -36,7 +30,7 @@
   [chrome]
     O 3379284                      -> (no match)
   [items ]
-    Pet Shampoo                    -> (no match)
+    Pet Shampoo                    -> misc_b_shampoo
     Spark Plug                     -> misc_b_sparkplug
     Tape                           -> misc_b_tape
     Ion Battery                    -> misc_b_ionbattery

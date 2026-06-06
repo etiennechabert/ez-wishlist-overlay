@@ -8,21 +8,17 @@
 # the frozen stash.shot00.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 11 item tile(s) across 3 grid row(s)
-  dropped 3 text(s) that matched no catalog item (window title, weight
+  recognized 13 item tile(s) across 3 grid row(s)
+  dropped 1 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
-  items found in this frame:
-    1 x misc_1batterie_2
-    1 x misc_b_flashlight
-    1 x misc_b_ionbattery
-    1 x misc_b_lighter
-    1 x misc_b_pesticide
-    1 x misc_b_recorder
-    1 x misc_b_sparkplug
-    1 x misc_b_tape
-    2 x misc_b_wrench
-    1 x misc_notebook
+  captured items by grid row — top to bottom, left to right, the same
+  order they sit on screen (the OCR groups tiles into rows too, so this
+  reads against the screenshot row for row; "?" = a tile that OCR'd but
+  matched no catalog item):
+    row  1: misc_b_wrench, misc_b_wrench, misc_b_pesticide, misc_b_lighter
+    row  2: misc_1batterie_2, misc_b_flashlight, misc_notebook, misc_b_shampoo
+    row  3: misc_b_shampoo, misc_b_sparkplug, misc_b_tape, misc_b_ionbattery, misc_b_recorder, ?
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
@@ -53,7 +49,7 @@
     Size O batteryl                -> misc_1batterie_2
     Rash light                     -> misc_b_flashlight
     Notebook                       -> misc_notebook
-    Pet Shampoo                    -> (no match)
+    Pet Shampoo                    -> misc_b_shampoo
   [tabs  ]
     Power                          -> (no match)
     Electric                       -> (no match)
@@ -63,7 +59,7 @@
   [chrome]
     SHOP EXPRESS                   -> (no match)
   [items ]
-    Pet Shampoo                    -> (no match)
+    Pet Shampoo                    -> misc_b_shampoo
     Spark Plug                     -> misc_b_sparkplug
     Tape                           -> misc_b_tape
     Ion Battery                    -> misc_b_ionbattery

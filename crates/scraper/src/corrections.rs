@@ -50,6 +50,14 @@ const NAME_CORRECTIONS: &[(&str, &str)] = &[
     // and not recoverable from the label alone.
     ("misc_b_1battery", "Size D battery2"),
     ("misc_1batterie_2", "Size D battery1"),
+    // Upstream names this "Shampoo"; in-game the stash tile (and its bottle label)
+    // reads "Pet Shampoo" (see screenshots/stash/stash.shot* and the
+    // screenshots/stash/units/misc_b_shampoo.webp crop). The bare "Shampoo" scored
+    // ~0.64 against the OCR'd "Pet Shampoo" — below match_item's 0.80 floor — so
+    // both tiles went unmatched (misc_b_shampoo read 0/2 in the merged scan). The
+    // hideout panel keys off item_id, so the rename only affects the box-scan
+    // matcher + the display name.
+    ("misc_b_shampoo", "Pet Shampoo"),
 ];
 
 /// Corrected display name for an upstream item: the [`NAME_CORRECTIONS`] entry

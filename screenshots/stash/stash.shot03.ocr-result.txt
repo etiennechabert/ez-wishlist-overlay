@@ -12,14 +12,12 @@
   dropped 1 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
-  items found in this frame:
-    1 x misc_1batterie_2
-    1 x misc_b_gastank_large
-    1 x misc_b_pcfan
-    1 x misc_b_pipeline
-    2 x misc_b_rat_poison
-    2 x misc_b_saltcan
-    1 x misc_b_tire_sealant
+  captured items by grid row — top to bottom, left to right, the same
+  order they sit on screen (the OCR groups tiles into rows too, so this
+  reads against the screenshot row for row; "?" = a tile that OCR'd but
+  matched no catalog item):
+    row  1: misc_b_rat_poison, misc_b_rat_poison, misc_b_gastank_large, misc_b_pipeline, ?
+    row  2: misc_b_saltcan, misc_b_saltcan, misc_b_tire_sealant, misc_b_pcfan, misc_1batterie_2
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.

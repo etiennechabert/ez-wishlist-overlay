@@ -1015,12 +1015,28 @@ pub(crate) mod tests {
             "    readout, category tabs/subtitles — i.e. screen chrome, not items)"
         );
         let _ = writeln!(s, "#");
-        let _ = writeln!(s, "  items found in this frame:");
-        if items.is_empty() {
-            let _ = writeln!(s, "    (none — no item tiles recognized in this shot)");
+        let _ = writeln!(
+            s,
+            "  captured items by grid row — top to bottom, left to right, the same"
+        );
+        let _ = writeln!(
+            s,
+            "  order they sit on screen (the OCR groups tiles into rows too, so this"
+        );
+        let _ = writeln!(
+            s,
+            "  reads against the screenshot row for row; \"?\" = a tile that OCR'd but"
+        );
+        let _ = writeln!(s, "  matched no catalog item):");
+        if read.tile_rows.is_empty() {
+            let _ = writeln!(s, "    (none — no item rows recognized in this shot)");
         } else {
-            for (id, n) in &items {
-                let _ = writeln!(s, "    {n} x {id}");
+            for (i, row) in read.tile_rows.iter().enumerate() {
+                let cells: Vec<String> = row
+                    .iter()
+                    .map(|t| t.clone().unwrap_or_else(|| "?".to_string()))
+                    .collect();
+                let _ = writeln!(s, "    row {:>2}: {}", i + 1, cells.join(", "));
             }
         }
         let _ = writeln!(s, "#");

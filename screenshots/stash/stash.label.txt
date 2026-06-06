@@ -21,11 +21,13 @@
 #
 # Format: `<item_id>  <count>` — text after the count is a comment.
 #
-# --- Data-name divergences found while labelling (in-game label ≠ data.json
-#     `Item.name`, so the box-scan can't match these until data.json is patched;
-#     out of scope for #109's box-scan fix, tracked for a follow-up):
-#       misc_b_shampoo   in-game "Pet Shampoo"   data "Shampoo"
-#       misc_b_nail      in-game "Boxed Nails"   data "Nails"
+# --- Data-name divergences found while labelling (in-game label ≠ upstream
+#     `Item.name`, so the box-scan couldn't match these until the name was patched
+#     in crates/scraper/src/corrections.rs). Now CORRECTED (in-game label is now
+#     the catalog name):
+#       misc_b_shampoo   in-game "Pet Shampoo"   (was upstream "Shampoo")
+#       misc_b_nail      in-game "Boxed Nails"   (was upstream "Nails")
+#     Still divergent (not yet patched — the box-scan can't match these):
 #       misc_b_bandaid   in-game "Band-aids"     data "Adhesive bandages"
 #       misc_b_match     in-game "Windproof Matches" data "Matches"   (lower shots)
 # --- Duplicate names in data.json (two ids share one name — the matcher can't

@@ -2506,7 +2506,7 @@
     },
     {
       "id": "misc_b_shampoo",
-      "name": "Shampoo",
+      "name": "Pet Shampoo",
       "icon_path": "icons/misc_b_shampoo.png",
       "category": "misc",
       "subcategory": "Household",
