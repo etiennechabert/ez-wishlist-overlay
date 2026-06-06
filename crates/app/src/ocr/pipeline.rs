@@ -680,6 +680,84 @@ fn pick_best_strip_y(
         }
     }
 
+    // Consensus-row rescue. The inverse of the outlier pass above: where
+    // that *removes* a cell that wandered onto a noise row, this *pulls*
+    // a cell the coarse sweep left UNCONFIRMED onto the digit row its
+    // confirmed siblings agree on. In the compact (no-FROM-RAID) layout
+    // the positional base geometry is unreliable — its Y is poisoned by
+    // cost/button numbers ("114", "488500") or lands on the digit row's
+    // top edge, where `recognize`'s edge guard (`c.y > 0`) drops the
+    // glyphs — so an unconfirmed cell falls back to a strip that reads
+    // empty or garbage even though the row itself is fine. The confirmed
+    // siblings pinpoint that row to within a few pixels.
+    //
+    // The coarse sweep steps `anchor.h / 2` (≈12-18 px) — larger than the
+    // ~13 px digit height — so a digit row can fall on a strip edge
+    // *between* candidates; an easy read survives the misframing, a hard
+    // one (narrow leading "1", a cell whose row sits mid-step) doesn't.
+    // So for each still-unconfirmed cell we run a FINE Y search (3 px
+    // step) over a tight band around the consensus Y, keeping the cell's
+    // own X column and the usual x-pad variants. Acceptance is the
+    // unchanged `score_variant` gate (Y == known `needed` AND every digit
+    // ≥ MIN_DIGIT_CONFIDENCE), identical to what the confirmed cells and
+    // the main-loop apply gate require — so a rescued cell is exactly as
+    // trustworthy as any other confirmed read and wrong writes stay
+    // impossible.
+    //
+    // Restricted to single-digit `needed`: a two-digit Y (`/10`) read is
+    // materially less reliable at this font size — an owned `0` misreads
+    // as `6` *above* the confidence floor (`0/10` → `6/10`), which would
+    // be a wrong write — so `/10` cells are left for a dedicated lead
+    // rather than rescued on the consensus row here.
+    let post_outlier_ys: Vec<u32> = best_scores
+        .iter()
+        .zip(best_cells.iter())
+        .filter(|(s, _)| **s > 0)
+        .map(|(_, c)| c.y)
+        .collect();
+    if post_outlier_ys.len() >= 2 {
+        let mut sorted = post_outlier_ys;
+        sorted.sort_unstable();
+        let consensus_y = sorted[sorted.len() / 2] as i32;
+        // Tight band: the observed good rescues all land within ±1 anchor
+        // height of consensus; a little headroom, no more (a wider band
+        // just invites a fluke parse far from the real row).
+        let band = (anchor.h as i32 * 3 / 2).max(20);
+        for (i, (cell, req)) in base_cells.iter().zip(requirements.iter()).enumerate() {
+            if best_scores[i] > 0 || req.quantity >= 10 {
+                continue; // already confirmed, or a two-digit-Y cell (see above)
+            }
+            let mut dy = -band;
+            while dy <= band {
+                let y_i = consensus_y + dy;
+                dy += 3;
+                if y_i < 0 || (y_i as u32) + strip_h >= img_h {
+                    continue;
+                }
+                let y_top = y_i as u32;
+                for (pad_l, pad_r) in &x_pad_candidates {
+                    let new_x = cell.x.saturating_sub(*pad_l);
+                    let new_w = (cell.w + pad_l + pad_r).min(img_w.saturating_sub(new_x));
+                    let new_h = strip_h.min(img_h.saturating_sub(y_top));
+                    if let Some(s) =
+                        score_variant_with_pad(new_x, y_top, new_w, new_h, req.quantity, *pad_l)
+                    {
+                        if s > best_scores[i] {
+                            best_scores[i] = s;
+                            best_cells[i] = BBox {
+                                x: new_x,
+                                y: y_top,
+                                w: new_w,
+                                h: new_h,
+                            };
+                            confirmed[i] = true;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     let _ = confirmed; // Confirmed bits are an analysis aid, not consumed downstream.
     best_cells
 }
@@ -2015,6 +2093,191 @@ mod fixture_tests {
                 "  y={:>4.0} x={:>4.0} h={:>3.0}  {:?}",
                 w.rect.y, w.rect.x, w.rect.height, w.text,
             );
+        }
+    }
+
+    /// Diagnostic (read-only): for every fixture, find the cells the
+    /// production picker leaves UNREAD, then probe whether a *fine* Y
+    /// search centred on the panel's **consensus digit-row** (the median
+    /// Y of the cells that DID confirm) would recover them. For each
+    /// unread cell it reports the best `X/Y` read found in that band —
+    /// its min per-digit confidence, the Y offset from consensus, the
+    /// parsed owned value, whether that matches the hand label, and
+    /// whether it clears the apply gate (`digits_clear_confidence`).
+    ///
+    /// This separates the UNREAD failure modes without touching the
+    /// pipeline: a cell whose fine probe finds a correct, appliable read
+    /// is recoverable by a geometry/alignment fix; one whose probe still
+    /// reads the wrong digit (or finds nothing) is a glyph / two-digit-Y
+    /// limitation that needs a different lead.
+    #[test]
+    #[ignore = "diagnostic — run with --ignored --nocapture"]
+    fn probe_fine_y_rescue() {
+        use crate::ocr::{anchor, engine, prep, templates};
+        use image::GenericImageView;
+
+        let data = load_data();
+        let dir = fixture_dir();
+        let templates = &*templates::EMBEDDED;
+        let mut entries: Vec<_> = std::fs::read_dir(&dir)
+            .unwrap_or_else(|e| panic!("read_dir {}: {e}", dir.display()))
+            .filter_map(|e| e.ok())
+            .filter(is_primary_fixture)
+            .collect();
+        entries.sort_by_key(|e| e.file_name());
+
+        // Min per-(non-slash)-digit template score for a recognised X/Y,
+        // or None when there aren't enough components to form `/<Y>`.
+        let min_digit_conf = |recog: &templates::RecognizeDebug, needed: u32| -> Option<f32> {
+            let y_n = needed.to_string().chars().count();
+            let total = recog.kept_components.len();
+            if total < y_n + 1 {
+                return None;
+            }
+            let slash_idx = total - y_n - 1;
+            let mut m = f32::INFINITY;
+            for (i, k) in recog.kept_components.iter().enumerate() {
+                if i == slash_idx {
+                    continue;
+                }
+                let best = k
+                    .scores
+                    .iter()
+                    .find(|(c, _)| *c != '/')
+                    .map(|(_, s)| *s)
+                    .unwrap_or(0.0);
+                m = m.min(best);
+            }
+            m.is_finite().then_some(m)
+        };
+
+        for entry in &entries {
+            let path = entry.path();
+            let stem = path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("")
+                .to_string();
+            let Some(labels) = crate::ocr::debug_dump::load_labels(&path) else {
+                continue;
+            };
+            let Ok(img) = image::open(&path) else { continue };
+            let (img_w, img_h) = img.dimensions();
+            let Ok(words) = engine::recognize_image(&img) else {
+                continue;
+            };
+            let Some(layout) = anchor::detect_panel(&words, img_w, img_h) else {
+                continue;
+            };
+            let Some(upgrade) = data
+                .modules
+                .iter()
+                .flat_map(|m| &m.upgrades)
+                .find(|u| u.id == stem)
+            else {
+                continue;
+            };
+            let reqs = &upgrade.requirements;
+            let base_cells = if layout.cells.len() == reqs.len() {
+                layout.cells.clone()
+            } else {
+                anchor::positional_cells(&layout, &words, reqs.len())
+            };
+            let prepped = prep::keep_white_invert(&img);
+            let picked = super::pick_best_strip_y(&base_cells, &layout, reqs, &prepped, templates);
+            let anchor = layout.anchor;
+
+            // Production read of each picked strip → which cells are appliable.
+            let mut appliable_y: Vec<u32> = Vec::new();
+            let mut picked_read: Vec<(String, bool)> = Vec::new();
+            for (cell, req) in picked.iter().zip(reqs.iter()) {
+                let gray = prepped.crop_imm(cell.x, cell.y, cell.w, cell.h).to_luma8();
+                let recog = templates::recognize_with_known_needed(&gray, templates, req.quantity);
+                let appl = templates::split_progress(&recog.recognised)
+                    .map(|(_, y)| y == req.quantity)
+                    .unwrap_or(false)
+                    && super::digits_clear_confidence(&recog, req.quantity);
+                if appl {
+                    appliable_y.push(cell.y);
+                }
+                picked_read.push((recog.recognised, appl));
+            }
+            if appliable_y.is_empty() {
+                eprintln!("{stem}: no appliable cells — cannot form consensus row");
+                continue;
+            }
+            appliable_y.sort_unstable();
+            let consensus_y = appliable_y[appliable_y.len() / 2];
+
+            let h = anchor.h.max(20);
+            let pads: [(u32, u32); 4] = [
+                (0, 0),
+                (anchor.h / 2, 0),
+                (anchor.h, anchor.h / 2),
+                (anchor.h * 3 / 2, anchor.h / 2),
+            ];
+            let lo = consensus_y as i32 - 2 * anchor.h as i32;
+            let hi = consensus_y as i32 + 2 * anchor.h as i32;
+
+            for (i, (_, req)) in picked.iter().zip(reqs.iter()).enumerate() {
+                if picked_read[i].1 {
+                    continue; // already appliable
+                }
+                let label = labels.iter().find(|l| l.item_id == req.item_id);
+                let lbl_owned = label.map(|l| l.owned);
+                let bx = base_cells[i].x;
+                let bw = base_cells[i].w;
+                // Best Y-matching read in the band, ranked by min digit conf.
+                let mut best: Option<(f32, i32, String, u32, bool)> = None;
+                let mut y = lo;
+                while y <= hi {
+                    if y >= 0 && (y as u32) + h < img_h {
+                        for (pl, pr) in pads.iter() {
+                            let nx = bx.saturating_sub(*pl);
+                            let nw = (bw + pl + pr).min(img_w.saturating_sub(nx));
+                            if nw == 0 {
+                                continue;
+                            }
+                            let gray = prepped.crop_imm(nx, y as u32, nw, h).to_luma8();
+                            let recog = templates::recognize_with_known_needed(
+                                &gray,
+                                templates,
+                                req.quantity,
+                            );
+                            let Some((px, py)) = templates::split_progress(&recog.recognised) else {
+                                continue;
+                            };
+                            if py != req.quantity {
+                                continue;
+                            }
+                            let Some(mc) = min_digit_conf(&recog, req.quantity) else {
+                                continue;
+                            };
+                            let appl = super::digits_clear_confidence(&recog, req.quantity);
+                            if best.as_ref().map(|b| mc > b.0).unwrap_or(true) {
+                                best = Some((mc, y - consensus_y as i32, recog.recognised, px, appl));
+                            }
+                        }
+                    }
+                    y += 2;
+                }
+                match best {
+                    Some((mc, dy, read, px, appl)) => {
+                        let correct = lbl_owned == Some(px);
+                        eprintln!(
+                            "  {stem} cell{i} {:<24} need={:<2} label={:?} | pickedRead={:?} \
+                             FINE best={:?} minconf={:.3} dy={:+} parsedX={} correctX={} appliable={}",
+                            req.item_id, req.quantity, lbl_owned, picked_read[i].0,
+                            read, mc, dy, px, correct, appl,
+                        );
+                    }
+                    None => eprintln!(
+                        "  {stem} cell{i} {:<24} need={:<2} label={:?} | pickedRead={:?} \
+                         FINE no Y-matching read in band",
+                        req.item_id, req.quantity, lbl_owned, picked_read[i].0,
+                    ),
+                }
+            }
         }
     }
 
