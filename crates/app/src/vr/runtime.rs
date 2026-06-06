@@ -11,10 +11,10 @@ use crate::ocr::OcrJob;
 use crate::persist::PersistPaths;
 use crate::settings::Settings;
 use crate::state::AppState;
+use crate::vr::capture_session::{CaptureMode, CaptureState};
 use crossbeam_channel::{Receiver, Sender};
 use parking_lot::RwLock;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -82,21 +82,15 @@ pub struct Runtime {
     /// Most recent capture result the worker thread reported. Cleared when
     /// the GUI consumes it via [`Runtime::take_last_capture`].
     last_capture: Arc<RwLock<Option<CaptureResult>>>,
-    /// Ephemeral auto-capture loop switch. Not persisted — always starts
-    /// `false` so the looping OCR can't be left running into a raid. The
-    /// VR render loop polls this each tick; the GUI flips it via
-    /// [`Runtime::set_auto_capture`].
-    auto_capture: Arc<AtomicBool>,
-    /// Ephemeral box-scan mode switch. While `true`, captures are tagged
-    /// [`crate::ocr::JobKind::BoxScan`] and the upgrade-panel auto-capture loop is
-    /// suppressed. Not persisted — always starts `false`. The GUI flips it via
-    /// [`Runtime::set_box_scan_mode`].
-    box_scan_mode: Arc<AtomicBool>,
-    /// While a box scan is active, drive captures automatically (continuous,
-    /// self-paced) so the user just scrolls instead of pressing SPACE. Reset to
-    /// `true` whenever box-scan mode is entered; the scan window's "Auto-capture"
-    /// checkbox toggles it. SPACE still forces a manual capture regardless.
-    box_auto_capture: Arc<AtomicBool>,
+    /// Which capture mode the headset trigger is bound to (issue #136).
+    /// Ephemeral — always starts [`CaptureMode::Off`] so a capture mode can't
+    /// be left armed into a raid. While active the wishlist overlay is
+    /// suppressed and each trigger pull takes one screenshot. The GUI sets it
+    /// via [`Runtime::set_capture_mode`] / [`Runtime::exit_capture_mode`].
+    capture_mode: Arc<RwLock<CaptureMode>>,
+    /// Where the trigger-driven capture loop is right now (Ready / Capturing /
+    /// reading). Written by the VR loop, read by the GUI for status display.
+    capture_state: Arc<RwLock<CaptureState>>,
     _join: std::thread::JoinHandle<()>,
 }
 
@@ -146,12 +140,10 @@ impl Runtime {
         // presses are silently dropped, which is fine semantically — a
         // screenshot is a one-shot ask.
         let (capture_tx, capture_rx) = crossbeam_channel::bounded::<()>(4);
-        let auto_capture = Arc::new(AtomicBool::new(false));
-        let auto_capture_worker = auto_capture.clone();
-        let box_scan_mode = Arc::new(AtomicBool::new(false));
-        let box_scan_mode_worker = box_scan_mode.clone();
-        let box_auto_capture = Arc::new(AtomicBool::new(true));
-        let box_auto_capture_worker = box_auto_capture.clone();
+        let capture_mode = Arc::new(RwLock::new(CaptureMode::Off));
+        let capture_mode_worker = capture_mode.clone();
+        let capture_state = Arc::new(RwLock::new(CaptureState::Ready));
+        let capture_state_worker = capture_state.clone();
         let join = std::thread::Builder::new()
             .name("ez-wishlist-vr".into())
             .spawn(move || {
@@ -164,9 +156,8 @@ impl Runtime {
                     last_capture_writer,
                     ocr_tx,
                     ocr_feedback_rx,
-                    auto_capture_worker,
-                    box_scan_mode_worker,
-                    box_auto_capture_worker,
+                    capture_mode_worker,
+                    capture_state_worker,
                 )
             })
             .expect("spawn VR thread");
@@ -174,9 +165,8 @@ impl Runtime {
             status,
             capture_tx,
             last_capture,
-            auto_capture,
-            box_scan_mode,
-            box_auto_capture,
+            capture_mode,
+            capture_state,
             _join: join,
         }
     }
@@ -194,9 +184,8 @@ impl Runtime {
             status: Arc::new(RwLock::new(VrStatus::Unsupported)),
             capture_tx,
             last_capture: Arc::new(RwLock::new(None)),
-            auto_capture: Arc::new(AtomicBool::new(false)),
-            box_scan_mode: Arc::new(AtomicBool::new(false)),
-            box_auto_capture: Arc::new(AtomicBool::new(true)),
+            capture_mode: Arc::new(RwLock::new(CaptureMode::Off)),
+            capture_state: Arc::new(RwLock::new(CaptureState::Ready)),
             _join: std::thread::Builder::new()
                 .name("ez-wishlist-vr-test".into())
                 .spawn(|| {})
@@ -221,43 +210,36 @@ impl Runtime {
         self.last_capture.write().take()
     }
 
-    /// Enable/disable the auto-capture loop. Ephemeral — never persisted,
-    /// so it always starts OFF on launch. The VR render loop polls this
-    /// each tick: flipping it on fires a capture right away, off stops
-    /// the loop after any in-flight read finishes.
-    pub fn set_auto_capture(&self, on: bool) {
-        self.auto_capture.store(on, Ordering::Relaxed);
+    /// Arm a capture mode (hideout / box / stash). Ephemeral — never persisted,
+    /// so it always starts [`CaptureMode::Off`] on launch and can't be left
+    /// armed into a raid. While a mode is active the VR loop suppresses the
+    /// wishlist overlay, shows the guide box, and routes each controller
+    /// trigger pull to a screenshot. Resets the displayed state to
+    /// [`CaptureState::Ready`].
+    pub fn set_capture_mode(&self, mode: CaptureMode) {
+        *self.capture_state.write() = CaptureState::Ready;
+        *self.capture_mode.write() = mode;
     }
 
-    pub fn auto_capture_enabled(&self) -> bool {
-        self.auto_capture.load(Ordering::Relaxed)
+    /// Leave capture mode — restores the normal wishlist overlay + cell-click
+    /// trigger. Shorthand for `set_capture_mode(CaptureMode::Off)`.
+    pub fn exit_capture_mode(&self) {
+        self.set_capture_mode(CaptureMode::Off);
     }
 
-    /// Enter/leave box-scan mode. Ephemeral — never persisted. While on, captures
-    /// feed the box-scan session and the upgrade-panel auto-capture loop is
-    /// suppressed. Entering a scan re-arms [`Self::set_box_auto_capture`] to `true`
-    /// so each scan starts hands-free by default. The Containers tab flips this
-    /// around a "Scan box" session.
-    pub fn set_box_scan_mode(&self, on: bool) {
-        self.box_scan_mode.store(on, Ordering::Relaxed);
-        if on {
-            self.box_auto_capture.store(true, Ordering::Relaxed);
-        }
+    /// The currently armed capture mode (clone — it's cheap).
+    pub fn capture_mode(&self) -> CaptureMode {
+        self.capture_mode.read().clone()
     }
 
-    pub fn box_scan_enabled(&self) -> bool {
-        self.box_scan_mode.load(Ordering::Relaxed)
+    /// Whether any capture mode is active.
+    pub fn capture_active(&self) -> bool {
+        self.capture_mode.read().is_active()
     }
 
-    /// Enable/disable the box-scan auto-capture loop (the scan window's
-    /// "Auto-capture" checkbox). Only has effect while box-scan mode is on. When
-    /// off, captures are manual (SPACE) only.
-    pub fn set_box_auto_capture(&self, on: bool) {
-        self.box_auto_capture.store(on, Ordering::Relaxed);
-    }
-
-    pub fn box_auto_capture_enabled(&self) -> bool {
-        self.box_auto_capture.load(Ordering::Relaxed)
+    /// Where the trigger-driven capture loop is right now, for GUI status.
+    pub fn capture_state(&self) -> CaptureState {
+        *self.capture_state.read()
     }
 }
 
@@ -272,9 +254,8 @@ fn run(
     _last_capture: Arc<RwLock<Option<CaptureResult>>>,
     _ocr_tx: Sender<OcrJob>,
     _ocr_feedback_rx: Receiver<crate::gui::OcrFeedback>,
-    _auto_capture: Arc<AtomicBool>,
-    _box_scan_mode: Arc<AtomicBool>,
-    _box_auto_capture: Arc<AtomicBool>,
+    _capture_mode: Arc<RwLock<CaptureMode>>,
+    _capture_state: Arc<RwLock<CaptureState>>,
 ) {
     // Status is already Unsupported. Nothing else to do — park the thread.
     *status.write() = VrStatus::Unsupported;
@@ -1270,23 +1251,28 @@ mod tests {
     use super::*;
 
     #[test]
-    fn box_scan_arms_auto_capture_by_default_and_toggle_sticks() {
+    fn capture_mode_starts_off_and_round_trips() {
+        use crate::ocr::ScanTarget;
+
         let rt = Runtime::disconnected_for_test();
-        // Hands-free by default.
-        assert!(rt.box_auto_capture_enabled());
+        // Always starts disarmed so a mode can't leak into a raid.
+        assert_eq!(rt.capture_mode(), CaptureMode::Off);
+        assert!(!rt.capture_active());
 
-        // The scan window can pause it for manual SPACE captures.
-        rt.set_box_auto_capture(false);
-        assert!(!rt.box_auto_capture_enabled());
+        // Arming a box/stash scan flips the mode and reports active.
+        rt.set_capture_mode(CaptureMode::Box(ScanTarget::Stash));
+        assert_eq!(rt.capture_mode(), CaptureMode::Box(ScanTarget::Stash));
+        assert!(rt.capture_active());
+        // Arming resets the displayed state to Ready.
+        assert_eq!(rt.capture_state(), CaptureState::Ready);
 
-        // Starting a scan re-arms it, so every scan is hands-free by default
-        // regardless of the prior toggle state.
-        rt.set_box_scan_mode(true);
-        assert!(rt.box_scan_enabled());
-        assert!(rt.box_auto_capture_enabled());
+        // Switching to hideout swaps cleanly.
+        rt.set_capture_mode(CaptureMode::Hideout);
+        assert_eq!(rt.capture_mode(), CaptureMode::Hideout);
 
-        // A manual pause still applies within an active scan.
-        rt.set_box_auto_capture(false);
-        assert!(!rt.box_auto_capture_enabled());
+        // Exiting restores the normal (Off) overlay.
+        rt.exit_capture_mode();
+        assert_eq!(rt.capture_mode(), CaptureMode::Off);
+        assert!(!rt.capture_active());
     }
 }

@@ -18,6 +18,7 @@ use crate::data::GameData;
 use crate::persist::PersistPaths;
 use crate::state::AppState;
 use crate::updater::CheckStatus;
+use crate::vr::capture_session::CaptureMode;
 use crate::vr::runtime::CaptureResult;
 use crossbeam_channel::{Receiver, Sender};
 use parking_lot::RwLock;
@@ -523,34 +524,39 @@ impl App {
         });
     }
 
-    /// Prominent main-window toggle for the auto-capture loop. Loud when
-    /// ON (and the in-headset OCR card stays up the whole time) so the
-    /// mode can't be left running into a raid. Gated on OCR being enabled
-    /// — the loop has nothing to do otherwise. The flag lives on the VR
-    /// runtime and is never persisted, so it always starts OFF on launch.
+    /// Prominent main-window toggle for **hideout capture mode** (issue #136).
+    /// Loud when ON so it can't be left armed into a raid. While on, the
+    /// wishlist overlay is hidden and the in-headset guide box appears — pull
+    /// the controller trigger over an upgrade panel to read it. Gated on OCR
+    /// being enabled. The mode lives on the VR runtime and is never persisted,
+    /// so it always starts OFF on launch.
     fn auto_capture_toggle(&mut self, ui: &mut egui::Ui) {
         let ocr_enabled = self.settings.read().ocr_enabled;
-        let mut on = self.vr.auto_capture_enabled();
+        let mut on = self.vr.capture_mode() == CaptureMode::Hideout;
         let label = if on {
-            egui::RichText::new("● Auto-capture ON")
+            egui::RichText::new("● Hideout capture ON")
                 .strong()
                 .color(egui::Color32::from_rgb(220, 99, 89))
         } else {
-            egui::RichText::new("Auto-capture")
+            egui::RichText::new("Capture hideout panel")
         };
         let tooltip = if ocr_enabled {
-            "Loop OCR over whatever upgrade panel you look at, updating \
-             counts hands-free. A constant card stays in the headset while \
-             it runs — turn it OFF before playing. Interval is set in \
-             Settings; the mode always starts OFF on launch."
+            "Arm hideout capture: the wishlist overlay hides and a guide box \
+             appears in the headset. Aim it at an upgrade panel and pull the \
+             controller trigger to read its owned counts. Turn OFF to get the \
+             wishlist overlay back. Always starts OFF on launch."
         } else {
             "Enable \"Auto-extract counts from VR screenshots\" in Settings \
-             to use auto-capture."
+             to use hideout capture."
         };
         let resp = ui.add_enabled(ocr_enabled, egui::Checkbox::new(&mut on, label));
         if resp.on_hover_text(tooltip).changed() {
-            self.vr.set_auto_capture(on);
-            tracing::info!(on, "auto-capture toggled from desktop header");
+            if on {
+                self.vr.set_capture_mode(CaptureMode::Hideout);
+            } else if self.vr.capture_mode() == CaptureMode::Hideout {
+                self.vr.exit_capture_mode();
+            }
+            tracing::info!(on, "hideout capture mode toggled from desktop header");
         }
     }
 

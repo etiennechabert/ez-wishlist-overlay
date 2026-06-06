@@ -17,6 +17,8 @@
 //! functional for UI iteration on macOS/Linux.
 
 pub mod anchor;
+pub mod capture_session;
+pub mod guide;
 pub mod input;
 pub mod ocr_render;
 pub mod pose;
