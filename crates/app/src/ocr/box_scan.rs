@@ -650,6 +650,25 @@ pub fn format_capture_dump(
     );
     let _ = writeln!(s);
 
+    // The captured contents this shot, reconstructed row by row: one line per
+    // grid row that resolved to an item, each tile shown as its item id (`_` for
+    // a tile that matched nothing), left→right. This concise view sits above the
+    // verbose per-row trace below so a scan can be read — and a ground-truth
+    // label rebuilt — row by row without wading through the chrome/category lines.
+    let _ = writeln!(s, "=== CAPTURED ITEMS (this shot, per row) ===");
+    if read.tile_rows.is_empty() {
+        let _ = writeln!(s, "  (no item rows this capture)");
+    } else {
+        for (i, row) in read.tile_rows.iter().enumerate() {
+            let cells: Vec<String> = row
+                .iter()
+                .map(|t| t.clone().unwrap_or_else(|| "_".to_string()))
+                .collect();
+            let _ = writeln!(s, "  row {:>2}: {}", i + 1, cells.join("  "));
+        }
+    }
+    let _ = writeln!(s);
+
     let _ = writeln!(s, "=== ROWS (reading order, de-sheared) ===");
     for r in &read.rows {
         let (tag, note) = match r.kind {
@@ -1344,5 +1363,8 @@ pub(crate) mod tests {
         assert!(dump.contains("new row")); // merge summary: "+N new row(s)"
         assert!(dump.contains("uvlight")); // resolved tile shown in the tally
         assert!(dump.contains("(skipped: tab strip / subtitles)"));
+        // Concise per-row reconstruction sits above the verbose trace.
+        assert!(dump.contains("CAPTURED ITEMS (this shot, per row)"));
+        assert!(dump.contains("row  1: uvlight"));
     }
 }
