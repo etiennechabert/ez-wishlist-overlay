@@ -46,6 +46,10 @@ const PROGRESS_BG_ROUNDING: f32 = 5.0;
 /// at a glance. ~one toggle-width — child toggle column aligns with the
 /// parent's name column.
 const CHILD_INDENT: f32 = 22.0;
+/// Width of the expanded per-item breakdown shown when a By-progress row is
+/// clicked open. Spans the name + bar columns so each item's "have / need"
+/// right-aligns under the progress bar rather than floating mid-row.
+const PROGRESS_BREAKDOWN_W: f32 = PROGRESS_NAME_W + PROGRESS_BAR_W;
 
 enum HideoutRow<'a> {
     /// Non-interactive header for a category that has no matching buildable
@@ -143,7 +147,7 @@ pub fn ui(
                 }
             }
         }
-        HideoutView::Progress => progress_list(ui, state, save_tx),
+        HideoutView::Progress => progress_list(ui, state, save_tx, icons),
     }
 
     // The recipe editor renders in BOTH views off the ctx-memory selection
@@ -985,7 +989,12 @@ fn upgrade_completion_modal(
 /// list answering "what should I claim or grind next?" across the whole hideout,
 /// regardless of what's tracked. Empty only once every (unlocked) module is
 /// fully built.
-fn progress_list(ui: &mut egui::Ui, state: &Arc<RwLock<AppState>>, save_tx: &Sender<SaveTick>) {
+fn progress_list(
+    ui: &mut egui::Ui,
+    state: &Arc<RwLock<AppState>>,
+    save_tx: &Sender<SaveTick>,
+    icons: &mut IconCache,
+) {
     let rows = state.read().hideout_progress_rows();
     if rows.is_empty() {
         ui.add_space(8.0);
@@ -1001,7 +1010,7 @@ fn progress_list(ui: &mut egui::Ui, state: &Arc<RwLock<AppState>>, save_tx: &Sen
     }
     ui.add_space(PROGRESS_ROW_GAP);
     for (idx, row) in rows.iter().enumerate() {
-        progress_row(ui, state, save_tx, idx, row);
+        progress_row(ui, state, save_tx, icons, idx, row);
     }
 }
 
@@ -1009,11 +1018,16 @@ fn progress_row(
     ui: &mut egui::Ui,
     state: &Arc<RwLock<AppState>>,
     save_tx: &Sender<SaveTick>,
+    icons: &mut IconCache,
     row_idx: usize,
     row: &UpgradeProgressRow,
 ) {
     let dark = ui.visuals().dark_mode;
     let strong = ui.visuals().strong_text_color();
+    let weak = ui.visuals().weak_text_color();
+    // Clicking the row name / caret / bar toggles an inline item breakdown
+    // ("what's missing") — kept separate from Edit (the full recipe editor).
+    let expanded = is_progress_expanded(ui.ctx(), &row.upgrade_id);
     // Two slots reserved before content, painted once we know the row rect:
     // `bg_idx` for the full-row readiness tint (the stripe/hover trick from
     // `module_row`) and `accent_idx` for a thin pinned-priority stripe drawn
@@ -1029,23 +1043,56 @@ fn progress_row(
             egui::Layout::left_to_right(egui::Align::Center),
             |ui| {
                 ui.set_min_size(egui::vec2(PROGRESS_NAME_W, ROW_H));
-                let title = format!("{} L{}", row.module_name, row.level);
-                ui.add(
-                    egui::Label::new(egui::RichText::new(title).strong().color(strong)).truncate(),
+                // ▶/▼ caret signals the row expands; sits in Geometric Shapes
+                // (U+25A0–25FF), covered by Hack like the ●/○ toggle glyphs, so
+                // it renders rather than tofu. A frameless button keeps it light
+                // but still gives a reliable click target + hover highlight.
+                let caret = if expanded { "▼" } else { "▶" };
+                let caret_resp = ui.add(
+                    egui::Button::new(egui::RichText::new(caret).color(weak))
+                        .frame(false)
+                        .min_size(egui::vec2(16.0, ROW_H)),
                 );
+                ui.add_space(2.0);
+                let title = format!("{} L{}", row.module_name, row.level);
+                let title_resp = ui
+                    .add(
+                        egui::Label::new(egui::RichText::new(title).strong().color(strong))
+                            .truncate()
+                            .sense(egui::Sense::click()),
+                    )
+                    .on_hover_cursor(egui::CursorIcon::PointingHand);
+                let tip = if expanded {
+                    "Hide this upgrade's item list."
+                } else {
+                    "Show this upgrade's items — what's still needed and what \
+                     you've already collected."
+                };
+                let toggled = caret_resp.on_hover_text(tip).clicked()
+                    | title_resp.on_hover_text(tip).clicked();
+                if toggled {
+                    toggle_progress_expanded(ui.ctx(), &row.upgrade_id);
+                }
             },
         );
 
         // Same per-item progress widget the preview pane uses, here rolled up
-        // across the whole recipe.
+        // across the whole recipe. The bar doubles as a click target for the
+        // same expand toggle, giving the row a generous hit area.
         let frac = row.progress.fraction();
-        ui.add_sized(
-            egui::vec2(PROGRESS_BAR_W, 18.0),
-            egui::ProgressBar::new(frac).text(format!(
-                "{} / {}",
-                row.progress.collected, row.progress.needed
-            )),
-        );
+        let bar_resp = ui
+            .add_sized(
+                egui::vec2(PROGRESS_BAR_W, 18.0),
+                egui::ProgressBar::new(frac).text(format!(
+                    "{} / {}",
+                    row.progress.collected, row.progress.needed
+                )),
+            )
+            .interact(egui::Sense::click())
+            .on_hover_cursor(egui::CursorIcon::PointingHand);
+        if bar_resp.clicked() {
+            toggle_progress_expanded(ui.ctx(), &row.upgrade_id);
+        }
 
         progress_status_chip(ui, row);
         progress_badge(ui, row.knowledge, dark);
@@ -1058,7 +1105,7 @@ fn progress_row(
     // Ready rows get the warm `ready_fill` so closeness-to-claimable pops before
     // the eye reaches the bar (the grid signals this per-cell; here the row IS
     // the upgrade). Everything else falls back to the hover/stripe neutrals; the
-    // "N items to go" chip and the bucket order already carry near-completeness.
+    // bucket order (nearly-ready first) already carries near-completeness.
     let row_rect = inner.response.rect;
     let hovered = ui.rect_contains_pointer(row_rect);
     let bg = if row.ready {
@@ -1089,28 +1136,146 @@ fn progress_row(
             egui::epaint::RectShape::filled(stripe, 1.5, theme::pinned_accent(dark)),
         );
     }
+    if expanded {
+        progress_row_items(ui, state, icons, row);
+    }
     ui.add_space(PROGRESS_ROW_GAP);
 }
 
-/// Small status chip on a By-progress row: "ready" once every material is in,
-/// or "N item(s) to go" for a nearly-ready upgrade (1–2 distinct items short).
-/// Quiet for everything else — the progress bar already carries the unit count
-/// and the bucket order already groups them. Strong text contrasts with the
-/// row's readiness tint in both themes; no glyphs (the bundled fonts render
-/// ✓/★ as tofu — see `progress_badge`).
-fn progress_status_chip(ui: &mut egui::Ui, row: &UpgradeProgressRow) {
+/// Inline item breakdown for an expanded By-progress row: the upgrade's
+/// effective recipe as a have/need checklist. Items already stocked to their
+/// target are greyed + struck through so the eye lands on what's still
+/// missing; the count uses the same whole-inventory `owned_total` the row's
+/// progress bar and readiness do, so the checklist and the bar never disagree.
+/// Read-only — Edit stays the place to change the recipe.
+fn progress_row_items(
+    ui: &mut egui::Ui,
+    state: &Arc<RwLock<AppState>>,
+    icons: &mut IconCache,
+    row: &UpgradeProgressRow,
+) {
+    let weak = ui.visuals().weak_text_color();
     let strong = ui.visuals().strong_text_color();
+
+    struct ItemLine {
+        name: String,
+        icon_path: String,
+        have: u32,
+        need: u32,
+    }
+    // One lock: resolve the recipe + per-item owned totals + display name/icon.
+    let lines: Vec<ItemLine> = {
+        let s = state.read();
+        s.effective_requirements(&row.upgrade_id)
+            .into_iter()
+            .map(|req| {
+                let have = s.owned_total(&req.item_id);
+                let (name, icon_path) = s
+                    .index
+                    .items_by_id
+                    .get(&req.item_id)
+                    .map(|i| (i.name.clone(), i.icon_path.clone()))
+                    .unwrap_or_else(|| (req.item_id.clone(), String::new()));
+                ItemLine {
+                    name,
+                    icon_path,
+                    have,
+                    need: req.quantity,
+                }
+            })
+            .collect()
+    };
+
+    // Indent the block under the row's name so it reads as belonging to the
+    // pill above it, and pin its width so each "have / need" right-aligns under
+    // the progress bar.
+    ui.horizontal(|ui| {
+        ui.add_space(PROGRESS_BG_PAD.x + CHILD_INDENT);
+        ui.vertical(|ui| {
+            ui.set_min_width(PROGRESS_BREAKDOWN_W);
+            ui.set_max_width(PROGRESS_BREAKDOWN_W);
+            if lines.is_empty() {
+                // Mirrors the "needs recipe" badge: an empty effective recipe
+                // means we don't know the cost, so there's nothing to check off.
+                ui.label(
+                    egui::RichText::new(
+                        "No recipe on file yet — open Edit to fill in what this \
+                         upgrade needs.",
+                    )
+                    .small()
+                    .italics()
+                    .color(weak),
+                );
+                return;
+            }
+            for line in &lines {
+                let enough = line.have >= line.need;
+                ui.horizontal(|ui| {
+                    ui.set_min_height(COMPLETE_ICON_SIZE);
+                    if !line.icon_path.is_empty() {
+                        if let Some(tex) = icons.get(ui.ctx(), &line.icon_path) {
+                            ui.add(egui::Image::new(tex).fit_to_exact_size(egui::vec2(
+                                COMPLETE_ICON_SIZE,
+                                COMPLETE_ICON_SIZE,
+                            )));
+                        }
+                    }
+                    let mut name = egui::RichText::new(&line.name);
+                    name = if enough {
+                        name.color(weak).strikethrough()
+                    } else {
+                        name.color(strong)
+                    };
+                    ui.add(egui::Label::new(name));
+                    // Cap the owned figure at the requirement (matching the
+                    // row's progress bar): this checklist answers "is this line
+                    // satisfied?", not "how much surplus do I have?".
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        let color = if enough { weak } else { strong };
+                        ui.label(
+                            egui::RichText::new(format!(
+                                "{} / {}",
+                                line.have.min(line.need),
+                                line.need
+                            ))
+                            .strong()
+                            .color(color),
+                        );
+                    });
+                });
+            }
+        });
+    });
+}
+
+fn progress_expanded_key(upgrade_id: &UpgradeId) -> egui::Id {
+    egui::Id::new(("hideout-progress-expanded", upgrade_id.as_str()))
+}
+
+fn is_progress_expanded(ctx: &egui::Context, upgrade_id: &UpgradeId) -> bool {
+    ctx.data(|d| d.get_temp::<bool>(progress_expanded_key(upgrade_id)))
+        .unwrap_or(false)
+}
+
+fn toggle_progress_expanded(ctx: &egui::Context, upgrade_id: &UpgradeId) {
+    let key = progress_expanded_key(upgrade_id);
+    let now = !ctx.data(|d| d.get_temp::<bool>(key)).unwrap_or(false);
+    ctx.data_mut(|d| d.insert_temp(key, now));
+}
+
+/// Small "ready" chip on a By-progress row — shown once every material is in,
+/// a plain-language echo of the warm readiness tint and the row's float to the
+/// top. Quiet otherwise: the progress bar carries the unit count and clicking
+/// the row open lists each item's exact shortfall, so the old "N items to go"
+/// hint was dropped — its *distinct-item* count clashed with the bar's *unit*
+/// count (two different "to go" numbers on one row) and is now redundant with
+/// the inline breakdown. Strong text contrasts with the readiness tint in both
+/// themes; no glyphs (the bundled fonts render ✓/★ as tofu — see
+/// `progress_badge`).
+fn progress_status_chip(ui: &mut egui::Ui, row: &UpgradeProgressRow) {
     if row.ready {
+        let strong = ui.visuals().strong_text_color();
         ui.label(egui::RichText::new("ready").small().strong().color(strong));
-    } else if (1..=2).contains(&row.shortfall.items_missing) {
-        let n = row.shortfall.items_missing;
-        let noun = if n == 1 { "item" } else { "items" };
-        ui.label(
-            egui::RichText::new(format!("{n} {noun} to go"))
-                .small()
-                .strong()
-                .color(strong),
-        );
     }
 }
 
@@ -2012,6 +2177,39 @@ mod tests {
         assert!(
             !state.read().is_upgrade_pinned(&"workshop_lv1".to_string()),
             "unticking Pin should unpin the upgrade"
+        );
+    }
+
+    #[test]
+    fn progress_row_expands_to_show_items() {
+        // Workshop L1 needs 2 Bolts; in the By-progress view that recipe is
+        // hidden until the row is clicked open, then shown as a have/need line.
+        let state = single_known_module();
+        let settings = settings(HideoutView::Progress);
+        let mut h = harness(&state, &settings);
+        h.run();
+
+        // Collapsed by default — only the row title / bar / controls show, not
+        // the recipe's item names.
+        assert!(
+            h.query_by_label("Bolts").is_none(),
+            "recipe items should be hidden until the row is expanded"
+        );
+
+        // Click the ▶ caret to expand; the item now renders in the breakdown.
+        h.get_by_label("▶").click();
+        h.run();
+        assert!(
+            h.query_by_label("Bolts").is_some(),
+            "expanding the row should reveal its recipe items"
+        );
+
+        // The caret flips to ▼; clicking it collapses the row again.
+        h.get_by_label("▼").click();
+        h.run();
+        assert!(
+            h.query_by_label("Bolts").is_none(),
+            "collapsing the row should hide its recipe items again"
         );
     }
 

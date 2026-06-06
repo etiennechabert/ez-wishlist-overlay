@@ -983,8 +983,8 @@ pub struct UpgradeProgressRow {
     /// User-pinned: floats this row above its readiness bucket and paints a
     /// priority accent. Carried on the row so the GUI never re-locks per row.
     pub pinned: bool,
-    /// Distinct items / units still missing. Drives the "nearly ready" tier
-    /// (1–2 items_missing) and the "N to go" status text.
+    /// Distinct items / units still missing. Drives the "nearly ready" sort
+    /// tier (1–2 items_missing floats a row just below the ready ones).
     pub shortfall: UpgradeShortfall,
 }
 
