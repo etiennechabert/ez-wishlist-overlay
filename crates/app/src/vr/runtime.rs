@@ -87,11 +87,16 @@ pub struct Runtime {
     /// VR render loop polls this each tick; the GUI flips it via
     /// [`Runtime::set_auto_capture`].
     auto_capture: Arc<AtomicBool>,
-    /// Ephemeral box-scan mode switch. While `true`, SPACE captures are tagged
-    /// [`crate::ocr::JobKind::BoxScan`] and the auto-capture loop is suppressed
-    /// (the two modes are mutually exclusive). Not persisted — always starts
-    /// `false`. The GUI flips it via [`Runtime::set_box_scan_mode`].
+    /// Ephemeral box-scan mode switch. While `true`, captures are tagged
+    /// [`crate::ocr::JobKind::BoxScan`] and the upgrade-panel auto-capture loop is
+    /// suppressed. Not persisted — always starts `false`. The GUI flips it via
+    /// [`Runtime::set_box_scan_mode`].
     box_scan_mode: Arc<AtomicBool>,
+    /// While a box scan is active, drive captures automatically (continuous,
+    /// self-paced) so the user just scrolls instead of pressing SPACE. Reset to
+    /// `true` whenever box-scan mode is entered; the scan window's "Auto-capture"
+    /// checkbox toggles it. SPACE still forces a manual capture regardless.
+    box_auto_capture: Arc<AtomicBool>,
     _join: std::thread::JoinHandle<()>,
 }
 
@@ -145,6 +150,8 @@ impl Runtime {
         let auto_capture_worker = auto_capture.clone();
         let box_scan_mode = Arc::new(AtomicBool::new(false));
         let box_scan_mode_worker = box_scan_mode.clone();
+        let box_auto_capture = Arc::new(AtomicBool::new(true));
+        let box_auto_capture_worker = box_auto_capture.clone();
         let join = std::thread::Builder::new()
             .name("ez-wishlist-vr".into())
             .spawn(move || {
@@ -159,6 +166,7 @@ impl Runtime {
                     ocr_feedback_rx,
                     auto_capture_worker,
                     box_scan_mode_worker,
+                    box_auto_capture_worker,
                 )
             })
             .expect("spawn VR thread");
@@ -168,6 +176,7 @@ impl Runtime {
             last_capture,
             auto_capture,
             box_scan_mode,
+            box_auto_capture,
             _join: join,
         }
     }
@@ -187,6 +196,7 @@ impl Runtime {
             last_capture: Arc::new(RwLock::new(None)),
             auto_capture: Arc::new(AtomicBool::new(false)),
             box_scan_mode: Arc::new(AtomicBool::new(false)),
+            box_auto_capture: Arc::new(AtomicBool::new(true)),
             _join: std::thread::Builder::new()
                 .name("ez-wishlist-vr-test".into())
                 .spawn(|| {})
@@ -223,15 +233,31 @@ impl Runtime {
         self.auto_capture.load(Ordering::Relaxed)
     }
 
-    /// Enter/leave box-scan mode. Ephemeral — never persisted. While on, SPACE
-    /// captures feed the box-scan session and the auto-capture loop is
-    /// suppressed. The Containers tab flips this around a "Scan box" session.
+    /// Enter/leave box-scan mode. Ephemeral — never persisted. While on, captures
+    /// feed the box-scan session and the upgrade-panel auto-capture loop is
+    /// suppressed. Entering a scan re-arms [`Self::set_box_auto_capture`] to `true`
+    /// so each scan starts hands-free by default. The Containers tab flips this
+    /// around a "Scan box" session.
     pub fn set_box_scan_mode(&self, on: bool) {
         self.box_scan_mode.store(on, Ordering::Relaxed);
+        if on {
+            self.box_auto_capture.store(true, Ordering::Relaxed);
+        }
     }
 
     pub fn box_scan_enabled(&self) -> bool {
         self.box_scan_mode.load(Ordering::Relaxed)
+    }
+
+    /// Enable/disable the box-scan auto-capture loop (the scan window's
+    /// "Auto-capture" checkbox). Only has effect while box-scan mode is on. When
+    /// off, captures are manual (SPACE) only.
+    pub fn set_box_auto_capture(&self, on: bool) {
+        self.box_auto_capture.store(on, Ordering::Relaxed);
+    }
+
+    pub fn box_auto_capture_enabled(&self) -> bool {
+        self.box_auto_capture.load(Ordering::Relaxed)
     }
 }
 
@@ -248,6 +274,7 @@ fn run(
     _ocr_feedback_rx: Receiver<crate::gui::OcrFeedback>,
     _auto_capture: Arc<AtomicBool>,
     _box_scan_mode: Arc<AtomicBool>,
+    _box_auto_capture: Arc<AtomicBool>,
 ) {
     // Status is already Unsupported. Nothing else to do — park the thread.
     *status.write() = VrStatus::Unsupported;
@@ -267,6 +294,7 @@ fn run(
     ocr_feedback_rx: Receiver<crate::gui::OcrFeedback>,
     auto_capture: Arc<AtomicBool>,
     box_scan_mode: Arc<AtomicBool>,
+    box_auto_capture: Arc<AtomicBool>,
 ) {
     use super::overlay::OverlaySession;
 
@@ -300,6 +328,7 @@ fn run(
                     &ocr_feedback_rx,
                     &auto_capture,
                     &box_scan_mode,
+                    &box_auto_capture,
                 );
                 if let Err(e) = lost {
                     tracing::warn!(error = %e, "VR session lost");
@@ -332,6 +361,7 @@ fn render_loop(
     ocr_feedback_rx: &Receiver<crate::gui::OcrFeedback>,
     auto_capture: &Arc<AtomicBool>,
     box_scan_mode: &Arc<AtomicBool>,
+    box_auto_capture: &Arc<AtomicBool>,
 ) -> anyhow::Result<()> {
     use super::input::Debouncer;
     use super::pose::{Visibility, VisibilityFsm};
@@ -449,12 +479,18 @@ fn render_loop(
 
         // Auto-capture loop. Entirely non-blocking: paced by `Instant`
         // comparisons in this ~90 Hz loop, single-flight via
-        // `capture_in_flight`, and silent (no per-loop beep). The mode
-        // flag is ephemeral, so it always starts off (see
-        // `Runtime::set_auto_capture`). Suppressed entirely while a box scan is
-        // active — the two capture modes are mutually exclusive.
-        let auto_on =
-            auto_capture.load(Ordering::Relaxed) && !box_scan_mode.load(Ordering::Relaxed);
+        // `capture_in_flight`, and silent (no per-loop beep). Two modes share
+        // this machinery, never both at once:
+        //   - **box scan**: while a scan is active, capture continuously and
+        //     hands-free (so the user just scrolls) as long as the scan window's
+        //     auto toggle is on. Redundant frames dedup by row-uniqueness, so a
+        //     short cadence is safe and gap-resistant.
+        //   - **upgrade panel**: the user's ephemeral auto-capture toggle, only
+        //     when NOT box-scanning.
+        let box_scan_on = box_scan_mode.load(Ordering::Relaxed);
+        let box_auto_on = box_scan_on && box_auto_capture.load(Ordering::Relaxed);
+        let upgrade_auto_on = auto_capture.load(Ordering::Relaxed) && !box_scan_on;
+        let auto_on = box_auto_on || upgrade_auto_on;
         if auto_on && !prev_auto_on {
             // Rising edge: make the first capture eligible immediately.
             last_auto_done = None;
@@ -476,10 +512,20 @@ fn render_loop(
         if auto_on {
             let (ocr_enabled, interval) = {
                 let s = settings.read();
-                (
-                    s.ocr_enabled,
-                    Duration::from_secs(s.auto_capture_interval_secs as u64),
-                )
+                // Box scan auto-captures while the user scrolls, but with a **1 s
+                // floor** between captures. The single-flight latch already
+                // serializes them (the next capture waits for the prior OCR to
+                // finish), but capturing the 3K mirror texture + running OCR
+                // back-to-back (a sub-second floor) destabilizes the system during
+                // a live VR scan with the game running — so space captures out by
+                // at least a second. Also keeps a *failed* capture from retrying
+                // every ~11 ms frame. The upgrade panel uses the user's interval.
+                let interval = if box_scan_on {
+                    Duration::from_secs(1)
+                } else {
+                    Duration::from_secs(s.auto_capture_interval_secs as u64)
+                };
+                (s.ocr_enabled, interval)
             };
             let due = match last_auto_done {
                 Some(t) => frame_start.duration_since(t) >= interval,
@@ -494,7 +540,7 @@ fn render_loop(
                     last_capture,
                     &mut ocr_state,
                     false,
-                    false, // auto-capture is upgrade-panel only
+                    box_scan_on, // box scan → BoxScan job; else upgrade panel
                 ) {
                     capture_in_flight = true;
                     auto_dispatched_at = Some(frame_start);
@@ -1217,4 +1263,30 @@ fn compute_hover(
         }
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn box_scan_arms_auto_capture_by_default_and_toggle_sticks() {
+        let rt = Runtime::disconnected_for_test();
+        // Hands-free by default.
+        assert!(rt.box_auto_capture_enabled());
+
+        // The scan window can pause it for manual SPACE captures.
+        rt.set_box_auto_capture(false);
+        assert!(!rt.box_auto_capture_enabled());
+
+        // Starting a scan re-arms it, so every scan is hands-free by default
+        // regardless of the prior toggle state.
+        rt.set_box_scan_mode(true);
+        assert!(rt.box_scan_enabled());
+        assert!(rt.box_auto_capture_enabled());
+
+        // A manual pause still applies within an active scan.
+        rt.set_box_auto_capture(false);
+        assert!(!rt.box_auto_capture_enabled());
+    }
 }
