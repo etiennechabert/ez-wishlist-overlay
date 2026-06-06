@@ -2693,7 +2693,10 @@ mod unit_ocr_tests {
     /// score, the per-unit read detail (for the committed sidecars), and the
     /// list of **gated** failures (empty ⇒ the gate passes). Shared by the gate
     /// test (`assert_units`, `runs = 1`) and the `eval_report_json` scorecard.
-    pub(crate) fn score_units(asset: &str, runs: usize) -> (UnitScore, Vec<UnitResult>, Vec<String>) {
+    pub(crate) fn score_units(
+        asset: &str,
+        runs: usize,
+    ) -> (UnitScore, Vec<UnitResult>, Vec<String>) {
         let runs = runs.max(1);
         let dir = units_dir(asset);
         let labels = load_unit_labels(&dir);

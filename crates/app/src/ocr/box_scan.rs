@@ -974,18 +974,46 @@ pub(crate) mod tests {
         let recognized: u32 = items.iter().map(|(_, n)| n).sum();
         let mut s = String::new();
         let _ = writeln!(s, "# {stem} — what the OCR read in this one screenshot");
-        let _ = writeln!(s, "# (auto-generated; do not edit by hand — see screenshots/CLAUDE.md)");
+        let _ = writeln!(
+            s,
+            "# (auto-generated; do not edit by hand — see screenshots/CLAUDE.md)"
+        );
         let _ = writeln!(s, "#");
-        let _ = writeln!(s, "# This is ONE scroll shot of the {scan} grid. The grid is taller than the");
-        let _ = writeln!(s, "# screen, so the full contents come from merging every shot — that merged");
-        let _ = writeln!(s, "# result, scored against the label, lives in {scan}.ocr-result.txt. This file");
-        let _ = writeln!(s, "# just shows what the OCR pulled out of this single frame, regenerated from");
-        let _ = writeln!(s, "# the frozen {stem}.boxes.json (so it never runs the game).");
+        let _ = writeln!(
+            s,
+            "# This is ONE scroll shot of the {scan} grid. The grid is taller than the"
+        );
+        let _ = writeln!(
+            s,
+            "# screen, so the full contents come from merging every shot — that merged"
+        );
+        let _ = writeln!(
+            s,
+            "# result, scored against the label, lives in {scan}.ocr-result.txt. This file"
+        );
+        let _ = writeln!(
+            s,
+            "# just shows what the OCR pulled out of this single frame, regenerated from"
+        );
+        let _ = writeln!(
+            s,
+            "# the frozen {stem}.boxes.json (so it never runs the game)."
+        );
         let _ = writeln!(s, "#");
         let _ = writeln!(s, "## SUMMARY");
-        let _ = writeln!(s, "  recognized {recognized} item tile(s) across {} grid row(s)", read.tile_rows.len());
-        let _ = writeln!(s, "  dropped {unrec} text(s) that matched no catalog item (window title, weight");
-        let _ = writeln!(s, "    readout, category tabs/subtitles — i.e. screen chrome, not items)");
+        let _ = writeln!(
+            s,
+            "  recognized {recognized} item tile(s) across {} grid row(s)",
+            read.tile_rows.len()
+        );
+        let _ = writeln!(
+            s,
+            "  dropped {unrec} text(s) that matched no catalog item (window title, weight"
+        );
+        let _ = writeln!(
+            s,
+            "    readout, category tabs/subtitles — i.e. screen chrome, not items)"
+        );
         let _ = writeln!(s, "#");
         let _ = writeln!(s, "  items found in this frame:");
         if items.is_empty() {
@@ -997,8 +1025,14 @@ pub(crate) mod tests {
         }
         let _ = writeln!(s, "#");
         let _ = writeln!(s, "## DETAIL — every text the OCR produced, row by row");
-        let _ = writeln!(s, "#   \"-> id\" resolved to that catalog item;  \"-> (no match)\" was dropped.");
-        let _ = writeln!(s, "#   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.");
+        let _ = writeln!(
+            s,
+            "#   \"-> id\" resolved to that catalog item;  \"-> (no match)\" was dropped."
+        );
+        let _ = writeln!(
+            s,
+            "#   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI."
+        );
         for r in &read.rows {
             let tag = match r.kind {
                 RowKind::Names => "items ",
@@ -1049,11 +1083,23 @@ pub(crate) mod tests {
 
         let mut s = String::new();
         let _ = writeln!(s, "# {scan} — merged scan result vs the ground-truth label");
-        let _ = writeln!(s, "# (auto-generated; do not edit by hand — see screenshots/CLAUDE.md)");
+        let _ = writeln!(
+            s,
+            "# (auto-generated; do not edit by hand — see screenshots/CLAUDE.md)"
+        );
         let _ = writeln!(s, "#");
-        let _ = writeln!(s, "# The {scan} grid spans several scroll shots; this is the merged tally of all");
-        let _ = writeln!(s, "# of them (regenerated from the frozen .boxes.json — no game), compared to");
-        let _ = writeln!(s, "# {scan}.label.txt. Per-shot reads are in the sibling {scan}.shotN.ocr-result.txt.");
+        let _ = writeln!(
+            s,
+            "# The {scan} grid spans several scroll shots; this is the merged tally of all"
+        );
+        let _ = writeln!(
+            s,
+            "# of them (regenerated from the frozen .boxes.json — no game), compared to"
+        );
+        let _ = writeln!(
+            s,
+            "# {scan}.label.txt. Per-shot reads are in the sibling {scan}.shotN.ocr-result.txt."
+        );
         let _ = writeln!(s, "#");
         let _ = writeln!(s, "## SUMMARY");
         let _ = writeln!(
@@ -1063,7 +1109,11 @@ pub(crate) mod tests {
         let _ = writeln!(
             s,
             "  exact match: {}",
-            if exact { "YES — the scan reads the label exactly" } else { "NO — see the per-item breakdown below" }
+            if exact {
+                "YES — the scan reads the label exactly"
+            } else {
+                "NO — see the per-item breakdown below"
+            }
         );
         if let Some(n) = note {
             let _ = writeln!(s, "  note: {n}");
@@ -1126,7 +1176,8 @@ pub(crate) mod tests {
                 let stem = shot.trim_end_matches(".boxes.json");
                 let text = shot_result_text(stem, category, &read);
                 let out = fixture_dir(category).join(format!("{stem}.ocr-result.txt"));
-                std::fs::write(&out, text).unwrap_or_else(|e| panic!("write {}: {e}", out.display()));
+                std::fs::write(&out, text)
+                    .unwrap_or_else(|e| panic!("write {}: {e}", out.display()));
                 written += 1;
             }
             // Merged scan: captured vs label.
