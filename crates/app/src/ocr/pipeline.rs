@@ -1808,6 +1808,10 @@ mod fixture_tests {
             /// from `unit_ocr_tests`. The hand-cropped `screenshots/<asset>/units/`
             /// tiles, scored independently of the full-panel/full-scan numbers.
             units: Vec<super::unit_ocr_tests::UnitScore>,
+            /// Per-unit read detail (one entry per committed crop, all assets),
+            /// each with its per-run OCR reads. Backs the per-image
+            /// `units/<file>.ocr-result.txt` sidecars.
+            unit_results: Vec<super::unit_ocr_tests::UnitResult>,
         }
 
         fn median(mut v: Vec<usize>) -> usize {
@@ -2005,16 +2009,26 @@ mod fixture_tests {
             Some("captures have real scroll gaps (rows in no shot); informational, not gated"),
         );
 
+        // Per-asset unit tallies + per-unit read detail. Each crop is OCR'd
+        // `runs` times (the live engine is non-deterministic, just like the
+        // hideout panels) so a committed unit result records run-to-run jitter
+        // rather than a single lucky read.
+        let mut unit_scores = Vec::new();
+        let mut unit_results = Vec::new();
+        for a in ["hideout", "box", "stash"] {
+            let (score, results, _fails) = super::unit_ocr_tests::score_units(a, runs);
+            unit_scores.push(score);
+            unit_results.extend(results);
+        }
+
         let report = Report {
             runs,
             templates_loaded: crate::ocr::templates::EMBEDDED.len(),
             hideout: HideoutReport { totals, fixtures },
             box_,
             stash,
-            units: ["hideout", "box", "stash"]
-                .iter()
-                .map(|a| super::unit_ocr_tests::score_units(a).0)
-                .collect(),
+            units: unit_scores,
+            unit_results,
         };
         let json = serde_json::to_string_pretty(&report).expect("serialize eval report");
 
@@ -2655,26 +2669,59 @@ mod unit_ocr_tests {
         pub hard_total: usize,
     }
 
-    /// OCR every committed unit crop for `asset` and tally gated / `#hard` pass
-    /// counts (printing a per-unit line). Returns the score plus the list of
-    /// **gated** failures (empty ⇒ the gate passes). Shared by the gate test
-    /// (`assert_units`) and the `eval_report_json` scorecard.
-    pub(crate) fn score_units(asset: &str) -> (UnitScore, Vec<String>) {
+    /// One committed unit crop's per-run OCR reads — the data behind a per-image
+    /// `units/<file>.ocr-result.txt` sidecar. `ok_runs == reads.len()` ⇒ the
+    /// tile read its expected name on every run (a clean PASS); `0` ⇒ never;
+    /// in between ⇒ FLAKY.
+    #[derive(serde::Serialize, Clone)]
+    pub(crate) struct UnitResult {
+        pub asset: String,
+        pub file: String,
+        /// The in-game display name the tile shows (ground truth for the read).
+        pub expected: String,
+        /// A `#hard` unit: reported as an OCR-improvement target, not gated.
+        pub hard: bool,
+        /// One entry per run: the OCR text (lowercased, space-joined words), or
+        /// `"<missing>"` when the crop file is absent.
+        pub reads: Vec<String>,
+        /// How many of the runs satisfied `reads_expected`.
+        pub ok_runs: usize,
+    }
+
+    /// OCR every committed unit crop for `asset` `runs` times and tally gated /
+    /// `#hard` pass counts (printing a per-unit line). Returns the aggregate
+    /// score, the per-unit read detail (for the committed sidecars), and the
+    /// list of **gated** failures (empty ⇒ the gate passes). Shared by the gate
+    /// test (`assert_units`, `runs = 1`) and the `eval_report_json` scorecard.
+    pub(crate) fn score_units(asset: &str, runs: usize) -> (UnitScore, Vec<UnitResult>, Vec<String>) {
+        let runs = runs.max(1);
         let dir = units_dir(asset);
         let labels = load_unit_labels(&dir);
         let mut fails = Vec::new();
+        let mut results = Vec::new();
         let (mut gated_total, mut gated_ok, mut hard_total, mut hard_ok) = (0usize, 0, 0, 0);
         for (file, expect, hard) in &labels {
             let path = dir.join(file);
-            let got = if path.exists() {
-                ocr_text(&path)
-            } else {
-                "<missing>".to_string()
-            };
-            let ok = path.exists() && reads_expected(&got, expect);
+            let exists = path.exists();
+            let mut reads = Vec::with_capacity(runs);
+            let mut ok_runs = 0usize;
+            for _ in 0..runs {
+                let got = if exists {
+                    ocr_text(&path)
+                } else {
+                    "<missing>".to_string()
+                };
+                if exists && reads_expected(&got, expect) {
+                    ok_runs += 1;
+                }
+                reads.push(got);
+            }
+            // A clean pass means the tile read its name on *every* run; a unit
+            // that only read on some runs is FLAKY, not a pass.
+            let ok = exists && ok_runs == runs;
             let tag = if *hard { "hard" } else { "gate" };
             let mark = if ok { "ok " } else { "ERR" };
-            eprintln!("  [{mark}|{tag}] {asset}/{file}: expect={expect:?} got={got:?}");
+            eprintln!("  [{mark}|{tag}] {asset}/{file}: expect={expect:?} ok_runs={ok_runs}/{runs} reads={reads:?}");
             if *hard {
                 hard_total += 1;
                 if ok {
@@ -2686,10 +2733,18 @@ mod unit_ocr_tests {
                     gated_ok += 1;
                 } else {
                     fails.push(format!(
-                        "{asset}/{file}: expected {expect:?}, OCR read {got:?}"
+                        "{asset}/{file}: expected {expect:?}, OCR ok on {ok_runs}/{runs} runs (reads {reads:?})"
                     ));
                 }
             }
+            results.push(UnitResult {
+                asset: asset.to_string(),
+                file: file.clone(),
+                expected: expect.clone(),
+                hard: *hard,
+                reads,
+                ok_runs,
+            });
         }
         eprintln!(
             "{asset} units: {gated_ok}/{gated_total} gated passed ({hard_total} known-hard reported)"
@@ -2702,6 +2757,7 @@ mod unit_ocr_tests {
                 hard_ok,
                 hard_total,
             },
+            results,
             fails,
         )
     }
@@ -2712,7 +2768,7 @@ mod unit_ocr_tests {
             eprintln!("{asset}: no units in {} — skipping", dir.display());
             return;
         }
-        let (_score, fails) = score_units(asset);
+        let (_score, _results, fails) = score_units(asset, 1);
         assert!(
             fails.is_empty(),
             "isolated-OCR unit failures (fix the crop or the pipeline, or mark the line \

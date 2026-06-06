@@ -244,16 +244,35 @@ insert the entry alphabetically, and confirm a suspicious id with the user first
 - **Before/after a change:** `./scripts/ocr-eval-compare.ps1 -Baseline a.json
   -Candidate b.json` → KEEP / REVERT / NOISE. Hideout is compared against its
   run-to-run noise band; box/stash are deterministic.
-- **Committed per-fixture results:** `./scripts/ocr-write-results.ps1 -Json
-  score.json` turns an eval report into a `<stem>.ocr-result.txt` sidecar next to
-  **each** capture (hideout per-cell PASS/FAIL of the owned-count read vs the
-  label + identification; box/stash scan-level tile tally). These are
-  **auto-generated read-outs, NOT ground truth** — never hand-edit them and never
-  treat them as labels (the `.label.txt` files are the only ground truth). They're
-  committed so the repo records, at a glance, which capture the OCR currently
-  reads; refresh them after an OCR change (`ocr-eval.ps1` then this). Distinct
-  from the gitignored timestamped `*.ocr-debug.*.txt` / `*.cell*.png` in-flight
-  dumps.
+- **Committed per-image results:** a `<stem>.ocr-result.txt` sidecar next to
+  **every committed image** — one file per image, written so a human can glance
+  at "this screenshot → what the OCR made of it" without running anything. Two
+  generators, split by whether the read needs the live (Windows-only,
+  non-deterministic) OCR engine:
+  - **Deterministic — box/stash** (frozen `.boxes.json`, no engine; regenerated
+    by a pure cross-platform Rust test:
+    `cargo test -p ez-wishlist-overlay write_box_scan_results -- --ignored`):
+    - `box/<scan>.shotN.ocr-result.txt` — per-**image**: what that one scroll
+      frame's OCR read. A high-level summary first (item tiles recognized, texts
+      dropped as chrome, the items found), then a row-by-row trace of every OCR
+      text and the catalog item it resolved to (or "no match").
+    - `box/box.ocr-result.txt`, `stash/stash.ocr-result.txt` — the **merged**
+      scan: captured-vs-label, with a per-item `OK / MISSING / EXTRA` breakdown so
+      the gaps (e.g. stash's scroll gaps) are visible at a glance.
+  - **Live-engine — hideout + units** (`./scripts/ocr-eval.ps1` then
+    `./scripts/ocr-write-results.ps1 -Json score.json`, Windows):
+    - `hideout/<UpgradeId>.ocr-result.txt` — per-cell PASS/FAIL of the owned-count
+      read vs the label + identification.
+    - `<asset>/units/<item>.ocr-result.txt` — the isolated-OCR read of each unit
+      crop (expected display name vs what the engine read, PASS/FLAKY/FAIL).
+    These collapse reads across `-Runs` (FLAKY when they varied), since the engine
+    is non-deterministic.
+
+  All of these are **auto-generated read-outs, NOT ground truth** — never
+  hand-edit them and never treat them as labels (the `.label.txt` files are the
+  only ground truth). They're committed so the repo records, at a glance, which
+  capture the OCR currently reads; refresh them after an OCR change. Distinct from
+  the gitignored timestamped `*.ocr-debug.*.txt` / `*.cell*.png` in-flight dumps.
 - **Hard gates** (run by normal `cargo test … ocr`): hideout
   `identification_and_cell_ordering_on_native_pngs` (15/15) +
   `owned_count_accuracy_floor_on_native_pngs` (≥45); box `box_scan_matches_label`

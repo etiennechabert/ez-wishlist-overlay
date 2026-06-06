@@ -1,0 +1,87 @@
+# stash.shot04 — what the OCR read in this one screenshot
+# (auto-generated; do not edit by hand — see screenshots/CLAUDE.md)
+#
+# This is ONE scroll shot of the stash grid. The grid is taller than the
+# screen, so the full contents come from merging every shot — that merged
+# result, scored against the label, lives in stash.ocr-result.txt. This file
+# just shows what the OCR pulled out of this single frame, regenerated from
+# the frozen stash.shot04.boxes.json (so it never runs the game).
+#
+## SUMMARY
+  recognized 13 item tile(s) across 3 grid row(s)
+  dropped 1 text(s) that matched no catalog item (window title, weight
+    readout, category tabs/subtitles — i.e. screen chrome, not items)
+#
+  items found in this frame:
+    1 x misc_1batterie_2
+    1 x misc_b_beardoil
+    1 x misc_b_glue_large
+    1 x misc_b_insulatingtape
+    1 x misc_b_lighterfluid
+    1 x misc_b_moldboard
+    1 x misc_b_nail
+    1 x misc_b_pcfan
+    1 x misc_b_rustedcleaner
+    2 x misc_b_saltcan
+    1 x misc_b_tire_sealant
+    1 x misc_b_wd40
+#
+## DETAIL — every text the OCR produced, row by row
+#   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
+#   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
+  [chrome]
+    105                            -> (no match)
+  [chrome]
+    JUNK BOX                       -> (no match)
+  [items ]
+    Salt can                       -> misc_b_saltcan
+    Salt can                       -> misc_b_saltcan
+    Tire Sealant                   -> misc_b_tire_sealant
+    CPU F.n                        -> misc_b_pcfan
+    Size O batteryl                -> misc_1batterie_2
+  [tabs  ]
+    Household                      -> (no match)
+    Household                      -> (no match)
+    TOOL                           -> (no match)
+    Electric                       -> (no match)
+  [chrome]
+    JOHNNY'S SERVICE               -> (no match)
+  [chrome]
+    UPGRADE                        -> (no match)
+  [items ]
+    wa-40                          -> (no match)
+    RIBt cleaner                   -> misc_b_rustedcleaner
+    Insulating Tape                -> misc_b_insulatingtape
+    Instant glue                   -> misc_b_glue_large
+  [tabs  ]
+    Combustible                    -> (no match)
+    Household                      -> (no match)
+    Building                       -> (no match)
+    Building                       -> (no match)
+    Medical Supplies               -> (no match)
+  [chrome]
+    SHOP EXPRESS                   -> (no match)
+  [chrome]
+    Box Nail                       -> (no match)
+    'NIE.                          -> (no match)
+  [chrome]
+    RESTOCK                        -> (no match)
+  [items ]
+    Moldboard                      -> misc_b_moldboard
+    WD-40                          -> misc_b_wd40
+    Lighter fluid                  -> misc_b_lighterfluid
+    Boxed Nails                    -> misc_b_nail
+    BeardOi1                       -> misc_b_beardoil
+  [tabs  ]
+    Tool                           -> (no match)
+    Combustible                    -> (no match)
+    Combustible                    -> (no match)
+    Building                       -> (no match)
+    Household                      -> (no match)
+  [chrome]
+    JUNK BOX                       -> (no match)
+  [chrome]
+    SUBMIT                         -> (no match)
+  [chrome]
+    - ONLY MISCELLANEOUS ITEMS CAN BE STORED HERE -> (no match)
+    21.86/40 KG                    -> (no match)

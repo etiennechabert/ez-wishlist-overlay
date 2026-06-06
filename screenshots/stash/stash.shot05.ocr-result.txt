@@ -1,0 +1,75 @@
+# stash.shot05 — what the OCR read in this one screenshot
+# (auto-generated; do not edit by hand — see screenshots/CLAUDE.md)
+#
+# This is ONE scroll shot of the stash grid. The grid is taller than the
+# screen, so the full contents come from merging every shot — that merged
+# result, scored against the label, lives in stash.ocr-result.txt. This file
+# just shows what the OCR pulled out of this single frame, regenerated from
+# the frozen stash.shot05.boxes.json (so it never runs the game).
+#
+## SUMMARY
+  recognized 10 item tile(s) across 3 grid row(s)
+  dropped 2 text(s) that matched no catalog item (window title, weight
+    readout, category tabs/subtitles — i.e. screen chrome, not items)
+#
+  items found in this frame:
+    2 x misc_1batterie_2
+    2 x misc_b_aspire
+    1 x misc_b_beardoil
+    1 x misc_b_flashlight
+    2 x misc_b_ionbattery
+    1 x misc_b_newphone
+    1 x misc_b_pcfan
+#
+## DETAIL — every text the OCR produced, row by row
+#   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
+#   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
+  [chrome]
+    105                            -> (no match)
+  [chrome]
+    JUNK BOX                       -> (no match)
+  [chrome]
+    O 3379294                      -> (no match)
+  [chrome]
+    Climbing root rope             -> (no match)
+    Moldboard Toot                 -> (no match)
+    •u Electric techip             -> (no match)
+    Int•nt Building glue           -> (no match)
+    Combustible GO can             -> (no match)
+  [chrome]
+    JOHNNY'S SERVICE               -> (no match)
+  [items ]
+    Fluh light                     -> misc_b_flashlight
+    BeardOil                       -> misc_b_beardoil
+    Size O batteryl                -> misc_1batterie_2
+    Size O batteryl                -> misc_1batterie_2
+    Ion Battery                    -> misc_b_ionbattery
+    UPGRADE                        -> (no match)
+  [tabs  ]
+    Electric                       -> (no match)
+    Household                      -> (no match)
+    Power                          -> (no match)
+    Power                          -> (no match)
+  [chrome]
+    SHOP EXPRESS                   -> (no match)
+  [items ]
+    ASPIR'N                        -> misc_b_aspire
+  [items ]
+    NewPhone                       -> misc_b_newphone
+    CPU Fan                        -> misc_b_pcfan
+    Aspirin                        -> misc_b_aspire
+    Ion Battery                    -> misc_b_ionbattery
+    RESTOCK                        -> (no match)
+  [tabs  ]
+    Electric                       -> (no match)
+    Electric                       -> (no match)
+    Electric                       -> (no match)
+    Medical Supplies               -> (no match)
+    Power                          -> (no match)
+  [chrome]
+    JUNK BOX                       -> (no match)
+  [chrome]
+    SUBMIT                         -> (no match)
+  [chrome]
+    - ONLY MISCELLANEOUS ITEMS CAN BE STORED HERE -> (no match)
+    21.86/40 KG                    -> (no match)
