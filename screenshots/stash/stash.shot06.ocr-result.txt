@@ -8,16 +8,18 @@
 # the frozen stash.shot06.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 6 item tile(s) across 2 grid row(s)
-  dropped 1 text(s) that matched no catalog item (window title, weight
+  recognized 13 item tile(s) across 4 grid row(s)
+  dropped 5 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   captured items by grid row — top to bottom, left to right, the same
   order they sit on screen (the OCR groups tiles into rows too, so this
   reads against the screenshot row for row; "?" = a tile that OCR'd but
   matched no catalog item):
-    row  1: misc_b_aspire
-    row  2: misc_b_ionbattery, misc_1batterie_2, misc_b_aspire, misc_b_tire_sealant, misc_b_pipeline, ?
+    row  1: misc_b_asthmamedication, misc_notebook, ?, misc_b_pipeline, ?
+    row  2: misc_b_flashlight, misc_1batterie_2, misc_b_gunoil, misc_b_iodophor, ?, ?
+    row  3: misc_b_aspire
+    row  4: misc_b_ionbattery, misc_1batterie_2, misc_b_aspire, misc_b_tire_sealant, misc_b_pipeline, ?
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
@@ -28,19 +30,19 @@
     JUNK BOX                       -> (no match)
   [chrome]
     0 3379284                      -> (no match)
-  [chrome]
-    Medical Asthma Supplies medicine -> (no match)
-    Notebook Intel                 -> (no match)
+  [items ]
+    Medical Asthma Supplies medicine -> misc_b_asthmamedication
+    Notebook Intel                 -> misc_notebook
     Tire root Sealant              -> (no match)
-    Building Valve                 -> (no match)
+    Building Valve                 -> misc_b_pipeline
     Combustible                    -> (no match)
   [chrome]
     JOHNNY'S SERVICE               -> (no match)
-  [chrome]
-    Fluh Electric light            -> (no match)
-    Size Power O batteryl          -> (no match)
-    Combustible Gun oil            -> (no match)
-    Medical Iodine Supplies        -> (no match)
+  [items ]
+    Fluh Electric light            -> misc_b_flashlight
+    Size Power O batteryl          -> misc_1batterie_2
+    Combustible Gun oil            -> misc_b_gunoil
+    Medical Iodine Supplies        -> misc_b_iodophor
     Household Be•rdOiL             -> (no match)
     UPGRADE                        -> (no match)
   [chrome]

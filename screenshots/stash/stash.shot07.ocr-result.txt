@@ -8,16 +8,18 @@
 # the frozen stash.shot07.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 2 item tile(s) across 2 grid row(s)
-  dropped 3 text(s) that matched no catalog item (window title, weight
+  recognized 7 item tile(s) across 4 grid row(s)
+  dropped 8 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   captured items by grid row — top to bottom, left to right, the same
   order they sit on screen (the OCR groups tiles into rows too, so this
   reads against the screenshot row for row; "?" = a tile that OCR'd but
   matched no catalog item):
-    row  1: misc_b_aspire, ?
-    row  2: misc_b_gunoil, ?, ?
+    row  1: ?, ?, ?, misc_notebook, ?
+    row  2: misc_b_aspire, ?
+    row  3: misc_b_insulatingtape, misc_b_wd40, misc_b_aspire, misc_b_superglue, ?
+    row  4: misc_b_gunoil, ?, ?
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
@@ -30,22 +32,22 @@
     JUNK BOX                       -> (no match)
   [chrome]
     0 3379284                      -> (no match)
-  [chrome]
+  [items ]
     Screwdriver rooi               -> (no match)
     Screwdriver rooi               -> (no match)
     Combustible G" can             -> (no match)
-    Notebook Intel                 -> (no match)
+    Notebook Intel                 -> misc_notebook
     Intel                          -> (no match)
   [items ]
     ASPIR'N                        -> misc_b_aspire
     JOHNNY'S SERVICE               -> (no match)
   [chrome]
     UPGRADE                        -> (no match)
-  [chrome]
-    Insulating Building rape       -> (no match)
-    Combustible WD.40              -> (no match)
-    Medical Aspirin Supplies       -> (no match)
-    Super Building Glue            -> (no match)
+  [items ]
+    Insulating Building rape       -> misc_b_insulatingtape
+    Combustible WD.40              -> misc_b_wd40
+    Medical Aspirin Supplies       -> misc_b_aspire
+    Super Building Glue            -> misc_b_superglue
     Combustible G" can             -> (no match)
   [chrome]
     SHOP EXPRESS                   -> (no match)

@@ -8,16 +8,17 @@
 # the frozen stash.shot03.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 9 item tile(s) across 2 grid row(s)
-  dropped 1 text(s) that matched no catalog item (window title, weight
+  recognized 13 item tile(s) across 3 grid row(s)
+  dropped 2 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   captured items by grid row — top to bottom, left to right, the same
   order they sit on screen (the OCR groups tiles into rows too, so this
   reads against the screenshot row for row; "?" = a tile that OCR'd but
   matched no catalog item):
-    row  1: misc_b_rat_poison, misc_b_rat_poison, misc_b_gastank_large, misc_b_pipeline, ?
-    row  2: misc_b_saltcan, misc_b_saltcan, misc_b_tire_sealant, misc_b_pcfan, misc_1batterie_2
+    row  1: misc_b_nail, misc_b_nail, ?, misc_b_ceramic_adhesive, misc_b_deodorant
+    row  2: misc_b_rat_poison, misc_b_rat_poison, misc_b_gastank_large, misc_b_pipeline, ?
+    row  3: misc_b_saltcan, misc_b_saltcan, misc_b_tire_sealant, misc_b_pcfan, misc_1batterie_2
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
@@ -28,12 +29,12 @@
     JUNK BOX                       -> (no match)
   [chrome]
     O 3379294                      -> (no match)
-  [chrome]
-    Boxed Building Nails           -> (no match)
-    Boxed Building Nails           -> (no match)
+  [items ]
+    Boxed Building Nails           -> misc_b_nail
+    Boxed Building Nails           -> misc_b_nail
     Electric                       -> (no match)
-    Cer•mic Building adhesive      -> (no match)
-    Household O •odorant           -> (no match)
+    Cer•mic Building adhesive      -> misc_b_ceramic_adhesive
+    Household O •odorant           -> misc_b_deodorant
   [chrome]
     JOHNNY'S SERVICE               -> (no match)
   [items ]

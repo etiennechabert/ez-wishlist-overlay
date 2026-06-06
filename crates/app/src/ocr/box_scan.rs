@@ -313,6 +313,14 @@ fn is_category_tile(tile: &[&LabelBox]) -> bool {
     saw_word
 }
 
+/// Is this single OCR token a [`CATEGORY_WORDS`] entry (a tab/subtitle word like
+/// "Tool")? Used to strip a category subtitle that bled into a name tile.
+#[allow(dead_code)]
+fn is_category_word(word: &str) -> bool {
+    let key = category_key(word);
+    !key.is_empty() && CATEGORY_WORDS.contains(&key.as_str())
+}
+
 #[allow(dead_code)]
 fn median<I: Iterator<Item = f32>>(vals: I) -> f32 {
     let mut v: Vec<f32> = vals.collect();
@@ -572,7 +580,25 @@ pub fn read_tiles(boxes: &[LabelBox], img_h: f32, data: &GameData) -> BoxReadRes
                 .iter()
                 .map(|t| {
                     let tokens: Vec<&str> = t.iter().map(|b| b.text.as_str()).collect();
-                    (join_text(t), match_item(data, &tokens))
+                    // A tile's name can absorb its category subtitle (e.g. the
+                    // "Wire Cutter" tile OCRs as "Wire Tool Cutter", "Tool" being
+                    // the category word). Match the raw label first; only if that
+                    // fails, retry with category words stripped. Trying raw first
+                    // means a real name that contains a category word ("Power
+                    // Bank", "Medical scissors") is never weakened by stripping.
+                    let m = match_item(data, &tokens).or_else(|| {
+                        let stripped: Vec<&str> = tokens
+                            .iter()
+                            .copied()
+                            .filter(|w| !is_category_word(w))
+                            .collect();
+                        if stripped.len() < tokens.len() && !stripped.is_empty() {
+                            match_item(data, &stripped)
+                        } else {
+                            None
+                        }
+                    });
+                    (join_text(t), m)
                 })
                 .collect();
             let kind = if resolved.iter().all(|(_, m)| m.is_none()) {
@@ -1568,6 +1594,31 @@ pub(crate) mod tests {
             ]
         );
         assert!(matches!(res.observed_weight, Some(v) if (v - 21.94).abs() < 0.01));
+    }
+
+    #[test]
+    fn read_tiles_strips_category_word_bleeding_into_name() {
+        // A name tile can absorb its category subtitle: the "Copper wire" tile
+        // OCRs with the category word "Tool" wedged in. Raw "copper tool wire"
+        // scores below the matcher floor; stripping the known category word as a
+        // fallback recovers the item. (Mirrors the real "Wire Tool Cutter" tile.)
+        let data = box_data();
+        let boxes = vec![
+            lb("Copper", 50.0, 120.0),
+            lb("Tool", 85.0, 120.0),
+            lb("wire", 120.0, 120.0),
+        ];
+        let res = read_tiles(&boxes, 500.0, &data);
+        assert_eq!(res.tiles, vec![Some("copperwire".to_string())]);
+    }
+
+    #[test]
+    fn is_category_word_flags_only_category_tokens() {
+        assert!(is_category_word("Tool"));
+        assert!(is_category_word("building"));
+        assert!(is_category_word("Combustible."));
+        assert!(!is_category_word("Copper"));
+        assert!(!is_category_word("wire"));
     }
 
     #[test]

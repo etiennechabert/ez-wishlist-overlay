@@ -8,17 +8,18 @@
 # the frozen stash.shot05.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 10 item tile(s) across 3 grid row(s)
-  dropped 2 text(s) that matched no catalog item (window title, weight
+  recognized 11 item tile(s) across 4 grid row(s)
+  dropped 6 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   captured items by grid row — top to bottom, left to right, the same
   order they sit on screen (the OCR groups tiles into rows too, so this
   reads against the screenshot row for row; "?" = a tile that OCR'd but
   matched no catalog item):
-    row  1: misc_b_flashlight, misc_b_beardoil, misc_1batterie_2, misc_1batterie_2, misc_b_ionbattery, ?
-    row  2: misc_b_aspire
-    row  3: misc_b_newphone, misc_b_pcfan, misc_b_aspire, misc_b_ionbattery, ?
+    row  1: ?, ?, ?, misc_b_glue_large, ?
+    row  2: misc_b_flashlight, misc_b_beardoil, misc_1batterie_2, misc_1batterie_2, misc_b_ionbattery, ?
+    row  3: misc_b_aspire
+    row  4: misc_b_newphone, misc_b_pcfan, misc_b_aspire, misc_b_ionbattery, ?
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
@@ -29,11 +30,11 @@
     JUNK BOX                       -> (no match)
   [chrome]
     O 3379294                      -> (no match)
-  [chrome]
+  [items ]
     Climbing root rope             -> (no match)
     Moldboard Toot                 -> (no match)
     •u Electric techip             -> (no match)
-    Int•nt Building glue           -> (no match)
+    Int•nt Building glue           -> misc_b_glue_large
     Combustible GO can             -> (no match)
   [chrome]
     JOHNNY'S SERVICE               -> (no match)

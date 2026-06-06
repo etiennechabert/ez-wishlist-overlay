@@ -6,47 +6,50 @@
 # stash.label.txt. Per-shot reads are in the sibling stash.shotN.ocr-result.txt.
 #
 ## SUMMARY
-  captured 49/55 label tile(s)  (6 missing, 27 extra)
+  captured 49/55 label tile(s)  (6 missing, 51 extra)
   exact match: NO — see the per-item breakdown below
   note: captures have real scroll gaps (some grid rows appear in no shot), so a partial capture is expected here — informational, not gated
 #
 ## PER ITEM   (read = scan count, label = ground truth)
 # status  read/label  item_id
-  EXTRA      7/2      misc_1batterie_2
-  EXTRA      3/0      misc_b_aspire
-  EXTRA      1/0      misc_b_asthmamedication
+  EXTRA      8/2      misc_1batterie_2
+  EXTRA      4/0      misc_b_aspire
+  EXTRA      2/0      misc_b_asthmamedication
   MISSING    0/1      misc_b_bandaid
   OK         2/2      misc_b_beardoil
   EXTRA      5/2      misc_b_ceramic_adhesive
-  OK         1/1      misc_b_deodorant
-  EXTRA      2/1      misc_b_flashlight
+  EXTRA      2/1      misc_b_deodorant
+  EXTRA      3/1      misc_b_flashlight
   EXTRA      3/2      misc_b_gastank_large
-  OK         1/1      misc_b_glue_large
-  EXTRA      1/0      misc_b_gunoil
-  OK         1/1      misc_b_insulatingtape
+  EXTRA      2/1      misc_b_glue_large
+  EXTRA      2/0      misc_b_gunoil
+  EXTRA      4/1      misc_b_insulatingtape
+  EXTRA      1/0      misc_b_iodophor
   EXTRA      4/1      misc_b_ionbattery
   EXTRA      2/1      misc_b_lighter
   OK         1/1      misc_b_lighterfluid
-  OK         1/1      misc_b_moldboard
+  EXTRA      2/1      misc_b_moldboard
   OK         4/4      misc_b_nail
   EXTRA      1/0      misc_b_newphone
   OK         1/1      misc_b_oldphone
   MISSING    1/5      misc_b_opticaldisc
   OK         2/2      misc_b_pcfan
   OK         1/1      misc_b_pesticide
-  EXTRA      2/1      misc_b_pipeline
+  EXTRA      3/1      misc_b_pipeline
   MISSING    0/1      misc_b_ram
   OK         2/2      misc_b_rat_poison
-  EXTRA      5/3      misc_b_recorder
+  EXTRA      6/3      misc_b_recorder
   EXTRA      2/1      misc_b_rustedcleaner
   OK         2/2      misc_b_saltcan
   OK         2/2      misc_b_shampoo
   OK         1/1      misc_b_sparkplug
-  OK         2/2      misc_b_tape
+  EXTRA      3/0      misc_b_superglue
+  EXTRA      3/2      misc_b_tape
   EXTRA      2/1      misc_b_tire_sealant
-  OK         2/2      misc_b_wd40
-  OK         1/1      misc_b_wirecutting
+  EXTRA      4/2      misc_b_wd40
+  EXTRA      2/1      misc_b_wirecutting
   OK         3/3      misc_b_wrench
   EXTRA      2/0      misc_bpu
-  OK         2/2      misc_notebook
+  EXTRA      1/0      misc_floppydisk
+  EXTRA      4/2      misc_notebook
   OK         1/1      misc_screwdriver

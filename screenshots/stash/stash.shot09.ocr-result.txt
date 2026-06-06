@@ -8,8 +8,8 @@
 # the frozen stash.shot09.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 5 item tile(s) across 2 grid row(s)
-  dropped 4 text(s) that matched no catalog item (window title, weight
+  recognized 8 item tile(s) across 3 grid row(s)
+  dropped 6 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   captured items by grid row — top to bottom, left to right, the same
@@ -17,7 +17,8 @@
   reads against the screenshot row for row; "?" = a tile that OCR'd but
   matched no catalog item):
     row  1: ?, ?, ?, misc_b_recorder, misc_b_rustedcleaner, ?
-    row  2: misc_b_ceramic_adhesive, misc_b_ceramic_adhesive, misc_b_gastank_large
+    row  2: ?, misc_floppydisk, misc_b_tape, ?, misc_b_deodorant
+    row  3: misc_b_ceramic_adhesive, misc_b_ceramic_adhesive, misc_b_gastank_large
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
@@ -41,12 +42,12 @@
     JOHNNY'S SERVICE               -> (no match)
   [chrome]
     UPGRADE                        -> (no match)
-  [chrome]
+  [items ]
     Wrench root                    -> (no match)
-    Floppydisk Intel               -> (no match)
-    Intel Tape                     -> (no match)
+    Floppydisk Intel               -> misc_floppydisk
+    Intel Tape                     -> misc_b_tape
     Intel                          -> (no match)
-    Household Deodorant            -> (no match)
+    Household Deodorant            -> misc_b_deodorant
   [chrome]
     SHOP EXPRESS                   -> (no match)
   [chrome]

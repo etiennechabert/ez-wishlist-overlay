@@ -8,16 +8,17 @@
 # the frozen stash.shot08.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 4 item tile(s) across 2 grid row(s)
-  dropped 5 text(s) that matched no catalog item (window title, weight
+  recognized 12 item tile(s) across 3 grid row(s)
+  dropped 2 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   captured items by grid row — top to bottom, left to right, the same
   order they sit on screen (the OCR groups tiles into rows too, so this
   reads against the screenshot row for row; "?" = a tile that OCR'd but
   matched no catalog item):
-    row  1: ?, ?, ?, ?, misc_1batterie_2
+    row  1: misc_b_insulatingtape, misc_b_wirecutting, misc_b_wd40, misc_b_superglue, misc_1batterie_2
     row  2: misc_b_asthmamedication, misc_1batterie_2, ?, misc_b_lighter
+    row  3: misc_b_superglue, misc_b_recorder, misc_b_moldboard, ?, misc_b_insulatingtape
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
@@ -29,10 +30,10 @@
   [chrome]
     0 3379294                      -> (no match)
   [items ]
-    Insulating Building rape       -> (no match)
-    Wire Tool Cutter               -> (no match)
-    Combustible WD-40              -> (no match)
-    Super Building Glue            -> (no match)
+    Insulating Building rape       -> misc_b_insulatingtape
+    Wire Tool Cutter               -> misc_b_wirecutting
+    Combustible WD-40              -> misc_b_wd40
+    Super Building Glue            -> misc_b_superglue
     Site D batteryl                -> misc_1batterie_2
   [chrome]
     JOHNNY'S SERVICE               -> (no match)
@@ -55,12 +56,12 @@
     SHOP EXPRESS                   -> (no match)
   [chrome]
     RESTOCK                        -> (no match)
-  [chrome]
-    Super Building Glue            -> (no match)
-    Recorder Intel                 -> (no match)
-    Moldboard Tool                 -> (no match)
+  [items ]
+    Super Building Glue            -> misc_b_superglue
+    Recorder Intel                 -> misc_b_recorder
+    Moldboard Tool                 -> misc_b_moldboard
     Medical Medical Supplies       -> (no match)
-    Insulating Building Tape       -> (no match)
+    Insulating Building Tape       -> misc_b_insulatingtape
   [chrome]
     JUNK BOX                       -> (no match)
   [chrome]
