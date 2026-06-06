@@ -272,6 +272,16 @@ pub fn ui(
     );
     ui.add_space(8.0);
 
+    // While a box scan is *capturing*, take over the whole pane and show only the
+    // scan view — no stash/container item names — so the app's own item list can't
+    // be OCR'd back into the scan (the capture can include this desktop window).
+    // The full item list + per-row Drop appear in Finish & review, once capturing
+    // has stopped.
+    if matches!(scan.ui_state, Some(BoxScanUi::Scanning { .. })) {
+        box_scan_fullpane(ui, state, &mut scan);
+        return;
+    }
+
     // Snapshot the stash row + every container row in one read lock.
     let (stash_row, rows) = {
         let s = state.read();
@@ -379,10 +389,8 @@ pub fn ui(
     // The "New container" modal (name + icon grid), when open.
     new_container_modal(ui.ctx(), state, icons, save_tx);
 
-    // The centered live-scan window, while a session is capturing.
-    box_scan_live_window(ui.ctx(), state, &mut scan);
-
     // The box-scan confirm/preview modal, when a session is in its review phase.
+    // (The capturing phase takes over the whole pane above and returns early.)
     box_review_modal(ui.ctx(), state, save_tx, &mut scan);
 }
 
@@ -1420,22 +1428,6 @@ fn rows_view(
         });
 }
 
-/// `(id, name, count)` rows for a tally, names resolved from the data index.
-fn tally_rows(s: &AppState, tally: &HashMap<ItemId, u32>) -> Vec<(ItemId, String, u32)> {
-    tally
-        .iter()
-        .map(|(id, &n)| {
-            let name = s
-                .index
-                .items_by_id
-                .get(id)
-                .map(|it| it.name.clone())
-                .unwrap_or_else(|| id.clone());
-            (id.clone(), name, n)
-        })
-        .collect()
-}
-
 fn warn_label(ui: &mut egui::Ui, text: &str) {
     ui.label(egui::RichText::new(text).color(WARN_COL));
 }
@@ -1496,7 +1488,13 @@ fn box_scan_section(ui: &mut egui::Ui, target: ScanTarget, target_name: &str, sc
 /// active) so it floats above the container table instead of scrolling with a
 /// row. Shows the running tally, status, weight checksum, the up-front
 /// REPLACE/flush warning, and the Finish / Cancel controls.
-fn box_scan_live_window(ctx: &egui::Context, state: &Arc<RwLock<AppState>>, scan: &mut ScanCtx) {
+/// Full-pane live-scan view, shown while a box scan is *capturing*. It takes over
+/// the whole Containers pane (the caller returns early) and deliberately shows
+/// **no item names** — only capture counts, the weight checksum, and controls —
+/// so the app's own stash/contents list isn't on screen to be read back into the
+/// scan. The item-name detail (and per-row Drop) lives in [`box_review_modal`],
+/// which only opens once capturing has stopped.
+fn box_scan_fullpane(ui: &mut egui::Ui, state: &Arc<RwLock<AppState>>, scan: &mut ScanCtx) {
     let (target_name, latest) = match scan.ui_state.as_ref() {
         Some(BoxScanUi::Scanning {
             target_name,
@@ -1508,134 +1506,123 @@ fn box_scan_live_window(ctx: &egui::Context, state: &Arc<RwLock<AppState>>, scan
 
     let mut finish = false;
     let mut cancel = false;
-    // The scan window's hands-free toggle (default on, re-armed on each scan
-    // start). Mirrors the finish/cancel pattern: read current state, let the
-    // checkbox edit a local, push the change to the runtime after the window.
+    // Hands-free toggle (default on, re-armed on each scan start): read current
+    // state, let the checkbox edit a local, push the change to the runtime after.
     let mut auto_capture = scan.vr.box_auto_capture_enabled();
     let mut auto_changed = false;
 
-    egui::Window::new(format!("Box scan — {target_name}"))
-        .collapsible(false)
-        .resizable(false)
-        .default_width(420.0)
-        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-        .show(ctx, |ui| {
+    ui.add_space(6.0);
+    ui.label(
+        egui::RichText::new(format!("Box scan — {target_name}"))
+            .heading()
+            .strong(),
+    );
+    ui.label(
+        egui::RichText::new(SCAN_HINT)
+            .small()
+            .color(ui.visuals().weak_text_color()),
+    );
+    ui.add_space(8.0);
+    if ui
+        .checkbox(&mut auto_capture, "Auto-capture while scrolling")
+        .on_hover_text(
+            "On: captures continuously as you scroll (recommended). \
+             Off: capture each scroll position yourself with SPACE.",
+        )
+        .changed()
+    {
+        auto_changed = true;
+    }
+    ui.add_space(6.0);
+    warn_label_danger(ui, &flush_warning(&target_name));
+    ui.separator();
+
+    match &latest {
+        None => {
+            ui.label(egui::RichText::new("Waiting for the first capture…").italics());
+        }
+        Some(u) => {
+            // Counts + weight only — never item names (those feed back into OCR).
+            let total: u32 = u.tally.values().sum();
+            let mut line = format!(
+                "{} capture(s) · {} item(s) across {} row(s)",
+                u.captures,
+                total,
+                u.rows.len()
+            );
+            if u.unrecognized > 0 {
+                line.push_str(&format!(" · {} unrecognized", u.unrecognized));
+            }
+            ui.label(line);
+
+            let mut last_line = match u.status {
+                BoxScanStatus::Ok => format!(
+                    "This capture: +{} rows ({} already had)",
+                    u.last_rows_added, u.last_rows_duplicate
+                ),
+                BoxScanStatus::NoTiles => "This capture: no items seen".to_string(),
+            };
+            if u.last_unrecognized > 0 {
+                last_line.push_str(&format!(" · {} unrecognized", u.last_unrecognized));
+            }
             ui.label(
-                egui::RichText::new(SCAN_HINT)
+                egui::RichText::new(last_line)
                     .small()
                     .color(ui.visuals().weak_text_color()),
             );
-            ui.add_space(4.0);
-            if ui
-                .checkbox(&mut auto_capture, "Auto-capture while scrolling")
-                .on_hover_text(
-                    "On: captures continuously as you scroll (recommended). \
-                     Off: capture each scroll position yourself with SPACE.",
-                )
-                .changed()
-            {
-                auto_changed = true;
-            }
-            // Up-front flush caution: the user should know this is a replace
-            // before they invest several captures, not only at the review step.
-            ui.add_space(4.0);
-            warn_label_danger(ui, &flush_warning(&target_name));
-            ui.separator();
 
-            match &latest {
-                None => {
-                    ui.label(egui::RichText::new("Waiting for the first capture…").italics());
-                }
-                Some(u) => {
-                    let total: u32 = u.tally.values().sum();
-                    let mut line = format!("{} capture(s) · {} item(s)", u.captures, total);
-                    if u.unrecognized > 0 {
-                        line.push_str(&format!(" · {} unrecognized", u.unrecognized));
-                    }
-                    ui.label(line);
-
-                    // What the most recent shot contributed, distinct from the
-                    // cumulative line above (the in-headset card shows the same).
-                    let mut last_line = match u.status {
-                        BoxScanStatus::Ok => format!(
-                            "This capture: +{} rows ({} already had)",
-                            u.last_rows_added, u.last_rows_duplicate
-                        ),
-                        BoxScanStatus::NoTiles => "This capture: no items seen".to_string(),
-                    };
-                    if u.last_unrecognized > 0 {
-                        last_line.push_str(&format!(" · {} unrecognized", u.last_unrecognized));
-                    }
-                    ui.label(
-                        egui::RichText::new(last_line)
-                            .small()
-                            .color(ui.visuals().weak_text_color()),
-                    );
-
-                    if u.status == BoxScanStatus::NoTiles {
-                        warn_label(
-                            ui,
-                            "Last shot saw no items — make sure the box screen is visible.",
-                        );
-                    }
-
-                    if let Some(observed) = u.observed_weight {
-                        let computed = computed_weight(&state.read(), &u.tally);
-                        let close = (computed - observed).abs() <= (observed * 0.1).max(0.5);
-                        let col = if close {
-                            egui::Color32::from_rgb(80, 170, 90)
-                        } else {
-                            WARN_COL
-                        };
-                        ui.label(
-                            egui::RichText::new(format!(
-                                "weight: computed {computed:.1} / observed {observed:.1} kg"
-                            ))
-                            .small()
-                            .color(col),
-                        );
-                    }
-
-                    let mut item_rows = tally_rows(&state.read(), &u.tally);
-                    item_rows.sort_by(|a, b| {
-                        b.2.cmp(&a.2)
-                            .then_with(|| a.1.to_lowercase().cmp(&b.1.to_lowercase()))
-                    });
-                    if !item_rows.is_empty() {
-                        egui::ScrollArea::vertical()
-                            .max_height(220.0)
-                            .id_salt("box-scan-tally")
-                            .show(ui, |ui| {
-                                for (_, name, qty) in &item_rows {
-                                    ui.label(format!("  {qty} × {name}"));
-                                }
-                            });
-                    }
-
-                    // The same rows shown read-only "as captured"; the user can
-                    // drop a bad one in the Finish & review step.
-                    if !u.rows.is_empty() {
-                        ui.separator();
-                        rows_view(ui, &state.read(), &u.rows, None, "box-scan-rows-live");
-                    }
-                }
+            if u.status == BoxScanStatus::NoTiles {
+                warn_label(
+                    ui,
+                    "Last shot saw no items — make sure the box screen is visible.",
+                );
             }
 
-            ui.separator();
-            ui.horizontal(|ui| {
-                if ui
-                    .add(egui::Button::new(
-                        egui::RichText::new("Finish & review").strong(),
+            if let Some(observed) = u.observed_weight {
+                let computed = computed_weight(&state.read(), &u.tally);
+                let close = (computed - observed).abs() <= (observed * 0.1).max(0.5);
+                let col = if close {
+                    egui::Color32::from_rgb(80, 170, 90)
+                } else {
+                    WARN_COL
+                };
+                ui.label(
+                    egui::RichText::new(format!(
+                        "weight: computed {computed:.1} / observed {observed:.1} kg"
                     ))
-                    .clicked()
-                {
-                    finish = true;
-                }
-                if ui.button("Cancel scan").clicked() {
-                    cancel = true;
-                }
-            });
-        });
+                    .small()
+                    .color(col),
+                );
+            }
+        }
+    }
+
+    ui.add_space(8.0);
+    ui.label(
+        egui::RichText::new(
+            "Item names are hidden while scanning so they can't be read back into \
+             the capture. You'll see the full list — and can drop any bad rows — in \
+             Finish & review.",
+        )
+        .small()
+        .italics()
+        .color(ui.visuals().weak_text_color()),
+    );
+
+    ui.separator();
+    ui.horizontal(|ui| {
+        if ui
+            .add(egui::Button::new(
+                egui::RichText::new("Finish & review").strong(),
+            ))
+            .clicked()
+        {
+            finish = true;
+        }
+        if ui.button("Cancel scan").clicked() {
+            cancel = true;
+        }
+    });
 
     if auto_changed {
         scan.vr.set_box_auto_capture(auto_capture);
@@ -2088,5 +2075,29 @@ mod tests {
         };
         assert_eq!(rows.len(), 1, "dropping a row must remove exactly one");
         assert_eq!(rows[0].id, 11, "the first row (id 10) is the one dropped");
+    }
+
+    #[test]
+    fn scanning_takes_over_the_pane_and_hides_the_item_list() {
+        let state = Arc::new(RwLock::new(AppState::new(game_data())));
+        let box_scan = Arc::new(RwLock::new(Some(BoxScanUi::Scanning {
+            target: ScanTarget::Stash,
+            target_name: "Stash".into(),
+            latest: None,
+        })));
+        let mut h = review_harness(&state, &box_scan);
+        h.run();
+
+        // The full-pane scan view is shown while capturing...
+        assert!(
+            h.query_by_label("Finish & review").is_some(),
+            "the scan view should be shown while a scan is capturing"
+        );
+        // ...and the whole container table (and thus every stash/contents item
+        // name) is gone — nothing on screen can be OCR'd back into the scan.
+        assert!(
+            h.query_by_label("Primary storage").is_none(),
+            "the container table must be hidden while a scan is capturing"
+        );
     }
 }
