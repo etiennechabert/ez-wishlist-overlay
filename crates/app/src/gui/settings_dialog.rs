@@ -1,6 +1,6 @@
 //! Modal dialog for user-tunable settings.
 
-use crate::settings::{bounds, CaptureEye, ColorScheme, Settings, Theme, VrSettings};
+use crate::settings::{bounds, CaptureEye, CaptureHand, ColorScheme, Settings, Theme, VrSettings};
 use parking_lot::RwLock;
 use std::path::Path;
 use std::sync::Arc;
@@ -342,48 +342,24 @@ fn vr_section(ui: &mut egui::Ui, vr: &mut VrSettings) {
     ui.label(
         egui::RichText::new(
             "While a capture mode is armed (Hideout, or a container scan), a \
-             guide box appears in the headset and the controller trigger takes \
-             one screenshot per pull. Tune these so the box frames exactly the \
-             panel/container region you want OCR'd — only that region is read.",
+             guide box appears in the headset and the chosen controller trigger \
+             takes one screenshot per pull. The cropped region OCR'd is fixed \
+             per screen (the app knows each screen's shape) — aim the guide box \
+             at the panel/container so it lands inside.",
         )
         .small()
         .color(weak),
     );
-    egui::Grid::new("settings-capture-guide")
-        .num_columns(2)
-        .spacing([16.0, 8.0])
-        .show(ui, |ui| {
-            ui.label("Guide width (m)")
-                .on_hover_text("Apparent width of the guide box in your VR view.");
-            stepper_slider_f32(
-                ui,
-                &mut vr.guide_width_m,
-                bounds::GUIDE_WIDTH_METERS,
-                0.05,
-                " m",
-            );
-            ui.end_row();
-
-            ui.label("Crop left")
-                .on_hover_text("Left edge of the OCR crop, as a fraction of the captured frame.");
-            stepper_slider_f32(ui, &mut vr.capture_crop.x, 0.0..=1.0, 0.01, "");
-            ui.end_row();
-
-            ui.label("Crop top")
-                .on_hover_text("Top edge of the OCR crop, as a fraction of the captured frame.");
-            stepper_slider_f32(ui, &mut vr.capture_crop.y, 0.0..=1.0, 0.01, "");
-            ui.end_row();
-
-            ui.label("Crop width")
-                .on_hover_text("Width of the OCR crop, as a fraction of the captured frame.");
-            stepper_slider_f32(ui, &mut vr.capture_crop.w, 0.0..=1.0, 0.01, "");
-            ui.end_row();
-
-            ui.label("Crop height")
-                .on_hover_text("Height of the OCR crop, as a fraction of the captured frame.");
-            stepper_slider_f32(ui, &mut vr.capture_crop.h, 0.0..=1.0, 0.01, "");
-            ui.end_row();
-        });
+    ui.add_space(6.0);
+    ui.horizontal(|ui| {
+        ui.label("Capture trigger").on_hover_text(
+            "Which controller trigger takes the OCR screenshot while a capture \
+             mode is armed. The other trigger is left free for in-game menu \
+             navigation. Shown on the guide box in the headset.",
+        );
+        ui.selectable_value(&mut vr.capture_trigger, CaptureHand::Right, "Right");
+        ui.selectable_value(&mut vr.capture_trigger, CaptureHand::Left, "Left");
+    });
 }
 
 /// Width of the +/- buttons next to each slider. Chosen so they're large

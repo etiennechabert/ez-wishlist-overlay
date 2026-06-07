@@ -42,8 +42,8 @@ const OCR_OFFSET_Z_M: f32 = -1.2;
 const GUIDE_OVERLAY_KEY: &str = "com.etienneb.ez-wishlist-overlay.guide\0";
 const GUIDE_OVERLAY_NAME: &str = "EZ Wishlist Capture Guide\0";
 /// Default metric width of the head-locked capture guide box (issue #136).
-/// Overridden per-frame from `VrSettings::guide_width_m`; this is just the
-/// value pushed at init before the loop applies the user's setting.
+/// Overridden per-frame with a width derived from the active mode's crop width;
+/// this is just the value pushed at init before the loop applies it.
 const GUIDE_OVERLAY_WIDTH_M: f32 = 0.9;
 /// Head-locked guide-box offsets, HMD local frame. Centered on the gaze and
 /// ~1 m in front so the user can line the panel/container up inside it.
@@ -332,8 +332,8 @@ impl OverlaySession {
         Ok(())
     }
 
-    /// Set the guide box's metric width (from `VrSettings::guide_width_m`).
-    /// Skips the call when unchanged.
+    /// Set the guide box's metric width (derived per-frame from the active
+    /// mode's crop width). Skips the call when unchanged.
     pub fn set_guide_width(&mut self, width_meters: f32) -> Result<()> {
         if (width_meters - self.last_guide_width).abs() < f32::EPSILON {
             return Ok(());
@@ -550,6 +550,28 @@ impl OverlaySession {
             Ok(d) if d.0.bActive && d.0.bChanged && d.0.bState
         );
 
+        // Some runtimes don't isolate a shared, "single"-usage boolean action
+        // per hand: `restrictToDevice` leaks the global state, so BOTH hands
+        // report fired on a single trigger pull (which made the Left/Right
+        // capture-trigger setting look like it had no effect). When both fire,
+        // attribute the press to the controller actually driving the action
+        // this tick, via the action's active origin.
+        if left_fired && right_fired {
+            if let Ok(g) = input.get_digital_action_data(trigger, VRInputValueHandle(0)) {
+                if let Ok(info) =
+                    input.get_origin_tracked_device_info(VRInputValueHandle(g.0.activeOrigin))
+                {
+                    let dev = TrackedDeviceIndex(info.0.trackedDeviceIndex);
+                    if Some(dev) == left_idx {
+                        return (left_idx, None);
+                    }
+                    if Some(dev) == right_idx {
+                        return (None, right_idx);
+                    }
+                }
+            }
+        }
+
         let left = if left_fired { left_idx } else { None };
         let right = if right_fired { right_idx } else { None };
         (left, right)
@@ -582,19 +604,6 @@ impl OverlaySession {
         trace: bool,
     ) -> Result<image::DynamicImage> {
         super::capture::capture_compositor_mirror_image(eye, trace)
-    }
-
-    /// Same as [`Self::capture_screenshot`] but also writes the
-    /// bitmap to `out_path` as PNG. Used by the debug-mode VR flow
-    /// (`settings.ocr_debug = true`) so users can attach the
-    /// screenshot bundle to GitHub issues.
-    pub fn capture_screenshot_to_png(
-        &self,
-        out_path: &std::path::Path,
-        eye: super::capture::CaptureEye,
-        trace: bool,
-    ) -> Result<image::DynamicImage> {
-        super::capture::capture_compositor_mirror_to_png(out_path, eye, trace)
     }
 
     /// Fire a haptic pulse on a controller. `duration_us` is microseconds;

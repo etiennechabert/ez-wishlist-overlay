@@ -121,6 +121,39 @@ pub struct OcrItemDelta {
 }
 
 impl OcrFeedback {
+    /// A short, one-line confirmation for the head-locked guide-box status chip
+    /// (issue #136): shown over "Ready — pull trigger" for a few seconds after a
+    /// capture so the user sees what was read without the centre card. Returns
+    /// the chip text + fill color, or `None` for `Processing` (no result yet).
+    #[allow(dead_code)] // shown by the Windows-only guide overlay
+    pub fn chip_confirm(&self) -> Option<(String, (u8, u8, u8))> {
+        const GREEN: (u8, u8, u8) = (80, 180, 100);
+        const AMBER: (u8, u8, u8) = (200, 180, 80);
+        const RED: (u8, u8, u8) = (220, 100, 90);
+        match &self.kind {
+            OcrFeedbackKind::Processing => None,
+            OcrFeedbackKind::Done {
+                upgrade_name,
+                level,
+                ..
+            } => Some((format!("Saved {upgrade_name} Lv {level}"), GREEN)),
+            OcrFeedbackKind::BoxScanProgress {
+                target_name,
+                captures,
+                total_items,
+                ..
+            } => Some((
+                format!("{target_name}: {total_items} items (#{captures})"),
+                GREEN,
+            )),
+            OcrFeedbackKind::NotAPanel => Some(("Not an upgrade panel".to_string(), AMBER)),
+            OcrFeedbackKind::UnknownUpgrade { .. } => {
+                Some(("Unknown upgrade — not in data".to_string(), AMBER))
+            }
+            OcrFeedbackKind::Failed(_) => Some(("OCR failed".to_string(), RED)),
+        }
+    }
+
     pub fn processing() -> Self {
         Self {
             kind: OcrFeedbackKind::Processing,
@@ -447,6 +480,37 @@ mod tests {
             last_rows_duplicate: 0,
             rows: Vec::new(),
         }
+    }
+
+    #[test]
+    fn chip_confirm_per_kind() {
+        // Processing has no result yet → no chip confirmation.
+        assert!(OcrFeedback::processing().chip_confirm().is_none());
+
+        // A matched panel confirms with the upgrade name + level.
+        let done = OcrFeedback {
+            kind: OcrFeedbackKind::Done {
+                upgrade_name: "Bitcoin Mine".into(),
+                level: 2,
+                items: vec![],
+                progression_notes: vec![],
+            },
+        };
+        let (text, _rgb) = done.chip_confirm().expect("Done confirms");
+        assert!(text.contains("Bitcoin Mine") && text.contains("Lv 2"));
+
+        // Terminal-but-unsuccessful kinds still confirm (so the chip doesn't get
+        // stuck on "Reading…"), just with a non-success message.
+        assert!(OcrFeedback {
+            kind: OcrFeedbackKind::NotAPanel
+        }
+        .chip_confirm()
+        .is_some());
+        assert!(OcrFeedback {
+            kind: OcrFeedbackKind::Failed("boom".into())
+        }
+        .chip_confirm()
+        .is_some());
     }
 
     #[test]

@@ -18,7 +18,6 @@
 
 use anyhow::{anyhow, Context as _, Result};
 use std::ffi::c_void;
-use std::path::Path;
 use std::ptr;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -413,41 +412,6 @@ pub fn capture_compositor_mirror_image(
         );
     }
     Ok(image::DynamicImage::ImageRgb8(img))
-}
-
-/// Capture the compositor mirror and additionally write it to
-/// `out_path` as PNG. Used by the debug-mode VR flow (the user wants
-/// the screenshot retained for GitHub-issue bundles) and any
-/// hand-export path. Returns the in-memory bitmap too so the caller
-/// doesn't have to re-decode the file they just wrote.
-pub fn capture_compositor_mirror_to_png(
-    out_path: &Path,
-    eye: CaptureEye,
-    trace: bool,
-) -> Result<image::DynamicImage> {
-    let img = capture_compositor_mirror_image(eye, trace)?;
-    if let Some(parent) = out_path.parent() {
-        std::fs::create_dir_all(parent)
-            .with_context(|| format!("creating {}", parent.display()))?;
-    }
-    let t_save_start = std::time::Instant::now();
-    img.save(out_path)
-        .with_context(|| format!("writing PNG to {}", out_path.display()))?;
-
-    if trace {
-        let png_fnv = std::fs::read(out_path).ok().map(|b| fnv1a64(&b));
-        let png_size = std::fs::metadata(out_path).ok().map(|m| m.len());
-        tracing::info!(
-            path = %out_path.display(),
-            png_size = ?png_size,
-            png_fnv = ?png_fnv.map(|v| format!("{v:#018x}")),
-            save_ms = t_save_start.elapsed().as_millis() as u64,
-            "capture: PNG written"
-        );
-    } else {
-        tracing::info!(path = %out_path.display(), "captured compositor mirror → PNG");
-    }
-    Ok(img)
 }
 
 /// Owned D3D11 device + immediate context, scoped to one capture call.

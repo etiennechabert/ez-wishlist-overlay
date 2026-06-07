@@ -4,6 +4,7 @@
 //! progress and is mutated on every checkbox click; settings change rarely and
 //! have their own schema-version lifecycle.
 
+use crate::vr::capture_session::CaptureMode;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -36,19 +37,13 @@ pub mod bounds {
     /// the MAX_ROWS render ceiling). The upper end is a generous focus-list
     /// size — ≈5 rows at the default 8 columns — past which "All" is the intent.
     pub const OVERLAY_MAX_ITEMS: std::ops::RangeInclusive<u32> = 0..=40;
-    /// Metric width of the head-locked capture **guide box** (the aiming
-    /// reticle shown while a capture mode is active). Calibrated by eye so the
-    /// box visually frames the panel/container being captured; the lower bound
-    /// is a small on-screen frame, the upper a near-full-FOV one.
-    pub const GUIDE_WIDTH_METERS: std::ops::RangeInclusive<f32> = 0.3..=2.0;
 }
 
 /// Normalized capture crop rect — fractions of the source mirror frame, origin
 /// top-left. Before OCR the captured frame is cropped to this rect to cut text
-/// pollution (issue #136); the guide box frames the same region. Calibrated by
-/// eye in-headset. Default is a generous centered region that comfortably
-/// contains a hideout panel or a container grid (incl. its bottom weight
-/// readout). One rect for all modes for now — split per-mode later if needed.
+/// pollution (issue #136); the guide box frames the same region. The three
+/// capture screens have known, different shapes, so the rect is fixed per mode
+/// (not a user setting) — see [`CaptureCrop::for_mode`].
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 pub struct CaptureCrop {
     pub x: f32,
@@ -99,6 +94,63 @@ impl CaptureCrop {
         let h = ((c.h * fh).round() as u32).clamp(1, img_h.saturating_sub(y).max(1));
         (x, y, w, h)
     }
+
+    /// The baked capture crop for a mode (issue #136). The three OCR capture
+    /// screens have known, very different shapes — the hideout Facility-Upgrade
+    /// panel is near-square, a world container's item grid is landscape, and the
+    /// stash submit terminal is wider still — so each is a fixed rect (fractions
+    /// of the captured frame), not a user setting. The guide box takes its aspect
+    /// from these. `Off` never captures, so it maps to the hideout crop.
+    #[allow(dead_code)] // selected by the Windows-only capture worker
+    pub fn for_mode(mode: &CaptureMode) -> CaptureCrop {
+        use crate::ocr::ScanTarget;
+        match mode {
+            CaptureMode::Hideout | CaptureMode::Off => CaptureCrop {
+                x: 0.24,
+                y: 0.18,
+                w: 0.52,
+                h: 0.64,
+            },
+            CaptureMode::Box(ScanTarget::Container(_)) => CaptureCrop {
+                x: 0.14,
+                y: 0.26,
+                w: 0.72,
+                h: 0.46,
+            },
+            CaptureMode::Box(ScanTarget::Stash) => CaptureCrop {
+                x: 0.04,
+                y: 0.26,
+                w: 0.92,
+                h: 0.48,
+            },
+        }
+    }
+}
+
+/// Which controller trigger fires an OCR capture while a capture mode is armed
+/// (issue #136). The other hand's trigger is intentionally left untouched so it
+/// stays free for in-game menu navigation. Default `Right`.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum CaptureHand {
+    Left,
+    #[default]
+    Right,
+}
+
+impl CaptureHand {
+    /// Uppercase label for the guide box and settings ("LEFT" / "RIGHT").
+    #[allow(dead_code)] // shown by the Windows-only guide overlay
+    pub fn label(self) -> &'static str {
+        match self {
+            CaptureHand::Left => "LEFT",
+            CaptureHand::Right => "RIGHT",
+        }
+    }
+}
+
+fn default_capture_trigger() -> CaptureHand {
+    CaptureHand::Right
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -357,23 +409,15 @@ pub struct VrSettings {
     /// field loads as `0`, i.e. the unchanged "show everything" behavior.
     #[serde(default = "default_max_items")]
     pub max_items: u32,
-    /// Normalized rect the captured mirror frame is cropped to before OCR
-    /// (issue #136). `#[serde(default)]` → a settings file written before this
-    /// field loads the generous centered default.
-    #[serde(default)]
-    pub capture_crop: CaptureCrop,
-    /// Metric width of the head-locked guide box (aiming reticle). Defaulted
-    /// like the fields above for forward-compatible settings files.
-    #[serde(default = "default_guide_width_m")]
-    pub guide_width_m: f32,
+    /// Which controller trigger takes the OCR capture while a mode is armed;
+    /// the other hand's trigger stays free for in-game menu navigation. Shown
+    /// on the guide box. Defaulted (`Right`) for forward-compatible files.
+    #[serde(default = "default_capture_trigger")]
+    pub capture_trigger: CaptureHand,
 }
 
 fn default_grid_cols() -> u32 {
     8
-}
-
-fn default_guide_width_m() -> f32 {
-    0.9
 }
 
 fn default_height_offset_m() -> f32 {
@@ -398,8 +442,7 @@ impl Default for VrSettings {
             grid_cols: default_grid_cols(),
             height_offset_m: default_height_offset_m(),
             max_items: default_max_items(),
-            capture_crop: CaptureCrop::default(),
-            guide_width_m: default_guide_width_m(),
+            capture_trigger: default_capture_trigger(),
         }
     }
 }
@@ -422,9 +465,6 @@ impl VrSettings {
         // `max_items` keeps its `0` = "no cap" sentinel (the range starts at 0);
         // any positive value is clamped to the focus-list ceiling.
         self.max_items = self.max_items.min(*bounds::OVERLAY_MAX_ITEMS.end());
-        self.capture_crop.sanitize();
-        let gw = bounds::GUIDE_WIDTH_METERS;
-        self.guide_width_m = self.guide_width_m.clamp(*gw.start(), *gw.end());
     }
 }
 
@@ -513,8 +553,7 @@ mod tests {
             grid_cols: 6,
             height_offset_m: 0.6,
             max_items: 0,
-            capture_crop: CaptureCrop::default(),
-            guide_width_m: 0.9,
+            capture_trigger: CaptureHand::Right,
         };
         vr.sanitize();
         assert!(
@@ -566,13 +605,25 @@ mod tests {
     }
 
     #[test]
-    fn guide_width_clamped_on_sanitize() {
-        let mut vr = VrSettings {
-            guide_width_m: 99.0,
-            ..VrSettings::default()
-        };
-        vr.sanitize();
-        assert_eq!(vr.guide_width_m, *bounds::GUIDE_WIDTH_METERS.end());
+    fn capture_crop_for_mode_shapes() {
+        use crate::ocr::ScanTarget;
+        let hideout = CaptureCrop::for_mode(&CaptureMode::Hideout);
+        let container =
+            CaptureCrop::for_mode(&CaptureMode::Box(ScanTarget::Container("c1".to_string())));
+        let stash = CaptureCrop::for_mode(&CaptureMode::Box(ScanTarget::Stash));
+        // Off never captures; falls back to the hideout crop (no panic).
+        assert_eq!(CaptureCrop::for_mode(&CaptureMode::Off), hideout);
+        // Each baked crop is already a valid sub-rect (sanitize is a no-op).
+        for c in [hideout, container, stash] {
+            let mut s = c;
+            s.sanitize();
+            assert_eq!(s, c, "baked crop must already be sanitized");
+        }
+        // The point of #136: the screens are genuinely different shapes, ordered
+        // hideout (most square) < container < stash (widest).
+        let aspect = |c: CaptureCrop| c.w / c.h;
+        assert!(aspect(hideout) < aspect(container));
+        assert!(aspect(container) < aspect(stash));
     }
 
     #[test]
@@ -584,8 +635,7 @@ mod tests {
             grid_cols: 99,
             height_offset_m: 99.0,
             max_items: 999,
-            capture_crop: CaptureCrop::default(),
-            guide_width_m: 99.0,
+            capture_trigger: CaptureHand::Right,
         };
         vr.sanitize();
         assert_eq!(vr.width_meters, 2.0);
