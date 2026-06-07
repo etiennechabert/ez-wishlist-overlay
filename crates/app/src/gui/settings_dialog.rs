@@ -43,7 +43,6 @@ pub fn show(
                 &mut working.ocr_dismiss_seconds,
                 &mut working.ocr_auto_track,
                 &mut working.ocr_capture_trace,
-                &mut working.auto_capture_interval_secs,
             );
 
             ui.add_space(12.0);
@@ -118,7 +117,6 @@ fn ocr_section(
     ocr_dismiss_seconds: &mut u32,
     ocr_auto_track: &mut bool,
     ocr_capture_trace: &mut bool,
-    auto_capture_interval_secs: &mut u32,
 ) {
     ui.heading("Screenshot OCR");
     ui.add_space(4.0);
@@ -179,25 +177,6 @@ fn ocr_section(
              then the card sticks around until the next capture.",
         );
         stepper_slider_u32(ui, ocr_dismiss_seconds, bounds::OCR_DISMISS_SECS, 1, " s");
-    });
-
-    ui.add_space(6.0);
-    ui.horizontal(|ui| {
-        ui.label("Auto-capture interval (s)").on_hover_text(
-            "When the auto-capture loop is running (toggle it from the \
-             main window header), it waits this long after each OCR read \
-             before grabbing the next frame. While running, a constant \
-             \"AUTO-CAPTURE ON\" card stays in the headset so you don't \
-             leave it looping into a raid — and the mode always starts \
-             OFF on launch.",
-        );
-        stepper_slider_u32(
-            ui,
-            auto_capture_interval_secs,
-            bounds::AUTO_CAPTURE_INTERVAL_SECS,
-            1,
-            " s",
-        );
     });
 
     ui.add_space(6.0);
@@ -356,6 +335,55 @@ fn vr_section(ui: &mut egui::Ui, vr: &mut VrSettings) {
         .small()
         .color(weak),
     );
+
+    ui.add_space(10.0);
+    ui.heading("Capture guide (OCR)");
+    ui.add_space(4.0);
+    ui.label(
+        egui::RichText::new(
+            "While a capture mode is armed (Hideout, or a container scan), a \
+             guide box appears in the headset and the controller trigger takes \
+             one screenshot per pull. Tune these so the box frames exactly the \
+             panel/container region you want OCR'd — only that region is read.",
+        )
+        .small()
+        .color(weak),
+    );
+    egui::Grid::new("settings-capture-guide")
+        .num_columns(2)
+        .spacing([16.0, 8.0])
+        .show(ui, |ui| {
+            ui.label("Guide width (m)")
+                .on_hover_text("Apparent width of the guide box in your VR view.");
+            stepper_slider_f32(
+                ui,
+                &mut vr.guide_width_m,
+                bounds::GUIDE_WIDTH_METERS,
+                0.05,
+                " m",
+            );
+            ui.end_row();
+
+            ui.label("Crop left")
+                .on_hover_text("Left edge of the OCR crop, as a fraction of the captured frame.");
+            stepper_slider_f32(ui, &mut vr.capture_crop.x, 0.0..=1.0, 0.01, "");
+            ui.end_row();
+
+            ui.label("Crop top")
+                .on_hover_text("Top edge of the OCR crop, as a fraction of the captured frame.");
+            stepper_slider_f32(ui, &mut vr.capture_crop.y, 0.0..=1.0, 0.01, "");
+            ui.end_row();
+
+            ui.label("Crop width")
+                .on_hover_text("Width of the OCR crop, as a fraction of the captured frame.");
+            stepper_slider_f32(ui, &mut vr.capture_crop.w, 0.0..=1.0, 0.01, "");
+            ui.end_row();
+
+            ui.label("Crop height")
+                .on_hover_text("Height of the OCR crop, as a fraction of the captured frame.");
+            stepper_slider_f32(ui, &mut vr.capture_crop.h, 0.0..=1.0, 0.01, "");
+            ui.end_row();
+        });
 }
 
 /// Width of the +/- buttons next to each slider. Chosen so they're large

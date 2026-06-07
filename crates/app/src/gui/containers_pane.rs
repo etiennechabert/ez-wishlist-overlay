@@ -26,6 +26,7 @@ use crate::gui::{icon_cache::IconCache, theme, SaveTick};
 use crate::ocr::box_scan::ScanRow;
 use crate::ocr::{BoxCommand, BoxScanStatus, BoxScanUpdate, ScanTarget};
 use crate::state::{AppState, ContainerId, ContainerKind};
+use crate::vr::capture_session::CaptureMode;
 use crossbeam_channel::Sender;
 use parking_lot::RwLock;
 use std::collections::HashMap;
@@ -1470,7 +1471,7 @@ fn box_scan_section(ui: &mut egui::Ui, target: ScanTarget, target_name: &str, sc
             .on_hover_text("Read this store's contents screen across several scroll captures")
             .clicked()
         {
-            scan.vr.set_box_scan_mode(true);
+            scan.vr.set_capture_mode(CaptureMode::Box(target.clone()));
             let _ = scan.cmd_tx.send(BoxCommand::Start {
                 target: target.clone(),
             });
@@ -1506,10 +1507,6 @@ fn box_scan_fullpane(ui: &mut egui::Ui, state: &Arc<RwLock<AppState>>, scan: &mu
 
     let mut finish = false;
     let mut cancel = false;
-    // Hands-free toggle (default on, re-armed on each scan start): read current
-    // state, let the checkbox edit a local, push the change to the runtime after.
-    let mut auto_capture = scan.vr.box_auto_capture_enabled();
-    let mut auto_changed = false;
 
     ui.add_space(6.0);
     ui.label(
@@ -1523,16 +1520,18 @@ fn box_scan_fullpane(ui: &mut egui::Ui, state: &Arc<RwLock<AppState>>, scan: &mu
             .color(ui.visuals().weak_text_color()),
     );
     ui.add_space(8.0);
-    if ui
-        .checkbox(&mut auto_capture, "Auto-capture while scrolling")
-        .on_hover_text(
-            "On: captures continuously as you scroll (recommended). \
-             Off: capture each scroll position yourself with SPACE.",
+    // Capture is trigger-driven (issue #136): the wishlist overlay is hidden
+    // while scanning and each controller trigger pull takes one shot. The
+    // current Ready/Capturing/Reading phase shows on the in-headset guide box.
+    ui.label(
+        egui::RichText::new(
+            "Aim the guide box at the container screen and pull the controller \
+             trigger once per scroll position. (SPACE also captures, for desktop \
+             testing.)",
         )
-        .changed()
-    {
-        auto_changed = true;
-    }
+        .small()
+        .color(ui.visuals().weak_text_color()),
+    );
     ui.add_space(6.0);
     warn_label_danger(ui, &flush_warning(&target_name));
     ui.separator();
@@ -1624,9 +1623,6 @@ fn box_scan_fullpane(ui: &mut egui::Ui, state: &Arc<RwLock<AppState>>, scan: &mu
         }
     });
 
-    if auto_changed {
-        scan.vr.set_box_auto_capture(auto_capture);
-    }
     if finish {
         if let Some(BoxScanUi::Scanning {
             target,
@@ -1634,7 +1630,7 @@ fn box_scan_fullpane(ui: &mut egui::Ui, state: &Arc<RwLock<AppState>>, scan: &mu
             latest,
         }) = scan.ui_state.take()
         {
-            scan.vr.set_box_scan_mode(false);
+            scan.vr.exit_capture_mode();
             let _ = scan.cmd_tx.send(BoxCommand::Finish);
             let (rows, observed_weight) = latest
                 .map(|u| (u.rows, u.observed_weight))
@@ -1647,7 +1643,7 @@ fn box_scan_fullpane(ui: &mut egui::Ui, state: &Arc<RwLock<AppState>>, scan: &mu
             });
         }
     } else if cancel {
-        scan.vr.set_box_scan_mode(false);
+        scan.vr.exit_capture_mode();
         let _ = scan.cmd_tx.send(BoxCommand::Cancel);
         *scan.ui_state = None;
     }

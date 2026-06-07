@@ -36,6 +36,69 @@ pub mod bounds {
     /// the MAX_ROWS render ceiling). The upper end is a generous focus-list
     /// size — ≈5 rows at the default 8 columns — past which "All" is the intent.
     pub const OVERLAY_MAX_ITEMS: std::ops::RangeInclusive<u32> = 0..=40;
+    /// Metric width of the head-locked capture **guide box** (the aiming
+    /// reticle shown while a capture mode is active). Calibrated by eye so the
+    /// box visually frames the panel/container being captured; the lower bound
+    /// is a small on-screen frame, the upper a near-full-FOV one.
+    pub const GUIDE_WIDTH_METERS: std::ops::RangeInclusive<f32> = 0.3..=2.0;
+}
+
+/// Normalized capture crop rect — fractions of the source mirror frame, origin
+/// top-left. Before OCR the captured frame is cropped to this rect to cut text
+/// pollution (issue #136); the guide box frames the same region. Calibrated by
+/// eye in-headset. Default is a generous centered region that comfortably
+/// contains a hideout panel or a container grid (incl. its bottom weight
+/// readout). One rect for all modes for now — split per-mode later if needed.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+pub struct CaptureCrop {
+    pub x: f32,
+    pub y: f32,
+    pub w: f32,
+    pub h: f32,
+}
+
+impl Default for CaptureCrop {
+    fn default() -> Self {
+        Self {
+            x: 0.12,
+            y: 0.08,
+            w: 0.76,
+            h: 0.84,
+        }
+    }
+}
+
+impl CaptureCrop {
+    /// Smallest crop side (as a fraction) we allow — keeps a hand-edited or
+    /// dragged rect from collapsing to a sliver that OCRs nothing.
+    const MIN_FRAC: f32 = 0.1;
+
+    /// Clamp into a sane sub-rect of the unit square: each side ≥ `MIN_FRAC`,
+    /// the origin in `[0, 1-side]`. Called on load and after every UI edit.
+    pub fn sanitize(&mut self) {
+        self.w = self.w.clamp(Self::MIN_FRAC, 1.0);
+        self.h = self.h.clamp(Self::MIN_FRAC, 1.0);
+        self.x = self.x.clamp(0.0, 1.0 - self.w);
+        self.y = self.y.clamp(0.0, 1.0 - self.h);
+    }
+
+    /// Integer pixel rect `(x, y, w, h)` for a frame of `img_w × img_h`,
+    /// clamped so it always has ≥1 px on each side and stays inside the image.
+    /// Pure — unit-tested on every target (the crop is applied in the
+    /// Windows-only capture path, but the math is shared here).
+    #[allow(dead_code)] // applied by the Windows-only capture path
+    pub fn px_rect(&self, img_w: u32, img_h: u32) -> (u32, u32, u32, u32) {
+        let mut c = *self;
+        c.sanitize();
+        let fw = img_w as f32;
+        let fh = img_h as f32;
+        let x = (c.x * fw).round() as u32;
+        let y = (c.y * fh).round() as u32;
+        // Width/height ≥ 1, and never spill past the image edge.
+        let w = ((c.w * fw).round() as u32).clamp(1, img_w.saturating_sub(x).max(1));
+        let h = ((c.h * fh).round() as u32).clamp(1, img_h.saturating_sub(y).max(1));
+        (x, y, w, h)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -128,13 +191,11 @@ pub struct Settings {
     /// per capture and the logs are voluminous.
     #[serde(default)]
     pub ocr_capture_trace: bool,
-    /// Seconds the auto-capture loop waits after one OCR read finishes
-    /// before grabbing the next mirror frame. Only consulted while the
-    /// (non-persisted) auto-capture mode is active — see
-    /// [`crate::vr::Runtime::set_auto_capture`]. The mode toggle itself
-    /// is deliberately NOT a setting: it force-resets to off on every
-    /// launch so you can't leave the loop running into a raid with a
-    /// CPU core pegged.
+    /// **Currently unused** — retained so existing settings files keep
+    /// loading. Capture used to run on a timer; as of issue #136 it's
+    /// trigger-driven (the controller trigger takes one shot per pull), so
+    /// there's no inter-capture interval to wait. Kept for backward-compat
+    /// (and in case a timed mode returns); not read by the runtime.
     #[serde(default = "default_auto_capture_interval_secs")]
     pub auto_capture_interval_secs: u32,
 }
@@ -296,10 +357,23 @@ pub struct VrSettings {
     /// field loads as `0`, i.e. the unchanged "show everything" behavior.
     #[serde(default = "default_max_items")]
     pub max_items: u32,
+    /// Normalized rect the captured mirror frame is cropped to before OCR
+    /// (issue #136). `#[serde(default)]` → a settings file written before this
+    /// field loads the generous centered default.
+    #[serde(default)]
+    pub capture_crop: CaptureCrop,
+    /// Metric width of the head-locked guide box (aiming reticle). Defaulted
+    /// like the fields above for forward-compatible settings files.
+    #[serde(default = "default_guide_width_m")]
+    pub guide_width_m: f32,
 }
 
 fn default_grid_cols() -> u32 {
     8
+}
+
+fn default_guide_width_m() -> f32 {
+    0.9
 }
 
 fn default_height_offset_m() -> f32 {
@@ -324,6 +398,8 @@ impl Default for VrSettings {
             grid_cols: default_grid_cols(),
             height_offset_m: default_height_offset_m(),
             max_items: default_max_items(),
+            capture_crop: CaptureCrop::default(),
+            guide_width_m: default_guide_width_m(),
         }
     }
 }
@@ -346,6 +422,9 @@ impl VrSettings {
         // `max_items` keeps its `0` = "no cap" sentinel (the range starts at 0);
         // any positive value is clamped to the focus-list ceiling.
         self.max_items = self.max_items.min(*bounds::OVERLAY_MAX_ITEMS.end());
+        self.capture_crop.sanitize();
+        let gw = bounds::GUIDE_WIDTH_METERS;
+        self.guide_width_m = self.guide_width_m.clamp(*gw.start(), *gw.end());
     }
 }
 
@@ -434,12 +513,66 @@ mod tests {
             grid_cols: 6,
             height_offset_m: 0.6,
             max_items: 0,
+            capture_crop: CaptureCrop::default(),
+            guide_width_m: 0.9,
         };
         vr.sanitize();
         assert!(
             vr.hide_pitch_deg < vr.show_pitch_deg,
             "hide must end up below show"
         );
+    }
+
+    #[test]
+    fn capture_crop_px_rect_maps_and_clamps() {
+        // Default centered rect → an interior pixel box that stays inside the
+        // frame and leaves a margin on every side.
+        let crop = CaptureCrop::default();
+        let (x, y, w, h) = crop.px_rect(1000, 1000);
+        assert!(x > 0 && y > 0, "centered crop has a top-left margin");
+        assert!(x + w <= 1000 && y + h <= 1000, "stays inside the frame");
+        assert!(w > 0 && h > 0);
+    }
+
+    #[test]
+    fn capture_crop_px_rect_never_spills_or_zeroes() {
+        // A degenerate/out-of-range rect must still yield a ≥1px box inside the
+        // image (sanitize runs inside px_rect).
+        let crop = CaptureCrop {
+            x: 0.95,
+            y: 0.95,
+            w: 0.9,
+            h: 0.9,
+        };
+        let (x, y, w, h) = crop.px_rect(640, 480);
+        assert!(w >= 1 && h >= 1);
+        assert!(x + w <= 640, "x+w within width");
+        assert!(y + h <= 480, "y+h within height");
+    }
+
+    #[test]
+    fn capture_crop_sanitize_keeps_unit_square() {
+        let mut c = CaptureCrop {
+            x: -0.5,
+            y: 2.0,
+            w: 5.0,
+            h: 0.01,
+        };
+        c.sanitize();
+        assert!(c.x >= 0.0 && c.y >= 0.0);
+        assert!(c.w >= CaptureCrop::MIN_FRAC && c.h >= CaptureCrop::MIN_FRAC);
+        assert!(c.x + c.w <= 1.0 + f32::EPSILON);
+        assert!(c.y + c.h <= 1.0 + f32::EPSILON);
+    }
+
+    #[test]
+    fn guide_width_clamped_on_sanitize() {
+        let mut vr = VrSettings {
+            guide_width_m: 99.0,
+            ..VrSettings::default()
+        };
+        vr.sanitize();
+        assert_eq!(vr.guide_width_m, *bounds::GUIDE_WIDTH_METERS.end());
     }
 
     #[test]
@@ -451,6 +584,8 @@ mod tests {
             grid_cols: 99,
             height_offset_m: 99.0,
             max_items: 999,
+            capture_crop: CaptureCrop::default(),
+            guide_width_m: 99.0,
         };
         vr.sanitize();
         assert_eq!(vr.width_meters, 2.0);

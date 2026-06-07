@@ -11,10 +11,10 @@ use crate::ocr::OcrJob;
 use crate::persist::PersistPaths;
 use crate::settings::Settings;
 use crate::state::AppState;
+use crate::vr::capture_session::{CaptureMode, CaptureState};
 use crossbeam_channel::{Receiver, Sender};
 use parking_lot::RwLock;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -82,21 +82,15 @@ pub struct Runtime {
     /// Most recent capture result the worker thread reported. Cleared when
     /// the GUI consumes it via [`Runtime::take_last_capture`].
     last_capture: Arc<RwLock<Option<CaptureResult>>>,
-    /// Ephemeral auto-capture loop switch. Not persisted — always starts
-    /// `false` so the looping OCR can't be left running into a raid. The
-    /// VR render loop polls this each tick; the GUI flips it via
-    /// [`Runtime::set_auto_capture`].
-    auto_capture: Arc<AtomicBool>,
-    /// Ephemeral box-scan mode switch. While `true`, captures are tagged
-    /// [`crate::ocr::JobKind::BoxScan`] and the upgrade-panel auto-capture loop is
-    /// suppressed. Not persisted — always starts `false`. The GUI flips it via
-    /// [`Runtime::set_box_scan_mode`].
-    box_scan_mode: Arc<AtomicBool>,
-    /// While a box scan is active, drive captures automatically (continuous,
-    /// self-paced) so the user just scrolls instead of pressing SPACE. Reset to
-    /// `true` whenever box-scan mode is entered; the scan window's "Auto-capture"
-    /// checkbox toggles it. SPACE still forces a manual capture regardless.
-    box_auto_capture: Arc<AtomicBool>,
+    /// Which capture mode the headset trigger is bound to (issue #136).
+    /// Ephemeral — always starts [`CaptureMode::Off`] so a capture mode can't
+    /// be left armed into a raid. While active the wishlist overlay is
+    /// suppressed and each trigger pull takes one screenshot. The GUI sets it
+    /// via [`Runtime::set_capture_mode`] / [`Runtime::exit_capture_mode`].
+    capture_mode: Arc<RwLock<CaptureMode>>,
+    /// Where the trigger-driven capture loop is right now (Ready / Capturing /
+    /// reading). Written by the VR loop, read by the GUI for status display.
+    capture_state: Arc<RwLock<CaptureState>>,
     _join: std::thread::JoinHandle<()>,
 }
 
@@ -146,12 +140,10 @@ impl Runtime {
         // presses are silently dropped, which is fine semantically — a
         // screenshot is a one-shot ask.
         let (capture_tx, capture_rx) = crossbeam_channel::bounded::<()>(4);
-        let auto_capture = Arc::new(AtomicBool::new(false));
-        let auto_capture_worker = auto_capture.clone();
-        let box_scan_mode = Arc::new(AtomicBool::new(false));
-        let box_scan_mode_worker = box_scan_mode.clone();
-        let box_auto_capture = Arc::new(AtomicBool::new(true));
-        let box_auto_capture_worker = box_auto_capture.clone();
+        let capture_mode = Arc::new(RwLock::new(CaptureMode::Off));
+        let capture_mode_worker = capture_mode.clone();
+        let capture_state = Arc::new(RwLock::new(CaptureState::Ready));
+        let capture_state_worker = capture_state.clone();
         let join = std::thread::Builder::new()
             .name("ez-wishlist-vr".into())
             .spawn(move || {
@@ -164,9 +156,8 @@ impl Runtime {
                     last_capture_writer,
                     ocr_tx,
                     ocr_feedback_rx,
-                    auto_capture_worker,
-                    box_scan_mode_worker,
-                    box_auto_capture_worker,
+                    capture_mode_worker,
+                    capture_state_worker,
                 )
             })
             .expect("spawn VR thread");
@@ -174,9 +165,8 @@ impl Runtime {
             status,
             capture_tx,
             last_capture,
-            auto_capture,
-            box_scan_mode,
-            box_auto_capture,
+            capture_mode,
+            capture_state,
             _join: join,
         }
     }
@@ -194,9 +184,8 @@ impl Runtime {
             status: Arc::new(RwLock::new(VrStatus::Unsupported)),
             capture_tx,
             last_capture: Arc::new(RwLock::new(None)),
-            auto_capture: Arc::new(AtomicBool::new(false)),
-            box_scan_mode: Arc::new(AtomicBool::new(false)),
-            box_auto_capture: Arc::new(AtomicBool::new(true)),
+            capture_mode: Arc::new(RwLock::new(CaptureMode::Off)),
+            capture_state: Arc::new(RwLock::new(CaptureState::Ready)),
             _join: std::thread::Builder::new()
                 .name("ez-wishlist-vr-test".into())
                 .spawn(|| {})
@@ -221,43 +210,36 @@ impl Runtime {
         self.last_capture.write().take()
     }
 
-    /// Enable/disable the auto-capture loop. Ephemeral — never persisted,
-    /// so it always starts OFF on launch. The VR render loop polls this
-    /// each tick: flipping it on fires a capture right away, off stops
-    /// the loop after any in-flight read finishes.
-    pub fn set_auto_capture(&self, on: bool) {
-        self.auto_capture.store(on, Ordering::Relaxed);
+    /// Arm a capture mode (hideout / box / stash). Ephemeral — never persisted,
+    /// so it always starts [`CaptureMode::Off`] on launch and can't be left
+    /// armed into a raid. While a mode is active the VR loop suppresses the
+    /// wishlist overlay, shows the guide box, and routes each controller
+    /// trigger pull to a screenshot. Resets the displayed state to
+    /// [`CaptureState::Ready`].
+    pub fn set_capture_mode(&self, mode: CaptureMode) {
+        *self.capture_state.write() = CaptureState::Ready;
+        *self.capture_mode.write() = mode;
     }
 
-    pub fn auto_capture_enabled(&self) -> bool {
-        self.auto_capture.load(Ordering::Relaxed)
+    /// Leave capture mode — restores the normal wishlist overlay + cell-click
+    /// trigger. Shorthand for `set_capture_mode(CaptureMode::Off)`.
+    pub fn exit_capture_mode(&self) {
+        self.set_capture_mode(CaptureMode::Off);
     }
 
-    /// Enter/leave box-scan mode. Ephemeral — never persisted. While on, captures
-    /// feed the box-scan session and the upgrade-panel auto-capture loop is
-    /// suppressed. Entering a scan re-arms [`Self::set_box_auto_capture`] to `true`
-    /// so each scan starts hands-free by default. The Containers tab flips this
-    /// around a "Scan box" session.
-    pub fn set_box_scan_mode(&self, on: bool) {
-        self.box_scan_mode.store(on, Ordering::Relaxed);
-        if on {
-            self.box_auto_capture.store(true, Ordering::Relaxed);
-        }
+    /// The currently armed capture mode (clone — it's cheap).
+    pub fn capture_mode(&self) -> CaptureMode {
+        self.capture_mode.read().clone()
     }
 
-    pub fn box_scan_enabled(&self) -> bool {
-        self.box_scan_mode.load(Ordering::Relaxed)
+    /// Whether any capture mode is active.
+    pub fn capture_active(&self) -> bool {
+        self.capture_mode.read().is_active()
     }
 
-    /// Enable/disable the box-scan auto-capture loop (the scan window's
-    /// "Auto-capture" checkbox). Only has effect while box-scan mode is on. When
-    /// off, captures are manual (SPACE) only.
-    pub fn set_box_auto_capture(&self, on: bool) {
-        self.box_auto_capture.store(on, Ordering::Relaxed);
-    }
-
-    pub fn box_auto_capture_enabled(&self) -> bool {
-        self.box_auto_capture.load(Ordering::Relaxed)
+    /// Where the trigger-driven capture loop is right now, for GUI status.
+    pub fn capture_state(&self) -> CaptureState {
+        *self.capture_state.read()
     }
 }
 
@@ -272,9 +254,8 @@ fn run(
     _last_capture: Arc<RwLock<Option<CaptureResult>>>,
     _ocr_tx: Sender<OcrJob>,
     _ocr_feedback_rx: Receiver<crate::gui::OcrFeedback>,
-    _auto_capture: Arc<AtomicBool>,
-    _box_scan_mode: Arc<AtomicBool>,
-    _box_auto_capture: Arc<AtomicBool>,
+    _capture_mode: Arc<RwLock<CaptureMode>>,
+    _capture_state: Arc<RwLock<CaptureState>>,
 ) {
     // Status is already Unsupported. Nothing else to do — park the thread.
     *status.write() = VrStatus::Unsupported;
@@ -292,9 +273,8 @@ fn run(
     last_capture: Arc<RwLock<Option<CaptureResult>>>,
     ocr_tx: Sender<OcrJob>,
     ocr_feedback_rx: Receiver<crate::gui::OcrFeedback>,
-    auto_capture: Arc<AtomicBool>,
-    box_scan_mode: Arc<AtomicBool>,
-    box_auto_capture: Arc<AtomicBool>,
+    capture_mode: Arc<RwLock<CaptureMode>>,
+    capture_state: Arc<RwLock<CaptureState>>,
 ) {
     use super::overlay::OverlaySession;
 
@@ -326,9 +306,8 @@ fn run(
                     &last_capture,
                     &ocr_tx,
                     &ocr_feedback_rx,
-                    &auto_capture,
-                    &box_scan_mode,
-                    &box_auto_capture,
+                    &capture_mode,
+                    &capture_state,
                 );
                 if let Err(e) = lost {
                     tracing::warn!(error = %e, "VR session lost");
@@ -359,9 +338,8 @@ fn render_loop(
     last_capture: &Arc<RwLock<Option<CaptureResult>>>,
     ocr_tx: &Sender<OcrJob>,
     ocr_feedback_rx: &Receiver<crate::gui::OcrFeedback>,
-    auto_capture: &Arc<AtomicBool>,
-    box_scan_mode: &Arc<AtomicBool>,
-    box_auto_capture: &Arc<AtomicBool>,
+    capture_mode: &Arc<RwLock<CaptureMode>>,
+    capture_state: &Arc<RwLock<CaptureState>>,
 ) -> anyhow::Result<()> {
     use super::input::Debouncer;
     use super::pose::{Visibility, VisibilityFsm};
@@ -391,27 +369,36 @@ fn render_loop(
     // showing, `Some(_)` while a card is up.
     let mut ocr_state: Option<OcrOverlayState> = None;
 
-    // Auto-capture loop bookkeeping. `capture_in_flight` is the
-    // single-flight latch — set when the auto loop dispatches a capture,
-    // cleared when the OCR worker reports a terminal result. Pacing is by
-    // comparing `frame_start` against `last_auto_done` (no sleeps, so the
-    // overlay never freezes). `auto_dispatched_at` backs a watchdog that
-    // frees the latch if a dispatched job never reports back.
+    // Capture bookkeeping. Capture is now trigger-driven (issue #136), so
+    // there's no timed pacing — `capture_in_flight` is just a single-flight
+    // latch so a rapid second trigger pull can't dispatch a second grab while
+    // the worker is still reading the first. Set when a capture is dispatched,
+    // cleared when the worker reports a terminal result. `dispatched_at` backs
+    // a watchdog that frees the latch if a dispatched job never reports back.
     let mut capture_in_flight = false;
-    let mut last_auto_done: Option<Instant> = None;
-    let mut auto_dispatched_at: Option<Instant> = None;
-    let mut prev_auto_on = false;
+    let mut dispatched_at: Option<Instant> = None;
+    // Guide-box render cache: re-render only when the (mode, state) it shows
+    // changes, not every 90 Hz frame. `None` = guide not currently shown.
+    let mut guide_shown: Option<(CaptureMode, CaptureState)> = None;
 
     loop {
         let frame_start = Instant::now();
         let vr = settings.read().vr.clone();
         session.apply_settings(&vr)?;
 
+        let mode = capture_mode.read().clone();
+        let cap_active = mode.is_active();
+
         let pitch = session.hmd_pitch_deg().unwrap_or(0.0);
-        let visible_now = matches!(
-            fsm.tick_with(pitch, vr.show_pitch_deg, vr.hide_pitch_deg),
-            Visibility::Visible
-        );
+        // The wishlist overlay is suppressed while a capture mode is active so
+        // the controller trigger isn't double-bound — in capture mode it takes
+        // a screenshot, not a cell click. Forcing `visible_now = false` lets the
+        // existing visibility-transition path hide + fade it out cleanly.
+        let visible_now = !cap_active
+            && matches!(
+                fsm.tick_with(pitch, vr.show_pitch_deg, vr.hide_pitch_deg),
+                Visibility::Visible
+            );
 
         handle_visibility_transition(
             session,
@@ -433,38 +420,79 @@ fn render_loop(
             &mut current_hover,
         )?;
 
+        // Input. `session.poll_trigger_actions()` steps the IVRInput action set
+        // and must be called exactly once per tick, so route it by mode:
+        //   - capture mode: a trigger rising edge requests a screenshot; mouse /
+        //     cell-click events are ignored.
+        //   - otherwise: the existing wishlist cell-click handlers run.
         session.drain_events(&mut event_buf);
-        handle_overlay_events(
-            session,
-            state,
-            &mut event_buf,
-            &last_hits,
-            visible_now,
-            last_canvas,
-            &mut debouncer,
-            frame_start,
-        );
-        poll_trigger_actions(
-            session,
-            state,
-            &last_hits,
-            visible_now,
-            last_canvas,
-            &mut debouncer,
-            frame_start,
-        );
-
-        // Manual capture requests (SPACE hotkey). Drain the queue and grab
-        // once — multiple presses within a single ~11 ms frame can only be
-        // accidental, so coalescing them is correct even in box-scan mode
-        // (distinct scroll positions are always whole frames apart). `beep =
-        // true` gives audible in-headset confirmation. The capture work itself
-        // lives in `capture_and_forward` (shared with the auto loop below).
-        let mut manual_requested = false;
-        while capture_rx.try_recv().is_ok() {
-            manual_requested = true;
+        let mut capture_requested = false;
+        if cap_active {
+            event_buf.clear();
+            let (lt, rt) = session.poll_trigger_actions();
+            if lt.is_some() || rt.is_some() {
+                capture_requested = true;
+                tracing::info!("capture-mode trigger pull → screenshot");
+            }
+        } else {
+            handle_overlay_events(
+                session,
+                state,
+                &mut event_buf,
+                &last_hits,
+                visible_now,
+                last_canvas,
+                &mut debouncer,
+                frame_start,
+            );
+            poll_trigger_actions(
+                session,
+                state,
+                &last_hits,
+                visible_now,
+                last_canvas,
+                &mut debouncer,
+                frame_start,
+            );
         }
-        if manual_requested {
+
+        // SPACE hotkey also captures (desktop dev + manual fallback). Coalesce
+        // multiple presses within one ~11 ms frame.
+        let mut space_requested = false;
+        while capture_rx.try_recv().is_ok() {
+            space_requested = true;
+        }
+
+        // Take one capture this tick. In a capture mode the trigger (or SPACE)
+        // drives it, single-flighted so a rapid second pull can't overlap the
+        // worker. SPACE outside any mode keeps the legacy one-shot upgrade-panel
+        // grab so desktop testing works without arming a mode.
+        if cap_active && (capture_requested || space_requested) {
+            let ocr_enabled = settings.read().ocr_enabled;
+            if let Some(kind) = mode.job_kind() {
+                if ocr_enabled && !capture_in_flight {
+                    *capture_state.write() = CaptureState::Capturing;
+                    let dispatched = capture_and_forward(
+                        session,
+                        settings,
+                        paths,
+                        ocr_tx,
+                        last_capture,
+                        &mut ocr_state,
+                        true,
+                        kind,
+                        vr.capture_crop,
+                    );
+                    if dispatched {
+                        capture_in_flight = true;
+                        dispatched_at = Some(frame_start);
+                        *capture_state.write() = CaptureState::RunningOcr;
+                    } else {
+                        *capture_state.write() = CaptureState::Ready;
+                    }
+                }
+            }
+        } else if space_requested && !cap_active {
             capture_and_forward(
                 session,
                 settings,
@@ -473,95 +501,51 @@ fn render_loop(
                 last_capture,
                 &mut ocr_state,
                 true,
-                box_scan_mode.load(Ordering::Relaxed),
+                crate::ocr::JobKind::UpgradePanel,
+                vr.capture_crop,
             );
         }
 
-        // Auto-capture loop. Entirely non-blocking: paced by `Instant`
-        // comparisons in this ~90 Hz loop, single-flight via
-        // `capture_in_flight`, and silent (no per-loop beep). Two modes share
-        // this machinery, never both at once:
-        //   - **box scan**: while a scan is active, capture continuously and
-        //     hands-free (so the user just scrolls) as long as the scan window's
-        //     auto toggle is on. Redundant frames dedup by row-uniqueness, so a
-        //     short cadence is safe and gap-resistant.
-        //   - **upgrade panel**: the user's ephemeral auto-capture toggle, only
-        //     when NOT box-scanning.
-        let box_scan_on = box_scan_mode.load(Ordering::Relaxed);
-        let box_auto_on = box_scan_on && box_auto_capture.load(Ordering::Relaxed);
-        let upgrade_auto_on = auto_capture.load(Ordering::Relaxed) && !box_scan_on;
-        let auto_on = box_auto_on || upgrade_auto_on;
-        if auto_on && !prev_auto_on {
-            // Rising edge: make the first capture eligible immediately.
-            last_auto_done = None;
-        }
-        if !auto_on && prev_auto_on {
-            // Falling edge: drop any still-running placeholder card so a
-            // "Reading panel…" card doesn't hang on screen after the loop
-            // stops (Processing never auto-dismisses on its own).
-            if matches!(
-                ocr_state.as_ref().map(|s| &s.feedback.kind),
-                Some(crate::gui::OcrFeedbackKind::Processing)
-            ) {
-                let _ = session.set_ocr_alpha(0.0);
-                let _ = session.set_ocr_visible(false);
-                ocr_state = None;
-            }
-        }
-        prev_auto_on = auto_on;
-        if auto_on {
-            let (ocr_enabled, interval) = {
-                let s = settings.read();
-                // Box scan auto-captures while the user scrolls, but with a **1 s
-                // floor** between captures. The single-flight latch already
-                // serializes them (the next capture waits for the prior OCR to
-                // finish), but capturing the 3K mirror texture + running OCR
-                // back-to-back (a sub-second floor) destabilizes the system during
-                // a live VR scan with the game running — so space captures out by
-                // at least a second. Also keeps a *failed* capture from retrying
-                // every ~11 ms frame. The upgrade panel uses the user's interval.
-                let interval = if box_scan_on {
-                    Duration::from_secs(1)
-                } else {
-                    Duration::from_secs(s.auto_capture_interval_secs as u64)
-                };
-                (s.ocr_enabled, interval)
-            };
-            let due = match last_auto_done {
-                Some(t) => frame_start.duration_since(t) >= interval,
-                None => true,
-            };
-            if ocr_enabled && !capture_in_flight && due {
-                if capture_and_forward(
-                    session,
-                    settings,
-                    paths,
-                    ocr_tx,
-                    last_capture,
-                    &mut ocr_state,
-                    false,
-                    box_scan_on, // box scan → BoxScan job; else upgrade panel
-                ) {
-                    capture_in_flight = true;
-                    auto_dispatched_at = Some(frame_start);
-                } else {
-                    // Capture failed (no job dispatched) — wait one
-                    // interval before retrying instead of spinning.
-                    last_auto_done = Some(frame_start);
+        // Guide box: while a capture mode is active, show the head-locked
+        // aiming reticle + capture-state chip. Re-render only when the (mode,
+        // state) it displays changes, not every 90 Hz frame. Hidden + faded
+        // out the moment capture mode is left.
+        if cap_active {
+            let st = *capture_state.read();
+            if guide_shown.as_ref() != Some(&(mode.clone(), st)) {
+                // Pixmap sized to the crop's aspect (treating the near-square
+                // mirror frame as square is close enough for an aiming aid; the
+                // user fine-tunes apparent size via `guide_width_m`).
+                let gw: u32 = 1024;
+                let gh = ((gw as f32) * (vr.capture_crop.h / vr.capture_crop.w))
+                    .round()
+                    .clamp(64.0, 2048.0) as u32;
+                let pix = super::guide::render(&mode, st, gw, gh);
+                let _ = session.set_guide_width(vr.guide_width_m);
+                if let Err(e) = session.submit_guide_rgba(pix.data(), pix.width(), pix.height()) {
+                    tracing::warn!(error = %e, "guide overlay: submit failed");
                 }
+                let _ = session.set_guide_visible(true);
+                let _ = session.set_guide_alpha(1.0);
+                guide_shown = Some((mode.clone(), st));
             }
-            // Watchdog: if a dispatched read never produced terminal
-            // feedback (e.g. OCR was disabled mid-flight so the worker
-            // skipped it), free the latch so the loop can't wedge.
-            if let Some(t) = auto_dispatched_at {
-                if capture_in_flight && frame_start.duration_since(t) > Duration::from_secs(30) {
-                    tracing::warn!(
-                        "auto-capture: no OCR result within 30 s — clearing in-flight latch"
-                    );
-                    capture_in_flight = false;
-                    auto_dispatched_at = None;
-                    last_auto_done = Some(frame_start);
-                }
+        } else if guide_shown.is_some() {
+            let _ = session.set_guide_alpha(0.0);
+            let _ = session.set_guide_visible(false);
+            guide_shown = None;
+        }
+
+        // Single-flight watchdog: a dispatched read normally clears
+        // `capture_in_flight` when the worker reports back (see
+        // `drive_ocr_overlay` below). If it never does (e.g. OCR disabled
+        // mid-flight so the worker skipped the job), free the latch after 30 s
+        // so the next trigger pull isn't wedged.
+        if let Some(t) = dispatched_at {
+            if capture_in_flight && frame_start.duration_since(t) > Duration::from_secs(30) {
+                tracing::warn!("capture: no OCR result within 30 s — clearing in-flight latch");
+                capture_in_flight = false;
+                dispatched_at = None;
+                *capture_state.write() = CaptureState::Ready;
             }
         }
 
@@ -617,16 +601,17 @@ fn render_loop(
                 &mut ocr_state,
                 frame_start,
                 ocr_debug,
-                auto_on,
-                box_scan_mode.load(Ordering::Relaxed),
+                matches!(mode, CaptureMode::Box(_)),
                 dismiss,
             );
             if terminal {
-                // OCR finished — release the single-flight latch and start
-                // the inter-read interval countdown.
+                // OCR finished — release the single-flight latch and return the
+                // capture state to Ready (waiting for the next trigger pull).
                 capture_in_flight = false;
-                auto_dispatched_at = None;
-                last_auto_done = Some(frame_start);
+                dispatched_at = None;
+                if cap_active {
+                    *capture_state.write() = CaptureState::Ready;
+                }
             }
         }
 
@@ -956,8 +941,11 @@ fn capture_and_forward(
     last_capture: &Arc<RwLock<Option<CaptureResult>>>,
     ocr_state: &mut Option<OcrOverlayState>,
     beep: bool,
-    box_scan: bool,
+    kind: crate::ocr::JobKind,
+    crop: crate::settings::CaptureCrop,
 ) -> bool {
+    use image::GenericImageView as _;
+    let box_scan = matches!(kind, crate::ocr::JobKind::BoxScan);
     if ocr_state.is_some() {
         if let Err(e) = session.set_ocr_alpha(0.0) {
             tracing::warn!(error = %e, "OCR overlay: pre-capture clear-alpha failed");
@@ -978,14 +966,19 @@ fn capture_and_forward(
     };
     let (result, dispatched) = match capture_result {
         Ok(img) => {
+            // Aggressive crop to the guide-box region (issue #136) — cuts the
+            // surrounding game UI text out of the frame before OCR. The on-disk
+            // debug PNG (when `ocr_debug` is on) keeps the full frame; only the
+            // image handed to the worker is cropped. Downstream (anchor / box
+            // read) works in the cropped image's own pixel space, so nothing
+            // assumes full-frame coordinates.
+            let (iw, ih) = img.dimensions();
+            let (cx, cy, cw, ch) = crop.px_rect(iw, ih);
+            let img = img.crop_imm(cx, cy, cw, ch);
             let job = OcrJob {
                 image: img,
                 source_path: png_path.clone(),
-                kind: if box_scan {
-                    crate::ocr::JobKind::BoxScan
-                } else {
-                    crate::ocr::JobKind::UpgradePanel
-                },
+                kind,
             };
             // Upgrade captures: best-effort `try_send` — if the worker is busy
             // we drop this shot (it only keeps the latest anyway) so the render
@@ -1120,7 +1113,6 @@ fn drive_ocr_overlay(
     state: &mut Option<OcrOverlayState>,
     frame_start: std::time::Instant,
     ocr_debug: bool,
-    auto_on: bool,
     box_scan_active: bool,
     auto_dismiss: Duration,
 ) -> bool {
@@ -1146,40 +1138,25 @@ fn drive_ocr_overlay(
         });
     }
 
-    // While the auto-capture loop is on, keep a card up at all times so
-    // the head-locked "AUTO-CAPTURE ON" banner is an un-ignorable
-    // reminder. Seed a placeholder whenever nothing else is showing
-    // (just toggled on, or a prior card was cleared); the next real
-    // feedback replaces it.
-    if state.is_none() && auto_on {
-        *state = Some(OcrOverlayState {
-            feedback: crate::gui::OcrFeedback::processing(),
-            visible_since: frame_start,
-            submitted: false,
-            last_alpha: 0.0,
-        });
-    }
-
     let Some(current) = state.as_mut() else {
         return terminal_consumed;
     };
 
-    // `ocr_debug` and auto-capture both pin the card: it sticks until the
-    // next capture replaces it (debug: inspect alongside on-disk
-    // artifacts; auto: the banner must stay up the whole session).
-    // Otherwise terminal kinds fade after `auto_dismiss`. Processing
-    // kinds never auto-fade — they're replaced when OCR finishes.
-    // A box-scan session pins the latest card the same way auto-capture does:
-    // captures are deliberate and seconds apart, so the "series so far" should
-    // stay up between them and only resume fading once the desktop Finish/Cancel
-    // clears box-scan mode.
-    let manual_dismiss = ocr_debug || auto_on || box_scan_active;
+    // `ocr_debug` and an active box-scan both pin the card: it sticks until the
+    // next capture replaces it (debug: inspect alongside on-disk artifacts;
+    // box scan: captures are deliberate and seconds apart, so the "series so
+    // far" should stay up between trigger pulls and only resume fading once
+    // the desktop Finish/Cancel leaves capture mode). Otherwise terminal kinds
+    // fade after `auto_dismiss`; Processing kinds never auto-fade (replaced
+    // when OCR finishes).
+    let manual_dismiss = ocr_debug || box_scan_active;
     let processing = matches!(current.feedback.kind, OcrFeedbackKind::Processing);
     let age = frame_start.duration_since(current.visible_since);
 
-    // First submit for this feedback: render once and push.
+    // First submit for this feedback: render once and push. (No auto-capture
+    // banner — the guide box now shows capture state.)
     if !current.submitted {
-        let pixmap = super::ocr_render::render(&current.feedback, auto_on);
+        let pixmap = super::ocr_render::render(&current.feedback, false);
         if let Err(e) = session.submit_ocr_rgba(pixmap.data(), pixmap.width(), pixmap.height()) {
             tracing::warn!(error = %e, "OCR overlay: submit failed (continuing)");
         }
@@ -1270,23 +1247,28 @@ mod tests {
     use super::*;
 
     #[test]
-    fn box_scan_arms_auto_capture_by_default_and_toggle_sticks() {
+    fn capture_mode_starts_off_and_round_trips() {
+        use crate::ocr::ScanTarget;
+
         let rt = Runtime::disconnected_for_test();
-        // Hands-free by default.
-        assert!(rt.box_auto_capture_enabled());
+        // Always starts disarmed so a mode can't leak into a raid.
+        assert_eq!(rt.capture_mode(), CaptureMode::Off);
+        assert!(!rt.capture_active());
 
-        // The scan window can pause it for manual SPACE captures.
-        rt.set_box_auto_capture(false);
-        assert!(!rt.box_auto_capture_enabled());
+        // Arming a box/stash scan flips the mode and reports active.
+        rt.set_capture_mode(CaptureMode::Box(ScanTarget::Stash));
+        assert_eq!(rt.capture_mode(), CaptureMode::Box(ScanTarget::Stash));
+        assert!(rt.capture_active());
+        // Arming resets the displayed state to Ready.
+        assert_eq!(rt.capture_state(), CaptureState::Ready);
 
-        // Starting a scan re-arms it, so every scan is hands-free by default
-        // regardless of the prior toggle state.
-        rt.set_box_scan_mode(true);
-        assert!(rt.box_scan_enabled());
-        assert!(rt.box_auto_capture_enabled());
+        // Switching to hideout swaps cleanly.
+        rt.set_capture_mode(CaptureMode::Hideout);
+        assert_eq!(rt.capture_mode(), CaptureMode::Hideout);
 
-        // A manual pause still applies within an active scan.
-        rt.set_box_auto_capture(false);
-        assert!(!rt.box_auto_capture_enabled());
+        // Exiting restores the normal (Off) overlay.
+        rt.exit_capture_mode();
+        assert_eq!(rt.capture_mode(), CaptureMode::Off);
+        assert!(!rt.capture_active());
     }
 }
