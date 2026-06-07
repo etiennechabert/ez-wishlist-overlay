@@ -12,7 +12,7 @@
 //! so it's unit-tested on every target; the Windows-only overlay code just
 //! submits the pixmap.
 
-use crate::vr::capture_session::{CaptureMode, CaptureState};
+use crate::vr::capture_session::CaptureMode;
 use crate::vr::text;
 use tiny_skia::{Color, Paint, PathBuilder, Pixmap, Rect, Stroke, Transform};
 
@@ -33,10 +33,21 @@ fn chip_text_color() -> Color {
     Color::from_rgba8(20, 20, 24, 255)
 }
 
-/// Render the guide box for `mode` + `state` to a fresh RGBA pixmap of
-/// `px_w × px_h` (the caller sizes this to the crop rect's pixel aspect). The
+/// Render the guide box for `mode` to a fresh RGBA pixmap of `px_w × px_h` (the
+/// caller sizes this to the crop rect's pixel aspect). The bottom status chip
+/// shows `chip_label` filled with `chip_rgb` — normally the [`CaptureState`]
+/// phase, but for a few seconds after a capture the caller passes the OCR
+/// result confirmation instead (issue #136). `trigger_label` ("LEFT" / "RIGHT",
+/// or "" to omit) is drawn as a hint for which controller trigger captures. The
 /// interior is left transparent so the user sees the game through it.
-pub fn render(mode: &CaptureMode, state: CaptureState, px_w: u32, px_h: u32) -> Pixmap {
+pub fn render(
+    mode: &CaptureMode,
+    chip_label: &str,
+    chip_rgb: (u8, u8, u8),
+    trigger_label: &str,
+    px_w: u32,
+    px_h: u32,
+) -> Pixmap {
     // Pixmap::new zero-fills → fully transparent; we only paint the frame +
     // text, leaving the centre see-through.
     let mut pix = Pixmap::new(px_w.max(1), px_h.max(1)).expect("guide pixmap alloc");
@@ -60,10 +71,28 @@ pub fn render(mode: &CaptureMode, state: CaptureState, px_w: u32, px_h: u32) -> 
         );
     }
 
-    // Status chip — a filled pill-ish rect centered just inside the bottom
-    // edge, colored by the capture phase, with the phase label on it.
-    let label = state.label();
-    let (r, g, b) = state.rgb();
+    // Second caption line: which trigger captures. The other hand is left free
+    // for in-game menu navigation (issue #136), so spelling out the capture
+    // trigger keeps it unambiguous. Sits just under the main caption.
+    if !trigger_label.is_empty() {
+        let hint = format!("Pull {trigger_label} trigger to capture");
+        let sz = (text_px * 0.82).max(12.0);
+        let hw = text::measure_width(&hint, sz);
+        text::draw_text(
+            &mut pix,
+            &hint,
+            (w - hw) / 2.0,
+            FRAME_STROKE + text_px * 1.2 + text_px * 0.4 + sz,
+            sz,
+            caption_color(),
+        );
+    }
+
+    // Status chip — a filled pill-ish rect centered just inside the bottom edge,
+    // colored + labelled by the caller (capture phase, or a post-capture OCR
+    // result confirmation).
+    let label = chip_label;
+    let (r, g, b) = chip_rgb;
     let lw = text::measure_width(label, text_px);
     let chip_pad = text_px * 0.5;
     let chip_w = (lw + chip_pad * 2.0).min(w - FRAME_STROKE * 2.0);
@@ -146,7 +175,14 @@ mod tests {
 
     #[test]
     fn renders_requested_size() {
-        let pix = render(&CaptureMode::Hideout, CaptureState::Ready, 800, 600);
+        let pix = render(
+            &CaptureMode::Hideout,
+            "Ready — pull trigger",
+            (80, 180, 100),
+            "RIGHT",
+            800,
+            600,
+        );
         assert_eq!((pix.width(), pix.height()), (800, 600));
     }
 
@@ -154,7 +190,9 @@ mod tests {
     fn frame_painted_centre_transparent() {
         let pix = render(
             &CaptureMode::Box(ScanTarget::Stash),
-            CaptureState::Capturing,
+            "Capturing…",
+            (200, 180, 80),
+            "RIGHT",
             400,
             300,
         );
@@ -171,7 +209,14 @@ mod tests {
     #[test]
     fn handles_degenerate_size() {
         // Must not panic on a 1x1 (clamped) request.
-        let pix = render(&CaptureMode::Hideout, CaptureState::RunningOcr, 0, 0);
+        let pix = render(
+            &CaptureMode::Hideout,
+            "Reading…",
+            (89, 190, 175),
+            "RIGHT",
+            0,
+            0,
+        );
         assert!(pix.width() >= 1 && pix.height() >= 1);
     }
 }

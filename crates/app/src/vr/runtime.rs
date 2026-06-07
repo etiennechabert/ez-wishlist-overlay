@@ -10,6 +10,8 @@
 use crate::ocr::OcrJob;
 use crate::persist::PersistPaths;
 use crate::settings::Settings;
+#[cfg(target_os = "windows")]
+use crate::settings::{CaptureCrop, CaptureHand};
 use crate::state::AppState;
 use crate::vr::capture_session::{CaptureMode, CaptureState};
 use crossbeam_channel::{Receiver, Sender};
@@ -377,9 +379,14 @@ fn render_loop(
     // a watchdog that frees the latch if a dispatched job never reports back.
     let mut capture_in_flight = false;
     let mut dispatched_at: Option<Instant> = None;
-    // Guide-box render cache: re-render only when the (mode, state) it shows
-    // changes, not every 90 Hz frame. `None` = guide not currently shown.
-    let mut guide_shown: Option<(CaptureMode, CaptureState)> = None;
+    // Guide-box render cache: re-render only when the chip it shows changes —
+    // keyed on (mode, chip label, trigger) so it updates when the capture phase,
+    // the post-capture confirmation, or the trigger setting changes, not every
+    // 90 Hz frame. `None` = not shown.
+    let mut guide_shown: Option<(CaptureMode, String, CaptureHand)> = None;
+    // Post-capture OCR confirmation shown on the guide chip (over "Ready — pull
+    // trigger") until `GUIDE_CONFIRM_DURATION` after `shown_at`. Issue #136.
+    let mut guide_confirm: Option<(String, (u8, u8, u8), Instant)> = None;
 
     loop {
         let frame_start = Instant::now();
@@ -388,6 +395,11 @@ fn render_loop(
 
         let mode = capture_mode.read().clone();
         let cap_active = mode.is_active();
+        // Per-mode capture crop (issue #136): the hideout panel, container, and
+        // stash screens have known, different shapes, so each uses its own fixed
+        // crop rect (and thus guide-box aspect). `Off` maps to the hideout crop —
+        // unused, since capture is inactive then.
+        let crop = CaptureCrop::for_mode(&mode);
 
         let pitch = session.hmd_pitch_deg().unwrap_or(0.0);
         // The wishlist overlay is suppressed while a capture mode is active so
@@ -430,9 +442,27 @@ fn render_loop(
         if cap_active {
             event_buf.clear();
             let (lt, rt) = session.poll_trigger_actions();
-            if lt.is_some() || rt.is_some() {
+            // Only the configured hand's trigger captures (issue #136); the
+            // other hand is left alone so it stays free for in-game menu
+            // navigation. `(fired, ignored)` splits the poll by that choice.
+            let (fired, ignored) = match vr.capture_trigger {
+                CaptureHand::Left => (lt, rt),
+                CaptureHand::Right => (rt, lt),
+            };
+            if let Some(device) = fired {
                 capture_requested = true;
-                tracing::info!("capture-mode trigger pull → screenshot");
+                tracing::info!(
+                    ?mode,
+                    hand = vr.capture_trigger.label(),
+                    device = device.0,
+                    "capture trigger → screenshot"
+                );
+            }
+            if let Some(device) = ignored {
+                tracing::debug!(
+                    device = device.0,
+                    "capture mode: other-hand trigger ignored (free for in-game menu)"
+                );
             }
         } else {
             handle_overlay_events(
@@ -462,6 +492,11 @@ fn render_loop(
         while capture_rx.try_recv().is_ok() {
             space_requested = true;
         }
+        // The desktop SPACE key / Debug "Capture now" button is the only
+        // non-controller capture source (desktop testing + manual fallback).
+        if space_requested {
+            tracing::info!(cap_active, ?mode, "capture via SPACE / desktop request");
+        }
 
         // Take one capture this tick. In a capture mode the trigger (or SPACE)
         // drives it, single-flighted so a rapid second pull can't overlap the
@@ -472,6 +507,19 @@ fn render_loop(
             if let Some(kind) = mode.job_kind() {
                 if ocr_enabled && !capture_in_flight {
                     *capture_state.write() = CaptureState::Capturing;
+                    // A new capture supersedes any lingering confirmation chip.
+                    guide_confirm = None;
+                    // Push the "Capturing" chip to the overlay *before* the
+                    // (blocking) mirror grab so the user gets instant feedback
+                    // that the trigger registered.
+                    ensure_guide(
+                        session,
+                        &mode,
+                        CaptureState::Capturing,
+                        vr.capture_trigger,
+                        None,
+                        &mut guide_shown,
+                    );
                     let dispatched = capture_and_forward(
                         session,
                         settings,
@@ -481,12 +529,22 @@ fn render_loop(
                         &mut ocr_state,
                         true,
                         kind,
-                        vr.capture_crop,
+                        crop,
                     );
                     if dispatched {
                         capture_in_flight = true;
                         dispatched_at = Some(frame_start);
                         *capture_state.write() = CaptureState::RunningOcr;
+                        // Flip to "Reading" the moment OCR is dispatched, so the
+                        // user knows the shot is taken and can scroll onward.
+                        ensure_guide(
+                            session,
+                            &mode,
+                            CaptureState::RunningOcr,
+                            vr.capture_trigger,
+                            None,
+                            &mut guide_shown,
+                        );
                     } else {
                         *capture_state.write() = CaptureState::Ready;
                     }
@@ -502,37 +560,39 @@ fn render_loop(
                 &mut ocr_state,
                 true,
                 crate::ocr::JobKind::UpgradePanel,
-                vr.capture_crop,
+                crop,
             );
         }
 
-        // Guide box: while a capture mode is active, show the head-locked
-        // aiming reticle + capture-state chip. Re-render only when the (mode,
-        // state) it displays changes, not every 90 Hz frame. Hidden + faded
-        // out the moment capture mode is left.
+        // Guide box: while a capture mode is active, keep the head-locked aiming
+        // reticle + status chip current. The chip shows the post-capture OCR
+        // confirmation for a few seconds (over "Ready — pull trigger"), then the
+        // ready prompt. `ensure_guide` re-renders only when the chip changes;
+        // it's also pushed eagerly the instant the capture state flips (above).
         if cap_active {
             let st = *capture_state.read();
-            if guide_shown.as_ref() != Some(&(mode.clone(), st)) {
-                // Pixmap sized to the crop's aspect (treating the near-square
-                // mirror frame as square is close enough for an aiming aid; the
-                // user fine-tunes apparent size via `guide_width_m`).
-                let gw: u32 = 1024;
-                let gh = ((gw as f32) * (vr.capture_crop.h / vr.capture_crop.w))
-                    .round()
-                    .clamp(64.0, 2048.0) as u32;
-                let pix = super::guide::render(&mode, st, gw, gh);
-                let _ = session.set_guide_width(vr.guide_width_m);
-                if let Err(e) = session.submit_guide_rgba(pix.data(), pix.width(), pix.height()) {
-                    tracing::warn!(error = %e, "guide overlay: submit failed");
-                }
-                let _ = session.set_guide_visible(true);
-                let _ = session.set_guide_alpha(1.0);
-                guide_shown = Some((mode.clone(), st));
+            let confirm = guide_confirm
+                .as_ref()
+                .filter(|(_, _, shown_at)| {
+                    frame_start.duration_since(*shown_at) < GUIDE_CONFIRM_DURATION
+                })
+                .map(|(label, rgb, _)| (label.clone(), *rgb));
+            ensure_guide(
+                session,
+                &mode,
+                st,
+                vr.capture_trigger,
+                confirm.as_ref(),
+                &mut guide_shown,
+            );
+        } else {
+            // Not capturing: drop any pending confirmation and hide the box.
+            guide_confirm = None;
+            if guide_shown.is_some() {
+                let _ = session.set_guide_alpha(0.0);
+                let _ = session.set_guide_visible(false);
+                guide_shown = None;
             }
-        } else if guide_shown.is_some() {
-            let _ = session.set_guide_alpha(0.0);
-            let _ = session.set_guide_visible(false);
-            guide_shown = None;
         }
 
         // Single-flight watchdog: a dispatched read normally clears
@@ -611,6 +671,12 @@ fn render_loop(
                 dispatched_at = None;
                 if cap_active {
                     *capture_state.write() = CaptureState::Ready;
+                    // Surface the result on the guide chip for a few seconds
+                    // (over "Ready — pull trigger"), so the capture confirmation
+                    // lands right where the user is aiming (issue #136).
+                    if let Some(c) = ocr_state.as_ref().and_then(|s| s.feedback.chip_confirm()) {
+                        guide_confirm = Some((c.0, c.1, frame_start));
+                    }
                 }
             }
         }
@@ -731,6 +797,60 @@ fn handle_overlay_events(
             _ => {}
         }
     }
+}
+
+/// Metres of head-locked guide-box width per unit of crop width-fraction.
+/// Calibrated so the container scan (crop width 0.72) frames at ~0.9 m, which
+/// the user confirmed looks right; the hideout (narrower crop) and stash (wider
+/// crop) boxes then scale proportionally, instead of one fixed size that's too
+/// big for the small panel and too small for the big stash grid. Issue #136.
+#[cfg(target_os = "windows")]
+const GUIDE_WIDTH_PER_CROP_W: f32 = 1.25;
+
+/// How long the post-capture OCR confirmation sits on the guide-box status chip
+/// (over "Ready — pull trigger") before reverting to the ready prompt. #136.
+#[cfg(target_os = "windows")]
+const GUIDE_CONFIRM_DURATION: Duration = Duration::from_secs(4);
+
+/// Render + submit the capture guide box. The status chip shows `confirm` (the
+/// post-capture OCR result — text + fill color) when `Some`, otherwise the live
+/// capture phase `st`. Skips the work when exactly that chip is already shown
+/// (tracked via `guide_shown`). Called from the steady-state guide block and
+/// eagerly the instant the capture state flips, so the chip never lags.
+#[cfg(target_os = "windows")]
+fn ensure_guide(
+    session: &mut super::overlay::OverlaySession,
+    mode: &CaptureMode,
+    st: CaptureState,
+    trigger: CaptureHand,
+    confirm: Option<&(String, (u8, u8, u8))>,
+    guide_shown: &mut Option<(CaptureMode, String, CaptureHand)>,
+) {
+    let (label, rgb) = match confirm {
+        Some((text, rgb)) => (text.as_str(), *rgb),
+        None => (st.label(), st.rgb()),
+    };
+    let key = (mode.clone(), label.to_string(), trigger);
+    if guide_shown.as_ref() == Some(&key) {
+        return;
+    }
+    // The guide box tracks the per-mode crop: its *shape* is the crop aspect and
+    // its apparent *width* is the crop width scaled by a single calibration
+    // constant, so the box frames each screen in proportion to what's captured —
+    // small for the hideout panel, large for the wide stash grid.
+    let crop = CaptureCrop::for_mode(mode);
+    let gw: u32 = 1024;
+    let gh = ((gw as f32) * (crop.h / crop.w))
+        .round()
+        .clamp(64.0, 2048.0) as u32;
+    let pix = super::guide::render(mode, label, rgb, trigger.label(), gw, gh);
+    let _ = session.set_guide_width(crop.w * GUIDE_WIDTH_PER_CROP_W);
+    if let Err(e) = session.submit_guide_rgba(pix.data(), pix.width(), pix.height()) {
+        tracing::warn!(error = %e, "guide overlay: submit failed");
+    }
+    let _ = session.set_guide_visible(true);
+    let _ = session.set_guide_alpha(1.0);
+    *guide_shown = Some(key);
 }
 
 /// Step the IVRInput action set and fire `dispatch_trigger_press` for
@@ -960,21 +1080,30 @@ fn capture_and_forward(
         (s.capture_eye.into(), s.ocr_capture_trace, s.ocr_debug)
     };
     let png_path = ocr_debug.then(|| next_screenshot_path(paths));
-    let capture_result = match &png_path {
-        Some(path) => session.capture_screenshot_to_png(path, capture_eye, trace),
-        None => session.capture_screenshot(capture_eye, trace),
-    };
+    // Capture the mirror frame into memory; the debug PNG we keep (when enabled)
+    // is the *cropped* OCR input, written below — not the full frame.
+    let capture_result = session.capture_screenshot(capture_eye, trace);
     let (result, dispatched) = match capture_result {
         Ok(img) => {
             // Aggressive crop to the guide-box region (issue #136) — cuts the
-            // surrounding game UI text out of the frame before OCR. The on-disk
-            // debug PNG (when `ocr_debug` is on) keeps the full frame; only the
-            // image handed to the worker is cropped. Downstream (anchor / box
-            // read) works in the cropped image's own pixel space, so nothing
-            // assumes full-frame coordinates.
+            // surrounding game UI text out of the frame before OCR. Downstream
+            // (anchor / box read) works in the cropped image's own pixel space,
+            // so nothing assumes full-frame coordinates.
             let (iw, ih) = img.dimensions();
             let (cx, cy, cw, ch) = crop.px_rect(iw, ih);
             let img = img.crop_imm(cx, cy, cw, ch);
+            // Debug artifact (when `ocr_debug` is on): the exact cropped region
+            // OCR reads — so you can verify the crop + the read off-headset.
+            if let Some(path) = &png_path {
+                if let Some(parent) = path.parent() {
+                    let _ = std::fs::create_dir_all(parent);
+                }
+                if let Err(e) = img.save(path) {
+                    tracing::warn!(error = %e, "failed to write cropped OCR debug PNG");
+                } else {
+                    tracing::info!(path = %path.display(), "wrote cropped OCR debug PNG");
+                }
+            }
             let job = OcrJob {
                 image: img,
                 source_path: png_path.clone(),
