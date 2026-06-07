@@ -99,6 +99,10 @@ pub enum OcrFeedbackKind {
         /// `(item_name, count)` for the cumulative series, sorted desc by count
         /// then name. The renderer caps how many it draws.
         series_items: Vec<(String, u32)>,
+        /// The **most recent shot's** tile grid, normalized to crop space, each
+        /// cell flagged matched (✓) / unreadable (✗). Drives the mini-grid card
+        /// (#138); the text card ignores it.
+        last_grid: Vec<crate::ocr::GridRow>,
         /// The box's total-weight readout, when one was parsed.
         observed_weight: Option<f32>,
         /// Computed weight of the stitched series — `Some` only when
@@ -118,6 +122,11 @@ pub struct OcrItemDelta {
     /// a false 0.
     pub after: Option<u32>,
     pub needed: u32,
+    /// Normalized crop-space rect of this requirement's cell, from
+    /// [`crate::ocr::OcrOutcome::cells`]. Drives the per-cell layout of the
+    /// mini-grid feedback card (#138) / on-the-items markers (#137). `None`
+    /// when no geometry was carried (e.g. older callers / tests).
+    pub pos: Option<crate::ocr::NormRect>,
 }
 
 impl OcrFeedback {
@@ -208,7 +217,8 @@ impl OcrFeedback {
         let items: Vec<OcrItemDelta> = outcome
             .items
             .iter()
-            .map(|(item_id, after)| {
+            .enumerate()
+            .map(|(i, (item_id, after))| {
                 let before = *state_before.collected.get(item_id).unwrap_or(&0);
                 let item_name = state_before
                     .index
@@ -222,6 +232,9 @@ impl OcrFeedback {
                     before,
                     after: *after,
                     needed,
+                    // `cells` is built 1:1 with `items` by the pipeline; `.get`
+                    // tolerates the stub/empty case without panicking.
+                    pos: outcome.cells.get(i).copied(),
                 }
             })
             .collect();
@@ -329,6 +342,7 @@ impl OcrFeedback {
                 total_items,
                 total_unrecognized: update.unrecognized,
                 series_items: rows(&update.tally),
+                last_grid: update.last_grid.clone(),
                 observed_weight: update.observed_weight,
                 computed_weight,
             },
@@ -479,6 +493,7 @@ mod tests {
             last_rows_added: 0,
             last_rows_duplicate: 0,
             rows: Vec::new(),
+            last_grid: Vec::new(),
         }
     }
 
@@ -545,6 +560,66 @@ mod tests {
         assert_eq!(total_unrecognized, 1);
         // Banana 3×2.0 + Apple 1×1.0 + ghost 2×0.0 (unknown weight) = 7.0.
         assert_eq!(computed_weight, Some(7.0));
+    }
+
+    #[test]
+    fn done_threads_cell_positions_aligned_with_items() {
+        // The pipeline carries one normalized cell rect per requirement, 1:1 with
+        // `items`; `done` must attach each to the matching `OcrItemDelta`.
+        let state = state_with_items(vec![item("a", "Apple", None), item("b", "Banana", None)]);
+        let outcome = OcrOutcome {
+            upgrade_id: "missing-from-data".into(),
+            upgrade_name: "Some Upgrade".into(),
+            items: vec![("a".into(), Some(2)), ("b".into(), None)],
+            cells: vec![
+                crate::ocr::NormRect {
+                    x: 0.1,
+                    y: 0.4,
+                    w: 0.2,
+                    h: 0.1,
+                },
+                crate::ocr::NormRect {
+                    x: 0.6,
+                    y: 0.4,
+                    w: 0.2,
+                    h: 0.1,
+                },
+            ],
+        };
+        let fb = OcrFeedback::done(&outcome, &state);
+        let OcrFeedbackKind::Done { items, .. } = fb.kind else {
+            panic!("expected Done");
+        };
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0].after, Some(2));
+        assert_eq!(
+            items[0].pos,
+            Some(crate::ocr::NormRect {
+                x: 0.1,
+                y: 0.4,
+                w: 0.2,
+                h: 0.1
+            })
+        );
+        assert_eq!(items[1].after, None);
+        assert_eq!(items[1].pos.map(|p| p.x), Some(0.6));
+    }
+
+    #[test]
+    fn done_pos_is_none_when_no_geometry_carried() {
+        // Older/stub callers leave `cells` empty — every delta gets `pos: None`.
+        let state = state_with_items(vec![item("a", "Apple", None)]);
+        let outcome = OcrOutcome {
+            upgrade_id: "x".into(),
+            upgrade_name: "X".into(),
+            items: vec![("a".into(), Some(1))],
+            cells: vec![],
+        };
+        let fb = OcrFeedback::done(&outcome, &state);
+        let OcrFeedbackKind::Done { items, .. } = fb.kind else {
+            panic!("expected Done");
+        };
+        assert_eq!(items[0].pos, None);
     }
 
     #[test]

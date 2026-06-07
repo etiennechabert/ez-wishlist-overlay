@@ -342,6 +342,14 @@ fn handle_box_capture(
             }
         }
     }
+    // The current shot's recognized tile grid (normalized to the cropped frame
+    // the OCR ran on), for the in-headset per-item feedback overlays (mini-grid
+    // card #138 / on-the-items markers #137). Current shot only.
+    let (grid_w, grid_h) = {
+        use image::GenericImageView as _;
+        job.image.dimensions()
+    };
+    let last_grid = ocr::box_scan::grid_rows(&read, grid_w as f32, grid_h as f32);
     let update = ocr::BoxScanUpdate {
         target: session.target.clone(),
         captures: session.captures,
@@ -354,6 +362,7 @@ fn handle_box_capture(
         last_rows_added: merge.rows_added,
         last_rows_duplicate: merge.rows_duplicate,
         rows: session.rows.clone(),
+        last_grid,
     };
 
     // Mirror the running state into the in-headset overlay so the user gets the

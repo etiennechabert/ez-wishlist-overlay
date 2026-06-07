@@ -117,6 +117,48 @@ pub struct OcrWord {
     pub rect: OcrRect,
 }
 
+/// A rectangle in normalized **crop-image** space — each field a fraction in
+/// `0.0..=1.0` of the cropped frame the OCR ran on (origin top-left). The OCR
+/// crop rect is exactly the region the guide box frames
+/// ([`crate::settings::CaptureCrop`]), so these coordinates map directly onto
+/// the guide overlay (per-item markers, #137) and onto a relative mini-grid
+/// diagram (#138) without re-deriving any geometry.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct NormRect {
+    pub x: f32,
+    pub y: f32,
+    pub w: f32,
+    pub h: f32,
+}
+
+impl NormRect {
+    /// Center point `(cx, cy)` of the rect, in the same normalized space.
+    pub fn center(&self) -> (f32, f32) {
+        (self.x + self.w / 2.0, self.y + self.h / 2.0)
+    }
+}
+
+/// One recognized tile of a box/stash grid row, normalized to crop space, for
+/// the per-shot feedback overlays (#137 / #138).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct GridCell {
+    /// Horizontal center of the tile, as a fraction of the cropped frame width.
+    pub x: f32,
+    /// `true` when the tile matched a catalog item (drawn ✓); `false` when a
+    /// tile was detected but couldn't be read/matched (drawn ✗).
+    pub matched: bool,
+}
+
+/// One row of the box/stash tile grid for a **single shot**, normalized to crop
+/// space. The mini-grid card lays these out top→bottom, cells left→right; the
+/// on-the-items overlay paints each cell at `(x, y)` on the guide box.
+#[derive(Clone, Debug, PartialEq)]
+pub struct GridRow {
+    /// Vertical center of the row, as a fraction of the cropped frame height.
+    pub y: f32,
+    pub cells: Vec<GridCell>,
+}
+
 /// Successful OCR outcome — what the pipeline returns when it both identifies
 /// an upgrade panel and reads its owned-count cells. The caller applies this
 /// to `AppState.collected` via repeated `set_collected` calls (snapshot is
@@ -135,6 +177,11 @@ pub struct OcrOutcome {
     /// value untouched (overwriting with 0 silently destroyed real
     /// progress when the strip Y misaligned).
     pub items: Vec<(String, Option<u32>)>,
+    /// Normalized crop-space rect of each requirement cell, aligned 1:1 with
+    /// [`items`](Self::items). Threaded to the in-headset feedback overlays so
+    /// they can place per-cell marks (counts in the mini-grid card #138; numbers
+    /// on the real items #137). Empty on the non-Windows stub path.
+    pub cells: Vec<NormRect>,
 }
 
 /// What the pipeline produces for a given screenshot.
@@ -240,4 +287,9 @@ pub struct BoxScanUpdate {
     /// The scan's current unique rows, in first-capture order. The desktop
     /// renders these "as captured" and lets the user drop one before applying.
     pub rows: Vec<box_scan::ScanRow>,
+    /// The **most recent shot's** recognized tile grid, normalized to crop
+    /// space, each cell flagged matched (✓) / unreadable (✗). Current shot only
+    /// — the mini-grid card (#138) and on-the-items markers (#137) mirror what
+    /// the user is looking at right now, not the whole stitched series.
+    pub last_grid: Vec<GridRow>,
 }

@@ -85,6 +85,7 @@ pub fn show(
                             &mut working.ocr_enabled,
                             &mut working.ocr_dismiss_seconds,
                             &mut working.ocr_auto_track,
+                            &mut working.ocr_feedback_grid,
                         );
                         ui.add_space(12.0);
                         debug_section(ui, &mut working.ocr_debug, &mut working.ocr_capture_trace);
@@ -156,6 +157,7 @@ fn ocr_section(
     ocr_enabled: &mut bool,
     ocr_dismiss_seconds: &mut u32,
     ocr_auto_track: &mut bool,
+    ocr_feedback_grid: &mut bool,
 ) {
     ui.heading("Screenshot OCR");
     ui.add_space(4.0);
@@ -206,6 +208,17 @@ fn ocr_section(
         );
         stepper_slider_u32(ui, ocr_dismiss_seconds, bounds::OCR_DISMISS_SECS, 1, " s");
     });
+
+    ui.add_space(6.0);
+    ui.checkbox(ocr_feedback_grid, "Mini-grid feedback card (experimental)")
+        .on_hover_text(
+            "Render the in-headset feedback card as a small grid diagram laid \
+             out like the on-screen items — per-cell owned counts for a hideout \
+             panel, or ✓ / ✗ marks for a box/stash scan (✓ = matched a catalog \
+             item, ✗ = detected but unreadable). An alternative to the text list \
+             you read at a glance instead of scanning names. Errors and \
+             \"reading…\" still show as the normal card. Off by default.",
+        );
 }
 
 /// Debug toggles, split out from the everyday Screenshot-OCR controls. Both are

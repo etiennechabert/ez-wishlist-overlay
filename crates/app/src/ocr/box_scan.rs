@@ -37,6 +37,7 @@
 
 use crate::data::{GameData, ItemId};
 use crate::ocr::match_item::match_item;
+use crate::ocr::{GridCell, GridRow};
 use std::collections::HashMap;
 
 /// One grid tile resolved to a known item, or `None` when OCR couldn't match
@@ -255,6 +256,11 @@ pub struct RowReport {
     pub ry: f32,
     pub kind: RowKind,
     pub cells: Vec<(String, Tile)>,
+    /// Pixel x-center of each cell, aligned 1:1 with [`cells`](Self::cells).
+    /// (The de-shear only adjusts `y`, so a cell's horizontal midpoint is its
+    /// raw center.) Consumed by [`grid_rows`] to place the per-shot feedback
+    /// marks at the right column.
+    pub cxs: Vec<f32>,
 }
 
 /// Category words shown on the box screen. The fixed top **tab strip** (All /
@@ -554,6 +560,10 @@ pub fn read_tiles(boxes: &[LabelBox], img_h: f32, data: &GameData) -> BoxReadRes
         for sub in split_subrows(block, slope, med_h) {
             let ry = median(sub.iter().map(|b| deshear(b, slope)));
             let cells = split_tiles(&sub);
+            // x-center of each tile, aligned 1:1 with the cells below — carried
+            // on every RowReport so the feedback overlays can place per-cell
+            // marks at the right column (#137 / #138).
+            let cxs: Vec<f32> = cells.iter().map(|t| tile_cx(t)).collect();
 
             // Skip a category sub-row (tab strip or per-item subtitles): one whose
             // tiles are mostly category words.
@@ -563,6 +573,7 @@ pub fn read_tiles(boxes: &[LabelBox], img_h: f32, data: &GameData) -> BoxReadRes
                     ry,
                     kind: RowKind::Category,
                     cells: cells.iter().map(|t| (join_text(t), None)).collect(),
+                    cxs,
                 });
                 continue;
             }
@@ -584,6 +595,7 @@ pub fn read_tiles(boxes: &[LabelBox], img_h: f32, data: &GameData) -> BoxReadRes
                 ry,
                 kind,
                 cells: resolved.clone(),
+                cxs,
             });
             if kind == RowKind::Names {
                 let row_tiles: Vec<Tile> = resolved.into_iter().map(|(_, m)| m).collect();
@@ -610,6 +622,52 @@ fn join_text(tile: &[&LabelBox]) -> String {
         .map(|b| b.text.as_str())
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+/// Horizontal pixel center of a tile — midpoint of its words' combined span.
+#[allow(dead_code)]
+fn tile_cx(tile: &[&LabelBox]) -> f32 {
+    let lo = tile.iter().map(|b| b.x).fold(f32::INFINITY, f32::min);
+    let hi = tile
+        .iter()
+        .map(|b| b.right())
+        .fold(f32::NEG_INFINITY, f32::max);
+    if lo.is_finite() && hi.is_finite() {
+        (lo + hi) / 2.0
+    } else {
+        0.0
+    }
+}
+
+/// Build the normalized per-shot tile grid for the feedback overlays (the
+/// mini-grid card #138 and the on-the-items markers #137).
+///
+/// Keeps only [`RowKind::Names`] rows (the real item grid — tab strips, the
+/// weight readout, and other chrome are dropped), maps each cell to a
+/// [`GridCell`] at its normalized x-center (✓ when it matched a catalog item,
+/// ✗ when it was detected but unreadable), and each row to its normalized
+/// y-center. `img_w` / `img_h` are the cropped frame's pixel dimensions the OCR
+/// ran on, so the output is in the same crop space as the guide box. Pure and
+/// cross-platform — unit-tested on every target.
+pub fn grid_rows(read: &BoxReadResult, img_w: f32, img_h: f32) -> Vec<GridRow> {
+    let iw = img_w.max(1.0);
+    let ih = img_h.max(1.0);
+    read.rows
+        .iter()
+        .filter(|r| r.kind == RowKind::Names)
+        .map(|r| GridRow {
+            y: (r.ry / ih).clamp(0.0, 1.0),
+            cells: r
+                .cells
+                .iter()
+                .zip(r.cxs.iter())
+                .map(|((_, tile), &cx)| GridCell {
+                    x: (cx / iw).clamp(0.0, 1.0),
+                    matched: tile.is_some(),
+                })
+                .collect(),
+        })
+        .collect()
 }
 
 /// Render a human-readable recognition dump for one box-scan capture, for the
@@ -751,6 +809,56 @@ pub(crate) mod tests {
         spec.split_whitespace()
             .map(|t| if t == "_" { None } else { Some(t.to_string()) })
             .collect()
+    }
+
+    /// `grid_rows` keeps only `Names` rows (chrome / category dropped) and maps
+    /// each cell to a normalized `(x, matched)` at its pixel x-center, with the
+    /// row at its normalized y-center. This is the position→normalized-coord
+    /// mapping the feedback overlays (#137 / #138) rely on.
+    #[test]
+    fn grid_rows_filters_names_and_normalizes() {
+        let read = BoxReadResult {
+            tiles: vec![],
+            tile_rows: vec![],
+            observed_weight: None,
+            slope: 0.0,
+            rows: vec![
+                RowReport {
+                    ry: 50.0,
+                    kind: RowKind::Category,
+                    cells: vec![("All".into(), None)],
+                    cxs: vec![100.0],
+                },
+                RowReport {
+                    ry: 100.0,
+                    kind: RowKind::Names,
+                    cells: vec![("Bolts".into(), Some("bolts".into())), ("???".into(), None)],
+                    cxs: vec![200.0, 600.0],
+                },
+                RowReport {
+                    ry: 150.0,
+                    kind: RowKind::Chrome,
+                    cells: vec![("21.9 / 30".into(), None)],
+                    cxs: vec![400.0],
+                },
+            ],
+        };
+        let grid = grid_rows(&read, 800.0, 200.0);
+        // Only the single Names row survives.
+        assert_eq!(grid.len(), 1);
+        let row = &grid[0];
+        assert!((row.y - 0.5).abs() < 1e-6, "ry 100 / h 200 = 0.5");
+        assert_eq!(row.cells.len(), 2);
+        assert!(
+            (row.cells[0].x - 0.25).abs() < 1e-6,
+            "cx 200 / w 800 = 0.25"
+        );
+        assert!(row.cells[0].matched, "resolved tile → matched (✓)");
+        assert!(
+            (row.cells[1].x - 0.75).abs() < 1e-6,
+            "cx 600 / w 800 = 0.75"
+        );
+        assert!(!row.cells[1].matched, "unresolved tile → unmatched (✗)");
     }
 
     // ===================================================================

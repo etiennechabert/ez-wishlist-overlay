@@ -674,11 +674,12 @@ fn render_loop(
         }
 
         {
-            let (ocr_debug, dismiss) = {
+            let (ocr_debug, dismiss, feedback_grid) = {
                 let s = settings.read();
                 (
                     s.ocr_debug,
                     Duration::from_secs(s.ocr_dismiss_seconds as u64),
+                    s.ocr_feedback_grid,
                 )
             };
             let terminal = drive_ocr_overlay(
@@ -689,6 +690,7 @@ fn render_loop(
                 ocr_debug,
                 matches!(mode, CaptureMode::Box(_)),
                 dismiss,
+                feedback_grid,
             );
             if terminal {
                 // OCR finished — release the single-flight latch and return the
@@ -1416,6 +1418,7 @@ fn drive_ocr_overlay(
     ocr_debug: bool,
     box_scan_active: bool,
     auto_dismiss: Duration,
+    feedback_grid: bool,
 ) -> bool {
     use crate::gui::OcrFeedbackKind;
 
@@ -1457,7 +1460,7 @@ fn drive_ocr_overlay(
     // First submit for this feedback: render once and push. (No auto-capture
     // banner — the guide box now shows capture state.)
     if !current.submitted {
-        let pixmap = super::ocr_render::render(&current.feedback, false);
+        let pixmap = super::ocr_render::render(&current.feedback, false, feedback_grid);
         if let Err(e) = session.submit_ocr_rgba(pixmap.data(), pixmap.width(), pixmap.height()) {
             tracing::warn!(error = %e, "OCR overlay: submit failed (continuing)");
         }
