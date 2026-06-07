@@ -101,27 +101,42 @@ impl CaptureCrop {
     /// stash submit terminal is wider still — so each is a fixed rect (fractions
     /// of the captured frame), not a user setting. The guide box takes its aspect
     /// from these. `Off` never captures, so it maps to the hideout crop.
+    ///
+    /// **Tightened in #141.** Now that the guide box is sized from the real eye
+    /// FOV (`vr::fov`) it exactly outlines its crop at the correct ~2× scale, so
+    /// these no longer have to be inflated to make an undersized box look big
+    /// enough — the stash crop in particular was widened to 0.92 (reaching the
+    /// side menu + footer) only to enlarge the box. Each is now centered on the
+    /// gaze (center fraction (0.5, 0.5)) and sized to frame just the item grid;
+    /// the user aims so the grid fills the box, and the surrounding chrome falls
+    /// outside it. Exact fractions are content-framing estimates to confirm in a
+    /// one-time in-headset pass (the FOV `MIRROR_FOV_FUDGE` knob covers any
+    /// residual mismatch).
     #[allow(dead_code)] // selected by the Windows-only capture worker
     pub fn for_mode(mode: &CaptureMode) -> CaptureCrop {
         use crate::ocr::ScanTarget;
         match mode {
+            // Near-square upgrade panel, centered.
             CaptureMode::Hideout | CaptureMode::Off => CaptureCrop {
-                x: 0.24,
-                y: 0.18,
-                w: 0.52,
-                h: 0.64,
+                x: 0.34,
+                y: 0.30,
+                w: 0.32,
+                h: 0.40,
             },
+            // Landscape 5-column world-container grid, centered.
             CaptureMode::Box(ScanTarget::Container(_)) => CaptureCrop {
-                x: 0.14,
-                y: 0.26,
-                w: 0.72,
-                h: 0.46,
+                x: 0.27,
+                y: 0.36,
+                w: 0.46,
+                h: 0.28,
             },
+            // Widest: the 5-column stash submit grid, centered (was 0.92 wide,
+            // which captured the side menu + footer — see #141).
             CaptureMode::Box(ScanTarget::Stash) => CaptureCrop {
-                x: 0.04,
-                y: 0.26,
-                w: 0.92,
-                h: 0.48,
+                x: 0.24,
+                y: 0.36,
+                w: 0.52,
+                h: 0.28,
             },
         }
     }
@@ -624,6 +639,20 @@ mod tests {
         let aspect = |c: CaptureCrop| c.w / c.h;
         assert!(aspect(hideout) < aspect(container));
         assert!(aspect(container) < aspect(stash));
+        // #141 invariant: every crop is centered on the gaze (center fraction
+        // (0.5, 0.5)). The FOV-derived guide transform is just the crop center,
+        // and the guide texture uses symmetric margins, so an off-center crop
+        // would put the box off the gaze axis. Keep them centered.
+        for c in [hideout, container, stash] {
+            assert!(
+                (c.x + c.w / 2.0 - 0.5).abs() < 1e-6,
+                "crop must be horizontally centered: {c:?}"
+            );
+            assert!(
+                (c.y + c.h / 2.0 - 0.5).abs() < 1e-6,
+                "crop must be vertically centered: {c:?}"
+            );
+        }
     }
 
     #[test]

@@ -23,7 +23,7 @@ use std::time::Duration;
 const RETRY_DELAY: Duration = Duration::from_secs(5);
 
 /// Subdirectory under `PersistPaths::debug_dir` where captured mirror-texture
-/// PNGs (and their OCR sidecars) are written. Lives inside the per-session
+/// WebP crops (and their OCR sidecars) are written. Lives inside the per-session
 /// `debug/` bundle that's flushed at startup, so captures never accumulate
 /// across sessions. The OCR test bed under `ocr_data/` is happy to consume
 /// from wherever.
@@ -98,11 +98,11 @@ pub struct Runtime {
 
 #[derive(Clone, Debug)]
 pub enum CaptureResult {
-    /// Capture succeeded and was written to disk at this path. Only
-    /// produced when `settings.ocr_debug` is on, because the runtime
-    /// otherwise skips the PNG write entirely (see [`Runtime::spawn`]).
+    /// Capture succeeded and the cropped WebP was written to disk at this path.
+    /// Only produced when `settings.ocr_debug` is on, because the runtime
+    /// otherwise skips the disk write entirely (see [`Runtime::spawn`]).
     Ok(PathBuf),
-    /// Capture succeeded but no PNG was written — the default fast
+    /// Capture succeeded but nothing was written to disk — the default fast
     /// path, where the bitmap goes straight to the OCR worker over
     /// the channel and never touches disk. The GUI surfaces this as
     /// a generic "captured" toast since there's no file to show.
@@ -114,9 +114,9 @@ impl Runtime {
     /// Spawn the VR worker thread.
     ///
     /// `ocr_tx` receives one [`OcrJob`] per successful capture — the
-    /// already-decoded mirror-texture bitmap, plus the on-disk PNG
+    /// already-decoded mirror-texture bitmap, plus the on-disk WebP
     /// path when `settings.ocr_debug` is on (otherwise `None`, and
-    /// no PNG is written at all). The downstream OCR worker thread
+    /// nothing is written at all). The downstream OCR worker thread
     /// (in `main.rs`) reads from the matching receiver and reflects
     /// parsed counts back into `AppState`. Bounded + `try_send` so a
     /// busy OCR worker can't backpressure the VR render loop;
@@ -390,7 +390,10 @@ fn render_loop(
 
     loop {
         let frame_start = Instant::now();
-        let vr = settings.read().vr.clone();
+        let (vr, capture_eye) = {
+            let s = settings.read();
+            (s.vr.clone(), s.capture_eye)
+        };
         session.apply_settings(&vr)?;
 
         let mode = capture_mode.read().clone();
@@ -400,6 +403,17 @@ fn render_loop(
         // crop rect (and thus guide-box aspect). `Off` maps to the hideout crop —
         // unused, since capture is inactive then.
         let crop = CaptureCrop::for_mode(&mode);
+        // FOV-derived guide-box placement needs the capture eye's frustum
+        // tangents so the box exactly outlines its crop (issue #141). Query once
+        // per tick while a mode is active; fall back to a generic FOV if
+        // IVRSystem is momentarily unavailable this frame.
+        let eye_fov = if cap_active {
+            session
+                .eye_fov(capture_eye)
+                .unwrap_or(super::fov::EyeFov::FALLBACK)
+        } else {
+            super::fov::EyeFov::FALLBACK
+        };
 
         let pitch = session.hmd_pitch_deg().unwrap_or(0.0);
         // The wishlist overlay is suppressed while a capture mode is active so
@@ -518,6 +532,7 @@ fn render_loop(
                         CaptureState::Capturing,
                         vr.capture_trigger,
                         None,
+                        eye_fov,
                         &mut guide_shown,
                     );
                     let dispatched = capture_and_forward(
@@ -543,6 +558,7 @@ fn render_loop(
                             CaptureState::RunningOcr,
                             vr.capture_trigger,
                             None,
+                            eye_fov,
                             &mut guide_shown,
                         );
                     } else {
@@ -583,6 +599,7 @@ fn render_loop(
                 st,
                 vr.capture_trigger,
                 confirm.as_ref(),
+                eye_fov,
                 &mut guide_shown,
             );
         } else {
@@ -799,24 +816,40 @@ fn handle_overlay_events(
     }
 }
 
-/// Metres of head-locked guide-box width per unit of crop width-fraction.
-/// Calibrated so the container scan (crop width 0.72) frames at ~0.9 m, which
-/// the user confirmed looks right; the hideout (narrower crop) and stash (wider
-/// crop) boxes then scale proportionally, instead of one fixed size that's too
-/// big for the small panel and too small for the big stash grid. Issue #136.
+/// Distance (metres) the head-locked guide box floats in front of the gaze.
+/// The FOV→metric mapping ([`super::fov`]) scales linearly with this, so the box
+/// outlines its crop at any distance; 1 m matches the historical guide offset.
+/// Issue #141.
 #[cfg(target_os = "windows")]
-const GUIDE_WIDTH_PER_CROP_W: f32 = 1.25;
+const GUIDE_DISTANCE_M: f32 = 1.0;
+
+/// Base pixel width of the guide texture's transparent hole. The height follows
+/// from the crop's metric aspect; the margins (caption / chip / frame) are added
+/// around it by [`super::guide::layout_for_hole`]. Issue #141.
+#[cfg(target_os = "windows")]
+const GUIDE_HOLE_W: u32 = 1024;
 
 /// How long the post-capture OCR confirmation sits on the guide-box status chip
 /// (over "Ready — pull trigger") before reverting to the ready prompt. #136.
 #[cfg(target_os = "windows")]
 const GUIDE_CONFIRM_DURATION: Duration = Duration::from_secs(4);
 
-/// Render + submit the capture guide box. The status chip shows `confirm` (the
-/// post-capture OCR result — text + fill color) when `Some`, otherwise the live
-/// capture phase `st`. Skips the work when exactly that chip is already shown
-/// (tracked via `guide_shown`). Called from the steady-state guide block and
-/// eagerly the instant the capture state flips, so the chip never lags.
+/// Render + submit the capture guide box, sized + positioned so its transparent
+/// hole **exactly outlines its OCR crop** via the eye FOV (issue #141).
+///
+/// The crop's edges map through `eye_fov` to head-locked metric extents at
+/// [`GUIDE_DISTANCE_M`] (see [`super::fov::guide_placement`]); the hole is
+/// rendered at that metric aspect, the texture margins carry the caption / chip
+/// / frame *outside* the hole, and the overlay width is scaled up by
+/// `tex_w / hole_w` so the hole still lands on the crop. The transform +
+/// width are skip-cached in the session, so recomputing them every call is
+/// cheap; the (heavier) pixmap is only re-rendered when the chip changes
+/// (tracked via `guide_shown`).
+///
+/// The status chip shows `confirm` (the post-capture OCR result — text + fill
+/// color) when `Some`, otherwise the live capture phase `st`. Called from the
+/// steady-state guide block and eagerly the instant the capture state flips, so
+/// the chip never lags.
 #[cfg(target_os = "windows")]
 fn ensure_guide(
     session: &mut super::overlay::OverlaySession,
@@ -824,8 +857,29 @@ fn ensure_guide(
     st: CaptureState,
     trigger: CaptureHand,
     confirm: Option<&(String, (u8, u8, u8))>,
+    eye_fov: super::fov::EyeFov,
     guide_shown: &mut Option<(CaptureMode, String, CaptureHand)>,
 ) {
+    // Geometry: map the per-mode crop through the eye FOV to a head-locked
+    // metric placement. Recomputed every call (cheap math) so a capture-eye /
+    // FOV change is reflected even when the chip label is unchanged; the
+    // transform + width setters skip redundant OpenVR calls internally.
+    let crop = CaptureCrop::for_mode(mode);
+    let placement = super::fov::guide_placement(eye_fov, &crop, GUIDE_DISTANCE_M);
+    let hole_h = ((GUIDE_HOLE_W as f32) / placement.aspect())
+        .round()
+        .clamp(64.0, 4096.0) as u32;
+    let layout = super::guide::layout_for_hole(GUIDE_HOLE_W, hole_h);
+    // The hole maps to placement.width_m; the full texture is wider by the
+    // margins, so scale the overlay width up to keep the hole on the crop.
+    let overlay_w = placement.width_m * (layout.tex_w as f32 / layout.hole_w.max(1) as f32);
+    let _ = session.set_guide_transform(
+        placement.center_x_m,
+        placement.center_y_m,
+        placement.distance_m,
+    );
+    let _ = session.set_guide_width(overlay_w);
+
     let (label, rgb) = match confirm {
         Some((text, rgb)) => (text.as_str(), *rgb),
         None => (st.label(), st.rgb()),
@@ -834,17 +888,7 @@ fn ensure_guide(
     if guide_shown.as_ref() == Some(&key) {
         return;
     }
-    // The guide box tracks the per-mode crop: its *shape* is the crop aspect and
-    // its apparent *width* is the crop width scaled by a single calibration
-    // constant, so the box frames each screen in proportion to what's captured —
-    // small for the hideout panel, large for the wide stash grid.
-    let crop = CaptureCrop::for_mode(mode);
-    let gw: u32 = 1024;
-    let gh = ((gw as f32) * (crop.h / crop.w))
-        .round()
-        .clamp(64.0, 2048.0) as u32;
-    let pix = super::guide::render(mode, label, rgb, trigger.label(), gw, gh);
-    let _ = session.set_guide_width(crop.w * GUIDE_WIDTH_PER_CROP_W);
+    let pix = super::guide::render(mode, label, rgb, trigger.label(), &layout);
     if let Err(e) = session.submit_guide_rgba(pix.data(), pix.width(), pix.height()) {
         tracing::warn!(error = %e, "guide overlay: submit failed");
     }
@@ -1006,8 +1050,10 @@ fn apply_fade_in(
 }
 
 /// Build the path for the next screenshot. Format matches the in-game F12
-/// naming convention (`YYYYMMDDhhmmss_<nanos>.png`) so sorting it next to
-/// Steam's JPEGs in a file browser feels natural.
+/// naming convention (`YYYYMMDDhhmmss_<nanos>.webp`) so sorting it next to
+/// Steam's screenshots in a file browser feels natural. The capture is written
+/// directly as WebP q95 (issue #141) — the same format the committed fixtures
+/// use, so a debug capture can be promoted to a fixture without re-encoding.
 #[cfg(target_os = "windows")]
 fn next_screenshot_path(paths: &PersistPaths) -> PathBuf {
     use time::macros::format_description;
@@ -1027,7 +1073,18 @@ fn next_screenshot_path(paths: &PersistPaths) -> PathBuf {
     paths
         .debug_dir
         .join(SCREENSHOT_SUBDIR)
-        .join(format!("{stamp}_{nanos:09}.png"))
+        .join(format!("{stamp}_{nanos:09}.webp"))
+}
+
+/// Encode `img` as lossy WebP at quality `q` (0–100) via libwebp (the `webp`
+/// crate). The `image` crate's built-in WebP encoder is lossless-only, so the
+/// debug capture (issue #141) goes through libwebp directly to land at q95 —
+/// matching the committed fixture format with no out-of-band re-encode step.
+#[cfg(target_os = "windows")]
+fn encode_webp(img: &image::DynamicImage, q: f32) -> Vec<u8> {
+    let rgb = img.to_rgb8();
+    let encoder = webp::Encoder::from_rgb(rgb.as_raw(), rgb.width(), rgb.height());
+    encoder.encode(q).to_vec()
 }
 
 /// Grab one compositor-mirror frame and hand it to the OCR worker.
@@ -1036,10 +1093,10 @@ fn next_screenshot_path(paths: &PersistPaths) -> PathBuf {
 /// Retires any visible OCR card first: the card is a real SteamVR
 /// overlay composited into the eye buffers, so leaving it up would bake
 /// it into the screenshot and the next OCR pass would read itself over
-/// the panel. PNG-on-disk is gated on `settings.ocr_debug` (off by
-/// default → no disk round-trip, ~2-3 s OCR instead of ~6-7 s). Capture
-/// errors are surfaced to the GUI via `last_capture` rather than
-/// aborting the render loop.
+/// the panel. The debug image-on-disk (WebP q95, issue #141) is gated on
+/// `settings.ocr_debug` (off by default → no disk round-trip, ~2-3 s OCR
+/// instead of ~6-7 s). Capture errors are surfaced to the GUI via
+/// `last_capture` rather than aborting the render loop.
 ///
 /// `beep` plays the system done/error sound — `true` for manual
 /// captures (audible confirmation in-headset), `false` for the auto
@@ -1079,9 +1136,9 @@ fn capture_and_forward(
         let s = settings.read();
         (s.capture_eye.into(), s.ocr_capture_trace, s.ocr_debug)
     };
-    let png_path = ocr_debug.then(|| next_screenshot_path(paths));
-    // Capture the mirror frame into memory; the debug PNG we keep (when enabled)
-    // is the *cropped* OCR input, written below — not the full frame.
+    let debug_path = ocr_debug.then(|| next_screenshot_path(paths));
+    // Capture the mirror frame into memory; the debug image we keep (when
+    // enabled) is the *cropped* OCR input, written below — not the full frame.
     let capture_result = session.capture_screenshot(capture_eye, trace);
     let (result, dispatched) = match capture_result {
         Ok(img) => {
@@ -1094,19 +1151,23 @@ fn capture_and_forward(
             let img = img.crop_imm(cx, cy, cw, ch);
             // Debug artifact (when `ocr_debug` is on): the exact cropped region
             // OCR reads — so you can verify the crop + the read off-headset.
-            if let Some(path) = &png_path {
+            // Written directly as WebP q95 (issue #141), no PNG round-trip.
+            if let Some(path) = &debug_path {
                 if let Some(parent) = path.parent() {
                     let _ = std::fs::create_dir_all(parent);
                 }
-                if let Err(e) = img.save(path) {
-                    tracing::warn!(error = %e, "failed to write cropped OCR debug PNG");
-                } else {
-                    tracing::info!(path = %path.display(), "wrote cropped OCR debug PNG");
+                match std::fs::write(path, encode_webp(&img, 95.0)) {
+                    Ok(()) => {
+                        tracing::info!(path = %path.display(), "wrote cropped OCR debug WebP")
+                    }
+                    Err(e) => {
+                        tracing::warn!(error = %e, "failed to write cropped OCR debug WebP")
+                    }
                 }
             }
             let job = OcrJob {
                 image: img,
-                source_path: png_path.clone(),
+                source_path: debug_path.clone(),
                 kind,
             };
             // Upgrade captures: best-effort `try_send` — if the worker is busy
@@ -1122,7 +1183,7 @@ fn capture_and_forward(
             if beep {
                 super::capture::play_capture_done_beep(true);
             }
-            let r = match png_path {
+            let r = match debug_path {
                 Some(path) => CaptureResult::Ok(path),
                 None => CaptureResult::Ephemeral,
             };

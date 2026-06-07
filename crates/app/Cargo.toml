@@ -1,6 +1,6 @@
 [package]
 name = "ez-wishlist-overlay"
-version = "0.4.4"
+version = "0.4.5"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
@@ -71,6 +71,11 @@ ureq = { version = "2.12", default-features = false, features = ["tls", "json"] 
 [target.'cfg(target_os = "windows")'.dependencies]
 openvr = "0.9.0"
 openvr_sys = "2.1.4"
+# Lossy WebP encoder (libwebp bindings) for the debug capture written at q95
+# (issue #141). The `image` crate's built-in WebP encoder is lossless-only, so
+# the q95 debug save goes through libwebp directly. Windows-only because the only
+# call site is the Windows capture path (`vr/runtime.rs`).
+webp = "0.3"
 windows = { version = "0.58", features = [
     "Win32_Foundation",
     "Win32_Graphics_Direct3D",
