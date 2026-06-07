@@ -545,6 +545,7 @@ fn render_loop(
                         true,
                         kind,
                         crop,
+                        eye_fov,
                     );
                     if dispatched {
                         capture_in_flight = true;
@@ -577,6 +578,7 @@ fn render_loop(
                 true,
                 crate::ocr::JobKind::UpgradePanel,
                 crop,
+                eye_fov,
             );
         }
 
@@ -1120,6 +1122,7 @@ fn capture_and_forward(
     beep: bool,
     kind: crate::ocr::JobKind,
     crop: crate::settings::CaptureCrop,
+    eye_fov: super::fov::EyeFov,
 ) -> bool {
     use image::GenericImageView as _;
     let box_scan = matches!(kind, crate::ocr::JobKind::BoxScan);
@@ -1132,10 +1135,17 @@ fn capture_and_forward(
         }
         *ocr_state = None;
     }
-    let (capture_eye, trace, ocr_debug) = {
+    let (capture_eye_setting, trace, ocr_debug) = {
         let s = settings.read();
-        (s.capture_eye.into(), s.ocr_capture_trace, s.ocr_debug)
+        (s.capture_eye, s.ocr_capture_trace, s.ocr_debug)
     };
+    let capture_eye: super::capture::CaptureEye = capture_eye_setting.into();
+    // Capture eye's head-space offset (≈ ±IPD/2), for the crop's parallax
+    // correction so the captured rect lines up with the head-locked box as seen
+    // by this eye (issue #141).
+    let eye_off = session
+        .eye_offset(capture_eye_setting)
+        .unwrap_or((0.0, 0.0, 0.0));
     let debug_path = ocr_debug.then(|| next_screenshot_path(paths));
     // Capture the mirror frame into memory; the debug image we keep (when
     // enabled) is the *cropped* OCR input, written below — not the full frame.
@@ -1143,11 +1153,21 @@ fn capture_and_forward(
     let (result, dispatched) = match capture_result {
         Ok(img) => {
             // Aggressive crop to the guide-box region (issue #136) — cuts the
-            // surrounding game UI text out of the frame before OCR. Downstream
-            // (anchor / box read) works in the cropped image's own pixel space,
-            // so nothing assumes full-frame coordinates.
+            // surrounding game UI text out of the frame before OCR. The crop is
+            // re-centered on the eye's forward (gaze) axis (issue #141): the
+            // mirror is the raw asymmetric eye render, so the straight-ahead
+            // guide box lands at the gaze fraction, *not* the frame center.
+            // Downstream (anchor / box read) works in the cropped image's own
+            // pixel space, so nothing assumes full-frame coordinates.
             let (iw, ih) = img.dimensions();
-            let (cx, cy, cw, ch) = crop.px_rect(iw, ih);
+            let mirror_crop = super::fov::gaze_centered_crop(
+                eye_fov,
+                eye_off.0,
+                eye_off.1,
+                GUIDE_DISTANCE_M,
+                &crop,
+            );
+            let (cx, cy, cw, ch) = mirror_crop.px_rect(iw, ih);
             let img = img.crop_imm(cx, cy, cw, ch);
             // Debug artifact (when `ocr_debug` is on): the exact cropped region
             // OCR reads — so you can verify the crop + the read off-headset.
@@ -1164,6 +1184,71 @@ fn capture_and_forward(
                         tracing::warn!(error = %e, "failed to write cropped OCR debug WebP")
                     }
                 }
+                // Guide-box ↔ crop alignment diagnostic (issue #141 in-headset
+                // tuning): the FOV, the straight-ahead box placement, the gaze
+                // fraction, and the gaze-centered crop actually captured. Read
+                // this next to a capture to confirm the box outlines its crop.
+                let placement = super::fov::guide_placement(eye_fov, &crop, GUIDE_DISTANCE_M);
+                let (sx, sy) = (eye_fov.span_x(), eye_fov.span_y());
+                let (gaze_u, gaze_v) = super::fov::gaze_fraction(eye_fov);
+                let (app_u, app_v) = super::fov::box_apparent_fraction(
+                    eye_fov,
+                    eye_off.0,
+                    eye_off.1,
+                    GUIDE_DISTANCE_M,
+                );
+                let diag = format!(
+                    "guide-box vs crop diagnostic (issue #141)\n\
+                     eye_fov tangents : left={:.4} right={:.4} top={:.4} bottom={:.4}\n\
+                     spans            : x={:.4} y={:.4}  (frustum mid: x={:.4} y={:.4})\n\
+                     gaze fraction    : u={:.4} v={:.4}  (frame center is 0.5,0.5)\n\
+                     eye offset (m)   : dx={:.4} dy={:.4} dz={:.4}\n\
+                     box apparent     : u={:.4} v={:.4}  (gaze + IPD parallax → crop center)\n\
+                     mirror frame     : {}x{} px\n\
+                     base crop        : x={:.3} y={:.3} w={:.3} h={:.3}  (center {:.3},{:.3})\n\
+                     gaze crop        : x={:.3} y={:.3} w={:.3} h={:.3}  (center {:.3},{:.3})\n\
+                     gaze crop pixels : x={} y={} w={} h={}\n\
+                     box placement (D={:.2}m): center=({:.4},{:.4})m  size=({:.4} x {:.4})m\n",
+                    eye_fov.left,
+                    eye_fov.right,
+                    eye_fov.top,
+                    eye_fov.bottom,
+                    sx,
+                    sy,
+                    (eye_fov.left + eye_fov.right) * 0.5,
+                    (eye_fov.top + eye_fov.bottom) * 0.5,
+                    gaze_u,
+                    gaze_v,
+                    eye_off.0,
+                    eye_off.1,
+                    eye_off.2,
+                    app_u,
+                    app_v,
+                    iw,
+                    ih,
+                    crop.x,
+                    crop.y,
+                    crop.w,
+                    crop.h,
+                    crop.x + crop.w * 0.5,
+                    crop.y + crop.h * 0.5,
+                    mirror_crop.x,
+                    mirror_crop.y,
+                    mirror_crop.w,
+                    mirror_crop.h,
+                    mirror_crop.x + mirror_crop.w * 0.5,
+                    mirror_crop.y + mirror_crop.h * 0.5,
+                    cx,
+                    cy,
+                    cw,
+                    ch,
+                    GUIDE_DISTANCE_M,
+                    placement.center_x_m,
+                    placement.center_y_m,
+                    placement.width_m,
+                    placement.height_m,
+                );
+                let _ = std::fs::write(path.with_extension("guide.txt"), diag);
             }
             let job = OcrJob {
                 image: img,

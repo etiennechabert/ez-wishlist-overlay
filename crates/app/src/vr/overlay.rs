@@ -425,6 +425,21 @@ impl OverlaySession {
         })
     }
 
+    /// The capture eye's translation off the HMD (head) origin, in metres —
+    /// `(dx, dy, dz)` from `IVRSystem::GetEyeToHeadTransform` (dx ≈ ±IPD/2).
+    /// Used to parallax-correct the capture crop so it lines up with the
+    /// head-locked guide box as seen by *this* eye (issue #141). Returns `None`
+    /// if the `IVRSystem` interface can't be acquired this tick.
+    pub fn eye_offset(&self, eye: crate::settings::CaptureEye) -> Option<(f32, f32, f32)> {
+        let system = self.ctx.system().ok()?;
+        let oeye = match eye {
+            crate::settings::CaptureEye::Left => openvr::Eye::Left,
+            crate::settings::CaptureEye::Right => openvr::Eye::Right,
+        };
+        let m = system.eye_to_head_transform(oeye);
+        Some((m[0][3], m[1][3], m[2][3]))
+    }
+
     /// Cheap probe used by the runtime loop to detect that SteamVR vanished.
     /// Any operation that hits the IVROverlay fn-table works; we use the
     /// dashboard query because it has no side effects and is documented as
