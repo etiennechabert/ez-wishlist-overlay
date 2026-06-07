@@ -116,12 +116,15 @@ impl CaptureCrop {
     pub fn for_mode(mode: &CaptureMode) -> CaptureCrop {
         use crate::ocr::ScanTarget;
         match mode {
-            // Near-square upgrade panel, centered.
+            // The upgrade panel is wider than tall (a header + a row of 4 item
+            // cells), so the crop is landscape-ish and trimmed vertically to sit
+            // on the panel rather than the empty hideout view above/below it
+            // (in-headset tuning, #141). Centered.
             CaptureMode::Hideout | CaptureMode::Off => CaptureCrop {
                 x: 0.34,
-                y: 0.30,
+                y: 0.35,
                 w: 0.32,
-                h: 0.40,
+                h: 0.30,
             },
             // Landscape 5-column world-container grid, centered.
             CaptureMode::Box(ScanTarget::Container(_)) => CaptureCrop {
