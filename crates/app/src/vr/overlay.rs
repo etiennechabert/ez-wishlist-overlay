@@ -42,14 +42,26 @@ const OCR_OFFSET_Z_M: f32 = -1.2;
 const GUIDE_OVERLAY_KEY: &str = "com.etienneb.ez-wishlist-overlay.guide\0";
 const GUIDE_OVERLAY_NAME: &str = "EZ Wishlist Capture Guide\0";
 /// Default metric width of the head-locked capture guide box (issue #136).
-/// Overridden per-frame with a width derived from the active mode's crop width;
-/// this is just the value pushed at init before the loop applies it.
+/// Overridden per-frame with an FOV-derived width so the box's hole exactly
+/// outlines its crop (issue #141, see [`super::fov`]); this is just the value
+/// pushed at init before the loop applies it.
 const GUIDE_OVERLAY_WIDTH_M: f32 = 0.9;
 /// Head-locked guide-box offsets, HMD local frame. Centered on the gaze and
-/// ~1 m in front so the user can line the panel/container up inside it.
+/// ~1 m in front so the user can line the panel/container up inside it. These
+/// are the *initial* values pushed at init; while a capture mode is active the
+/// loop overrides the transform per-frame with an FOV-derived placement so the
+/// box exactly outlines its crop (issue #141, see [`super::fov`]).
 const GUIDE_OFFSET_X_M: f32 = 0.0;
 const GUIDE_OFFSET_Y_M: f32 = 0.0;
 const GUIDE_OFFSET_Z_M: f32 = -1.0;
+
+/// Empirical correction for the mirror-texture ↔ `projection_raw` correspondence
+/// (issue #141). The mirror frame *should* map 1:1 to the capture eye's reported
+/// FOV tangents, but supersampling / canted-display quirks can scale it
+/// slightly; this multiplies the queried tangents so the box can be nudged to
+/// match the crop exactly. 1.0 = trust the runtime verbatim; expect a one-time
+/// in-headset tuning pass to refine it.
+const MIRROR_FOV_FUDGE: f32 = 1.0;
 
 /// Owns the OpenVR runtime + a single overlay handle for the program's
 /// lifetime. Drop runs `VR_Shutdown` via `Context::drop`.
@@ -79,6 +91,13 @@ pub struct OverlaySession {
     last_guide_alpha: f32,
     /// Skip-redundant width cache for the guide overlay (set from settings).
     last_guide_width: f32,
+    /// Skip-redundant transform cache for the guide overlay: `(center_x_m,
+    /// center_y_m, distance_m)` of the head-locked box, so a new transform is
+    /// only pushed when the FOV-derived placement actually changes (issue #141).
+    last_guide_transform: (f32, f32, f32),
+    /// Skip-redundant cache for the guide overlay's `SideBySide_Parallel` stereo
+    /// flag — `true` while the box is rendered in only the capture eye (#143).
+    last_guide_stereo: bool,
     /// IVRInput state for click detection. None if the action manifest
     /// failed to load — the rest of the overlay still works, just no
     /// trigger detection.
@@ -238,6 +257,8 @@ impl OverlaySession {
             guide_handle,
             last_guide_alpha: 0.0,
             last_guide_width: GUIDE_OVERLAY_WIDTH_M,
+            last_guide_transform: (GUIDE_OFFSET_X_M, GUIDE_OFFSET_Y_M, -GUIDE_OFFSET_Z_M),
+            last_guide_stereo: false,
             input,
         })
     }
@@ -348,6 +369,123 @@ impl OverlaySession {
             .map_err(|e| anyhow::anyhow!("{e:?}"))
             .context("SetOverlayWidthInMeters(guide)")?;
         self.last_guide_width = width_meters;
+        Ok(())
+    }
+
+    /// Set the guide box's head-locked transform — translation only (identity
+    /// rotation), `(center_x, center_y, -distance)` in the HMD's local frame
+    /// (issue #141). Driven per-frame from the FOV-derived crop placement so the
+    /// box sits exactly over its crop (including the per-eye asymmetry a fixed
+    /// `(0,0,-1)` offset couldn't). Skips the call when unchanged.
+    pub fn set_guide_transform(
+        &mut self,
+        center_x_m: f32,
+        center_y_m: f32,
+        distance_m: f32,
+    ) -> Result<()> {
+        let (lx, ly, ld) = self.last_guide_transform;
+        if (center_x_m - lx).abs() < f32::EPSILON
+            && (center_y_m - ly).abs() < f32::EPSILON
+            && (distance_m - ld).abs() < f32::EPSILON
+        {
+            return Ok(());
+        }
+        let m = openvr::pose::Matrix3x4([
+            [1.0, 0.0, 0.0, center_x_m],
+            [0.0, 1.0, 0.0, center_y_m],
+            [0.0, 0.0, 1.0, -distance_m],
+        ]);
+        let mut overlay = self
+            .ctx
+            .overlay()
+            .map_err(|e| anyhow::anyhow!("{e:?}"))
+            .context("IVROverlay interface")?;
+        overlay
+            .set_transform_tracked_device_relative(self.guide_handle, tracked_device_index::HMD, &m)
+            .map_err(|e| anyhow::anyhow!("{e:?}"))
+            .context("SetOverlayTransformTrackedDeviceRelative(guide)")?;
+        self.last_guide_transform = (center_x_m, center_y_m, distance_m);
+        Ok(())
+    }
+
+    /// Query the capture eye's projection frustum tangents via
+    /// `IVRSystem::GetProjectionRaw` (issue #141) — the tangents of the
+    /// half-angles to the four clipping planes, which the mirror frame maps onto
+    /// linearly. Returns `None` if the `IVRSystem` interface can't be acquired
+    /// this tick (caller falls back to [`super::fov::EyeFov::FALLBACK`]). The
+    /// reported tangents are scaled by [`MIRROR_FOV_FUDGE`].
+    pub fn eye_fov(&self, eye: crate::settings::CaptureEye) -> Option<super::fov::EyeFov> {
+        let system = self.ctx.system().ok()?;
+        let oeye = match eye {
+            crate::settings::CaptureEye::Left => openvr::Eye::Left,
+            crate::settings::CaptureEye::Right => openvr::Eye::Right,
+        };
+        let p = system.projection_raw(oeye);
+        Some(super::fov::EyeFov {
+            left: p.left * MIRROR_FOV_FUDGE,
+            right: p.right * MIRROR_FOV_FUDGE,
+            top: p.top * MIRROR_FOV_FUDGE,
+            bottom: p.bottom * MIRROR_FOV_FUDGE,
+        })
+    }
+
+    /// The capture eye's translation off the HMD (head) origin, in metres —
+    /// `(dx, dy, dz)` from `IVRSystem::GetEyeToHeadTransform` (dx ≈ ±IPD/2).
+    /// Used to parallax-correct the capture crop so it lines up with the
+    /// head-locked guide box as seen by *this* eye (issue #141). Returns `None`
+    /// if the `IVRSystem` interface can't be acquired this tick.
+    pub fn eye_offset(&self, eye: crate::settings::CaptureEye) -> Option<(f32, f32, f32)> {
+        let system = self.ctx.system().ok()?;
+        let oeye = match eye {
+            crate::settings::CaptureEye::Left => openvr::Eye::Left,
+            crate::settings::CaptureEye::Right => openvr::Eye::Right,
+        };
+        let m = system.eye_to_head_transform(oeye);
+        Some((m[0][3], m[1][3], m[2][3]))
+    }
+
+    /// Toggle the guide overlay's `SideBySide_Parallel` stereo flag (issue #143).
+    /// When `on`, the overlay texture is treated as two half-width images
+    /// (left half → left eye, right half → right eye); paired with a texture
+    /// that has content in only the capture eye's half (see
+    /// [`super::guide::side_by_side`]), this renders the box in just that eye,
+    /// killing the binocular "double box". When `off`, the overlay renders
+    /// normally to both eyes. Skips the call when unchanged.
+    pub fn set_guide_stereo(&mut self, on: bool) -> Result<()> {
+        use openvr_sys as sys;
+        if on == self.last_guide_stereo {
+            return Ok(());
+        }
+        // SAFETY: VR_Init has run (this session owns it). Re-acquire the
+        // IVROverlay C fn-table the same way `enable_overlay_interaction` does,
+        // since the safe wrapper omits `SetOverlayFlag`.
+        unsafe {
+            let mut init_err = sys::EVRInitError_VRInitError_None;
+            let version = c"FnTable:IVROverlay_028".as_ptr();
+            let table_ptr = sys::VR_GetGenericInterface(version.cast(), &mut init_err)
+                as *const sys::VR_IVROverlay_FnTable;
+            if init_err != sys::EVRInitError_VRInitError_None || table_ptr.is_null() {
+                anyhow::bail!(
+                    "VR_GetGenericInterface(FnTable:IVROverlay_028) failed: err={init_err}"
+                );
+            }
+            let table = &*table_ptr;
+            let set_flag = table
+                .SetOverlayFlag
+                .context("IVROverlay::SetOverlayFlag missing from fn table")?;
+            let e = set_flag(
+                self.guide_handle.0,
+                sys::VROverlayFlags_SideBySide_Parallel,
+                on,
+            );
+            if e != sys::EVROverlayError_VROverlayError_None {
+                anyhow::bail!(
+                    "SetOverlayFlag(SideBySide_Parallel, {on}) returned EVROverlayError={e}"
+                );
+            }
+        }
+        self.last_guide_stereo = on;
+        tracing::debug!(on, "guide overlay: SideBySide stereo flag set");
         Ok(())
     }
 

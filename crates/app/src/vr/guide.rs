@@ -1,12 +1,30 @@
 //! CPU rasterizer for the **capture guide box** — the head-locked aiming
 //! reticle shown while a [`CaptureMode`](super::capture_session::CaptureMode)
-//! is active (issue #136).
+//! is active (issue #136, refined in #141).
 //!
-//! It draws a mostly-transparent frame the user lines the panel/container up
-//! inside, a caption telling them what to aim at, and a status chip showing
-//! the current [`CaptureState`]. The frame's pixel surface is defined to
-//! correspond to the OCR crop rectangle, so a later PR can paint per-item
-//! markers on it at normalized crop coordinates (#137).
+//! ## Layout: a transparent hole == the OCR crop
+//! The captured rectangle (the crop) must contain **only game pixels** — no
+//! overlay text, no frame border (issue #141). So the texture is laid out as a
+//! transparent **hole** in the middle that corresponds exactly to the crop,
+//! with everything of ours kept *outside* it:
+//!
+//! ```text
+//!  ┌───────────────────────────────┐  ← texture (the overlay quad)
+//!  │        "Aim at the …"          │  caption  (top margin, above the crop)
+//!  │     "Pull RIGHT trigger …"     │  hint
+//!  │  ┌─────────────────────────┐   │
+//!  │  │                         │   │  ← hole == crop (transparent, captured)
+//!  │  │     (see the game)      │   │     frame border drawn just OUTSIDE it
+//!  │  └─────────────────────────┘   │
+//!  │         [ Capturing… ]         │  status chip (bottom margin, below crop)
+//!  └───────────────────────────────┘
+//! ```
+//!
+//! The overlay glue ([`super::runtime::ensure_guide`]) sizes the *hole* to the
+//! crop's metric extent (via the eye FOV — see [`super::fov`]) and scales the
+//! overlay width up by `tex_w / hole_w` so the hole still lands exactly on the
+//! crop. The margins are symmetric so the hole stays centered in the texture
+//! and the overlay transform is just the crop center.
 //!
 //! Like [`super::ocr_render`] it's a pure `tiny_skia` rasterizer (no OpenVR),
 //! so it's unit-tested on every target; the Windows-only overlay code just
@@ -14,17 +32,29 @@
 
 use crate::vr::capture_session::CaptureMode;
 use crate::vr::text;
-use tiny_skia::{Color, Paint, PathBuilder, Pixmap, Rect, Stroke, Transform};
+use tiny_skia::{Color, Paint, PathBuilder, Pixmap, PixmapPaint, Rect, Stroke, Transform};
 
-/// Frame stroke width, in px.
-const FRAME_STROKE: f32 = 6.0;
-/// Length of each corner tick, as a fraction of the shorter side.
-const CORNER_FRAC: f32 = 0.06;
-/// Caption / chip text size, as a fraction of the canvas height.
-const CAPTION_FRAC: f32 = 0.045;
+/// Frame stroke width, in px. Thin — a gentle aiming guide, not a bold frame
+/// (issue #141 part 3).
+const FRAME_STROKE: f32 = 3.0;
+/// Length of each corner tick, as a fraction of the shorter hole side.
+const CORNER_FRAC: f32 = 0.05;
+/// Caption / chip text size, as a fraction of the hole height.
+const CAPTION_FRAC: f32 = 0.05;
+/// Floor on text size so tiny boxes stay legible.
+const MIN_TEXT_PX: f32 = 14.0;
+/// Top/bottom margin height as a multiple of the caption text size — enough to
+/// hold the two caption lines (top) and the status chip (bottom) outside the
+/// captured hole. Applied symmetrically so the hole stays centered.
+const MARGIN_Y_TEXT_MULT: f32 = 3.4;
+/// Left/right margin as a fraction of the hole width — only has to clear the
+/// (thin) frame stroke, since the box is centered.
+const MARGIN_X_FRAC: f32 = 0.02;
 
 fn frame_color() -> Color {
-    Color::from_rgba8(120, 200, 230, 230)
+    // Subtler than the old bold frame: lower alpha so it reads as a gentle
+    // guide rather than a hard border (issue #141 part 3).
+    Color::from_rgba8(120, 200, 230, 150)
 }
 fn caption_color() -> Color {
     Color::from_rgba8(240, 240, 240, 245)
@@ -33,72 +63,119 @@ fn chip_text_color() -> Color {
     Color::from_rgba8(20, 20, 24, 255)
 }
 
-/// Render the guide box for `mode` to a fresh RGBA pixmap of `px_w × px_h` (the
-/// caller sizes this to the crop rect's pixel aspect). The bottom status chip
-/// shows `chip_label` filled with `chip_rgb` — normally the [`CaptureState`]
-/// phase, but for a few seconds after a capture the caller passes the OCR
-/// result confirmation instead (issue #136). `trigger_label` ("LEFT" / "RIGHT",
-/// or "" to omit) is drawn as a hint for which controller trigger captures. The
-/// interior is left transparent so the user sees the game through it.
+/// Where the transparent hole (== the OCR crop) sits inside the guide texture,
+/// plus the texture's total size. Built by [`layout_for_hole`] from the hole's
+/// pixel dimensions (which the overlay glue derives from the crop's metric
+/// aspect); the margins around it carry the caption / status chip / frame.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GuideTexLayout {
+    pub tex_w: u32,
+    pub tex_h: u32,
+    pub hole_x: u32,
+    pub hole_y: u32,
+    pub hole_w: u32,
+    pub hole_h: u32,
+}
+
+/// Wrap a hole of `hole_w × hole_h` px in symmetric margins big enough for the
+/// caption (top) and status chip (bottom). Symmetric margins keep the hole
+/// centered, so the overlay transform is exactly the crop center with no extra
+/// offset (see the module docs).
+pub fn layout_for_hole(hole_w: u32, hole_h: u32) -> GuideTexLayout {
+    let hw = hole_w.max(1);
+    let hh = hole_h.max(1);
+    let cap_px = (hh as f32 * CAPTION_FRAC).max(MIN_TEXT_PX);
+    let margin_y = (cap_px * MARGIN_Y_TEXT_MULT).ceil().max(FRAME_STROKE + 2.0) as u32;
+    let margin_x = (hw as f32 * MARGIN_X_FRAC).ceil().max(FRAME_STROKE + 2.0) as u32;
+    GuideTexLayout {
+        tex_w: hw + 2 * margin_x,
+        tex_h: hh + 2 * margin_y,
+        hole_x: margin_x,
+        hole_y: margin_y,
+        hole_w: hw,
+        hole_h: hh,
+    }
+}
+
+/// Render the guide box for `mode` into a fresh RGBA pixmap of `layout.tex_w ×
+/// layout.tex_h`. The hole (`layout.hole_*`) is left transparent so the user
+/// sees the game through it and the capture grabs only game pixels; the frame
+/// is drawn just outside the hole, the caption above it, and the status chip
+/// below it.
+///
+/// The bottom status chip shows `chip_label` filled with `chip_rgb` — normally
+/// the [`CaptureState`](super::capture_session::CaptureState) phase, but for a
+/// few seconds after a capture the caller passes the OCR result confirmation
+/// instead. `trigger_label` ("LEFT" / "RIGHT", or "" to omit) hints which
+/// controller trigger captures.
 pub fn render(
     mode: &CaptureMode,
     chip_label: &str,
     chip_rgb: (u8, u8, u8),
     trigger_label: &str,
-    px_w: u32,
-    px_h: u32,
+    layout: &GuideTexLayout,
 ) -> Pixmap {
     // Pixmap::new zero-fills → fully transparent; we only paint the frame +
-    // text, leaving the centre see-through.
-    let mut pix = Pixmap::new(px_w.max(1), px_h.max(1)).expect("guide pixmap alloc");
-    draw_frame(&mut pix, frame_color());
+    // text in the margins, leaving the hole see-through.
+    let mut pix =
+        Pixmap::new(layout.tex_w.max(1), layout.tex_h.max(1)).expect("guide pixmap alloc");
+    draw_frame(&mut pix, layout, frame_color());
 
     let w = pix.width() as f32;
-    let h = pix.height() as f32;
-    let text_px = (h * CAPTION_FRAC).max(14.0);
+    let cap_px = (layout.hole_h as f32 * CAPTION_FRAC).max(MIN_TEXT_PX);
+    let hole_top = layout.hole_y as f32;
+    let hole_bottom = (layout.hole_y + layout.hole_h) as f32;
 
-    // Caption (what to aim at) — centered just inside the top edge.
+    // Caption (what to aim at) + trigger hint — both in the TOP margin, above
+    // the hole, so neither lands in the captured rectangle. Stacked bottom-up:
+    // the hint sits just above the hole, the caption above the hint.
     let caption = mode.guide_caption();
+    let hint = if trigger_label.is_empty() {
+        String::new()
+    } else {
+        format!("Pull {trigger_label} trigger to capture")
+    };
+    let hint_px = (cap_px * 0.82).max(12.0);
+    let hint_baseline = hole_top - cap_px * 0.4;
+    let caption_baseline = if hint.is_empty() {
+        hint_baseline
+    } else {
+        hint_baseline - hint_px * 1.2
+    };
     if !caption.is_empty() {
-        let tw = text::measure_width(caption, text_px);
+        let tw = text::measure_width(caption, cap_px);
         text::draw_text(
             &mut pix,
             caption,
             (w - tw) / 2.0,
-            FRAME_STROKE + text_px * 1.2,
-            text_px,
+            caption_baseline,
+            cap_px,
             caption_color(),
         );
     }
-
-    // Second caption line: which trigger captures. The other hand is left free
-    // for in-game menu navigation (issue #136), so spelling out the capture
-    // trigger keeps it unambiguous. Sits just under the main caption.
-    if !trigger_label.is_empty() {
-        let hint = format!("Pull {trigger_label} trigger to capture");
-        let sz = (text_px * 0.82).max(12.0);
-        let hw = text::measure_width(&hint, sz);
+    if !hint.is_empty() {
+        let hw = text::measure_width(&hint, hint_px);
         text::draw_text(
             &mut pix,
             &hint,
             (w - hw) / 2.0,
-            FRAME_STROKE + text_px * 1.2 + text_px * 0.4 + sz,
-            sz,
+            hint_baseline,
+            hint_px,
             caption_color(),
         );
     }
 
-    // Status chip — a filled pill-ish rect centered just inside the bottom edge,
-    // colored + labelled by the caller (capture phase, or a post-capture OCR
-    // result confirmation).
+    // Status chip — a filled pill-ish rect centered in the BOTTOM margin, below
+    // the hole, colored + labelled by the caller. Below the crop so it never
+    // occludes a grid tile in the capture (the bug #141 calls out).
     let label = chip_label;
     let (r, g, b) = chip_rgb;
-    let lw = text::measure_width(label, text_px);
-    let chip_pad = text_px * 0.5;
+    let lw = text::measure_width(label, cap_px);
+    let chip_pad = cap_px * 0.5;
     let chip_w = (lw + chip_pad * 2.0).min(w - FRAME_STROKE * 2.0);
-    let chip_h = text_px * 1.6;
+    let chip_h = cap_px * 1.6;
     let chip_x = (w - chip_w) / 2.0;
-    let chip_y = h - FRAME_STROKE - chip_h - text_px * 0.4;
+    let chip_y = hole_bottom + cap_px * 0.4;
     if let Some(rect) = Rect::from_xywh(chip_x, chip_y, chip_w, chip_h) {
         let mut paint = Paint::default();
         paint.set_color(Color::from_rgba8(r, g, b, 235));
@@ -106,35 +183,63 @@ pub fn render(
         pix.fill_rect(rect, &paint, Transform::identity(), None);
     }
     // Baseline so the text sits vertically centered in the chip.
-    let baseline = chip_y + chip_h - (chip_h - text_px) / 2.0 - text_px * 0.18;
+    let baseline = chip_y + chip_h - (chip_h - cap_px) / 2.0 - cap_px * 0.18;
     text::draw_text(
         &mut pix,
         label,
         chip_x + chip_pad,
         baseline,
-        text_px,
+        cap_px,
         chip_text_color(),
     );
 
     pix
 }
 
-/// Stroke the frame border + four corner ticks (a reticle look that reads as
-/// "line the panel up inside here").
-fn draw_frame(pix: &mut Pixmap, color: Color) {
-    let w = pix.width() as f32;
-    let h = pix.height() as f32;
-    let inset = FRAME_STROKE / 2.0;
+/// Compose a **side-by-side stereo** texture from a rendered guide `content`: a
+/// double-wide pixmap with `content` in one half and the other half transparent
+/// (issue #143). Submitted to an overlay with `VROverlayFlags_SideBySide_Parallel`
+/// (left half → left eye, right half → right eye), this shows the box in only
+/// one eye. `eye_is_left` selects which half holds the content — the capture eye
+/// — so the doubled box vanishes from the other eye.
+pub fn side_by_side(content: &Pixmap, eye_is_left: bool) -> Pixmap {
+    let w = content.width();
+    let h = content.height();
+    let mut dbl = Pixmap::new(w * 2, h.max(1)).expect("side-by-side pixmap alloc");
+    let dx = if eye_is_left { 0 } else { w as i32 };
+    dbl.draw_pixmap(
+        dx,
+        0,
+        content.as_ref(),
+        &PixmapPaint::default(),
+        Transform::identity(),
+        None,
+    );
+    dbl
+}
+
+/// Stroke a thin frame border just **outside** the hole, plus subtle corner
+/// ticks — a reticle look that reads as "line the panel up inside here" without
+/// painting anything into the captured hole.
+fn draw_frame(pix: &mut Pixmap, l: &GuideTexLayout, color: Color) {
+    let x = l.hole_x as f32;
+    let y = l.hole_y as f32;
+    let w = l.hole_w as f32;
+    let h = l.hole_h as f32;
+    let s = FRAME_STROKE;
 
     let mut paint = Paint::default();
     paint.set_color(color);
     paint.anti_alias = true;
     let stroke = Stroke {
-        width: FRAME_STROKE,
+        width: s,
         ..Default::default()
     };
 
-    if let Some(rect) = Rect::from_xywh(inset, inset, w - FRAME_STROKE, h - FRAME_STROKE) {
+    // Border path inflated by s/2 so the stroke's *inner* edge lands on the
+    // hole boundary — the whole stroke sits outside the hole, keeping our
+    // pixels out of the captured rectangle.
+    if let Some(rect) = Rect::from_xywh(x - s / 2.0, y - s / 2.0, w + s, h + s) {
         let mut pb = PathBuilder::new();
         pb.push_rect(rect);
         if let Some(path) = pb.finish() {
@@ -142,23 +247,29 @@ fn draw_frame(pix: &mut Pixmap, color: Color) {
         }
     }
 
-    // Brighter, thicker corner ticks so the box's extent is unmistakable even
-    // if the thin frame washes out against a busy background.
-    let tick = (w.min(h) * CORNER_FRAC).max(FRAME_STROKE * 2.0);
-    let t = FRAME_STROKE; // tick thickness
-    let mut tick_paint = Paint::default();
-    tick_paint.set_color(color);
-    let corners = [(0.0, 0.0), (w, 0.0), (0.0, h), (w, h)];
-    for (cx, cy) in corners {
-        let sx = if cx == 0.0 { 0.0 } else { w - tick };
-        let sy_h = if cy == 0.0 { 0.0 } else { h - t };
-        let sy_v = if cy == 0.0 { 0.0 } else { h - tick };
-        let sx_v = if cx == 0.0 { 0.0 } else { w - t };
-        if let Some(r) = Rect::from_xywh(sx, sy_h, tick, t) {
-            pix.fill_rect(r, &tick_paint, Transform::identity(), None);
-        }
-        if let Some(r) = Rect::from_xywh(sx_v, sy_v, t, tick) {
-            pix.fill_rect(r, &tick_paint, Transform::identity(), None);
+    // Corner ticks: short bars hugging the *outer* edge of each hole corner, so
+    // the box is easy to find even where the thin frame washes out — still
+    // entirely outside the hole.
+    let tick = (w.min(h) * CORNER_FRAC).max(s * 3.0);
+    let (ox0, oy0) = (x - s, y - s); // outer border bounds
+    let (ox1, oy1) = (x + w + s, y + h + s);
+    let bars = [
+        // top-left
+        (ox0, oy0, tick, s),
+        (ox0, oy0, s, tick),
+        // top-right
+        (ox1 - tick, oy0, tick, s),
+        (ox1 - s, oy0, s, tick),
+        // bottom-left
+        (ox0, oy1 - s, tick, s),
+        (ox0, oy1 - tick, s, tick),
+        // bottom-right
+        (ox1 - tick, oy1 - s, tick, s),
+        (ox1 - s, oy1 - tick, s, tick),
+    ];
+    for (bx, by, bw, bh) in bars {
+        if let Some(rect) = Rect::from_xywh(bx, by, bw, bh) {
+            pix.fill_rect(rect, &paint, Transform::identity(), None);
         }
     }
 }
@@ -174,49 +285,125 @@ mod tests {
     }
 
     #[test]
+    fn layout_centers_hole_in_texture() {
+        let l = layout_for_hole(400, 300);
+        // Symmetric margins → hole centered → overlay transform == crop center.
+        assert_eq!(l.hole_x * 2 + l.hole_w, l.tex_w, "x symmetric");
+        assert_eq!(l.hole_y * 2 + l.hole_h, l.tex_h, "y symmetric");
+        // Margins exist on every side (room for caption / chip / frame).
+        assert!(l.tex_w > l.hole_w && l.tex_h > l.hole_h);
+        assert!(l.hole_x > 0 && l.hole_y > 0);
+    }
+
+    #[test]
     fn renders_requested_size() {
+        let layout = layout_for_hole(800, 600);
         let pix = render(
             &CaptureMode::Hideout,
             "Ready — pull trigger",
             (80, 180, 100),
             "RIGHT",
-            800,
-            600,
+            &layout,
         );
-        assert_eq!((pix.width(), pix.height()), (800, 600));
+        assert_eq!((pix.width(), pix.height()), (layout.tex_w, layout.tex_h));
     }
 
     #[test]
-    fn frame_painted_centre_transparent() {
+    fn hole_interior_transparent_frame_just_outside() {
+        let layout = layout_for_hole(400, 200);
         let pix = render(
             &CaptureMode::Box(ScanTarget::Stash),
             "Capturing…",
             (200, 180, 80),
             "RIGHT",
-            400,
-            300,
+            &layout,
         );
-        // A corner pixel sits on the frame/tick → opaque-ish.
-        assert!(alpha_at(&pix, 1, 1) > 0, "frame drawn at corner");
-        // Dead centre is inside the box, away from caption/chip → see-through.
+        let cy = layout.hole_y + layout.hole_h / 2;
+        // Dead centre of the hole is see-through (this is what gets captured).
         assert_eq!(
-            alpha_at(&pix, 200, 150),
+            alpha_at(&pix, layout.hole_x + layout.hole_w / 2, cy),
             0,
-            "interior stays transparent for see-through aiming"
+            "hole interior stays transparent for see-through aiming"
+        );
+        // A pixel just outside the left hole edge sits on the frame → painted.
+        assert!(
+            alpha_at(&pix, layout.hole_x - 1, cy) > 0,
+            "frame drawn just outside the hole"
+        );
+        // Well inside the hole near the left edge stays clear (border is outside).
+        assert_eq!(
+            alpha_at(&pix, layout.hole_x + 3, cy),
+            0,
+            "no frame pixels inside the captured hole"
+        );
+    }
+
+    #[test]
+    fn side_by_side_puts_content_in_capture_eye_half() {
+        let layout = layout_for_hole(200, 100);
+        let content = render(
+            &CaptureMode::Hideout,
+            "Ready",
+            (80, 180, 100),
+            "RIGHT",
+            &layout,
+        );
+        let w = content.width();
+        let cy = layout.hole_y + layout.hole_h / 2;
+        let fx = layout.hole_x - 1; // a painted frame pixel just outside the hole
+        assert!(
+            alpha_at(&content, fx, cy) > 0,
+            "frame pixel painted in content"
+        );
+
+        // Right capture eye (eye_is_left = false): content in the RIGHT half.
+        let r = side_by_side(&content, false);
+        assert_eq!((r.width(), r.height()), (w * 2, content.height()));
+        assert_eq!(alpha_at(&r, fx, cy), 0, "left half clear for right-eye box");
+        assert!(alpha_at(&r, fx + w, cy) > 0, "content in right half");
+
+        // Left capture eye: content in the LEFT half.
+        let l = side_by_side(&content, true);
+        assert!(alpha_at(&l, fx, cy) > 0, "content in left half");
+        assert_eq!(
+            alpha_at(&l, fx + w, cy),
+            0,
+            "right half clear for left-eye box"
         );
     }
 
     #[test]
     fn handles_degenerate_size() {
-        // Must not panic on a 1x1 (clamped) request.
+        // Must not panic on a 0×0 (clamped) hole.
+        let layout = layout_for_hole(0, 0);
         let pix = render(
             &CaptureMode::Hideout,
             "Reading…",
             (89, 190, 175),
             "RIGHT",
-            0,
-            0,
+            &layout,
         );
         assert!(pix.width() >= 1 && pix.height() >= 1);
+    }
+
+    /// Snapshot: save a PNG to disk for manual inspection if `RENDER_SNAPSHOT=1`.
+    /// Lets you eyeball the #141 layout — transparent hole == crop, caption
+    /// above, status chip below, subtle frame outside the hole. The hole is a
+    /// stash-shaped landscape rect (aspect ~1.86).
+    #[test]
+    fn snapshot_for_manual_review() {
+        let layout = layout_for_hole(1024, 550);
+        let pix = render(
+            &CaptureMode::Box(ScanTarget::Stash),
+            "Capturing…",
+            (200, 180, 80),
+            "RIGHT",
+            &layout,
+        );
+        if std::env::var("RENDER_SNAPSHOT").is_ok() {
+            let path = std::env::temp_dir().join("ez-wishlist-overlay-guide-snapshot.png");
+            pix.save_png(&path).expect("save guide snapshot");
+            eprintln!("guide snapshot saved to {}", path.display());
+        }
     }
 }
