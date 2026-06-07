@@ -429,6 +429,16 @@ pub struct VrSettings {
     /// on the guide box. Defaulted (`Right`) for forward-compatible files.
     #[serde(default = "default_capture_trigger")]
     pub capture_trigger: CaptureHand,
+    /// When on, the capture guide box renders **only in the capture eye** (via a
+    /// side-by-side stereo overlay) instead of both eyes. The box is a
+    /// head-locked overlay at a fixed depth, so when your eyes converge on the
+    /// panel at a different depth it ghosts into a doubled "two box" image;
+    /// showing it in just the capture eye removes that. Pairs with
+    /// [`Settings::capture_eye`] (the doubled eye is the one OCR doesn't use).
+    /// Default **off** (both eyes) — a one-eye HUD element can cause binocular
+    /// rivalry for some users, so it's opt-in (issue #143).
+    #[serde(default)]
+    pub guide_eye_only: bool,
 }
 
 fn default_grid_cols() -> u32 {
@@ -458,6 +468,7 @@ impl Default for VrSettings {
             height_offset_m: default_height_offset_m(),
             max_items: default_max_items(),
             capture_trigger: default_capture_trigger(),
+            guide_eye_only: false,
         }
     }
 }
@@ -569,6 +580,7 @@ mod tests {
             height_offset_m: 0.6,
             max_items: 0,
             capture_trigger: CaptureHand::Right,
+            guide_eye_only: false,
         };
         vr.sanitize();
         assert!(
@@ -665,6 +677,7 @@ mod tests {
             height_offset_m: 99.0,
             max_items: 999,
             capture_trigger: CaptureHand::Right,
+            guide_eye_only: false,
         };
         vr.sanitize();
         assert_eq!(vr.width_meters, 2.0);
@@ -731,6 +744,28 @@ mod tests {
         let json = serde_json::to_string(&s).unwrap();
         let back: Settings = serde_json::from_str(&json).unwrap();
         assert_eq!(back.vr.max_items, 6);
+    }
+
+    #[test]
+    fn guide_eye_only_defaults_off_and_round_trips() {
+        // Absent from a settings file written before this field → serde(default)
+        // fills `false` (both eyes), not an error.
+        let s: Settings = serde_json::from_str(
+            r#"{"vr":{"width_meters":1.0,"show_pitch_deg":20.0,"hide_pitch_deg":10.0,"grid_cols":8,"height_offset_m":0.6}}"#,
+        )
+        .unwrap();
+        assert!(!s.vr.guide_eye_only);
+        // Round-trips when enabled.
+        let s2 = Settings {
+            vr: VrSettings {
+                guide_eye_only: true,
+                ..VrSettings::default()
+            },
+            ..Settings::default()
+        };
+        let json = serde_json::to_string(&s2).unwrap();
+        let back: Settings = serde_json::from_str(&json).unwrap();
+        assert!(back.vr.guide_eye_only);
     }
 
     #[test]

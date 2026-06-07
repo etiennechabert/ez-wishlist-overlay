@@ -32,7 +32,7 @@
 
 use crate::vr::capture_session::CaptureMode;
 use crate::vr::text;
-use tiny_skia::{Color, Paint, PathBuilder, Pixmap, Rect, Stroke, Transform};
+use tiny_skia::{Color, Paint, PathBuilder, Pixmap, PixmapPaint, Rect, Stroke, Transform};
 
 /// Frame stroke width, in px. Thin — a gentle aiming guide, not a bold frame
 /// (issue #141 part 3).
@@ -196,6 +196,28 @@ pub fn render(
     pix
 }
 
+/// Compose a **side-by-side stereo** texture from a rendered guide `content`: a
+/// double-wide pixmap with `content` in one half and the other half transparent
+/// (issue #143). Submitted to an overlay with `VROverlayFlags_SideBySide_Parallel`
+/// (left half → left eye, right half → right eye), this shows the box in only
+/// one eye. `eye_is_left` selects which half holds the content — the capture eye
+/// — so the doubled box vanishes from the other eye.
+pub fn side_by_side(content: &Pixmap, eye_is_left: bool) -> Pixmap {
+    let w = content.width();
+    let h = content.height();
+    let mut dbl = Pixmap::new(w * 2, h.max(1)).expect("side-by-side pixmap alloc");
+    let dx = if eye_is_left { 0 } else { w as i32 };
+    dbl.draw_pixmap(
+        dx,
+        0,
+        content.as_ref(),
+        &PixmapPaint::default(),
+        Transform::identity(),
+        None,
+    );
+    dbl
+}
+
 /// Stroke a thin frame border just **outside** the hole, plus subtle corner
 /// ticks — a reticle look that reads as "line the panel up inside here" without
 /// painting anything into the captured hole.
@@ -313,6 +335,40 @@ mod tests {
             alpha_at(&pix, layout.hole_x + 3, cy),
             0,
             "no frame pixels inside the captured hole"
+        );
+    }
+
+    #[test]
+    fn side_by_side_puts_content_in_capture_eye_half() {
+        let layout = layout_for_hole(200, 100);
+        let content = render(
+            &CaptureMode::Hideout,
+            "Ready",
+            (80, 180, 100),
+            "RIGHT",
+            &layout,
+        );
+        let w = content.width();
+        let cy = layout.hole_y + layout.hole_h / 2;
+        let fx = layout.hole_x - 1; // a painted frame pixel just outside the hole
+        assert!(
+            alpha_at(&content, fx, cy) > 0,
+            "frame pixel painted in content"
+        );
+
+        // Right capture eye (eye_is_left = false): content in the RIGHT half.
+        let r = side_by_side(&content, false);
+        assert_eq!((r.width(), r.height()), (w * 2, content.height()));
+        assert_eq!(alpha_at(&r, fx, cy), 0, "left half clear for right-eye box");
+        assert!(alpha_at(&r, fx + w, cy) > 0, "content in right half");
+
+        // Left capture eye: content in the LEFT half.
+        let l = side_by_side(&content, true);
+        assert!(alpha_at(&l, fx, cy) > 0, "content in left half");
+        assert_eq!(
+            alpha_at(&l, fx + w, cy),
+            0,
+            "right half clear for left-eye box"
         );
     }
 

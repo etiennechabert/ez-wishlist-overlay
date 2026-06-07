@@ -11,7 +11,7 @@ use crate::ocr::OcrJob;
 use crate::persist::PersistPaths;
 use crate::settings::Settings;
 #[cfg(target_os = "windows")]
-use crate::settings::{CaptureCrop, CaptureHand};
+use crate::settings::{CaptureCrop, CaptureEye, CaptureHand};
 use crate::state::AppState;
 use crate::vr::capture_session::{CaptureMode, CaptureState};
 use crossbeam_channel::{Receiver, Sender};
@@ -380,10 +380,11 @@ fn render_loop(
     let mut capture_in_flight = false;
     let mut dispatched_at: Option<Instant> = None;
     // Guide-box render cache: re-render only when the chip it shows changes —
-    // keyed on (mode, chip label, trigger) so it updates when the capture phase,
-    // the post-capture confirmation, or the trigger setting changes, not every
-    // 90 Hz frame. `None` = not shown.
-    let mut guide_shown: Option<(CaptureMode, String, CaptureHand)> = None;
+    // keyed on (mode, chip label, trigger, eye-only, capture-eye) so it updates
+    // when the capture phase, the post-capture confirmation, the trigger, or the
+    // single-eye / capture-eye settings change, not every 90 Hz frame. `None` =
+    // not shown.
+    let mut guide_shown: Option<(CaptureMode, String, CaptureHand, bool, CaptureEye)> = None;
     // Post-capture OCR confirmation shown on the guide chip (over "Ready — pull
     // trigger") until `GUIDE_CONFIRM_DURATION` after `shown_at`. Issue #136.
     let mut guide_confirm: Option<(String, (u8, u8, u8), Instant)> = None;
@@ -533,6 +534,8 @@ fn render_loop(
                         vr.capture_trigger,
                         None,
                         eye_fov,
+                        vr.guide_eye_only,
+                        capture_eye,
                         &mut guide_shown,
                     );
                     let dispatched = capture_and_forward(
@@ -560,6 +563,8 @@ fn render_loop(
                             vr.capture_trigger,
                             None,
                             eye_fov,
+                            vr.guide_eye_only,
+                            capture_eye,
                             &mut guide_shown,
                         );
                     } else {
@@ -602,6 +607,8 @@ fn render_loop(
                 vr.capture_trigger,
                 confirm.as_ref(),
                 eye_fov,
+                vr.guide_eye_only,
+                capture_eye,
                 &mut guide_shown,
             );
         } else {
@@ -853,6 +860,7 @@ const GUIDE_CONFIRM_DURATION: Duration = Duration::from_secs(4);
 /// steady-state guide block and eagerly the instant the capture state flips, so
 /// the chip never lags.
 #[cfg(target_os = "windows")]
+#[allow(clippy::too_many_arguments)]
 fn ensure_guide(
     session: &mut super::overlay::OverlaySession,
     mode: &CaptureMode,
@@ -860,12 +868,14 @@ fn ensure_guide(
     trigger: CaptureHand,
     confirm: Option<&(String, (u8, u8, u8))>,
     eye_fov: super::fov::EyeFov,
-    guide_shown: &mut Option<(CaptureMode, String, CaptureHand)>,
+    guide_eye_only: bool,
+    capture_eye: CaptureEye,
+    guide_shown: &mut Option<(CaptureMode, String, CaptureHand, bool, CaptureEye)>,
 ) {
     // Geometry: map the per-mode crop through the eye FOV to a head-locked
     // metric placement. Recomputed every call (cheap math) so a capture-eye /
     // FOV change is reflected even when the chip label is unchanged; the
-    // transform + width setters skip redundant OpenVR calls internally.
+    // transform + width + stereo setters skip redundant OpenVR calls internally.
     let crop = CaptureCrop::for_mode(mode);
     let placement = super::fov::guide_placement(eye_fov, &crop, GUIDE_DISTANCE_M);
     let hole_h = ((GUIDE_HOLE_W as f32) / placement.aspect())
@@ -881,16 +891,32 @@ fn ensure_guide(
         placement.distance_m,
     );
     let _ = session.set_guide_width(overlay_w);
+    // Single-eye box (issue #143): SideBySide stereo flag + a texture that has
+    // content in only the capture eye's half (built below). Cached internally.
+    let _ = session.set_guide_stereo(guide_eye_only);
 
     let (label, rgb) = match confirm {
         Some((text, rgb)) => (text.as_str(), *rgb),
         None => (st.label(), st.rgb()),
     };
-    let key = (mode.clone(), label.to_string(), trigger);
+    let key = (
+        mode.clone(),
+        label.to_string(),
+        trigger,
+        guide_eye_only,
+        capture_eye,
+    );
     if guide_shown.as_ref() == Some(&key) {
         return;
     }
-    let pix = super::guide::render(mode, label, rgb, trigger.label(), &layout);
+    let content = super::guide::render(mode, label, rgb, trigger.label(), &layout);
+    // When single-eye, pack the content into the capture eye's half of a
+    // double-wide side-by-side texture; the other eye then sees nothing.
+    let pix = if guide_eye_only {
+        super::guide::side_by_side(&content, matches!(capture_eye, CaptureEye::Left))
+    } else {
+        content
+    };
     if let Err(e) = session.submit_guide_rgba(pix.data(), pix.width(), pix.height()) {
         tracing::warn!(error = %e, "guide overlay: submit failed");
     }

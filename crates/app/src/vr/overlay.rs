@@ -95,6 +95,9 @@ pub struct OverlaySession {
     /// center_y_m, distance_m)` of the head-locked box, so a new transform is
     /// only pushed when the FOV-derived placement actually changes (issue #141).
     last_guide_transform: (f32, f32, f32),
+    /// Skip-redundant cache for the guide overlay's `SideBySide_Parallel` stereo
+    /// flag — `true` while the box is rendered in only the capture eye (#143).
+    last_guide_stereo: bool,
     /// IVRInput state for click detection. None if the action manifest
     /// failed to load — the rest of the overlay still works, just no
     /// trigger detection.
@@ -255,6 +258,7 @@ impl OverlaySession {
             last_guide_alpha: 0.0,
             last_guide_width: GUIDE_OVERLAY_WIDTH_M,
             last_guide_transform: (GUIDE_OFFSET_X_M, GUIDE_OFFSET_Y_M, -GUIDE_OFFSET_Z_M),
+            last_guide_stereo: false,
             input,
         })
     }
@@ -438,6 +442,51 @@ impl OverlaySession {
         };
         let m = system.eye_to_head_transform(oeye);
         Some((m[0][3], m[1][3], m[2][3]))
+    }
+
+    /// Toggle the guide overlay's `SideBySide_Parallel` stereo flag (issue #143).
+    /// When `on`, the overlay texture is treated as two half-width images
+    /// (left half → left eye, right half → right eye); paired with a texture
+    /// that has content in only the capture eye's half (see
+    /// [`super::guide::side_by_side`]), this renders the box in just that eye,
+    /// killing the binocular "double box". When `off`, the overlay renders
+    /// normally to both eyes. Skips the call when unchanged.
+    pub fn set_guide_stereo(&mut self, on: bool) -> Result<()> {
+        use openvr_sys as sys;
+        if on == self.last_guide_stereo {
+            return Ok(());
+        }
+        // SAFETY: VR_Init has run (this session owns it). Re-acquire the
+        // IVROverlay C fn-table the same way `enable_overlay_interaction` does,
+        // since the safe wrapper omits `SetOverlayFlag`.
+        unsafe {
+            let mut init_err = sys::EVRInitError_VRInitError_None;
+            let version = c"FnTable:IVROverlay_028".as_ptr();
+            let table_ptr = sys::VR_GetGenericInterface(version.cast(), &mut init_err)
+                as *const sys::VR_IVROverlay_FnTable;
+            if init_err != sys::EVRInitError_VRInitError_None || table_ptr.is_null() {
+                anyhow::bail!(
+                    "VR_GetGenericInterface(FnTable:IVROverlay_028) failed: err={init_err}"
+                );
+            }
+            let table = &*table_ptr;
+            let set_flag = table
+                .SetOverlayFlag
+                .context("IVROverlay::SetOverlayFlag missing from fn table")?;
+            let e = set_flag(
+                self.guide_handle.0,
+                sys::VROverlayFlags_SideBySide_Parallel,
+                on,
+            );
+            if e != sys::EVROverlayError_VROverlayError_None {
+                anyhow::bail!(
+                    "SetOverlayFlag(SideBySide_Parallel, {on}) returned EVROverlayError={e}"
+                );
+            }
+        }
+        self.last_guide_stereo = on;
+        tracing::debug!(on, "guide overlay: SideBySide stereo flag set");
+        Ok(())
     }
 
     /// Cheap probe used by the runtime loop to detect that SteamVR vanished.

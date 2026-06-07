@@ -39,6 +39,7 @@ pub fn show(
                 ui,
                 &mut working.ocr_enabled,
                 &mut working.capture_eye,
+                &mut working.vr.guide_eye_only,
                 &mut working.ocr_debug,
                 &mut working.ocr_dismiss_seconds,
                 &mut working.ocr_auto_track,
@@ -113,6 +114,7 @@ fn ocr_section(
     ui: &mut egui::Ui,
     ocr_enabled: &mut bool,
     capture_eye: &mut CaptureEye,
+    guide_eye_only: &mut bool,
     ocr_debug: &mut bool,
     ocr_dismiss_seconds: &mut u32,
     ocr_auto_track: &mut bool,
@@ -168,6 +170,17 @@ fn ocr_section(
         ui.selectable_value(capture_eye, CaptureEye::Right, "Right");
         ui.selectable_value(capture_eye, CaptureEye::Left, "Left");
     });
+
+    ui.add_space(6.0);
+    ui.checkbox(guide_eye_only, "Show capture box in the capture eye only")
+        .on_hover_text(
+            "The aiming box is a head-locked overlay at a fixed depth, so when \
+             your eyes focus on the panel it can ghost into a doubled image \
+             (one box per eye). Turn this on to draw it only in the capture eye \
+             (selected above) — no double box. Off by default: a one-eye HUD \
+             element can feel odd (binocular rivalry) for some people, so try it \
+             and see which you prefer.",
+        );
 
     ui.add_space(6.0);
     ui.horizontal(|ui| {
