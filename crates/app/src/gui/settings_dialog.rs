@@ -5,6 +5,19 @@ use parking_lot::RwLock;
 use std::path::Path;
 use std::sync::Arc;
 
+/// Which group of settings is visible. The dialog is split into tabs so it
+/// stays a fixed, scannable height instead of one ever-growing column. The
+/// selection is transient UI state (per session, never persisted), so it lives
+/// in egui's temporary memory rather than on `Settings` or the caller's `App`.
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
+enum SettingsTab {
+    #[default]
+    General,
+    Overlay,
+    Capture,
+    Storage,
+}
+
 /// Returns `true` if the user closed the dialog this frame (caller persists).
 pub fn show(
     ctx: &egui::Context,
@@ -26,27 +39,56 @@ pub fn show(
             let before = settings.read().clone();
             let mut working = before.clone();
 
-            appearance_section(ui, &mut working.theme, &mut working.color_scheme);
+            // Tab selection is transient UI state, not a setting — stash it in
+            // egui memory so `show` can stay a stateless free function. Mirrors
+            // the main view's `selectable_value` tab strip (see gui::mod).
+            let tab_id = egui::Id::new("settings_dialog_tab");
+            let mut tab: SettingsTab = ui.data_mut(|d| d.get_temp(tab_id).unwrap_or_default());
+            ui.horizontal(|ui| {
+                ui.selectable_value(&mut tab, SettingsTab::General, "General");
+                ui.selectable_value(&mut tab, SettingsTab::Overlay, "Overlay");
+                ui.selectable_value(&mut tab, SettingsTab::Capture, "Capture");
+                ui.selectable_value(&mut tab, SettingsTab::Storage, "Storage");
+            });
+            ui.data_mut(|d| d.insert_temp(tab_id, tab));
 
-            ui.add_space(12.0);
-            updates_section(ui, &mut working.check_for_updates);
+            ui.separator();
 
-            ui.add_space(12.0);
-            vr_section(ui, &mut working.vr);
-
-            ui.add_space(12.0);
-            ocr_section(
-                ui,
-                &mut working.ocr_enabled,
-                &mut working.capture_eye,
-                &mut working.ocr_debug,
-                &mut working.ocr_dismiss_seconds,
-                &mut working.ocr_auto_track,
-                &mut working.ocr_capture_trace,
-            );
-
-            ui.add_space(12.0);
-            storage_section(ui, data_dir, debug_dir);
+            // Cap the body height so no single tab can push the footer off the
+            // bottom of the screen; a tab taller than this scrolls instead of
+            // growing the window. Headroom is left for the tab strip, footer,
+            // and window chrome. `auto_shrink` keeps the width pinned (so notes
+            // wrap consistently) while letting short tabs keep a short window.
+            let max_body_h = (ctx.screen_rect().height() - 160.0).clamp(240.0, 720.0);
+            egui::ScrollArea::vertical()
+                .max_height(max_body_h)
+                .auto_shrink([false, true])
+                .show(ui, |ui| match tab {
+                    SettingsTab::General => {
+                        appearance_section(ui, &mut working.theme, &mut working.color_scheme);
+                        ui.add_space(12.0);
+                        updates_section(ui, &mut working.check_for_updates);
+                    }
+                    SettingsTab::Overlay => {
+                        overlay_section(ui, &mut working.vr);
+                    }
+                    SettingsTab::Capture => {
+                        capture_guide_section(ui, &mut working.vr.capture_trigger);
+                        ui.add_space(12.0);
+                        ocr_section(
+                            ui,
+                            &mut working.ocr_enabled,
+                            &mut working.capture_eye,
+                            &mut working.ocr_debug,
+                            &mut working.ocr_dismiss_seconds,
+                            &mut working.ocr_auto_track,
+                            &mut working.ocr_capture_trace,
+                        );
+                    }
+                    SettingsTab::Storage => {
+                        storage_section(ui, data_dir, debug_dir);
+                    }
+                });
 
             ui.add_space(12.0);
             ui.separator();
@@ -268,7 +310,7 @@ fn storage_section(ui: &mut egui::Ui, data_dir: &Path, debug_dir: &Path) {
     });
 }
 
-fn vr_section(ui: &mut egui::Ui, vr: &mut VrSettings) {
+fn overlay_section(ui: &mut egui::Ui, vr: &mut VrSettings) {
     ui.heading("VR Overlay");
     ui.add_space(4.0);
 
@@ -335,10 +377,15 @@ fn vr_section(ui: &mut egui::Ui, vr: &mut VrSettings) {
         .small()
         .color(weak),
     );
+}
 
-    ui.add_space(10.0);
+/// The capture-guide trigger sits with the OCR settings on the Capture tab
+/// rather than the overlay-layout sliders — both concern the screenshot-capture
+/// flow, not how the wishlist panel is laid out.
+fn capture_guide_section(ui: &mut egui::Ui, capture_trigger: &mut CaptureHand) {
     ui.heading("Capture guide (OCR)");
     ui.add_space(4.0);
+    let weak = ui.visuals().weak_text_color();
     ui.label(
         egui::RichText::new(
             "While a capture mode is armed (Hideout, or a container scan), a \
@@ -357,8 +404,8 @@ fn vr_section(ui: &mut egui::Ui, vr: &mut VrSettings) {
              mode is armed. The other trigger is left free for in-game menu \
              navigation. Shown on the guide box in the headset.",
         );
-        ui.selectable_value(&mut vr.capture_trigger, CaptureHand::Right, "Right");
-        ui.selectable_value(&mut vr.capture_trigger, CaptureHand::Left, "Left");
+        ui.selectable_value(capture_trigger, CaptureHand::Right, "Right");
+        ui.selectable_value(capture_trigger, CaptureHand::Left, "Left");
     });
 }
 
@@ -464,4 +511,97 @@ fn max_items_slider(ui: &mut egui::Ui, value: &mut u32) {
             *value = (*value + 1).min(max);
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    //! Headless GUI tests for the Settings dialog's tab strip (the dialog was
+    //! split into tabs so it stops growing into one tall column). They drive the
+    //! real [`show`] through `egui_kittest` — extending the pane test pattern
+    //! from #103/#106 — and pin the wiring the reorg introduced:
+    //!   * selecting a tab reveals that tab's widgets and hides the others'
+    //!     (the always-visible tab strip + the `match tab` routing);
+    //!   * the capture-guide trigger now lives on the Capture tab next to the
+    //!     OCR toggles, not with the overlay-layout sliders;
+    //!   * navigating tabs (transient egui-memory state) never mutates
+    //!     `Settings`, so it can't spuriously mark settings dirty.
+    use super::*;
+    use egui_kittest::kittest::Queryable;
+    use egui_kittest::Harness;
+    use std::path::PathBuf;
+
+    /// Headless harness driving [`show`] with the given `Settings`. The closure
+    /// owns the open flag, a settings clone, and a throwaway dir for the
+    /// data/debug paths (only touched if the Storage folder buttons are
+    /// *clicked*, which these tests don't), so the harness is `'static` and the
+    /// caller keeps the original `Arc` for assertions. Sized tall enough that
+    /// the tallest tab lays out unclipped, so every widget is reachable by the
+    /// AccessKit queries.
+    fn harness(settings: &Arc<RwLock<Settings>>) -> Harness<'static> {
+        let settings = Arc::clone(settings);
+        let dir = PathBuf::from(".");
+        let mut open = true;
+        Harness::builder()
+            .with_size(egui::vec2(640.0, 900.0))
+            .build_ui(move |ui| {
+                let _ = show(ui.ctx(), &mut open, &settings, &dir, &dir);
+            })
+    }
+
+    #[test]
+    fn tab_strip_swaps_the_visible_section() {
+        let settings = Arc::new(RwLock::new(Settings::default()));
+        let mut h = harness(&settings);
+        h.run();
+
+        // General is the default tab: its widgets render, the other tabs' don't.
+        assert!(h.query_by_label("Check for updates on startup").is_some());
+        assert!(h.query_by_label("Width (m)").is_none());
+        assert!(h
+            .query_by_label("Auto-extract counts from VR screenshots")
+            .is_none());
+
+        // Overlay → the VR layout sliders; the General checkbox is gone.
+        h.get_by_label("Overlay").click();
+        h.run();
+        assert!(h.query_by_label("Width (m)").is_some());
+        assert!(h.query_by_label("Check for updates on startup").is_none());
+
+        // Capture → the relocated capture-guide trigger sits with the OCR
+        // toggles (it used to render under the overlay-layout sliders).
+        h.get_by_label("Capture").click();
+        h.run();
+        assert!(h.query_by_label("Capture trigger").is_some());
+        assert!(h
+            .query_by_label("Auto-extract counts from VR screenshots")
+            .is_some());
+        assert!(h.query_by_label("Width (m)").is_none());
+
+        // Storage → the folder buttons.
+        h.get_by_label("Storage").click();
+        h.run();
+        assert!(h.query_by_label("Open data folder").is_some());
+        assert!(h.query_by_label("Capture trigger").is_none());
+    }
+
+    #[test]
+    fn switching_tabs_does_not_mutate_settings() {
+        // Tab selection lives in egui memory, not `Settings`, so navigating
+        // between tabs must leave `Settings` untouched — otherwise `show` would
+        // report `changed` and the caller would mark settings dirty + persist.
+        let settings = Arc::new(RwLock::new(Settings::default()));
+        let before = settings.read().clone();
+        let mut h = harness(&settings);
+        h.run();
+        h.get_by_label("Overlay").click();
+        h.run();
+        h.get_by_label("Capture").click();
+        h.run();
+        h.get_by_label("Storage").click();
+        h.run();
+        assert!(
+            *settings.read() == before,
+            "tab navigation must not mutate Settings"
+        );
+    }
 }
