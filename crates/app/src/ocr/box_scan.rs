@@ -233,6 +233,21 @@ pub struct BoxReadResult {
     pub slope: f32,
     /// Per-sub-row recognition trace, in reading order.
     pub rows: Vec<RowReport>,
+    /// Per-tile ✓/✗ marks for the recognized (`Names`) rows, normalized to the
+    /// crop rect — painted over the real tiles on the guide box (issue #137).
+    /// Populated by [`process_box_image`] (which knows the image width); left
+    /// empty by the platform-independent [`read_tiles`] and the non-Windows
+    /// stub. Derived purely from `rows` + `slope` via [`tile_marks`].
+    pub marks: Vec<TileMark>,
+}
+
+/// A box/stash tile's ✓/✗ mark for the guide overlay (issue #137): where the
+/// tile sits (normalized to the crop rect) and whether OCR matched it to a
+/// catalog item (`true` → green ✓, `false` → red ✗).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TileMark {
+    pub pos: crate::ocr::CropMark,
+    pub matched: bool,
 }
 
 /// How [`read_tiles`] classified one sub-row (for the `ocr_debug` dump).
@@ -255,6 +270,10 @@ pub struct RowReport {
     pub ry: f32,
     pub kind: RowKind,
     pub cells: Vec<(String, Tile)>,
+    /// Each tile's center **x** in raw image pixels, **parallel to `cells`**.
+    /// Combined with the de-sheared row `ry` (re-sheared per tile via the
+    /// capture's `slope`) this places a guide-box mark over each tile (#137).
+    pub cxs: Vec<f32>,
 }
 
 /// Category words shown on the box screen. The fixed top **tab strip** (All /
@@ -554,6 +573,9 @@ pub fn read_tiles(boxes: &[LabelBox], img_h: f32, data: &GameData) -> BoxReadRes
         for sub in split_subrows(block, slope, med_h) {
             let ry = median(sub.iter().map(|b| deshear(b, slope)));
             let cells = split_tiles(&sub);
+            // Per-tile center x (raw px), parallel to `cells` — feeds the
+            // guide-box ✓/✗ marks (#137).
+            let cxs: Vec<f32> = cells.iter().map(|t| tile_center_x(t)).collect();
 
             // Skip a category sub-row (tab strip or per-item subtitles): one whose
             // tiles are mostly category words.
@@ -563,6 +585,7 @@ pub fn read_tiles(boxes: &[LabelBox], img_h: f32, data: &GameData) -> BoxReadRes
                     ry,
                     kind: RowKind::Category,
                     cells: cells.iter().map(|t| (join_text(t), None)).collect(),
+                    cxs,
                 });
                 continue;
             }
@@ -584,6 +607,7 @@ pub fn read_tiles(boxes: &[LabelBox], img_h: f32, data: &GameData) -> BoxReadRes
                 ry,
                 kind,
                 cells: resolved.clone(),
+                cxs,
             });
             if kind == RowKind::Names {
                 let row_tiles: Vec<Tile> = resolved.into_iter().map(|(_, m)| m).collect();
@@ -599,7 +623,54 @@ pub fn read_tiles(boxes: &[LabelBox], img_h: f32, data: &GameData) -> BoxReadRes
         observed_weight,
         slope,
         rows,
+        // Marks need the image *width* to normalize x; `read_tiles` only takes
+        // `img_h`. `process_box_image` fills these via [`tile_marks`] once it has
+        // the full dimensions. Left empty here (and in the cross-platform tests).
+        marks: Vec::new(),
     }
+}
+
+/// Center **x** (raw image px) of a tile's horizontal extent — the midpoint
+/// between its leftmost word's left edge and its rightmost word's right edge.
+/// Returns 0 for an empty tile (never produced by [`split_tiles`], but safe).
+#[allow(dead_code)]
+fn tile_center_x(tile: &[&LabelBox]) -> f32 {
+    let lo = tile.iter().map(|b| b.x).fold(f32::INFINITY, f32::min);
+    let hi = tile
+        .iter()
+        .map(|b| b.right())
+        .fold(f32::NEG_INFINITY, f32::max);
+    if lo.is_finite() && hi.is_finite() {
+        (lo + hi) / 2.0
+    } else {
+        0.0
+    }
+}
+
+/// Build the per-tile ✓/✗ guide marks (issue #137) for one shot's recognized
+/// rows. Only [`RowKind::Names`] rows contribute. Each tile's mark sits at its
+/// own center x (`cxs[i]`) and the row's de-sheared `ry` **re-sheared back** to
+/// that column (`ry + slope*cx`, the inverse of [`deshear`], so the mark lands
+/// on the tile's true screen y rather than its flattened cluster y), then
+/// normalized to the `img_w × img_h` crop. `matched` is whether OCR resolved
+/// the tile to a catalog item. Pure + cross-platform so the position→normalized
+/// mapping is CI-tested.
+#[allow(dead_code)]
+pub fn tile_marks(rows: &[RowReport], slope: f32, img_w: f32, img_h: f32) -> Vec<TileMark> {
+    let mut marks = Vec::new();
+    for row in rows {
+        if row.kind != RowKind::Names {
+            continue;
+        }
+        for (&cx, (_, tile)) in row.cxs.iter().zip(row.cells.iter()) {
+            let cy = row.ry + slope * cx;
+            marks.push(TileMark {
+                pos: crate::ocr::CropMark::from_px(cx, cy, img_w, img_h),
+                matched: tile.is_some(),
+            });
+        }
+    }
+    marks
 }
 
 /// Whitespace-join a tile's label words left→right (for diagnostics / matching
@@ -712,7 +783,7 @@ pub fn process_box_image(
     use anyhow::Context;
     use image::GenericImageView;
 
-    let (_w, img_h) = img.dimensions();
+    let (img_w, img_h) = img.dimensions();
     let words = engine::recognize_image(img).context("box-screen OCR")?;
     let boxes: Vec<LabelBox> = words
         .iter()
@@ -724,7 +795,11 @@ pub fn process_box_image(
             h: w.rect.height,
         })
         .collect();
-    Ok(read_tiles(&boxes, img_h as f32, data))
+    let mut read = read_tiles(&boxes, img_h as f32, data);
+    // Now that we have the full dimensions, normalize each recognized tile's
+    // position into the crop rect for the guide-box ✓/✗ marks (issue #137).
+    read.marks = tile_marks(&read.rows, read.slope, img_w as f32, img_h as f32);
+    Ok(read)
 }
 
 /// Non-Windows stub: Windows.Media.Ocr is unavailable, so there's nothing to
@@ -1571,6 +1646,47 @@ pub(crate) mod tests {
                 Some("gunpowder".to_string())
             ]
         );
+    }
+
+    #[test]
+    fn tile_marks_filters_to_names_reshears_and_normalizes() {
+        use crate::ocr::CropMark;
+        // Two Names tiles (one matched, one not) on a sheared row, plus a
+        // Category row that must contribute no marks.
+        let rows = vec![
+            RowReport {
+                ry: 100.0,
+                kind: RowKind::Names,
+                cells: vec![
+                    ("Piezometer".into(), Some("piezometer".to_string())),
+                    ("Kalashnikov".into(), None),
+                ],
+                cxs: vec![100.0, 300.0],
+            },
+            RowReport {
+                ry: 40.0,
+                kind: RowKind::Category,
+                cells: vec![("ALL".into(), None)],
+                cxs: vec![50.0],
+            },
+        ];
+        let slope = 0.1;
+        let (img_w, img_h) = (400.0, 500.0);
+        let marks = tile_marks(&rows, slope, img_w, img_h);
+
+        // Only the two Names tiles produce marks; the Category row is skipped.
+        assert_eq!(marks.len(), 2);
+        assert!(marks[0].matched, "recognized tile → ✓");
+        assert!(!marks[1].matched, "unrecognized tile → ✗");
+
+        // Each mark's y is the de-sheared `ry` re-sheared back to that tile's
+        // own column (`ry + slope*cx`), then normalized by the image dims; x is
+        // the raw center normalized straight.
+        let expect = |cx: f32| CropMark::from_px(cx, 100.0 + slope * cx, img_w, img_h);
+        assert_eq!(marks[0].pos, expect(100.0));
+        assert_eq!(marks[1].pos, expect(300.0));
+        assert!((marks[0].pos.x - 0.25).abs() < 1e-6);
+        assert!((marks[1].pos.x - 0.75).abs() < 1e-6);
     }
 
     #[test]

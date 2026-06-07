@@ -354,6 +354,8 @@ fn handle_box_capture(
         last_rows_added: merge.rows_added,
         last_rows_duplicate: merge.rows_duplicate,
         rows: session.rows.clone(),
+        // This shot's per-tile ✓/✗ marks for the guide overlay (#137).
+        last_marks: read.marks.clone(),
     };
 
     // Mirror the running state into the in-headset overlay so the user gets the

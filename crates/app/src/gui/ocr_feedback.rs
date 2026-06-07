@@ -22,7 +22,8 @@
 //!   the in-headset card alongside the on-disk debug artifacts and
 //!   needs time to read both.
 
-use crate::ocr::{BoxScanStatus, BoxScanUpdate, OcrOutcome};
+use crate::ocr::box_scan::TileMark;
+use crate::ocr::{BoxScanStatus, BoxScanUpdate, CropMark, OcrOutcome};
 use crate::state::{AppState, OcrProgression};
 
 #[derive(Clone, Debug)]
@@ -41,6 +42,15 @@ pub enum OcrFeedbackKind {
         /// `upgrade_id`, not from the title-line OCR.
         level: u32,
         items: Vec<OcrItemDelta>,
+        /// Normalized cell-center per item, **parallel to `items`** — where to
+        /// paint each read count over the real panel on the guide box (#137).
+        /// Empty when the pipeline produced no geometry. Carried separately from
+        /// [`OcrItemDelta`] so the desktop/center-card delta type stays free of
+        /// VR layout concerns.
+        // Read only by the Windows-only guide overlay (`vr::runtime`); on Linux
+        // nothing consumes it, so scope the lint here (binary-crate convention).
+        #[allow(dead_code)]
+        marks: Vec<CropMark>,
         /// One-line summaries of any tracking / completion changes the
         /// worker made as a side effect of identifying the panel (e.g.
         /// "Auto-completed Bitcoin Mine Lv 1", "Now tracking Bitcoin
@@ -104,6 +114,12 @@ pub enum OcrFeedbackKind {
         /// Computed weight of the stitched series — `Some` only when
         /// `observed_weight` is `Some` (the checksum needs both halves).
         computed_weight: Option<f32>,
+        /// Per-tile ✓/✗ marks for **this shot** (not the series), normalized to
+        /// the crop rect — painted over the real tiles on the guide box (#137).
+        // Read only by the Windows-only guide overlay (`vr::runtime`); on Linux
+        // nothing consumes it, so scope the lint here (binary-crate convention).
+        #[allow(dead_code)]
+        marks: Vec<TileMark>,
     },
 }
 
@@ -231,6 +247,9 @@ impl OcrFeedback {
                 upgrade_name: outcome.upgrade_name.clone(),
                 level,
                 items,
+                // Per-cell guide marks travel parallel to `items` (#137); the
+                // pipeline emits one per requirement, in the same order.
+                marks: outcome.item_marks.clone(),
                 progression_notes: Vec::new(),
             },
         }
@@ -331,6 +350,8 @@ impl OcrFeedback {
                 series_items: rows(&update.tally),
                 observed_weight: update.observed_weight,
                 computed_weight,
+                // Current-shot ✓/✗ marks, carried straight through (#137).
+                marks: update.last_marks.clone(),
             },
         }
     }
@@ -350,6 +371,7 @@ impl OcrFeedback {
                 level,
                 items,
                 progression_notes,
+                ..
             } => {
                 let applied = items.iter().filter(|i| i.after.is_some()).count();
                 let unread = items.len() - applied;
@@ -479,6 +501,7 @@ mod tests {
             last_rows_added: 0,
             last_rows_duplicate: 0,
             rows: Vec::new(),
+            last_marks: Vec::new(),
         }
     }
 
@@ -493,6 +516,7 @@ mod tests {
                 upgrade_name: "Bitcoin Mine".into(),
                 level: 2,
                 items: vec![],
+                marks: vec![],
                 progression_notes: vec![],
             },
         };

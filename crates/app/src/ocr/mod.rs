@@ -117,6 +117,41 @@ pub struct OcrWord {
     pub rect: OcrRect,
 }
 
+/// A position within a **cropped** capture, normalized to `[0, 1]` on each
+/// axis (origin top-left). Both the hideout per-cell counts and the box/stash
+/// per-tile ✓/✗ marks are threaded forward as `CropMark`s so the head-locked
+/// guide box can paint them over the real items (issue #137).
+///
+/// Normalization happens in the OCR pipeline (where the cropped image
+/// dimensions are known); everything downstream — the cross-platform feedback
+/// types, the guide renderer — works in this resolution-independent space. The
+/// guide pixmap shares the crop's aspect ratio (issue #136), so a `CropMark`
+/// maps to a guide pixel by a plain multiply (see `vr::guide::mark_px`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CropMark {
+    pub x: f32,
+    pub y: f32,
+}
+
+impl CropMark {
+    /// Normalize a pixel center `(cx, cy)` within a `img_w × img_h` image to
+    /// `[0, 1]²`, clamped. A zero-sized axis maps to 0 (degenerate, but never
+    /// panics).
+    pub fn from_px(cx: f32, cy: f32, img_w: f32, img_h: f32) -> Self {
+        let norm = |v: f32, dim: f32| {
+            if dim > 0.0 {
+                (v / dim).clamp(0.0, 1.0)
+            } else {
+                0.0
+            }
+        };
+        Self {
+            x: norm(cx, img_w),
+            y: norm(cy, img_h),
+        }
+    }
+}
+
 /// Successful OCR outcome — what the pipeline returns when it both identifies
 /// an upgrade panel and reads its owned-count cells. The caller applies this
 /// to `AppState.collected` via repeated `set_collected` calls (snapshot is
@@ -135,6 +170,12 @@ pub struct OcrOutcome {
     /// value untouched (overwriting with 0 silently destroyed real
     /// progress when the strip Y misaligned).
     pub items: Vec<(String, Option<u32>)>,
+    /// Normalized cell-center per requirement, **parallel to `items`** — where
+    /// to paint each read count on the guide box (issue #137). Empty when the
+    /// pipeline produced no geometry (e.g. the non-Windows stub). Deliberately
+    /// excluded from the worker's re-apply debounce key (positions jitter
+    /// frame-to-frame even for the same panel; `items` alone keys the debounce).
+    pub item_marks: Vec<CropMark>,
 }
 
 /// What the pipeline produces for a given screenshot.
@@ -240,4 +281,42 @@ pub struct BoxScanUpdate {
     /// The scan's current unique rows, in first-capture order. The desktop
     /// renders these "as captured" and lets the user drop one before applying.
     pub rows: Vec<box_scan::ScanRow>,
+    /// Per-tile ✓/✗ marks for **this shot's** recognized rows, normalized to
+    /// the crop rect — painted over the real tiles on the guide box (issue
+    /// #137). Current-shot only (not the merged series); empty on non-Windows.
+    pub last_marks: Vec<box_scan::TileMark>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::CropMark;
+
+    #[test]
+    fn crop_mark_from_px_normalizes_corners_center_and_clamps() {
+        // Origin and far corner map to the unit-square corners.
+        assert_eq!(
+            CropMark::from_px(0.0, 0.0, 200.0, 100.0),
+            CropMark { x: 0.0, y: 0.0 }
+        );
+        assert_eq!(
+            CropMark::from_px(200.0, 100.0, 200.0, 100.0),
+            CropMark { x: 1.0, y: 1.0 }
+        );
+        // A pixel center normalizes to its fraction of each axis.
+        assert_eq!(
+            CropMark::from_px(50.0, 75.0, 200.0, 100.0),
+            CropMark { x: 0.25, y: 0.75 }
+        );
+        // Out-of-bounds inputs clamp into [0,1] (a padded strip can poke past
+        // the cropped edge), never producing a coordinate off the guide box.
+        assert_eq!(
+            CropMark::from_px(-10.0, 250.0, 200.0, 100.0),
+            CropMark { x: 0.0, y: 1.0 }
+        );
+        // A degenerate (zero-sized) axis maps to 0 rather than NaN/∞.
+        assert_eq!(
+            CropMark::from_px(5.0, 5.0, 0.0, 0.0),
+            CropMark { x: 0.0, y: 0.0 }
+        );
+    }
 }

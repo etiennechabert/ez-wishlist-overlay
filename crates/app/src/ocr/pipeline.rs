@@ -278,8 +278,21 @@ pub fn process_image(
     }
 
     let mut items: Vec<(String, Option<u32>)> = Vec::with_capacity(upgrade.requirements.len());
+    // Normalized cell-center per requirement, parallel to `items` — where to
+    // paint each read count over the real panel on the guide box (issue #137).
+    // The pipeline already runs on the *cropped* image, so `(img_w, img_h)` is
+    // the crop rect and the count-strip centers normalize straight into guide
+    // space. The center tracks the strip the picker locked onto (the digit row),
+    // so the number lands on the digits it was read from.
+    let mut item_marks: Vec<crate::ocr::CropMark> = Vec::with_capacity(upgrade.requirements.len());
     let mut debug_cells: Vec<crate::ocr::debug_dump::CellDebug<'_>> = Vec::new();
     for (i, (cell, req)) in cells.iter().zip(upgrade.requirements.iter()).enumerate() {
+        item_marks.push(crate::ocr::CropMark::from_px(
+            cell.x as f32 + cell.w as f32 / 2.0,
+            cell.y as f32 + cell.h as f32 / 2.0,
+            img_w as f32,
+            img_h as f32,
+        ));
         let strip = prepped.crop_imm(cell.x, cell.y, cell.w, cell.h);
         let gray = strip.to_luma8();
 
@@ -402,6 +415,7 @@ pub fn process_image(
         upgrade_id: upgrade.id.clone(),
         upgrade_name: module.name.clone(),
         items,
+        item_marks,
     }))
 }
 

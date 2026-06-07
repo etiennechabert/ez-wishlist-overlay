@@ -379,15 +379,20 @@ fn render_loop(
     // a watchdog that frees the latch if a dispatched job never reports back.
     let mut capture_in_flight = false;
     let mut dispatched_at: Option<Instant> = None;
-    // Guide-box render cache: re-render only when the chip it shows changes —
-    // keyed on (mode, chip label, trigger, eye-only, capture-eye) so it updates
-    // when the capture phase, the post-capture confirmation, the trigger, or the
-    // single-eye / capture-eye settings change, not every 90 Hz frame. `None` =
-    // not shown.
-    let mut guide_shown: Option<(CaptureMode, String, CaptureHand, bool, CaptureEye)> = None;
+    // Guide-box render cache: re-render only when what it shows changes — keyed
+    // on (mode, chip label, trigger, eye-only, capture-eye, confirm stamp) so it
+    // updates when the capture phase, the post-capture confirmation + its
+    // per-item marks, the trigger, or the single-eye / capture-eye settings
+    // change, not every 90 Hz frame. The `Option<Instant>` is the active
+    // confirm's `shown_at` (None when none) — a fresh capture gets a fresh stamp,
+    // so the marks re-render even if the chip text repeats, and drop cleanly when
+    // the confirm expires. `None` = not shown.
+    let mut guide_shown: Option<GuideShownKey> = None;
     // Post-capture OCR confirmation shown on the guide chip (over "Ready — pull
-    // trigger") until `GUIDE_CONFIRM_DURATION` after `shown_at`. Issue #136.
-    let mut guide_confirm: Option<(String, (u8, u8, u8), Instant)> = None;
+    // trigger") until `GUIDE_CONFIRM_DURATION` after `shown_at`, plus the
+    // per-item marks painted over the real items for that window (issues
+    // #136/#137).
+    let mut guide_confirm: Option<GuideConfirm> = None;
 
     loop {
         let frame_start = Instant::now();
@@ -594,18 +599,18 @@ fn render_loop(
         // it's also pushed eagerly the instant the capture state flips (above).
         if cap_active {
             let st = *capture_state.read();
+            // The confirmation (chip text + color + per-item marks) shows for a
+            // few seconds after each capture, then expires back to the plain
+            // "Ready" prompt with no marks.
             let confirm = guide_confirm
                 .as_ref()
-                .filter(|(_, _, shown_at)| {
-                    frame_start.duration_since(*shown_at) < GUIDE_CONFIRM_DURATION
-                })
-                .map(|(label, rgb, _)| (label.clone(), *rgb));
+                .filter(|c| frame_start.duration_since(c.shown_at) < GUIDE_CONFIRM_DURATION);
             ensure_guide(
                 session,
                 &mode,
                 st,
                 vr.capture_trigger,
-                confirm.as_ref(),
+                confirm,
                 eye_fov,
                 vr.guide_eye_only,
                 capture_eye,
@@ -699,9 +704,18 @@ fn render_loop(
                     *capture_state.write() = CaptureState::Ready;
                     // Surface the result on the guide chip for a few seconds
                     // (over "Ready — pull trigger"), so the capture confirmation
-                    // lands right where the user is aiming (issue #136).
-                    if let Some(c) = ocr_state.as_ref().and_then(|s| s.feedback.chip_confirm()) {
-                        guide_confirm = Some((c.0, c.1, frame_start));
+                    // lands right where the user is aiming (issue #136). Also
+                    // capture the per-item marks to paint over the real items for
+                    // that same window (issue #137).
+                    if let Some(s) = ocr_state.as_ref() {
+                        if let Some(c) = s.feedback.chip_confirm() {
+                            guide_confirm = Some(GuideConfirm {
+                                label: c.0,
+                                rgb: c.1,
+                                marks: guide_marks_from(&s.feedback),
+                                shown_at: frame_start,
+                            });
+                        }
                     }
                 }
             }
@@ -843,6 +857,60 @@ const GUIDE_HOLE_W: u32 = 1024;
 #[cfg(target_os = "windows")]
 const GUIDE_CONFIRM_DURATION: Duration = Duration::from_secs(4);
 
+/// Cache key for the guide-box pixmap (`guide_shown` in `render_loop`): the
+/// inputs that change what it draws — mode, chip label, trigger hand, the
+/// single-eye / capture-eye settings, and the active confirmation's timestamp so
+/// a fresh capture re-renders its per-item marks (#137). A `type` alias keeps
+/// the tuple out of `clippy::type_complexity`'s way.
+#[cfg(target_os = "windows")]
+type GuideShownKey = (
+    CaptureMode,
+    String,
+    CaptureHand,
+    bool,
+    CaptureEye,
+    Option<std::time::Instant>,
+);
+
+/// The post-capture confirmation shown on the guide box for a few seconds after
+/// a read: the chip text + fill color (issue #136) plus the per-item marks
+/// painted over the real items at their normalized crop positions (issue #137).
+#[cfg(target_os = "windows")]
+struct GuideConfirm {
+    label: String,
+    rgb: (u8, u8, u8),
+    marks: Vec<super::guide::GuideMark>,
+    shown_at: std::time::Instant,
+}
+
+/// Translate the just-finished OCR feedback into the guide-box marks (#137):
+/// hideout `Done` → a count per cell; box/stash `BoxScanProgress` → a ✓/✗ per
+/// tile of the current shot. Other terminal kinds (NotAPanel / Failed / …) have
+/// no per-item geometry, so no marks.
+#[cfg(target_os = "windows")]
+fn guide_marks_from(feedback: &crate::gui::OcrFeedback) -> Vec<super::guide::GuideMark> {
+    use super::guide::GuideMark;
+    use crate::gui::OcrFeedbackKind;
+    match &feedback.kind {
+        OcrFeedbackKind::Done { items, marks, .. } => items
+            .iter()
+            .zip(marks.iter())
+            .map(|(item, &pos)| GuideMark::Count {
+                pos,
+                count: item.after,
+            })
+            .collect(),
+        OcrFeedbackKind::BoxScanProgress { marks, .. } => marks
+            .iter()
+            .map(|m| GuideMark::Check {
+                pos: m.pos,
+                matched: m.matched,
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
 /// Render + submit the capture guide box, sized + positioned so its transparent
 /// hole **exactly outlines its OCR crop** via the eye FOV (issue #141).
 ///
@@ -866,11 +934,11 @@ fn ensure_guide(
     mode: &CaptureMode,
     st: CaptureState,
     trigger: CaptureHand,
-    confirm: Option<&(String, (u8, u8, u8))>,
+    confirm: Option<&GuideConfirm>,
     eye_fov: super::fov::EyeFov,
     guide_eye_only: bool,
     capture_eye: CaptureEye,
-    guide_shown: &mut Option<(CaptureMode, String, CaptureHand, bool, CaptureEye)>,
+    guide_shown: &mut Option<GuideShownKey>,
 ) {
     // Geometry: map the per-mode crop through the eye FOV to a head-locked
     // metric placement. Recomputed every call (cheap math) so a capture-eye /
@@ -895,21 +963,28 @@ fn ensure_guide(
     // content in only the capture eye's half (built below). Cached internally.
     let _ = session.set_guide_stereo(guide_eye_only);
 
-    let (label, rgb) = match confirm {
-        Some((text, rgb)) => (text.as_str(), *rgb),
-        None => (st.label(), st.rgb()),
-    };
+    let (label, rgb, marks, stamp): (&str, (u8, u8, u8), &[super::guide::GuideMark], _) =
+        match confirm {
+            Some(c) => (
+                c.label.as_str(),
+                c.rgb,
+                c.marks.as_slice(),
+                Some(c.shown_at),
+            ),
+            None => (st.label(), st.rgb(), &[], None),
+        };
     let key = (
         mode.clone(),
         label.to_string(),
         trigger,
         guide_eye_only,
         capture_eye,
+        stamp,
     );
     if guide_shown.as_ref() == Some(&key) {
         return;
     }
-    let content = super::guide::render(mode, label, rgb, trigger.label(), &layout);
+    let content = super::guide::render(mode, label, rgb, trigger.label(), marks, &layout);
     // When single-eye, pack the content into the capture eye's half of a
     // double-wide side-by-side texture; the other eye then sees nothing.
     let pix = if guide_eye_only {

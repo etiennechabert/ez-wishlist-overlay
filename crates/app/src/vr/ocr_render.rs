@@ -655,6 +655,7 @@ mod tests {
                         needed: 6,
                     },
                 ],
+                marks: vec![],
                 progression_notes: vec![
                     "Auto-completed Bitcoin Mine Lv 1".into(),
                     "Now tracking Bitcoin Mine Lv 2".into(),
@@ -740,6 +741,7 @@ mod tests {
                 ],
                 observed_weight: Some(21.9),
                 computed_weight: Some(21.3),
+                marks: vec![],
             },
         }
     }
