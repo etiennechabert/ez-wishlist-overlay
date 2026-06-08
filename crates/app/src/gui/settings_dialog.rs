@@ -15,7 +15,6 @@ enum SettingsTab {
     General,
     Overlay,
     Capture,
-    Storage,
 }
 
 /// Returns `true` if the user closed the dialog this frame (caller persists).
@@ -48,7 +47,6 @@ pub fn show(
                 ui.selectable_value(&mut tab, SettingsTab::General, "General");
                 ui.selectable_value(&mut tab, SettingsTab::Overlay, "Overlay");
                 ui.selectable_value(&mut tab, SettingsTab::Capture, "Capture");
-                ui.selectable_value(&mut tab, SettingsTab::Storage, "Storage");
             });
             ui.data_mut(|d| d.insert_temp(tab_id, tab));
 
@@ -68,6 +66,8 @@ pub fn show(
                         appearance_section(ui, &mut working.theme, &mut working.color_scheme);
                         ui.add_space(12.0);
                         updates_section(ui, &mut working.check_for_updates);
+                        ui.add_space(12.0);
+                        storage_section(ui, data_dir, debug_dir);
                     }
                     SettingsTab::Overlay => {
                         overlay_section(ui, &mut working.vr);
@@ -84,9 +84,6 @@ pub fn show(
                             &mut working.ocr_auto_track,
                             &mut working.ocr_capture_trace,
                         );
-                    }
-                    SettingsTab::Storage => {
-                        storage_section(ui, data_dir, debug_dir);
                     }
                 });
 
@@ -213,10 +210,12 @@ fn ocr_section(
 
     ui.add_space(6.0);
     ui.horizontal(|ui| {
-        ui.label("Dismiss after (s)").on_hover_text(
-            "How long the OCR feedback card stays in the headset before \
-             fading. Ignored when \"Save OCR debug artifacts\" is on — \
-             then the card sticks around until the next capture.",
+        ui.label("Hide feedback card after (s)").on_hover_text(
+            "After a capture, the head-locked feedback card in the headset \
+             — the one listing each required item's new owned count — fades \
+             this many seconds after it appears. Ignored while \"Save OCR \
+             debug artifacts\" is on: then it stays up until the next \
+             capture.",
         );
         stepper_slider_u32(ui, ocr_dismiss_seconds, bounds::OCR_DISMISS_SECS, 1, " s");
     });
@@ -554,21 +553,25 @@ mod tests {
         let mut h = harness(&settings);
         h.run();
 
-        // General is the default tab: its widgets render, the other tabs' don't.
+        // General is the default tab: appearance/updates *and* the folded-in
+        // storage controls render; the other tabs' widgets don't.
         assert!(h.query_by_label("Check for updates on startup").is_some());
+        assert!(h.query_by_label("Open data folder").is_some());
         assert!(h.query_by_label("Width (m)").is_none());
         assert!(h
             .query_by_label("Auto-extract counts from VR screenshots")
             .is_none());
 
-        // Overlay → the VR layout sliders; the General checkbox is gone.
+        // Overlay → the VR layout sliders; the General widgets are gone.
         h.get_by_label("Overlay").click();
         h.run();
         assert!(h.query_by_label("Width (m)").is_some());
         assert!(h.query_by_label("Check for updates on startup").is_none());
+        assert!(h.query_by_label("Open data folder").is_none());
 
         // Capture → the relocated capture-guide trigger sits with the OCR
-        // toggles (it used to render under the overlay-layout sliders).
+        // toggles (it used to render under the overlay-layout sliders). The
+        // storage controls live on General now, not here.
         h.get_by_label("Capture").click();
         h.run();
         assert!(h.query_by_label("Capture trigger").is_some());
@@ -576,12 +579,7 @@ mod tests {
             .query_by_label("Auto-extract counts from VR screenshots")
             .is_some());
         assert!(h.query_by_label("Width (m)").is_none());
-
-        // Storage → the folder buttons.
-        h.get_by_label("Storage").click();
-        h.run();
-        assert!(h.query_by_label("Open data folder").is_some());
-        assert!(h.query_by_label("Capture trigger").is_none());
+        assert!(h.query_by_label("Open data folder").is_none());
     }
 
     #[test]
@@ -596,8 +594,6 @@ mod tests {
         h.get_by_label("Overlay").click();
         h.run();
         h.get_by_label("Capture").click();
-        h.run();
-        h.get_by_label("Storage").click();
         h.run();
         assert!(
             *settings.read() == before,
