@@ -77,6 +77,7 @@ pub fn show(
                             ui,
                             &mut working.vr.capture_trigger,
                             &mut working.capture_eye,
+                            &mut working.vr.guide_eye_only,
                         );
                         ui.add_space(12.0);
                         ocr_section(
@@ -372,13 +373,15 @@ fn overlay_section(ui: &mut egui::Ui, vr: &mut VrSettings) {
 }
 
 /// Capture-flow controls for the Capture tab. The trigger (which controller
-/// fires a capture) and the eye (which mirror texture OCR reads) live together
-/// here so the two Right/Left side-choices sit side by side, rather than being
-/// split across this section and Screenshot OCR.
+/// fires a capture), the eye (which mirror texture OCR reads), and the
+/// guide-box display toggle live together here: the two Right/Left side-choices
+/// sit side by side, and the eye-only box option references the eye selected
+/// just above it.
 fn capture_guide_section(
     ui: &mut egui::Ui,
     capture_trigger: &mut CaptureHand,
     capture_eye: &mut CaptureEye,
+    guide_eye_only: &mut bool,
 ) {
     ui.heading("Capture guide (OCR)");
     ui.add_space(4.0);
@@ -417,6 +420,17 @@ fn capture_guide_section(
         ui.selectable_value(capture_eye, CaptureEye::Right, "Right");
         ui.selectable_value(capture_eye, CaptureEye::Left, "Left");
     });
+
+    ui.add_space(6.0);
+    ui.checkbox(guide_eye_only, "Show capture box in the capture eye only")
+        .on_hover_text(
+            "The aiming box is a head-locked overlay at a fixed depth, so when \
+             your eyes focus on the panel it can ghost into a doubled image \
+             (one box per eye). Turn this on to draw it only in the capture eye \
+             (selected above) — no double box. Off by default: a one-eye HUD \
+             element can feel odd (binocular rivalry) for some people, so try it \
+             and see which you prefer.",
+        );
 }
 
 /// Width of the +/- buttons next to each slider. Chosen so they're large

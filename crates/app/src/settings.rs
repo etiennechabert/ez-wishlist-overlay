@@ -101,27 +101,45 @@ impl CaptureCrop {
     /// stash submit terminal is wider still — so each is a fixed rect (fractions
     /// of the captured frame), not a user setting. The guide box takes its aspect
     /// from these. `Off` never captures, so it maps to the hideout crop.
+    ///
+    /// **Tightened in #141.** Now that the guide box is sized from the real eye
+    /// FOV (`vr::fov`) it exactly outlines its crop at the correct ~2× scale, so
+    /// these no longer have to be inflated to make an undersized box look big
+    /// enough — the stash crop in particular was widened to 0.92 (reaching the
+    /// side menu + footer) only to enlarge the box. Each is now centered on the
+    /// gaze (center fraction (0.5, 0.5)) and sized to frame just the item grid;
+    /// the user aims so the grid fills the box, and the surrounding chrome falls
+    /// outside it. Exact fractions are content-framing estimates to confirm in a
+    /// one-time in-headset pass (the FOV `MIRROR_FOV_FUDGE` knob covers any
+    /// residual mismatch).
     #[allow(dead_code)] // selected by the Windows-only capture worker
     pub fn for_mode(mode: &CaptureMode) -> CaptureCrop {
         use crate::ocr::ScanTarget;
         match mode {
+            // The upgrade panel is wider than tall (a header + a row of 4 item
+            // cells), so the crop is landscape-ish and trimmed vertically to sit
+            // on the panel rather than the empty hideout view above/below it
+            // (in-headset tuning, #141). Centered.
             CaptureMode::Hideout | CaptureMode::Off => CaptureCrop {
-                x: 0.24,
-                y: 0.18,
-                w: 0.52,
-                h: 0.64,
+                x: 0.34,
+                y: 0.35,
+                w: 0.32,
+                h: 0.30,
             },
+            // Landscape 5-column world-container grid, centered.
             CaptureMode::Box(ScanTarget::Container(_)) => CaptureCrop {
-                x: 0.14,
-                y: 0.26,
-                w: 0.72,
-                h: 0.46,
+                x: 0.27,
+                y: 0.36,
+                w: 0.46,
+                h: 0.28,
             },
+            // Widest: the 5-column stash submit grid, centered (was 0.92 wide,
+            // which captured the side menu + footer — see #141).
             CaptureMode::Box(ScanTarget::Stash) => CaptureCrop {
-                x: 0.04,
-                y: 0.26,
-                w: 0.92,
-                h: 0.48,
+                x: 0.24,
+                y: 0.36,
+                w: 0.52,
+                h: 0.28,
             },
         }
     }
@@ -414,6 +432,16 @@ pub struct VrSettings {
     /// on the guide box. Defaulted (`Right`) for forward-compatible files.
     #[serde(default = "default_capture_trigger")]
     pub capture_trigger: CaptureHand,
+    /// When on, the capture guide box renders **only in the capture eye** (via a
+    /// side-by-side stereo overlay) instead of both eyes. The box is a
+    /// head-locked overlay at a fixed depth, so when your eyes converge on the
+    /// panel at a different depth it ghosts into a doubled "two box" image;
+    /// showing it in just the capture eye removes that. Pairs with
+    /// [`Settings::capture_eye`] (the doubled eye is the one OCR doesn't use).
+    /// Default **off** (both eyes) — a one-eye HUD element can cause binocular
+    /// rivalry for some users, so it's opt-in (issue #143).
+    #[serde(default)]
+    pub guide_eye_only: bool,
 }
 
 fn default_grid_cols() -> u32 {
@@ -443,6 +471,7 @@ impl Default for VrSettings {
             height_offset_m: default_height_offset_m(),
             max_items: default_max_items(),
             capture_trigger: default_capture_trigger(),
+            guide_eye_only: false,
         }
     }
 }
@@ -554,6 +583,7 @@ mod tests {
             height_offset_m: 0.6,
             max_items: 0,
             capture_trigger: CaptureHand::Right,
+            guide_eye_only: false,
         };
         vr.sanitize();
         assert!(
@@ -624,6 +654,20 @@ mod tests {
         let aspect = |c: CaptureCrop| c.w / c.h;
         assert!(aspect(hideout) < aspect(container));
         assert!(aspect(container) < aspect(stash));
+        // #141 invariant: every crop is centered on the gaze (center fraction
+        // (0.5, 0.5)). The FOV-derived guide transform is just the crop center,
+        // and the guide texture uses symmetric margins, so an off-center crop
+        // would put the box off the gaze axis. Keep them centered.
+        for c in [hideout, container, stash] {
+            assert!(
+                (c.x + c.w / 2.0 - 0.5).abs() < 1e-6,
+                "crop must be horizontally centered: {c:?}"
+            );
+            assert!(
+                (c.y + c.h / 2.0 - 0.5).abs() < 1e-6,
+                "crop must be vertically centered: {c:?}"
+            );
+        }
     }
 
     #[test]
@@ -636,6 +680,7 @@ mod tests {
             height_offset_m: 99.0,
             max_items: 999,
             capture_trigger: CaptureHand::Right,
+            guide_eye_only: false,
         };
         vr.sanitize();
         assert_eq!(vr.width_meters, 2.0);
@@ -702,6 +747,28 @@ mod tests {
         let json = serde_json::to_string(&s).unwrap();
         let back: Settings = serde_json::from_str(&json).unwrap();
         assert_eq!(back.vr.max_items, 6);
+    }
+
+    #[test]
+    fn guide_eye_only_defaults_off_and_round_trips() {
+        // Absent from a settings file written before this field → serde(default)
+        // fills `false` (both eyes), not an error.
+        let s: Settings = serde_json::from_str(
+            r#"{"vr":{"width_meters":1.0,"show_pitch_deg":20.0,"hide_pitch_deg":10.0,"grid_cols":8,"height_offset_m":0.6}}"#,
+        )
+        .unwrap();
+        assert!(!s.vr.guide_eye_only);
+        // Round-trips when enabled.
+        let s2 = Settings {
+            vr: VrSettings {
+                guide_eye_only: true,
+                ..VrSettings::default()
+            },
+            ..Settings::default()
+        };
+        let json = serde_json::to_string(&s2).unwrap();
+        let back: Settings = serde_json::from_str(&json).unwrap();
+        assert!(back.vr.guide_eye_only);
     }
 
     #[test]

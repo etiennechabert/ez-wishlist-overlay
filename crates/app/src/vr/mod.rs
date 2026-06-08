@@ -18,6 +18,7 @@
 
 pub mod anchor;
 pub mod capture_session;
+pub mod fov;
 pub mod guide;
 pub mod input;
 pub mod ocr_render;
