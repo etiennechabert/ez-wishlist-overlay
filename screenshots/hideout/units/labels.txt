@@ -11,13 +11,13 @@ CoffeeMakerLv1__misc_b_plier_large.webp  Large plier
 CoffeeMakerLv1__misc_b_wirecutting.webp  Wire Cutter
 CoffeeMakerLv1__misc_wastechip.webp  Waste Chip
 CryptoMiningLv2__misc_b_pcfan.webp  CPU Fan
-CryptoMiningLv2__misc_b_ram.webp  RAM
+#hard  CryptoMiningLv2__misc_b_ram.webp  RAM
 CryptoMiningLv2__misc_bpu.webp  CPU
 CryptoMiningLv2__misc_floppydisk.webp  Floppy Disk
 GeneratorLv2__misc_b_insulatingtape.webp  Insulating Tape
 GeneratorLv2__misc_b_lighterfluid.webp  Lighter fluid
 GeneratorLv2__misc_b_sparkplug.webp  Spark Plug
-#hard  GeneratorLv2__misc_oilcan.webp  Oil can
+GeneratorLv2__misc_oilcan.webp  Oil can
 GunsmithLv2__misc_b_ceramic_adhesive.webp  Ceramic adhesive
 GunsmithLv2__misc_b_nail.webp  Boxed Nails
 GunsmithLv2__misc_b_pipeline.webp  Valve
@@ -30,7 +30,7 @@ MicrowaveOvenLv1__misc_b_moldboard.webp  Moldboard
 #hard  MicrowaveOvenLv1__misc_b_oliveoil.webp  Olive oil
 MicrowaveOvenLv1__misc_b_plier_large.webp  Large plier
 MicrowaveOvenLv1__misc_b_tire_sealant.webp  Tire sealant
-#hard  MoreitemLv2__misc_b_militaryusbdrive.webp  USB - classified
+MoreitemLv2__misc_b_militaryusbdrive.webp  USB - classified
 MoreitemLv2__misc_b_oldphone.webp  Old Phone
 MoreitemLv2__misc_b_powerbank.webp  Power Bank
 MoreitemLv2__misc_b_recorder.webp  Recorder
