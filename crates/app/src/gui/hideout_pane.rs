@@ -820,8 +820,8 @@ enum CompletionAction {
 /// the build and asks whether to also burn the recipe's items from the tracked
 /// inventory — "Consume items required" keeps our counts in sync with the game,
 /// "Skip item consumption" just marks it built. Consumption is disabled (and
-/// the missing items flagged) when the stash is short. No-op when no completion
-/// is pending.
+/// the missing items flagged) when the inventory (stash + containers) is short.
+/// No-op when no completion is pending.
 fn upgrade_completion_modal(
     ui: &mut egui::Ui,
     state: &Arc<RwLock<AppState>>,
@@ -875,12 +875,16 @@ fn upgrade_completion_modal(
                         .color(weak),
                 );
             } else {
-                // Per-item have / need list. Short items render weak (matching
-                // the slot editor's satisfied=strong / short=weak convention)
-                // so it's obvious at a glance why "Consume" may be disabled.
+                // Per-item have / need list. "Have" is the whole-inventory total
+                // (stash + containers, via `owned_total`) — the same figure that
+                // gates the Consume button, since consumption drains the stash
+                // first then falls back to containers. Short items render weak
+                // (matching the slot editor's satisfied=strong / short=weak
+                // convention) so it's obvious at a glance why "Consume" may be
+                // disabled.
                 let s = state.read();
                 for req in &reqs {
-                    let have = *s.collected.get(&req.item_id).unwrap_or(&0);
+                    let have = s.owned_total(&req.item_id);
                     let (name, icon_path) = s
                         .index
                         .items_by_id
@@ -944,8 +948,8 @@ fn upgrade_completion_modal(
                      recipe via Edit first, or just skip."
                         .to_string()
                 } else {
-                    "You haven't collected enough of every required item to \
-                     consume the recipe."
+                    "You don't yet own enough of every required item — across \
+                     your stash and containers — to consume the recipe."
                         .to_string()
                 };
                 // Recommended action on the trailing edge, where a confirm
@@ -2151,6 +2155,34 @@ mod tests {
         assert!(
             !h.get_by_label("Skip item consumption").is_disabled(),
             "Skip should stay enabled regardless of stash"
+        );
+    }
+
+    #[test]
+    fn completion_consume_enabled_when_container_covers_shortfall() {
+        let state = single_known_module(); // needs 2 bolts
+        {
+            let mut s = state.write();
+            s.set_collected(&"bolts".to_string(), 1); // 1 in the stash...
+            let c = s.create_container("Backpack".into());
+            s.set_container_item(&c, &"bolts".to_string(), 1); // ...1 in a container
+        }
+        let settings = settings(HideoutView::Modules);
+        let mut h = harness(&state, &settings);
+        set_pending_completion(&h.ctx, Some("workshop_lv1"));
+        h.run();
+
+        assert!(
+            state
+                .read()
+                .can_consume_materials(&"workshop_lv1".to_string()),
+            "precondition: stash + container together cover the recipe"
+        );
+        // The whole point of the fallback: a stash-short upgrade is still
+        // consumable when container stock makes up the difference.
+        assert!(
+            !h.get_by_label("Consume items required").is_disabled(),
+            "Consume must enable once container stock covers the stash shortfall"
         );
     }
 

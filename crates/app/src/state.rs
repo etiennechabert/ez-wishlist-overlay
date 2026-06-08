@@ -397,44 +397,118 @@ impl AppState {
     }
 
     /// True iff every item in this upgrade's *effective* recipe is currently
-    /// stocked to at least its required quantity — i.e. we could subtract the
-    /// whole recipe from `collected` without flooring anything at zero. Drives
-    /// the "Consume items required" choice in the upgrade-completion modal:
-    /// disabled when this is false because you can't burn materials you don't
-    /// have. Empty recipes return `false` (mirrors [`Self::is_upgrade_ready`]):
-    /// an unknown/placeholder recipe has nothing meaningful to consume.
+    /// stocked to at least its required quantity across the *whole* inventory —
+    /// stash (`collected`) plus every secondary container, via
+    /// [`Self::owned_total`] — i.e. we could subtract the whole recipe without
+    /// flooring anything at zero. Drives the "Consume items required" choice in
+    /// the upgrade-completion modal: disabled when this is false because you
+    /// can't burn materials you don't have. Counting containers (not just the
+    /// stash) keeps this in lockstep with [`Self::is_upgrade_ready`]: an upgrade
+    /// that reads green because container stock covers it can also be consumed,
+    /// with [`Self::complete_upgrade`] draining the stash first and falling back
+    /// to containers for the remainder. Empty recipes return `false` (mirrors
+    /// [`Self::is_upgrade_ready`]): an unknown/placeholder recipe has nothing
+    /// meaningful to consume.
     pub fn can_consume_materials(&self, upgrade_id: &UpgradeId) -> bool {
         let reqs = self.effective_requirements(upgrade_id);
         if reqs.is_empty() {
             return false;
         }
         reqs.iter()
-            .all(|r| *self.collected.get(&r.item_id).unwrap_or(&0) >= r.quantity)
+            .all(|r| self.owned_total(&r.item_id) >= r.quantity)
     }
 
-    /// Mark an upgrade completed, optionally burning its recipe's items from
-    /// `collected` first to mirror the in-game material cost.
+    /// Mark an upgrade completed, optionally burning its recipe's items from the
+    /// inventory first to mirror the in-game material cost.
     ///
-    /// Building an upgrade in-game removes the required items from the stash.
-    /// When the user confirms a *manual* upgrade with `consume = true` we do
-    /// the same here, keeping the app's inventory in lockstep with the game so
-    /// the wishlist doesn't keep counting spent items toward other upgrades.
-    /// `consume = false` leaves `collected` untouched — the "skip" modal choice,
-    /// and the path the OCR worker uses (it reads true post-build stash counts
-    /// off the screen, so consuming again would double-subtract).
+    /// Building an upgrade in-game removes the required items from wherever
+    /// they're stored. When the user confirms a *manual* upgrade with
+    /// `consume = true` we do the same here, keeping the app's inventory in
+    /// lockstep with the game so the wishlist doesn't keep counting spent items
+    /// toward other upgrades. Consumption drains the stash (`collected`) first
+    /// and falls back to secondary containers — boxes before shelves/bags — for
+    /// any shortfall (see `consume_from_inventory`), so a recipe the user can
+    /// only afford by counting container stock still subtracts cleanly.
+    /// `consume = false`
+    /// leaves the inventory untouched — the "skip" modal choice, and the path
+    /// the OCR worker uses (it reads true post-build stash counts off the
+    /// screen, so consuming again would double-subtract).
     ///
-    /// Consumption clamps at zero per item via [`Self::adjust_collected`]; the
-    /// modal only offers `consume = true` when [`Self::can_consume_materials`]
-    /// holds, so in practice nothing floors. Each `adjust_collected` /
-    /// `set_completed_upgrade` call bumps `version`; the caller issues one
-    /// `SaveTick` after.
+    /// Consumption clamps at zero overall; the modal only offers
+    /// `consume = true` when [`Self::can_consume_materials`] holds, so in
+    /// practice the full cost always comes out. Each `adjust_collected` /
+    /// `adjust_container_item` / `set_completed_upgrade` call bumps `version`;
+    /// the caller issues one `SaveTick` after.
     pub fn complete_upgrade(&mut self, upgrade_id: &UpgradeId, consume: bool) {
         if consume {
             for req in self.effective_requirements(upgrade_id) {
-                self.adjust_collected(&req.item_id, -(req.quantity as i64));
+                self.consume_from_inventory(&req.item_id, req.quantity);
             }
         }
         self.set_completed_upgrade(upgrade_id, true);
+    }
+
+    /// Subtract `qty` of `item` from the inventory, draining the stash
+    /// (`collected`) first and then the secondary containers — **boxes (item
+    /// cases) before shelves and bags**, declaration order within a tier — until
+    /// the quantity is covered or the inventory runs dry. Stash-first keeps the
+    /// scannable, game-synced stash as the primary store; the
+    /// box-before-shelves/bags order is the user's chosen container-fallback
+    /// priority (see [`Self::container_drain_rank`]). Clamps at zero per store,
+    /// so a short inventory just empties what's there rather than going
+    /// negative — callers gate on [`Self::can_consume_materials`] when the full
+    /// cost must come out. Reuses [`Self::adjust_collected`] /
+    /// [`Self::adjust_container_item`], so each touched store drops emptied
+    /// entries and bumps `version`.
+    fn consume_from_inventory(&mut self, item: &ItemId, qty: u32) {
+        let mut remaining = qty as i64;
+        let from_stash = (*self.collected.get(item).unwrap_or(&0) as i64).min(remaining);
+        if from_stash > 0 {
+            self.adjust_collected(item, -from_stash);
+            remaining -= from_stash;
+        }
+        if remaining <= 0 {
+            return;
+        }
+        // Snapshot (id, kind) up front so the drain can call the mutating
+        // `adjust_container_item` helper (which reuses the canonical remove-on-
+        // zero + version-bump path) without holding a borrow of `self.containers`
+        // across the call. Order boxes before shelves/bags; `sort_by_key` is
+        // stable, so same-tier containers keep their declaration order.
+        // Containers are few, so the clones are cheap.
+        let mut order: Vec<(ContainerId, ContainerKind)> = self
+            .containers
+            .iter()
+            .map(|c| (c.id.clone(), c.kind))
+            .collect();
+        order.sort_by_key(|(_, kind)| Self::container_drain_rank(*kind));
+        for (id, _) in order {
+            if remaining <= 0 {
+                break;
+            }
+            let have = self
+                .containers
+                .iter()
+                .find(|c| c.id == id)
+                .and_then(|c| c.contents.get(item).copied())
+                .unwrap_or(0) as i64;
+            let take = have.min(remaining);
+            if take > 0 {
+                self.adjust_container_item(&id, item, -take);
+                remaining -= take;
+            }
+        }
+    }
+
+    /// Container-fallback drain priority for [`Self::consume_from_inventory`]:
+    /// **boxes (item cases) drain before shelves and bags** (lower rank = drained
+    /// first). Shelves and bags share one tier, so within it containers empty in
+    /// declaration order. Pure classification; mutates nothing.
+    fn container_drain_rank(kind: ContainerKind) -> u8 {
+        match kind {
+            ContainerKind::Case => 0,
+            ContainerKind::Shelf | ContainerKind::Bag => 1,
+        }
     }
 
     /// Collected-vs-needed rollup for one upgrade's *effective* recipe
@@ -636,7 +710,9 @@ impl AppState {
     /// enough?" always counts the whole inventory. The quick +/- controls and
     /// VR-click cycling deliberately still target only the stash
     /// (`set_collected` / `adjust_collected` / `cycle_collected`); secondary
-    /// containers are edited from the Containers tab.
+    /// containers are edited from the Containers tab — or drained as a
+    /// consumption fallback once the stash runs short (see
+    /// [`Self::complete_upgrade`]).
     pub fn owned_total(&self, item_id: &ItemId) -> u32 {
         let mut total = self.collected.get(item_id).copied().unwrap_or(0);
         for c in &self.containers {
@@ -1999,6 +2075,25 @@ mod tests {
     }
 
     #[test]
+    fn can_consume_materials_counts_container_stock() {
+        // workbench_lv1 needs bolts×5 + screws×3. Hold the bolts in the stash
+        // but the screws only in a container — neither store alone satisfies the
+        // recipe, yet the combined inventory does, so consuming must be offered.
+        let mut s = AppState::new(fixture());
+        s.set_collected(&"bolts".to_string(), 5);
+        assert!(
+            !s.can_consume_materials(&"workbench_lv1".to_string()),
+            "screws missing entirely → can't consume",
+        );
+        let c = s.create_container("Backpack".into());
+        s.set_container_item(&c, &"screws".to_string(), 3);
+        assert!(
+            s.can_consume_materials(&"workbench_lv1".to_string()),
+            "stash bolts + container screws together cover the recipe",
+        );
+    }
+
+    #[test]
     fn complete_upgrade_consuming_subtracts_recipe_from_collected() {
         let mut s = AppState::new(fixture());
         // Over-stock bolts (another upgrade also wants them) — consuming lv1
@@ -2012,6 +2107,103 @@ mod tests {
             s.collected.get("screws"),
             None,
             "3 - 3 = 0 → entry removed by set_collected",
+        );
+    }
+
+    #[test]
+    fn complete_upgrade_consuming_falls_back_to_containers() {
+        // workbench_lv1 needs bolts×5 + screws×3. The stash covers all 3 screws
+        // and only 3 of the 5 bolts; a container holds the other bolts. Consuming
+        // must drain the stash first, then dip into the container for the 2-bolt
+        // shortfall — leaving the stash empty and the container short by 2.
+        let mut s = AppState::new(fixture());
+        s.set_collected(&"bolts".to_string(), 3);
+        s.set_collected(&"screws".to_string(), 3);
+        let c = s.create_container("Backpack".into());
+        s.set_container_item(&c, &"bolts".to_string(), 4);
+        s.complete_upgrade(&"workbench_lv1".to_string(), true);
+        assert!(s.completed_upgrades.contains("workbench_lv1"));
+        assert_eq!(
+            s.collected.get("bolts"),
+            None,
+            "stash bolts drained first (3 → 0)",
+        );
+        assert_eq!(
+            s.collected.get("screws"),
+            None,
+            "stash screws drained (3 → 0)"
+        );
+        assert_eq!(
+            s.containers[0].contents.get("bolts"),
+            Some(&2),
+            "container covers the 2-bolt shortfall once the stash empties (4 → 2)",
+        );
+    }
+
+    #[test]
+    fn complete_upgrade_consuming_drains_stash_then_same_tier_containers_in_order() {
+        // bolts split 2 (stash) + 2 (first bag) + 4 (second bag). Consuming
+        // workbench_lv2 (bolts×7) takes all of the stash, then — among two
+        // same-tier bags — empties the first before dipping into the second:
+        // 2 + 2 + 3, leaving the last-touched bag with the remainder. Same-kind
+        // containers drain in declaration order; the box-vs-shelf/bag priority
+        // only orders *across* tiers (see the next test).
+        let mut s = AppState::new(fixture());
+        s.set_collected(&"bolts".to_string(), 2);
+        let c1 = s.create_container("First bag".into());
+        s.set_container_item(&c1, &"bolts".to_string(), 2);
+        let c2 = s.create_container("Second bag".into());
+        s.set_container_item(&c2, &"bolts".to_string(), 4);
+        s.complete_upgrade(&"workbench_lv2".to_string(), true);
+        assert_eq!(s.collected.get("bolts"), None, "stash emptied first");
+        assert_eq!(
+            s.containers[0].contents.get("bolts"),
+            None,
+            "first bag emptied next",
+        );
+        assert_eq!(
+            s.containers[1].contents.get("bolts"),
+            Some(&1),
+            "second bag covers the last bolt (4 → 1)",
+        );
+    }
+
+    #[test]
+    fn complete_upgrade_consuming_drains_boxes_before_shelves_and_bags() {
+        // workbench_lv2 needs bolts×7. Stock a bag (declared first), a shelf
+        // (second), then a box / item case (third) — 3 bolts each. The box must
+        // drain first despite its later declaration; the bag and shelf (one tier)
+        // then cover the rest in declaration order: box 3 + bag 3 + shelf 1.
+        let mut s = AppState::new(fixture());
+        let bag = s.create_container("Backpack".into()); // Bag kind (default)
+        s.set_container_item(&bag, &"bolts".to_string(), 3);
+        let shelf = s.create_container("Shelf".into());
+        s.set_container_kind(&shelf, ContainerKind::Shelf);
+        s.set_container_item(&shelf, &"bolts".to_string(), 3);
+        let case = s.create_container("Item case".into());
+        s.set_container_kind(&case, ContainerKind::Case); // the "box"
+        s.set_container_item(&case, &"bolts".to_string(), 3);
+        s.complete_upgrade(&"workbench_lv2".to_string(), true);
+
+        let bolts_in = |id: &ContainerId| {
+            s.containers
+                .iter()
+                .find(|c| &c.id == id)
+                .unwrap()
+                .contents
+                .get("bolts")
+                .copied()
+        };
+        assert_eq!(bolts_in(&case), None, "box drains first (3 → 0)");
+        assert_eq!(
+            bolts_in(&bag),
+            None,
+            "bag drains next — declaration order within the shelves/bags tier (3 → 0)",
+        );
+        assert_eq!(
+            bolts_in(&shelf),
+            Some(2),
+            "shelf covers the remainder after box + bag (3 → 2)",
         );
     }
 
