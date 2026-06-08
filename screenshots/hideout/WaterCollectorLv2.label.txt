@@ -1,5 +1,5 @@
 # WaterCollectorLv2 — ground truth (owned / needed)
-misc_b_pipeline        2/5
-misc_b_insulatingtape  0/5
-misc_b_nail            3/6
-misc_b_spraycan        0/2
+misc_b_pipeline          7/5
+misc_b_insulatingtape    7/5
+misc_b_nail              7/6
+misc_b_spraycan          3/2

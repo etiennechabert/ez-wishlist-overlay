@@ -1,0 +1,5 @@
+# StoragevaluableLv2 — ground truth (owned / needed)
+misc_b_wirecutting       3/4
+misc_wastechip           3/3
+misc_screwdriver         3/3
+misc_b_storagebattery    0/1

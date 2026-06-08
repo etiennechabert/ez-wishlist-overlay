@@ -1,7 +1,5 @@
 # GunsmithLv2 — ground truth (owned / needed)
-# Screenshot taken at a slight tilt — captured from an angle, not
-# straight on. Useful as a "harder" fixture for OCR robustness.
-misc_b_pipeline           2/2
-misc_b_nail               2/6
-misc_b_ceramic_adhesive   1/8
-misc_floppydisk           0/2
+misc_b_pipeline          7/2
+misc_b_nail              7/6
+misc_b_ceramic_adhesive  7/8
+misc_floppydisk          7/2

@@ -1,5 +1,5 @@
 # StorageZoneLock2Lv1 — ground truth (owned / needed)
-misc_b_gastank_large  3/6
-misc_b_wrench         1/6
-misc_screwdriver      1/6
-misc_b_batter_large   0/6
+misc_b_gastank_large     3/6
+misc_b_wrench            7/6
+misc_screwdriver         3/6
+misc_b_batter_large      0/6

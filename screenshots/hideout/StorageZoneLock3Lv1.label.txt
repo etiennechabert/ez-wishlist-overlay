@@ -1,5 +1,5 @@
 # StorageZoneLock3Lv1 — ground truth (owned / needed)
-misc_gunpowder           1/10
+misc_gunpowder           0/10
 misc_b_smokelesspowder   0/10
 misc_b_piezometer        1/8
 misc_b_visionmodule      0/6

@@ -9,76 +9,63 @@
 #
 ## SUMMARY
   recognized 11 item tile(s) across 3 grid row(s)
-  dropped 3 text(s) that matched no catalog item (window title, weight
+  dropped 4 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
-    1 x misc_1batterie_2
-    1 x misc_b_flashlight
-    1 x misc_b_ionbattery
-    1 x misc_b_lighter
-    1 x misc_b_pesticide
-    1 x misc_b_recorder
+    1 x misc_b_ceramic_adhesive
+    2 x misc_b_gastank
+    1 x misc_b_iodophor
+    1 x misc_b_medicalscissors
+    1 x misc_b_nail
+    1 x misc_b_ram
     1 x misc_b_sparkplug
     1 x misc_b_tape
-    2 x misc_b_wrench
-    1 x misc_notebook
+    1 x misc_b_tire_sealant
+    1 x misc_copperwire
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
 #   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
   [chrome]
-    10                             -> (no match)
-  [chrome]
     JUNK BOX                       -> (no match)
-  [chrome]
-    3378294                        -> (no match)
   [items ]
-    Wrench                         -> misc_b_wrench
-    Wrench                         -> misc_b_wrench
-    Pesticide                      -> misc_b_pesticide
-    Lighter                        -> misc_b_lighter
-  [tabs  ]
-    root                           -> (no match)
-    Tool                           -> (no match)
-    Household                      -> (no match)
-    Household                      -> (no match)
-    Combustible                    -> (no match)
-  [chrome]
-    SLurG•r                        -> (no match)
-    JOHNNY'S SERVICE               -> (no match)
-  [chrome]
-    UPGRADE                        -> (no match)
-  [items ]
-    Size O batteryl                -> misc_1batterie_2
-    Rash light                     -> misc_b_flashlight
-    Notebook                       -> misc_notebook
-    Pet Shampoo                    -> (no match)
-  [tabs  ]
-    Power                          -> (no match)
-    Electric                       -> (no match)
-    Intel                          -> (no match)
-    Intel                          -> (no match)
-    Household                      -> (no match)
-  [chrome]
-    SHOP EXPRESS                   -> (no match)
-  [items ]
-    Pet Shampoo                    -> (no match)
+    Copper wire                    -> misc_copperwire
+    Win#roof Matches               -> (no match)
     Spark Plug                     -> misc_b_sparkplug
-    Tape                           -> misc_b_tape
-    Ion Battery                    -> misc_b_ionbattery
-    Recorder                       -> misc_b_recorder
-    RESTOCK                        -> (no match)
+    Ceramic adhesive               -> misc_b_ceramic_adhesive
+    Tire Sealant                   -> misc_b_tire_sealant
   [tabs  ]
-    Household                      -> (no match)
+    Building                       -> (no match)
+    Combustible                    -> (no match)
     Tool                           -> (no match)
+    Building                       -> (no match)
+    Tool                           -> (no match)
+  [chrome]
+    Box Nail                       -> (no match)
+  [items ]
+    Boxed Nails                    -> misc_b_nail
+    "0-40                          -> (no match)
+    Gas can                        -> misc_b_gastank
+    Medical s&sors                 -> misc_b_medicalscissors
+    RAM                            -> misc_b_ram
+  [tabs  ]
+    Building                       -> (no match)
+    Combustible                    -> (no match)
+    Combwtible                     -> (no match)
+    Medical Supplies               -> (no match)
+    Electric                       -> (no match)
+  [chrome]
+    1                              -> (no match)
+  [items ]
+    Tape                           -> misc_b_tape
+    Windproof Matches              -> (no match)
+    Iodine                         -> misc_b_iodophor
+    G •s can                       -> misc_b_gastank
+    G" can                         -> (no match)
+  [tabs  ]
     Intel                          -> (no match)
-    Power                          -> (no match)
-    Intel                          -> (no match)
-  [chrome]
-    JUNK BOX                       -> (no match)
-  [chrome]
-    SUBMIT                         -> (no match)
-  [chrome]
-    - ONLY MISCELLANEOUS ITEMS CAN BE STORED HERE -> (no match)
-    21.86/40 KG                    -> (no match)
+    Combus tible                   -> (no match)
+    Medical Supplies               -> (no match)
+    Combustible                    -> (no match)
+    Combustible                    -> (no match)

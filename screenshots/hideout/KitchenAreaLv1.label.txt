@@ -1,5 +1,0 @@
-# KitchenAreaLv1 — ground truth (owned / needed)
-misc_b_oliveoil     0/3
-misc_b_saltcan      0/2
-misc_b_gastank      1/1
-misc_b_plier_large  4/1

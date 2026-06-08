@@ -6,7 +6,7 @@
 # box.label.txt. Per-shot reads are in the sibling box.shotN.ocr-result.txt.
 #
 ## SUMMARY
-  captured 22/22 label tile(s)  (0 missing, 0 extra)
+  captured 24/24 label tile(s)  (0 missing, 0 extra)
   exact match: YES — the scan reads the label exactly
 #
 ## PER ITEM   (read = scan count, label = ground truth)
@@ -14,15 +14,12 @@
   OK         2/2      misc_b_civilradio
   OK         1/1      misc_b_gaspipewrench
   OK         1/1      misc_b_gunoil
-  OK         2/2      misc_b_harddrive
-  OK         1/1      misc_b_lightbulb
-  OK         1/1      misc_b_oliveoil
+  OK         4/4      misc_b_harddrive
   OK         2/2      misc_b_piezometer
   OK         1/1      misc_b_tapeplayer
   OK         1/1      misc_b_transformer
-  OK         1/1      misc_b_uvlight
   OK         2/2      misc_barcleaner
   OK         4/4      misc_blimbingrope
   OK         1/1      misc_copperwire
-  OK         1/1      misc_gunpowder
-  OK         1/1      misc_oilcan
+  OK         2/2      misc_gunpowder
+  OK         3/3      misc_oilcan

@@ -1,5 +1,0 @@
-# StorageZoneLock1Lv1 — ground truth (owned / needed)
-misc_b_nail               3/3
-misc_b_screw              3/3
-misc_b_disinfectingwipes  2/3
-misc_b_gastank_large      4/3

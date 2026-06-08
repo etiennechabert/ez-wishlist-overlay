@@ -1,0 +1,5 @@
+# SofaLv1 — ground truth (owned / needed)
+misc_blimbingrope        1/5
+misc_b_tire_sealant      4/3
+misc_b_plier_large       0/3
+misc_hammer              1/5

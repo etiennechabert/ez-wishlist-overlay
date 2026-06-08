@@ -1,0 +1,63 @@
+# stash.shot17 — what the OCR read in this one screenshot
+# (auto-generated; do not edit by hand — see screenshots/CLAUDE.md)
+#
+# This is ONE scroll shot of the stash grid. The grid is taller than the
+# screen, so the full contents come from merging every shot — that merged
+# result, scored against the label, lives in stash.ocr-result.txt. This file
+# just shows what the OCR pulled out of this single frame, regenerated from
+# the frozen stash.shot17.boxes.json (so it never runs the game).
+#
+## SUMMARY
+  recognized 11 item tile(s) across 3 grid row(s)
+  dropped 1 text(s) that matched no catalog item (window title, weight
+    readout, category tabs/subtitles — i.e. screen chrome, not items)
+#
+  items found in this frame:
+    1 x misc_1batterie_2
+    2 x misc_b_insulatingtape
+    1 x misc_b_opticaldisc
+    1 x misc_b_pcfan
+    2 x misc_b_pipeline
+    1 x misc_b_spraycan
+    1 x misc_b_tape
+    1 x misc_hammer
+    1 x misc_notebook
+#
+## DETAIL — every text the OCR produced, row by row
+#   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
+#   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
+  [chrome]
+    JUNK BOX                       -> (no match)
+  [items ]
+    Insulating Tape                -> misc_b_insulatingtape
+    Size D batterye                -> misc_1batterie_2
+    Insulating Tape                -> misc_b_insulatingtape
+    Valve                          -> misc_b_pipeline
+  [tabs  ]
+    Electric                       -> (no match)
+    Building                       -> (no match)
+    Power                          -> (no match)
+    Building                       -> (no match)
+    Building                       -> (no match)
+  [items ]
+    Valve                          -> misc_b_pipeline
+    Hammer                         -> misc_hammer
+    Notebook                       -> misc_notebook
+    wutechip                       -> (no match)
+    CPU Fan                        -> misc_b_pcfan
+  [tabs  ]
+    Building                       -> (no match)
+    Tool                           -> (no match)
+    In tel                         -> (no match)
+    Electric                       -> (no match)
+    Electric                       -> (no match)
+  [items ]
+    Tape                           -> misc_b_tape
+    Spray can                      -> misc_b_spraycan
+    co                             -> misc_b_opticaldisc
+  [tabs  ]
+    Intel                          -> (no match)
+    Electric                       -> (no match)
+    Building                       -> (no match)
+    Intel                          -> (no match)
+    Electric                       -> (no match)

@@ -8,62 +8,62 @@
 # the frozen stash.shot06.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 6 item tile(s) across 2 grid row(s)
-  dropped 1 text(s) that matched no catalog item (window title, weight
+  recognized 10 item tile(s) across 3 grid row(s)
+  dropped 5 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
     1 x misc_1batterie_2
-    2 x misc_b_aspire
-    1 x misc_b_ionbattery
+    1 x misc_b_glue_large
+    1 x misc_b_insulatingtape
+    1 x misc_b_moldboard
     1 x misc_b_pipeline
+    1 x misc_b_rat_poison
+    1 x misc_b_rustedcleaner
     1 x misc_b_tire_sealant
+    1 x misc_b_wd40
+    1 x misc_bpu
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
 #   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
   [chrome]
-    105                            -> (no match)
-  [chrome]
     JUNK BOX                       -> (no match)
-  [chrome]
-    0 3379284                      -> (no match)
-  [chrome]
-    Medical Asthma Supplies medicine -> (no match)
-    Notebook Intel                 -> (no match)
-    Tire root Sealant              -> (no match)
-    Building Valve                 -> (no match)
-    Combustible                    -> (no match)
-  [chrome]
-    JOHNNY'S SERVICE               -> (no match)
-  [chrome]
-    Fluh Electric light            -> (no match)
-    Size Power O batteryl          -> (no match)
-    Combustible Gun oil            -> (no match)
-    Medical Iodine Supplies        -> (no match)
-    Household Be•rdOiL             -> (no match)
-    UPGRADE                        -> (no match)
-  [chrome]
-    SHOP EXPRESS                   -> (no match)
   [items ]
-    ASPIR'N                        -> misc_b_aspire
-  [items ]
-    Ion Battery                    -> misc_b_ionbattery
-    Size D batteryi                -> misc_1batterie_2
-    Aspirin                        -> misc_b_aspire
-    Tire Sealant                   -> misc_b_tire_sealant
+    Rat Pabon                      -> (no match)
+    Rat Poison                     -> misc_b_rat_poison
+    Large                          -> (no match)
+    can                            -> (no match)
     Valve                          -> misc_b_pipeline
-    RESTOCK                        -> (no match)
   [tabs  ]
+    Household                      -> (no match)
+    Household                      -> (no match)
+    Combustible                    -> (no match)
+    Building                       -> (no match)
+    Intel                          -> (no match)
+  [chrome]
+    HARGAR'NE'                     -> (no match)
+  [items ]
+    Salt c"                        -> (no match)
+    Tire Sealant                   -> misc_b_tire_sealant
+    CPU                            -> misc_bpu
+    Size O batteryi                -> misc_1batterie_2
+    wo-40                          -> misc_b_wd40
+  [tabs  ]
+    Household                      -> (no match)
+    Tool                           -> (no match)
+    Electric                       -> (no match)
     Power                          -> (no match)
-    Power                          -> (no match)
+    Combustible                    -> (no match)
+  [items ]
+    Rust cleaner                   -> misc_b_rustedcleaner
+    Insulating Tape                -> misc_b_insulatingtape
+    Irgtant glue                   -> misc_b_glue_large
+    Band-aids                      -> (no match)
+    Moldboard                      -> misc_b_moldboard
+  [tabs  ]
+    Household                      -> (no match)
+    Building                       -> (no match)
+    Building                       -> (no match)
     Medical Supplies               -> (no match)
     Tool                           -> (no match)
-    Building                       -> (no match)
-  [chrome]
-    JUNK BOX                       -> (no match)
-  [chrome]
-    SUBMIT                         -> (no match)
-  [chrome]
-    - ONLY MISCELLANEOUS ITEMS CAN BE STORED HERE -> (no match)
-    21.86/40 KG                    -> (no match)

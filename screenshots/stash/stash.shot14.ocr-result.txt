@@ -1,0 +1,65 @@
+# stash.shot14 — what the OCR read in this one screenshot
+# (auto-generated; do not edit by hand — see screenshots/CLAUDE.md)
+#
+# This is ONE scroll shot of the stash grid. The grid is taller than the
+# screen, so the full contents come from merging every shot — that merged
+# result, scored against the label, lives in stash.ocr-result.txt. This file
+# just shows what the OCR pulled out of this single frame, regenerated from
+# the frozen stash.shot14.boxes.json (so it never runs the game).
+#
+## SUMMARY
+  recognized 10 item tile(s) across 3 grid row(s)
+  dropped 4 text(s) that matched no catalog item (window title, weight
+    readout, category tabs/subtitles — i.e. screen chrome, not items)
+#
+  items found in this frame:
+    1 x misc_b_1battery
+    1 x misc_b_insulatingtape
+    1 x misc_b_iodophor
+    1 x misc_b_ionbattery
+    1 x misc_b_medicalscissors
+    1 x misc_b_pcfan
+    1 x misc_b_recorder
+    1 x misc_b_wrench
+    2 x misc_screwdriver
+#
+## DETAIL — every text the OCR produced, row by row
+#   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
+#   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
+  [chrome]
+    JUNK BOX                       -> (no match)
+  [items ]
+    Size O battery2                -> misc_b_1battery
+    Bnd-aids                       -> (no match)
+    Medical scissors               -> misc_b_medicalscissors
+    Recorder                       -> misc_b_recorder
+    Roppydisk                      -> (no match)
+  [tabs  ]
+    Power                          -> (no match)
+    Medical Supplies               -> (no match)
+    Medical Supplies               -> (no match)
+    Intel                          -> (no match)
+    Intel                          -> (no match)
+  [items ]
+    Screwdriver                    -> misc_screwdriver
+    Screwdriver                    -> misc_screwdriver
+    Insulating Tape                -> misc_b_insulatingtape
+    Boxed Bolts                    -> (no match)
+    Boxed Nuts                     -> (no match)
+  [tabs  ]
+    Tool                           -> (no match)
+    Tool                           -> (no match)
+    Building                       -> (no match)
+    Building                       -> (no match)
+    Building                       -> (no match)
+  [items ]
+    Wrench                         -> misc_b_wrench
+    CPU Fan                        -> misc_b_pcfan
+    Iodine                         -> misc_b_iodophor
+    Ion Battery                    -> misc_b_ionbattery
+  [tabs  ]
+    Tool                           -> (no match)
+    Electric                       -> (no match)
+    Electric                       -> (no match)
+    Medical Supplies               -> (no match)
+    Power                          -> (no match)

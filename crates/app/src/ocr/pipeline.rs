@@ -1997,7 +1997,7 @@ mod fixture_tests {
             None,
         );
 
-        let stash_shots: Vec<String> = (0..10)
+        let stash_shots: Vec<String> = (0..20)
             .map(|i| format!("stash.shot{i:02}.boxes.json"))
             .collect();
         let stash = asset_report(
@@ -2469,14 +2469,15 @@ mod fixture_tests {
         }
         eprintln!("Total: {correct}/{labelled} correct, {wrong_writes} wrong writes");
 
-        // Floor at 45 per issue #110. The WebP-q99 fixtures read
-        // ~45-47/59 (down from the lossless 48 baseline), so there is
-        // little headroom left: a large pipeline regression still trips
-        // the gate, and a sub-45 flicker means the fixtures should be
-        // re-encoded lossless, not the floor lowered.
+        // Floor at 50. The FOV-cropped WebP-q99 fixtures (17 panels, 68
+        // labelled cells) read 55/68 stably (runs=3, no flicker) — up from
+        // the old set's ~45-47/59, because the tighter crop enlarges the
+        // pixel-art count digits. Floor set ~5 below the observed read to
+        // lock in the gain while tolerating engine jitter; a sub-50 read
+        // means a real regression (or re-encode lossless), not a floor to lower.
         assert!(
-            correct >= 45,
-            "owned-count accuracy regressed below floor: {correct}/{labelled} (want ≥ 45)"
+            correct >= 50,
+            "owned-count accuracy regressed below floor: {correct}/{labelled} (want ≥ 50)"
         );
     }
 }

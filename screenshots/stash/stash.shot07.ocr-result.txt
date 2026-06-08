@@ -8,60 +8,63 @@
 # the frozen stash.shot07.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 2 item tile(s) across 2 grid row(s)
-  dropped 3 text(s) that matched no catalog item (window title, weight
+  recognized 12 item tile(s) across 3 grid row(s)
+  dropped 2 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
-    1 x misc_b_aspire
-    1 x misc_b_gunoil
+    2 x misc_b_beardoil
+    1 x misc_b_flashlight
+    2 x misc_b_glue_large
+    1 x misc_b_insulatingtape
+    1 x misc_b_lighterfluid
+    1 x misc_b_moldboard
+    1 x misc_b_nail
+    1 x misc_b_rustedcleaner
+    1 x misc_blimbingrope
+    1 x misc_wastechip
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
 #   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
   [chrome]
-    140                            -> (no match)
-  [chrome]
-    105                            -> (no match)
-  [chrome]
     JUNK BOX                       -> (no match)
-  [chrome]
-    0 3379284                      -> (no match)
-  [chrome]
-    Screwdriver rooi               -> (no match)
-    Screwdriver rooi               -> (no match)
-    Combustible G" can             -> (no match)
-    Notebook Intel                 -> (no match)
-    Intel                          -> (no match)
   [items ]
-    ASPIR'N                        -> misc_b_aspire
-    JOHNNY'S SERVICE               -> (no match)
+    Rust cleaner                   -> misc_b_rustedcleaner
+    Insulating Tape                -> misc_b_insulatingtape
+    Instant glue                   -> misc_b_glue_large
+    Band-aids                      -> (no match)
+    Moldboard                      -> misc_b_moldboard
+  [tabs  ]
+    Household                      -> (no match)
+    Building                       -> (no match)
+    Building                       -> (no match)
+    Medical Supplies               -> (no match)
+    Tool                           -> (no match)
   [chrome]
-    UPGRADE                        -> (no match)
-  [chrome]
-    Insulating Building rape       -> (no match)
-    Combustible WD.40              -> (no match)
-    Medical Aspirin Supplies       -> (no match)
-    Super Building Glue            -> (no match)
-    Combustible G" can             -> (no match)
-  [chrome]
-    SHOP EXPRESS                   -> (no match)
-  [chrome]
-    RESTOCK                        -> (no match)
+    Box Nail                       -> (no match)
   [items ]
-    Gun oil                        -> misc_b_gunoil
-    Windproof Match"               -> (no match)
-    Cle•mer                        -> (no match)
+    Lighter fluid                  -> misc_b_lighterfluid
+    Boxed Nails                    -> misc_b_nail
+    BeardOi1                       -> misc_b_beardoil
+    Climbing rape                  -> misc_blimbingrope
   [tabs  ]
     Combustible                    -> (no match)
     Combustible                    -> (no match)
+    Building                       -> (no match)
+    Household                      -> (no match)
+    Tool                           -> (no match)
+  [chrome]
+    1                              -> (no match)
+  [items ]
+    w•stechip                      -> misc_wastechip
+    Int•nt glue                    -> misc_b_glue_large
+    G" can                         -> (no match)
+    Flash light                    -> misc_b_flashlight
+    BeardOi1                       -> misc_b_beardoil
+  [tabs  ]
+    Electric                       -> (no match)
+    Building                       -> (no match)
+    Combustible                    -> (no match)
     Electric                       -> (no match)
     Household                      -> (no match)
-    Combustible                    -> (no match)
-  [chrome]
-    JUNK BOX                       -> (no match)
-  [chrome]
-    SUBMIT                         -> (no match)
-  [chrome]
-    - ONLY MISCELLANEOUS ITEMS CAN BE STORED HERE -> (no match)
-    21.86/40 KG                    -> (no match)

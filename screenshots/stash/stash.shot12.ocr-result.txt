@@ -1,0 +1,70 @@
+# stash.shot12 — what the OCR read in this one screenshot
+# (auto-generated; do not edit by hand — see screenshots/CLAUDE.md)
+#
+# This is ONE scroll shot of the stash grid. The grid is taller than the
+# screen, so the full contents come from merging every shot — that merged
+# result, scored against the label, lives in stash.ocr-result.txt. This file
+# just shows what the OCR pulled out of this single frame, regenerated from
+# the frozen stash.shot12.boxes.json (so it never runs the game).
+#
+## SUMMARY
+  recognized 13 item tile(s) across 3 grid row(s)
+  dropped 2 text(s) that matched no catalog item (window title, weight
+    readout, category tabs/subtitles — i.e. screen chrome, not items)
+#
+  items found in this frame:
+    2 x misc_b_ceramic_adhesive
+    1 x misc_b_deodorant
+    1 x misc_b_gastank_large
+    1 x misc_b_medicalscissors
+    1 x misc_b_pcfan
+    2 x misc_b_recorder
+    1 x misc_b_rustedcleaner
+    1 x misc_b_tape
+    1 x misc_b_wirecutting
+    1 x misc_b_wrench
+    1 x misc_floppydisk
+#
+## DETAIL — every text the OCR produced, row by row
+#   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
+#   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
+  [chrome]
+    JUNK BOX                       -> (no match)
+  [items ]
+    Wire Cutter                    -> misc_b_wirecutting
+    Band-.i&                       -> (no match)
+    Recorder                       -> misc_b_recorder
+    Medical scissors               -> misc_b_medicalscissors
+    Floppydisk                     -> misc_floppydisk
+  [tabs  ]
+    Tool                           -> (no match)
+    Medical Supplies               -> (no match)
+    Intel                          -> (no match)
+    Medical Supplies               -> (no match)
+    Intel                          -> (no match)
+  [items ]
+    Recorder                       -> misc_b_recorder
+    R'bt cleaner                   -> misc_b_rustedcleaner
+    Wrench                         -> misc_b_wrench
+    Fl oppydis k                   -> (no match)
+    Tape                           -> misc_b_tape
+  [tabs  ]
+    Intel                          -> (no match)
+    Household                      -> (no match)
+    Tool                           -> (no match)
+    Intel                          -> (no match)
+    Intel                          -> (no match)
+  [chrome]
+    A                              -> (no match)
+  [items ]
+    Deodorant                      -> misc_b_deodorant
+    Ceramic •dhuive                -> misc_b_ceramic_adhesive
+    Ceramic adhesive               -> misc_b_ceramic_adhesive
+    Large gas can                  -> misc_b_gastank_large
+    CPU Fan                        -> misc_b_pcfan
+  [tabs  ]
+    Household                      -> (no match)
+    Building                       -> (no match)
+    Building                       -> (no match)
+    Combustible                    -> (no match)
+    Electric                       -> (no match)

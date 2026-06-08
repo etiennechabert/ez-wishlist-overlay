@@ -6,47 +6,65 @@
 # stash.label.txt. Per-shot reads are in the sibling stash.shotN.ocr-result.txt.
 #
 ## SUMMARY
-  captured 46/55 label tile(s)  (9 missing, 27 extra)
+  captured 166/218 label tile(s)  (52 missing, 10 extra)
   exact match: NO — see the per-item breakdown below
   note: captures have real scroll gaps (some grid rows appear in no shot), so a partial capture is expected here — informational, not gated
 #
 ## PER ITEM   (read = scan count, label = ground truth)
 # status  read/label  item_id
-  EXTRA      7/2      misc_1batterie_2
-  EXTRA      3/0      misc_b_aspire
-  EXTRA      1/0      misc_b_asthmamedication
-  MISSING    0/1      misc_b_bandaid
-  OK         2/2      misc_b_beardoil
-  EXTRA      5/2      misc_b_ceramic_adhesive
-  OK         1/1      misc_b_deodorant
-  EXTRA      2/1      misc_b_flashlight
-  EXTRA      3/2      misc_b_gastank_large
-  OK         1/1      misc_b_glue_large
-  EXTRA      1/0      misc_b_gunoil
-  OK         1/1      misc_b_insulatingtape
-  EXTRA      4/1      misc_b_ionbattery
-  EXTRA      2/1      misc_b_lighter
-  OK         1/1      misc_b_lighterfluid
-  OK         1/1      misc_b_moldboard
-  OK         4/4      misc_b_nail
-  EXTRA      1/0      misc_b_newphone
+  EXTRA     12/10     misc_1batterie_2
+  MISSING    1/3      misc_b_1battery
+  EXTRA      6/4      misc_b_aspire
+  OK         3/3      misc_b_asthmamedication
+  MISSING    0/3      misc_b_bandaid
+  MISSING    3/5      misc_b_beardoil
+  OK         7/7      misc_b_ceramic_adhesive
+  OK         3/3      misc_b_deodorant
+  OK         2/2      misc_b_disinfectingwipes
+  EXTRA      4/3      misc_b_flashlight
+  MISSING    4/7      misc_b_gastank
+  MISSING    2/3      misc_b_gastank_large
+  OK         2/2      misc_b_glue_large
+  OK         3/3      misc_b_gunoil
+  OK         1/1      misc_b_harddrive
+  OK         7/7      misc_b_insulatingtape
+  MISSING    3/4      misc_b_iodophor
+  MISSING    8/9      misc_b_ionbattery
+  OK         3/3      misc_b_lighterfluid
+  MISSING    0/5      misc_b_match
+  OK         3/3      misc_b_medicalscissors
+  OK         2/2      misc_b_moldboard
+  EXTRA      8/7      misc_b_nail
+  OK         2/2      misc_b_newphone
+  MISSING    0/1      misc_b_nut
   OK         1/1      misc_b_oldphone
-  MISSING    1/5      misc_b_opticaldisc
-  OK         2/2      misc_b_pcfan
+  MISSING    6/7      misc_b_opticaldisc
+  MISSING    7/8      misc_b_pcfan
   OK         1/1      misc_b_pesticide
-  EXTRA      2/1      misc_b_pipeline
-  MISSING    0/1      misc_b_ram
-  OK         2/2      misc_b_rat_poison
-  EXTRA      5/3      misc_b_recorder
-  EXTRA      2/1      misc_b_rustedcleaner
-  OK         2/2      misc_b_saltcan
+  OK         1/1      misc_b_piezometer
+  EXTRA      8/7      misc_b_pipeline
+  MISSING    4/16     misc_b_ram
+  EXTRA      3/2      misc_b_rat_poison
+  EXTRA      8/7      misc_b_recorder
+  OK         2/2      misc_b_rustedcleaner
+  MISSING    0/1      misc_b_saltcan
+  MISSING    0/3      misc_b_screw
   MISSING    0/2      misc_b_shampoo
-  OK         1/1      misc_b_sparkplug
-  OK         2/2      misc_b_tape
-  EXTRA      2/1      misc_b_tire_sealant
-  MISSING    1/2      misc_b_wd40
-  OK         1/1      misc_b_wirecutting
-  OK         3/3      misc_b_wrench
-  EXTRA      2/0      misc_bpu
-  OK         2/2      misc_notebook
-  OK         1/1      misc_screwdriver
+  OK         1/1      misc_b_socket
+  OK         2/2      misc_b_sparkplug
+  OK         3/3      misc_b_spraycan
+  MISSING    1/2      misc_b_superglue
+  MISSING    3/4      misc_b_tape
+  OK         4/4      misc_b_tire_sealant
+  MISSING    5/7      misc_b_wd40
+  OK         3/3      misc_b_wirecutting
+  MISSING    6/7      misc_b_wrench
+  OK         1/1      misc_barcleaner
+  OK         1/1      misc_blimbingrope
+  EXTRA      3/2      misc_bpu
+  OK         2/2      misc_copperwire
+  MISSING    2/7      misc_floppydisk
+  OK         1/1      misc_hammer
+  MISSING    3/5      misc_notebook
+  OK         3/3      misc_screwdriver
+  MISSING    2/3      misc_wastechip

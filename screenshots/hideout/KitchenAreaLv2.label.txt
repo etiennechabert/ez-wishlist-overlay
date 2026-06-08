@@ -1,0 +1,5 @@
+# KitchenAreaLv2 — ground truth (owned / needed)
+misc_b_gastank           7/4
+misc_b_insulatingtape    2/4
+misc_b_pesticide         1/5
+misc_b_wd40              7/5
