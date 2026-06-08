@@ -127,13 +127,36 @@ See `cargo run -p scraper -- --help` for full CLI options (`--repo`, `--ref`, `-
 
 ## Releasing
 
-Releases are produced by [`.github/workflows/release.yml`](../.github/workflows/release.yml). To cut one:
+The version lives in exactly one place — `crates/app/Cargo.toml` — and every
+PR bumps it ahead of the last release (CI's `version-bump` gate). A release tag
+must equal that version. **Don't hand-type the tag** (`git tag v0.1.0`): typing
+"last tag + 1" drifts behind `Cargo.toml` and tags the wrong number — that's
+what produced the dangling `v0.4.2` and `v0.4.4` tags that failed
+[`release.yml`](../.github/workflows/release.yml)'s match guard. Instead, derive
+the tag from `Cargo.toml`:
 
-```bash
-git tag v0.1.0 && git push --tags
+```powershell
+./scripts/release.ps1            # tag v<Cargo.toml version> and push it
+./scripts/release.ps1 -DryRun    # run every check + report; touch nothing
 ```
 
-The workflow runs on a Windows runner:
+The script reads the version, refuses to run on a dirty tree / off `main` / for
+an existing or non-advancing tag, then pushes an annotated `v<version>` tag.
+
+As a belt-and-braces local backstop, enable the committed `pre-push` hook once
+per clone so a mismatched tag is rejected even if you bypass the script:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+[`.githooks/pre-push`](../.githooks/pre-push) is the local mirror of
+`release.yml`'s tag-vs-`Cargo.toml` check — it blocks the push before a bad tag
+ever reaches GitHub. (CI uses fresh checkouts with no `hooksPath`, so
+`release.yml` remains the server-side backstop.)
+
+Pushing the tag triggers [`release.yml`](../.github/workflows/release.yml) on a
+Windows runner:
 
 1. Installs LLVM (for `openvr_sys`'s bindgen step) and the WiX toolset.
 2. Builds `cargo build --release -p ez-wishlist-overlay`.
