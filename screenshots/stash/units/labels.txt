@@ -4,17 +4,17 @@
 # Crops placed from dump_stash_unit_tiles geometry (best mid-screen occurrence).
 
 #hard  misc_1batterie_2.webp  Size D battery1
-#hard  misc_b_1battery.webp  Size D battery2
+misc_b_1battery.webp  Size D battery2
 #hard  misc_b_aspire.webp  Aspirin
 misc_b_asthmamedication.webp  Asthma medicine
 #hard  misc_b_beardoil.webp  BeardOil
 misc_b_ceramic_adhesive.webp  Ceramic adhesive
 misc_b_deodorant.webp  Deodorant
 misc_b_disinfectingwipes.webp  Disinfectant wipes
-#hard  misc_b_flashlight.webp  Flash light
+misc_b_flashlight.webp  Flash light
 misc_b_gastank.webp  Gas can
 misc_b_gastank_large.webp  Large gas can
-#hard  misc_b_glue_large.webp  Instant glue
+misc_b_glue_large.webp  Instant glue
 misc_b_gunoil.webp  Gun oil
 misc_b_harddrive.webp  Hard Drive
 misc_b_insulatingtape.webp  Insulating Tape
@@ -24,22 +24,22 @@ misc_b_lighterfluid.webp  Lighter fluid
 misc_b_medicalscissors.webp  Medical scissors
 misc_b_moldboard.webp  Moldboard
 misc_b_nail.webp  Boxed Nails
-#hard  misc_b_newphone.webp  NewPhone
+misc_b_newphone.webp  NewPhone
 misc_b_oldphone.webp  OldPhone
 #hard  misc_b_opticaldisc.webp  CD
-#hard  misc_b_pcfan.webp  CPU Fan
-#hard  misc_b_pesticide.webp  Pesticide
+misc_b_pcfan.webp  CPU Fan
+misc_b_pesticide.webp  Pesticide
 misc_b_piezometer.webp  Piezometer
 misc_b_pipeline.webp  Valve
-#hard  misc_b_ram.webp  RAM
+misc_b_ram.webp  RAM
 misc_b_rat_poison.webp  Rat Poison
 misc_b_recorder.webp  Recorder
-#hard  misc_b_rustedcleaner.webp  Rust cleaner
-#hard  misc_b_socket.webp  Socket
+misc_b_rustedcleaner.webp  Rust cleaner
+misc_b_socket.webp  Socket
 misc_b_sparkplug.webp  Spark Plug
 misc_b_spraycan.webp  Spray can
 misc_b_superglue.webp  Super Glue
-#hard  misc_b_tape.webp  Tape
+misc_b_tape.webp  Tape
 misc_b_tire_sealant.webp  Tire Sealant
 #hard  misc_b_wd40.webp  WD-40
 misc_b_wirecutting.webp  Wire Cutter
