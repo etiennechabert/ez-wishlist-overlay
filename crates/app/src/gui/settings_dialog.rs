@@ -73,17 +73,20 @@ pub fn show(
                         overlay_section(ui, &mut working.vr);
                     }
                     SettingsTab::Capture => {
-                        capture_guide_section(ui, &mut working.vr.capture_trigger);
+                        capture_guide_section(
+                            ui,
+                            &mut working.vr.capture_trigger,
+                            &mut working.capture_eye,
+                        );
                         ui.add_space(12.0);
                         ocr_section(
                             ui,
                             &mut working.ocr_enabled,
-                            &mut working.capture_eye,
-                            &mut working.ocr_debug,
                             &mut working.ocr_dismiss_seconds,
                             &mut working.ocr_auto_track,
-                            &mut working.ocr_capture_trace,
                         );
+                        ui.add_space(12.0);
+                        debug_section(ui, &mut working.ocr_debug, &mut working.ocr_capture_trace);
                     }
                 });
 
@@ -147,15 +150,11 @@ fn appearance_section(ui: &mut egui::Ui, theme: &mut Theme, color_scheme: &mut C
     });
 }
 
-#[allow(clippy::too_many_arguments)]
 fn ocr_section(
     ui: &mut egui::Ui,
     ocr_enabled: &mut bool,
-    capture_eye: &mut CaptureEye,
-    ocr_debug: &mut bool,
     ocr_dismiss_seconds: &mut u32,
     ocr_auto_track: &mut bool,
-    ocr_capture_trace: &mut bool,
 ) {
     ui.heading("Screenshot OCR");
     ui.add_space(4.0);
@@ -197,19 +196,6 @@ fn ocr_section(
 
     ui.add_space(6.0);
     ui.horizontal(|ui| {
-        ui.label("Capture eye").on_hover_text(
-            "Which compositor mirror eye texture to feed into OCR. On most \
-             headsets the right eye stays in sync with what you see; the \
-             left-eye mirror has been observed lagging by one frame on \
-             some setups, which would surface as \"OCR reads the previous \
-             panel.\" Try the other side if you see that.",
-        );
-        ui.selectable_value(capture_eye, CaptureEye::Right, "Right");
-        ui.selectable_value(capture_eye, CaptureEye::Left, "Left");
-    });
-
-    ui.add_space(6.0);
-    ui.horizontal(|ui| {
         ui.label("Hide feedback card after (s)").on_hover_text(
             "After a capture, the head-locked feedback card in the headset \
              — the one listing each required item's new owned count — fades \
@@ -219,8 +205,15 @@ fn ocr_section(
         );
         stepper_slider_u32(ui, ocr_dismiss_seconds, bounds::OCR_DISMISS_SECS, 1, " s");
     });
+}
 
-    ui.add_space(6.0);
+/// Debug toggles, split out from the everyday Screenshot-OCR controls. Both are
+/// off by default and make each capture much heavier (full-frame PNG + per-cell
+/// strips on disk; FNV hashing of ~30 MB per capture) — only worth turning on to
+/// gather material for a bug report.
+fn debug_section(ui: &mut egui::Ui, ocr_debug: &mut bool, ocr_capture_trace: &mut bool) {
+    ui.heading("Debug");
+    ui.add_space(4.0);
     ui.checkbox(ocr_debug, "Save OCR debug artifacts (for bug reports)")
         .on_hover_text(
             "When on, every OCR pass keeps the full screenshot PNG, drops \
@@ -378,10 +371,15 @@ fn overlay_section(ui: &mut egui::Ui, vr: &mut VrSettings) {
     );
 }
 
-/// The capture-guide trigger sits with the OCR settings on the Capture tab
-/// rather than the overlay-layout sliders — both concern the screenshot-capture
-/// flow, not how the wishlist panel is laid out.
-fn capture_guide_section(ui: &mut egui::Ui, capture_trigger: &mut CaptureHand) {
+/// Capture-flow controls for the Capture tab. The trigger (which controller
+/// fires a capture) and the eye (which mirror texture OCR reads) live together
+/// here so the two Right/Left side-choices sit side by side, rather than being
+/// split across this section and Screenshot OCR.
+fn capture_guide_section(
+    ui: &mut egui::Ui,
+    capture_trigger: &mut CaptureHand,
+    capture_eye: &mut CaptureEye,
+) {
     ui.heading("Capture guide (OCR)");
     ui.add_space(4.0);
     let weak = ui.visuals().weak_text_color();
@@ -405,6 +403,19 @@ fn capture_guide_section(ui: &mut egui::Ui, capture_trigger: &mut CaptureHand) {
         );
         ui.selectable_value(capture_trigger, CaptureHand::Right, "Right");
         ui.selectable_value(capture_trigger, CaptureHand::Left, "Left");
+    });
+
+    ui.add_space(6.0);
+    ui.horizontal(|ui| {
+        ui.label("Capture eye").on_hover_text(
+            "Which compositor mirror eye texture to feed into OCR. On most \
+             headsets the right eye stays in sync with what you see; the \
+             left-eye mirror has been observed lagging by one frame on \
+             some setups, which would surface as \"OCR reads the previous \
+             panel.\" Try the other side if you see that.",
+        );
+        ui.selectable_value(capture_eye, CaptureEye::Right, "Right");
+        ui.selectable_value(capture_eye, CaptureEye::Left, "Left");
     });
 }
 
