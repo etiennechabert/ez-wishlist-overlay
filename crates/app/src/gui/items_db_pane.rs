@@ -11,7 +11,7 @@
 
 use crate::data::Item;
 use crate::gui::IconCache;
-use crate::state::{AppState, NeedHorizon};
+use crate::state::{AppState, ContainerId, NeedHorizon};
 use egui_extras::{Column, TableBuilder};
 use parking_lot::RwLock;
 use std::collections::{HashMap, HashSet};
@@ -37,6 +37,19 @@ pub enum SortDir {
     Desc,
 }
 
+/// Which container the list is scoped to via the quick "Container" picker.
+/// `All` applies no location filter; `Stash` keeps only items held in the
+/// primary stash; `Container(id)` keeps only items held in that secondary
+/// container. Keyed by id (not name) so it survives renames and stays
+/// unambiguous when two containers happen to share a name.
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub enum ContainerFilter {
+    #[default]
+    All,
+    Stash,
+    Container(ContainerId),
+}
+
 pub struct ItemsDbState {
     pub filter: String,
     pub sort_by: SortColumn,
@@ -53,6 +66,9 @@ pub struct ItemsDbState {
     /// When true, keep only redundant rows — items held in excess of what
     /// `horizon` needs (`surplus > 0`), i.e. safe to spend or sell.
     pub redundant_only: bool,
+    /// Quick location filter from the "Container" picker — restricts the list
+    /// to a single container (or the stash). See [`ContainerFilter`].
+    pub container_filter: ContainerFilter,
 }
 
 impl Default for ItemsDbState {
@@ -67,6 +83,7 @@ impl Default for ItemsDbState {
             // Aggressive (Tracked) and cautious (All future) are a click away.
             horizon: NeedHorizon::AllNatural,
             redundant_only: false,
+            container_filter: ContainerFilter::All,
         }
     }
 }
@@ -79,31 +96,43 @@ pub fn ui(
 ) {
     // Snapshot everything we need from state in one read, so the table
     // body below isn't repeatedly grabbing the RwLock per row.
-    let (data, owned, stash, containers_by_item, tracked_ids) = {
+    let (data, owned, stash, containers_by_item, container_list, tracked_ids) = {
         let s = state.read();
-        // Stash counts on their own — used only to attribute the stash portion
-        // in the per-item location tooltip.
+        // Stash counts on their own — drive the "Stash ×N" segment in the
+        // Containers cell and the `Stash` quick filter.
         let stash: HashMap<String, u32> = s.collected.clone();
         // Combined owned total (stash + every container). Every quantity-driven
         // column below — Qty, Surplus, Total wt/val — reads this, so they all
         // count the whole inventory.
         let mut owned = stash.clone();
-        // Reverse index: item id → which secondary containers hold it, and how
-        // many. Built once here so the virtualized body never scans containers.
-        let mut containers_by_item: HashMap<String, Vec<(String, u32)>> = HashMap::new();
+        // Reverse index: item id → which secondary containers hold it, as
+        // (container id, name, qty). The id backs the per-container quick
+        // filter; the name + qty render the cell. Built once here so the
+        // virtualized body never scans containers.
+        let mut containers_by_item: HashMap<String, Vec<(ContainerId, String, u32)>> =
+            HashMap::new();
         for c in &s.containers {
             for (item_id, &qty) in &c.contents {
                 *owned.entry(item_id.clone()).or_insert(0) += qty;
                 containers_by_item
                     .entry(item_id.clone())
                     .or_default()
-                    .push((c.name.clone(), qty));
+                    .push((c.id.clone(), c.name.clone(), qty));
             }
         }
-        // Stable display order within a cell, independent of HashMap iteration.
+        // Stable display order within a cell, independent of HashMap iteration:
+        // by name, then id so same-named containers stay deterministic.
         for parts in containers_by_item.values_mut() {
-            parts.sort_by(|a, b| a.0.cmp(&b.0));
+            parts.sort_by(|a, b| a.1.cmp(&b.1).then_with(|| a.0.cmp(&b.0)));
         }
+        // (id, name) of every secondary container, for the quick-filter picker —
+        // same name-then-id order as the cell segments.
+        let mut container_list: Vec<(ContainerId, String)> = s
+            .containers
+            .iter()
+            .map(|c| (c.id.clone(), c.name.clone()))
+            .collect();
+        container_list.sort_by(|a, b| a.1.cmp(&b.1).then_with(|| a.0.cmp(&b.0)));
         let tracked_ids: HashSet<String> =
             s.active_items().into_iter().map(|a| a.item_id).collect();
         (
@@ -111,9 +140,20 @@ pub fn ui(
             owned,
             stash,
             containers_by_item,
+            container_list,
             tracked_ids,
         )
     };
+
+    // A filter pointing at a since-deleted container would match nothing and
+    // read as "this container is empty" — fall back to All instead.
+    let stale_container = matches!(
+        &db.container_filter,
+        ContainerFilter::Container(id) if !container_list.iter().any(|(cid, _)| cid == id)
+    );
+    if stale_container {
+        db.container_filter = ContainerFilter::All;
+    }
 
     ui.horizontal(|ui| {
         ui.label("Filter:");
@@ -121,6 +161,40 @@ pub fn ui(
         if ui.button("✕").clicked() {
             db.filter.clear();
         }
+        ui.add_space(12.0);
+        ui.label("Container:");
+        let selected_text = match &db.container_filter {
+            ContainerFilter::All => "All containers".to_owned(),
+            ContainerFilter::Stash => "Stash".to_owned(),
+            ContainerFilter::Container(id) => container_list
+                .iter()
+                .find(|(cid, _)| cid == id)
+                .map(|(_, name)| name.clone())
+                .unwrap_or_else(|| "All containers".to_owned()),
+        };
+        egui::ComboBox::from_id_salt("itemsdb-container-filter")
+            .selected_text(selected_text)
+            .show_ui(ui, |ui| {
+                ui.selectable_value(
+                    &mut db.container_filter,
+                    ContainerFilter::All,
+                    "All containers",
+                );
+                ui.selectable_value(&mut db.container_filter, ContainerFilter::Stash, "Stash");
+                for (id, name) in &container_list {
+                    ui.selectable_value(
+                        &mut db.container_filter,
+                        ContainerFilter::Container(id.clone()),
+                        name,
+                    );
+                }
+            })
+            .response
+            .on_hover_text(
+                "Show only items held in the chosen container. \"Stash\" is the \
+                 primary container; the rest are your secondary containers from \
+                 the Containers tab.",
+            );
         ui.add_space(12.0);
         ui.checkbox(&mut db.tracked_only, "Tracked only")
             .on_hover_text(
@@ -164,6 +238,13 @@ pub fn ui(
         .iter()
         .filter(|item| item.category.as_deref() == Some("misc"))
         .filter(|item| !db.tracked_only || tracked_ids.contains(&item.id))
+        .filter(|item| match &db.container_filter {
+            ContainerFilter::All => true,
+            ContainerFilter::Stash => stash.get(&item.id).copied().unwrap_or(0) > 0,
+            ContainerFilter::Container(id) => containers_by_item
+                .get(&item.id)
+                .is_some_and(|parts| parts.iter().any(|(cid, _, _)| cid == id)),
+        })
         .filter(|item| !db.redundant_only || surplus_amount(item, &owned, &needs) > 0)
         .filter(|item| {
             if filter_lc.is_empty() {
@@ -184,6 +265,7 @@ pub fn ui(
         db.sort_by,
         db.sort_dir,
         &owned,
+        &stash,
         &needs,
         &containers_by_item,
     );
@@ -313,18 +395,21 @@ pub fn ui(
                     ui.label(text);
                 });
                 row.col(|ui| {
-                    // Which secondary containers hold this item (the new
-                    // info). Stash-only items show a dim "—"; the full
-                    // breakdown incl. the stash portion is in the hover.
-                    let label = container_cell_label(containers_by_item.get(&item.id));
+                    // Where this item lives: "Stash ×N · Container ×M · …".
+                    // Items held nowhere (qty 0 across the whole inventory)
+                    // show a dim "—". The hover repeats the full text for when
+                    // the cell clips.
+                    let label = container_cell_label(
+                        stash.get(&item.id).copied().unwrap_or(0),
+                        containers_by_item.get(&item.id),
+                    );
                     if label.is_empty() {
                         ui.label(egui::RichText::new("—").color(weak));
                     } else {
-                        ui.add(egui::Label::new(label).wrap_mode(egui::TextWrapMode::Truncate))
-                            .on_hover_text(container_tooltip(
-                                stash.get(&item.id).copied().unwrap_or(0),
-                                containers_by_item.get(&item.id),
-                            ));
+                        ui.add(
+                            egui::Label::new(label.clone()).wrap_mode(egui::TextWrapMode::Truncate),
+                        )
+                        .on_hover_text(label);
                     }
                 });
                 row.col(|ui| {
@@ -398,8 +483,9 @@ fn sort_rows(
     col: SortColumn,
     dir: SortDir,
     collected: &HashMap<String, u32>,
+    stash: &HashMap<String, u32>,
     needs: &HashMap<String, u32>,
-    containers_by_item: &HashMap<String, Vec<(String, u32)>>,
+    containers_by_item: &HashMap<String, Vec<(ContainerId, String, u32)>>,
 ) {
     rows.sort_by(|a, b| {
         let ord = match col {
@@ -416,10 +502,18 @@ fn sort_rows(
                 qa.cmp(&qb)
             }
             SortColumn::Containers => {
-                // By how many distinct secondary containers hold the item —
-                // most-spread-out first (on the descending default click).
-                let na = containers_by_item.get(&a.id).map_or(0, |v| v.len());
-                let nb = containers_by_item.get(&b.id).map_or(0, |v| v.len());
+                // By how many locations hold the item — the stash plus each
+                // secondary container — most-spread-out first (on the
+                // descending default click). Counting the stash keeps this in
+                // step with the "Stash ×N" segment now shown in the cell.
+                let na = location_count(
+                    stash.get(&a.id).copied().unwrap_or(0),
+                    containers_by_item.get(&a.id),
+                );
+                let nb = location_count(
+                    stash.get(&b.id).copied().unwrap_or(0),
+                    containers_by_item.get(&b.id),
+                );
                 na.cmp(&nb)
             }
             SortColumn::Surplus => {
@@ -491,39 +585,30 @@ fn surplus_amount(
     have.saturating_sub(need)
 }
 
-/// The Containers cell text: secondary-container holdings as
-/// "Name ×qty · Name ×qty". Empty when the item lives only in the stash (or
-/// nowhere) — those rows render a dim "—" instead, so the column only draws
-/// attention when there's genuinely container info to show.
-fn container_cell_label(parts: Option<&Vec<(String, u32)>>) -> String {
-    match parts {
-        Some(parts) if !parts.is_empty() => parts
-            .iter()
-            .map(|(name, qty)| format!("{name} ×{qty}"))
-            .collect::<Vec<_>>()
-            .join(" · "),
-        _ => String::new(),
-    }
-}
-
-/// Full where-is-it breakdown for the cell's hover tooltip, including the stash
-/// portion so the user sees the complete split (e.g. "Stash ×2 · Backpack ×3")
-/// even though the cell itself shows only the secondary containers.
-fn container_tooltip(stash: u32, parts: Option<&Vec<(String, u32)>>) -> String {
+/// The Containers cell text: every location holding the item, stash first, as
+/// "Stash ×qty · Name ×qty · …". The stash leads because it's the primary
+/// container (and the target of the quick +/- edits). Empty only when the item
+/// is held nowhere (qty 0 across the whole inventory) — those rows render a dim
+/// "—" instead, so the column draws attention only when there's something to
+/// show.
+fn container_cell_label(stash: u32, parts: Option<&Vec<(ContainerId, String, u32)>>) -> String {
     let mut segs: Vec<String> = Vec::new();
     if stash > 0 {
         segs.push(format!("Stash ×{stash}"));
     }
     if let Some(parts) = parts {
-        for (name, qty) in parts {
+        for (_id, name, qty) in parts {
             segs.push(format!("{name} ×{qty}"));
         }
     }
-    if segs.is_empty() {
-        "Not stored anywhere yet".to_string()
-    } else {
-        segs.join(" · ")
-    }
+    segs.join(" · ")
+}
+
+/// How many distinct locations hold the item — the stash (when non-zero) plus
+/// each secondary container. Backs the "Containers" column sort so it matches
+/// the segments shown by [`container_cell_label`].
+fn location_count(stash: u32, parts: Option<&Vec<(ContainerId, String, u32)>>) -> usize {
+    usize::from(stash > 0) + parts.map_or(0, |v| v.len())
 }
 
 /// Count / weight / value reclaimable by clearing the surplus across the
@@ -618,4 +703,48 @@ pub(crate) fn format_price(p: u64) -> String {
         out.push(ch);
     }
     out.chars().rev().collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parts(items: &[(&str, &str, u32)]) -> Vec<(ContainerId, String, u32)> {
+        items
+            .iter()
+            .map(|(id, name, qty)| (id.to_string(), name.to_string(), *qty))
+            .collect()
+    }
+
+    #[test]
+    fn cell_label_empty_when_held_nowhere() {
+        // qty 0 across the whole inventory → no segments → the cell renders a
+        // dim "—" (the empty-string branch in the body).
+        assert_eq!(container_cell_label(0, None), "");
+        assert_eq!(container_cell_label(0, Some(&parts(&[]))), "");
+    }
+
+    #[test]
+    fn cell_label_lists_stash_first_then_containers() {
+        let p = parts(&[("ctr-1", "Big", 4), ("ctr-2", "small2", 3)]);
+        assert_eq!(
+            container_cell_label(1, Some(&p)),
+            "Stash ×1 · Big ×4 · small2 ×3"
+        );
+        // Single-location cases render just their one segment.
+        assert_eq!(container_cell_label(3, None), "Stash ×3");
+        assert_eq!(
+            container_cell_label(0, Some(&parts(&[("ctr-1", "Big", 4)]))),
+            "Big ×4"
+        );
+    }
+
+    #[test]
+    fn location_count_counts_stash_as_one_location() {
+        assert_eq!(location_count(0, None), 0);
+        assert_eq!(location_count(2, None), 1);
+        let p = parts(&[("ctr-1", "Big", 4), ("ctr-2", "small2", 3)]);
+        assert_eq!(location_count(0, Some(&p)), 2);
+        assert_eq!(location_count(5, Some(&p)), 3);
+    }
 }
