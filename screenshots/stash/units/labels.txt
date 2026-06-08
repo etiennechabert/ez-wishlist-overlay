@@ -5,9 +5,9 @@
 
 #hard  misc_1batterie_2.webp  Size D battery1
 misc_b_1battery.webp  Size D battery2
-#hard  misc_b_aspire.webp  Aspirin
+misc_b_aspire.webp  Aspirin
 misc_b_asthmamedication.webp  Asthma medicine
-#hard  misc_b_beardoil.webp  BeardOil
+misc_b_beardoil.webp  BeardOil
 misc_b_ceramic_adhesive.webp  Ceramic adhesive
 misc_b_deodorant.webp  Deodorant
 misc_b_disinfectingwipes.webp  Disinfectant wipes
@@ -30,8 +30,8 @@ misc_b_oldphone.webp  OldPhone
 misc_b_pcfan.webp  CPU Fan
 misc_b_pesticide.webp  Pesticide
 misc_b_piezometer.webp  Piezometer
-misc_b_pipeline.webp  Valve
-misc_b_ram.webp  RAM
+#hard  misc_b_pipeline.webp  Valve
+#hard  misc_b_ram.webp  RAM
 misc_b_rat_poison.webp  Rat Poison
 misc_b_recorder.webp  Recorder
 misc_b_rustedcleaner.webp  Rust cleaner
@@ -41,7 +41,7 @@ misc_b_spraycan.webp  Spray can
 misc_b_superglue.webp  Super Glue
 misc_b_tape.webp  Tape
 misc_b_tire_sealant.webp  Tire Sealant
-#hard  misc_b_wd40.webp  WD-40
+misc_b_wd40.webp  WD-40
 misc_b_wirecutting.webp  Wire Cutter
 misc_b_wrench.webp  Wrench
 #hard  misc_barcleaner.webp  Cleaner
