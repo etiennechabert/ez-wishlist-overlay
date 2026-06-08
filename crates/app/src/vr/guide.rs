@@ -32,7 +32,9 @@
 
 use crate::vr::capture_session::CaptureMode;
 use crate::vr::text;
-use tiny_skia::{Color, Paint, PathBuilder, Pixmap, PixmapPaint, Rect, Stroke, Transform};
+use tiny_skia::{
+    Color, FillRule, LineCap, Paint, PathBuilder, Pixmap, PixmapPaint, Rect, Stroke, Transform,
+};
 
 /// Frame stroke width, in px. Thin — a gentle aiming guide, not a bold frame
 /// (issue #141 part 3).
@@ -61,6 +63,58 @@ fn caption_color() -> Color {
 }
 fn chip_text_color() -> Color {
     Color::from_rgba8(20, 20, 24, 255)
+}
+/// Bright off-white for the hideout count digits — reads against the game
+/// behind the transparent box.
+fn count_color() -> Color {
+    Color::from_rgba8(245, 245, 255, 255)
+}
+/// Green ✓ (a tile matched a catalog item).
+fn check_ok_color() -> Color {
+    Color::from_rgba8(90, 220, 120, 255)
+}
+/// Red ✗ (a tile was detected but couldn't be read/matched).
+fn check_bad_color() -> Color {
+    Color::from_rgba8(235, 90, 80, 255)
+}
+/// Dark, semi-opaque backing drawn behind each mark so it stays legible over a
+/// busy game background seen through the otherwise-transparent hole.
+fn mark_backing() -> Color {
+    Color::from_rgba8(16, 18, 22, 200)
+}
+
+/// A per-item feedback mark painted **over the real items** seen through the
+/// guide box's hole (issue #137). Positions are normalized to the crop rect
+/// (`x`/`y` are fractions in `0.0..=1.0`, sourced from #138's `NormRect`
+/// centers / `GridRow`+`GridCell`); since the hole *is* the crop, the renderer
+/// maps them into the hole sub-rect so the marks line up with what's on screen.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum GuideMark {
+    /// Hideout: the read owned-count at a panel cell. `None` = the cell was
+    /// seen but its count couldn't be read (drawn as "?").
+    Count { x: f32, y: f32, count: Option<u32> },
+    /// Box / stash: a tile matched a catalog item (`true` → green ✓) or was
+    /// detected but couldn't be read/matched (`false` → red ✗).
+    Check { x: f32, y: f32, matched: bool },
+}
+
+impl GuideMark {
+    fn xy(&self) -> (f32, f32) {
+        match self {
+            GuideMark::Count { x, y, .. } | GuideMark::Check { x, y, .. } => (*x, *y),
+        }
+    }
+}
+
+/// Map a normalized crop position to a pixel center inside the texture's
+/// **hole** (== the OCR crop, #137). The hole is a sub-rect of the texture —
+/// the margins carry the caption / chip / frame (#141) — so a normalized crop
+/// coord lands at `hole_origin + frac · hole_size`. Clamped to stay in the hole.
+pub fn mark_px(x: f32, y: f32, layout: &GuideTexLayout) -> (f32, f32) {
+    (
+        layout.hole_x as f32 + x.clamp(0.0, 1.0) * layout.hole_w as f32,
+        layout.hole_y as f32 + y.clamp(0.0, 1.0) * layout.hole_h as f32,
+    )
 }
 
 /// Where the transparent hole (== the OCR crop) sits inside the guide texture,
@@ -113,6 +167,7 @@ pub fn render(
     chip_label: &str,
     chip_rgb: (u8, u8, u8),
     trigger_label: &str,
+    marks: &[GuideMark],
     layout: &GuideTexLayout,
 ) -> Pixmap {
     // Pixmap::new zero-fills → fully transparent; we only paint the frame +
@@ -165,6 +220,10 @@ pub fn render(
         );
     }
 
+    // Per-item OCR marks (#137), painted inside the hole over the real items.
+    // Drawn before the chip so the bottom-margin chip never sits under a mark.
+    draw_marks(&mut pix, marks, layout);
+
     // Status chip — a filled pill-ish rect centered in the BOTTOM margin, below
     // the hole, colored + labelled by the caller. Below the crop so it never
     // occludes a grid tile in the capture (the bug #141 calls out).
@@ -216,6 +275,91 @@ pub fn side_by_side(content: &Pixmap, eye_is_left: bool) -> Pixmap {
         None,
     );
     dbl
+}
+
+/// Paint every per-item mark (#137) into the hole at its normalized crop
+/// position. No-op when `marks` is empty (the steady state, no recent capture).
+fn draw_marks(pix: &mut Pixmap, marks: &[GuideMark], layout: &GuideTexLayout) {
+    if marks.is_empty() {
+        return;
+    }
+    // Size relative to the HOLE (the crop), not the full texture, so it reads
+    // consistently regardless of margin size; clamped to a legible band.
+    let sz = (layout.hole_h as f32 * 0.06).clamp(22.0, 80.0);
+    for mark in marks {
+        let (x, y) = mark.xy();
+        let (cx, cy) = mark_px(x, y, layout);
+        match mark {
+            GuideMark::Count { count, .. } => {
+                let text = match count {
+                    Some(n) => n.to_string(),
+                    None => "?".to_string(),
+                };
+                draw_count(pix, cx, cy, sz, &text);
+            }
+            GuideMark::Check { matched, .. } => draw_check(pix, cx, cy, sz, *matched),
+        }
+    }
+}
+
+/// Hideout: a read owned-count, drawn centered at `(cx, cy)` over a dark pill so
+/// the digits read against the game behind the transparent hole.
+fn draw_count(pix: &mut Pixmap, cx: f32, cy: f32, sz: f32, text: &str) {
+    let tw = text::measure_width(text, sz).max(sz * 0.5);
+    let pad = sz * 0.35;
+    let pw = tw + pad * 2.0;
+    let ph = sz + pad;
+    if let Some(rect) = Rect::from_xywh(cx - pw / 2.0, cy - ph / 2.0, pw, ph) {
+        let mut paint = Paint::default();
+        paint.set_color(mark_backing());
+        paint.anti_alias = true;
+        pix.fill_rect(rect, &paint, Transform::identity(), None);
+    }
+    // Baseline ≈ center + ~0.35·size puts the digit body visually centered.
+    let baseline = cy + sz * 0.35;
+    text::draw_text(pix, text, cx - tw / 2.0, baseline, sz, count_color());
+}
+
+/// Box / stash: a green ✓ (matched) or red ✗ (unread) over a dark disc. Drawn as
+/// stroked vector paths rather than font glyphs so it renders crisply and
+/// doesn't depend on the loaded font carrying the ✓/✗ code points.
+fn draw_check(pix: &mut Pixmap, cx: f32, cy: f32, sz: f32, matched: bool) {
+    let r = sz * 0.6;
+    if let Some(disc) = PathBuilder::from_circle(cx, cy, r) {
+        let mut bg = Paint::default();
+        bg.set_color(mark_backing());
+        bg.anti_alias = true;
+        pix.fill_path(&disc, &bg, FillRule::Winding, Transform::identity(), None);
+    }
+    let mut paint = Paint::default();
+    paint.set_color(if matched {
+        check_ok_color()
+    } else {
+        check_bad_color()
+    });
+    paint.anti_alias = true;
+    let stroke = Stroke {
+        width: (sz * 0.16).max(2.0),
+        line_cap: LineCap::Round,
+        ..Default::default()
+    };
+    let mut pb = PathBuilder::new();
+    if matched {
+        // Checkmark: short arm down to a low-left vertex, long arm up-right.
+        pb.move_to(cx - r * 0.45, cy + r * 0.02);
+        pb.line_to(cx - r * 0.08, cy + r * 0.40);
+        pb.line_to(cx + r * 0.50, cy - r * 0.40);
+    } else {
+        // Cross: two diagonals through the center.
+        let d = r * 0.42;
+        pb.move_to(cx - d, cy - d);
+        pb.line_to(cx + d, cy + d);
+        pb.move_to(cx + d, cy - d);
+        pb.line_to(cx - d, cy + d);
+    }
+    if let Some(path) = pb.finish() {
+        pix.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
+    }
 }
 
 /// Stroke a thin frame border just **outside** the hole, plus subtle corner
@@ -303,6 +447,7 @@ mod tests {
             "Ready — pull trigger",
             (80, 180, 100),
             "RIGHT",
+            &[],
             &layout,
         );
         assert_eq!((pix.width(), pix.height()), (layout.tex_w, layout.tex_h));
@@ -316,6 +461,7 @@ mod tests {
             "Capturing…",
             (200, 180, 80),
             "RIGHT",
+            &[],
             &layout,
         );
         let cy = layout.hole_y + layout.hole_h / 2;
@@ -346,6 +492,7 @@ mod tests {
             "Ready",
             (80, 180, 100),
             "RIGHT",
+            &[],
             &layout,
         );
         let w = content.width();
@@ -381,6 +528,7 @@ mod tests {
             "Reading…",
             (89, 190, 175),
             "RIGHT",
+            &[],
             &layout,
         );
         assert!(pix.width() >= 1 && pix.height() >= 1);
@@ -398,6 +546,7 @@ mod tests {
             "Capturing…",
             (200, 180, 80),
             "RIGHT",
+            &[],
             &layout,
         );
         if std::env::var("RENDER_SNAPSHOT").is_ok() {
@@ -405,5 +554,81 @@ mod tests {
             pix.save_png(&path).expect("save guide snapshot");
             eprintln!("guide snapshot saved to {}", path.display());
         }
+    }
+
+    #[test]
+    fn mark_px_maps_normalized_into_the_hole() {
+        let l = layout_for_hole(800, 600);
+        // Corners + center map through the hole origin + fraction·hole-size — so
+        // marks land in the crop, not the margins.
+        assert_eq!(mark_px(0.0, 0.0, &l), (l.hole_x as f32, l.hole_y as f32));
+        assert_eq!(
+            mark_px(1.0, 1.0, &l),
+            ((l.hole_x + l.hole_w) as f32, (l.hole_y + l.hole_h) as f32)
+        );
+        assert_eq!(
+            mark_px(0.5, 0.5, &l),
+            (l.hole_x as f32 + 400.0, l.hole_y as f32 + 300.0)
+        );
+        // Out-of-range clamps to the hole edge (never into the margins).
+        assert_eq!(
+            mark_px(-1.0, 2.0, &l),
+            (l.hole_x as f32, (l.hole_y + l.hole_h) as f32)
+        );
+    }
+
+    /// A mark must paint pixels inside the (otherwise-transparent) hole near the
+    /// spot its normalized position maps to — that's the whole point of #137.
+    #[test]
+    fn marks_paint_inside_the_hole() {
+        let layout = layout_for_hole(400, 400);
+        let marks = [
+            GuideMark::Count {
+                x: 0.5,
+                y: 0.5,
+                count: Some(7),
+            },
+            GuideMark::Check {
+                x: 0.25,
+                y: 0.5,
+                matched: true,
+            },
+            GuideMark::Check {
+                x: 0.75,
+                y: 0.5,
+                matched: false,
+            },
+        ];
+        let pix = render(
+            &CaptureMode::Hideout,
+            "Saved",
+            (80, 180, 100),
+            "RIGHT",
+            &marks,
+            &layout,
+        );
+        for (nx, what) in [(0.25f32, "✓"), (0.5, "count"), (0.75, "✗")] {
+            let (mx, my) = mark_px(nx, 0.5, &layout);
+            assert!(
+                opaque_in_window(&pix, mx as u32, my as u32, 60),
+                "{what} mark should paint near its mapped hole position"
+            );
+        }
+    }
+
+    /// True if any pixel within `±rad` of `(cx, cy)` is non-transparent.
+    fn opaque_in_window(pix: &Pixmap, cx: u32, cy: u32, rad: u32) -> bool {
+        let x0 = cx.saturating_sub(rad);
+        let y0 = cy.saturating_sub(rad);
+        let x1 = (cx + rad).min(pix.width().saturating_sub(1));
+        let y1 = (cy + rad).min(pix.height().saturating_sub(1));
+        for y in y0..=y1 {
+            for x in x0..=x1 {
+                if alpha_at(pix, x, y) > 0 {
+                    return true;
+                }
+            }
+        }
+        false
     }
 }

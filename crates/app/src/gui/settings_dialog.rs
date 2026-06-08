@@ -1,6 +1,8 @@
 //! Modal dialog for user-tunable settings.
 
-use crate::settings::{bounds, CaptureEye, CaptureHand, ColorScheme, Settings, Theme, VrSettings};
+use crate::settings::{
+    bounds, CaptureEye, CaptureHand, ColorScheme, OcrFeedbackStyle, Settings, Theme, VrSettings,
+};
 use parking_lot::RwLock;
 use std::path::Path;
 use std::sync::Arc;
@@ -85,7 +87,7 @@ pub fn show(
                             &mut working.ocr_enabled,
                             &mut working.ocr_dismiss_seconds,
                             &mut working.ocr_auto_track,
-                            &mut working.ocr_feedback_grid,
+                            &mut working.ocr_feedback_style,
                         );
                         ui.add_space(12.0);
                         debug_section(ui, &mut working.ocr_debug, &mut working.ocr_capture_trace);
@@ -157,7 +159,7 @@ fn ocr_section(
     ocr_enabled: &mut bool,
     ocr_dismiss_seconds: &mut u32,
     ocr_auto_track: &mut bool,
-    ocr_feedback_grid: &mut bool,
+    ocr_feedback_style: &mut OcrFeedbackStyle,
 ) {
     ui.heading("Screenshot OCR");
     ui.add_space(4.0);
@@ -198,27 +200,53 @@ fn ocr_section(
         );
 
     ui.add_space(6.0);
+    ui.label("In-headset feedback style").on_hover_text(
+        "How each capture's per-item OCR read is shown in the headset. The guide \
+         box's aiming reticle + a short \"Saved …\" / \"Stash: N\" status chip \
+         confirm every capture regardless — this only picks how the per-item \
+         detail is presented. Errors / \"reading…\" always use the centered card.",
+    );
     ui.horizontal(|ui| {
-        ui.label("Hide feedback card after (s)").on_hover_text(
-            "After a capture, the head-locked feedback card in the headset \
-             — the one listing each required item's new owned count — fades \
-             this many seconds after it appears. Ignored while \"Save OCR \
-             debug artifacts\" is on: then it stays up until the next \
-             capture.",
+        ui.selectable_value(
+            ocr_feedback_style,
+            OcrFeedbackStyle::OnItems,
+            "On the items",
+        )
+        .on_hover_text(
+            "Paint the read directly on the items through the guide box — the \
+                 owned count on each hideout cell, a green ✓ / red ✗ on each \
+                 box/stash tile. Nothing occludes the panel or grid. The default.",
         );
-        stepper_slider_u32(ui, ocr_dismiss_seconds, bounds::OCR_DISMISS_SECS, 1, " s");
+        ui.selectable_value(ocr_feedback_style, OcrFeedbackStyle::Card, "Card")
+            .on_hover_text(
+                "The original centered text card: each item's before→after count \
+                 plus the running series tally + weight checksum. Occludes the \
+                 panel / grid while it's up.",
+            );
+        ui.selectable_value(ocr_feedback_style, OcrFeedbackStyle::Grid, "Mini-grid")
+            .on_hover_text(
+                "A centered mini-grid diagram (#138): the per-item marks laid out \
+                 in the same relative positions as on screen, read at a glance \
+                 instead of scanning names.",
+            );
+        ui.selectable_value(ocr_feedback_style, OcrFeedbackStyle::Off, "Off")
+            .on_hover_text(
+                "No detailed per-item feedback — only the guide-box status chip \
+                 confirms the capture. The lightest overlay.",
+            );
     });
 
     ui.add_space(6.0);
-    ui.checkbox(ocr_feedback_grid, "Mini-grid feedback card (experimental)")
-        .on_hover_text(
-            "Render the in-headset feedback card as a small grid diagram laid \
-             out like the on-screen items — per-cell owned counts for a hideout \
-             panel, or ✓ / ✗ marks for a box/stash scan (✓ = matched a catalog \
-             item, ✗ = detected but unreadable). An alternative to the text list \
-             you read at a glance instead of scanning names. Errors and \
-             \"reading…\" still show as the normal card. Off by default.",
+    ui.horizontal(|ui| {
+        ui.label("Hide feedback after (s)").on_hover_text(
+            "How long the in-headset OCR feedback lingers after a capture before \
+             fading — both the per-item marks + result chip painted on the guide \
+             box and, when enabled, the centered card. Raise it to read a busy \
+             box grid without recapturing. Ignored while \"Save OCR debug \
+             artifacts\" is on: the card then stays up until the next capture.",
         );
+        stepper_slider_u32(ui, ocr_dismiss_seconds, bounds::OCR_DISMISS_SECS, 1, " s");
+    });
 }
 
 /// Debug toggles, split out from the everyday Screenshot-OCR controls. Both are
