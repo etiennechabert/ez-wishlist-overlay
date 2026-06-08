@@ -1,59 +1,55 @@
-# stash/units — <file>  <expected OCR name>  (whole item tile: icon + name + category)
-# All distinct items the box-scan matched across the 10 scroll shots (dump_stash_unit_tiles).
-# Crops placed from each tile's name-bbox (expanded up for the icon), best mid-screen shot.
-# A `#hard  <file>  <name>` line is OCR'd + reported but not gated (engine can't read it solo).
+# stash/units — <file>  <expected OCR name>  (one whole item tile per unit)
+# A `#hard  <file>  <name>` line is OCR'd + reported but not gated (engine can't
+# read that tile in isolation — an OCR-improvement target, not a regression).
+# Crops placed from dump_stash_unit_tiles geometry (best mid-screen occurrence).
+
+#hard  misc_1batterie_2.webp  Size D battery1
+misc_b_1battery.webp  Size D battery2
 misc_b_aspire.webp  Aspirin
 misc_b_asthmamedication.webp  Asthma medicine
+misc_b_beardoil.webp  BeardOil
 misc_b_ceramic_adhesive.webp  Ceramic adhesive
 misc_b_deodorant.webp  Deodorant
+misc_b_disinfectingwipes.webp  Disinfectant wipes
+misc_b_flashlight.webp  Flash light
+misc_b_gastank.webp  Gas can
 misc_b_gastank_large.webp  Large gas can
 misc_b_glue_large.webp  Instant glue
-misc_b_gunoil.webp  Gun Oil
+misc_b_gunoil.webp  Gun oil
+misc_b_harddrive.webp  Hard Drive
 misc_b_insulatingtape.webp  Insulating Tape
+misc_b_iodophor.webp  Iodine
 misc_b_ionbattery.webp  Ion Battery
-misc_b_lighter.webp  Lighter
 misc_b_lighterfluid.webp  Lighter fluid
+misc_b_medicalscissors.webp  Medical scissors
 misc_b_moldboard.webp  Moldboard
-misc_b_newphone.webp  New Phone
-misc_b_oldphone.webp  Old Phone
+misc_b_nail.webp  Boxed Nails
+misc_b_newphone.webp  NewPhone
+misc_b_oldphone.webp  OldPhone
+#hard  misc_b_opticaldisc.webp  CD
 misc_b_pcfan.webp  CPU Fan
 misc_b_pesticide.webp  Pesticide
-misc_b_rat_poison.webp  Rat poison
+misc_b_piezometer.webp  Piezometer
+#hard  misc_b_pipeline.webp  Valve
+#hard  misc_b_ram.webp  RAM
+misc_b_rat_poison.webp  Rat Poison
 misc_b_recorder.webp  Recorder
-misc_b_saltcan.webp  Salt can
-misc_b_shampoo.webp  Pet Shampoo
+misc_b_rustedcleaner.webp  Rust cleaner
+misc_b_socket.webp  Socket
 misc_b_sparkplug.webp  Spark Plug
+misc_b_spraycan.webp  Spray can
+misc_b_superglue.webp  Super Glue
 misc_b_tape.webp  Tape
-misc_b_tire_sealant.webp  Tire sealant
+misc_b_tire_sealant.webp  Tire Sealant
+misc_b_wd40.webp  WD-40
 misc_b_wirecutting.webp  Wire Cutter
 misc_b_wrench.webp  Wrench
+#hard  misc_barcleaner.webp  Cleaner
+misc_blimbingrope.webp  Climbing rope
 misc_bpu.webp  CPU
+misc_copperwire.webp  Copper wire
+misc_floppydisk.webp  Floppydisk
+misc_hammer.webp  Hammer
 misc_notebook.webp  Notebook
 misc_screwdriver.webp  Screwdriver
-#hard  misc_1batterie_2.webp  Size D battery1
-#hard  misc_b_beardoil.webp  BeardOil
-#hard  misc_b_flashlight.webp  Flash light
-#hard  misc_b_opticaldisc.webp  CD
-#hard  misc_b_pipeline.webp  Valve
-#hard  misc_b_rustedcleaner.webp  Rust cleaner
-#hard  misc_b_wd40.webp  WD-40
-
-# --- added from the 2026-06-06 auto-capture scan (more distinct icons) ---
-# 4 icons not present in any units/ folder before: iodophor, medicalscissors,
-# superglue, misc_wrench (Small Wrench, distinct from misc_b_wrench).
-misc_b_iodophor.webp  Iodine
-misc_b_medicalscissors.webp  Medical scissors
-misc_b_superglue.webp  Super Glue
-misc_wrench.webp  Small Wrench
-misc_b_disinfectingwipes.webp  Disinfectant wipes
-misc_b_gastank.webp  Gas can
-misc_b_harddrive.webp  Hard Drive
-misc_b_lightbulb.webp  Energy-saving lamp
-misc_b_nail.webp  Boxed Nails
-misc_b_piezometer.webp  Piezometer
-misc_blimbingrope.webp  Climbing rope
-misc_floppydisk.webp  Floppy disk
-# RAM + Socket read in-context but not in isolation here (busy diagonal icon);
-# both are gated in hideout/units/ — kept as stash-rendering improvement targets.
-#hard  misc_b_ram.webp  RAM
-#hard  misc_b_socket.webp  Socket
+misc_wastechip.webp  wastechip

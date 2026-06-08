@@ -8,73 +8,58 @@
 # the frozen stash.shot02.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 10 item tile(s) across 3 grid row(s)
+  recognized 12 item tile(s) across 3 grid row(s)
   dropped 2 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
-    2 x misc_b_ceramic_adhesive
-    1 x misc_b_deodorant
-    3 x misc_b_nail
-    1 x misc_b_opticaldisc
-    2 x misc_b_recorder
-    1 x misc_bpu
+    1 x misc_1batterie_2
+    1 x misc_b_ceramic_adhesive
+    2 x misc_b_ionbattery
+    1 x misc_b_lighterfluid
+    1 x misc_b_nail
+    2 x misc_b_opticaldisc
+    1 x misc_b_piezometer
+    1 x misc_b_ram
+    2 x misc_b_wrench
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
 #   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
   [chrome]
-    105                            -> (no match)
-  [chrome]
     JUNK BOX                       -> (no match)
-  [chrome]
-    O 3379284                      -> (no match)
   [items ]
-    Ceramic adhesive               -> misc_b_ceramic_adhesive
-    Recorder                       -> misc_b_recorder
-    Cutter                         -> (no match)
-    CPU                            -> misc_bpu
+    RAM                            -> misc_b_ram
+    Boxed Nails                    -> misc_b_nail
+    Wrench                         -> misc_b_wrench
+    Windproof Matches              -> (no match)
   [tabs  ]
+    Electric                       -> (no match)
     Building                       -> (no match)
-    Intel                          -> (no match)
     Tool                           -> (no match)
+    Combustible                    -> (no match)
     Electric                       -> (no match)
-    intel                          -> (no match)
-  [chrome]
-    Box Nail                       -> (no match)
-    JOHNNY'S SERVICE               -> (no match)
   [items ]
-    Recorder                       -> misc_b_recorder
+    Ion Battery                    -> misc_b_ionbattery
+    Piezometer                     -> misc_b_piezometer
+    Rop"sk                         -> (no match)
+    Lighter fluid                  -> misc_b_lighterfluid
     co                             -> misc_b_opticaldisc
-    Boxed Nails                    -> misc_b_nail
-    UPGRADE                        -> (no match)
   [tabs  ]
-    Intel                          -> (no match)
-    Intel                          -> (no match)
-    Intel                          -> (no match)
-    Intel                          -> (no match)
+    Power                          -> (no match)
     Building                       -> (no match)
-  [chrome]
-    SHOP EXPRESS                   -> (no match)
-  [chrome]
-    Box Nail                       -> (no match)
-    Box Nail                       -> (no match)
+    Intel                          -> (no match)
+    Combustible                    -> (no match)
+    Intel                          -> (no match)
   [items ]
-    Boxed Nails                    -> misc_b_nail
-    Boxed Nails                    -> misc_b_nail
+    Ion Battery                    -> misc_b_ionbattery
+    Size D batteryl                -> misc_1batterie_2
     Ceramic adhesive               -> misc_b_ceramic_adhesive
-    Deodorant                      -> misc_b_deodorant
+    co                             -> misc_b_opticaldisc
+    Wrench                         -> misc_b_wrench
   [tabs  ]
+    Power                          -> (no match)
+    Power                          -> (no match)
     Building                       -> (no match)
-    Building                       -> (no match)
-    Electric                       -> (no match)
-    Building                       -> (no match)
-    Household                      -> (no match)
-    RESTOCK                        -> (no match)
-  [chrome]
-    JUNK BOX                       -> (no match)
-  [chrome]
-    SUBMIT                         -> (no match)
-  [chrome]
-    - ONLY MISCELLANEOUS ITEMS CAN BE STORED HERE -> (no match)
-    21.86140 KG                    -> (no match)
+    Intel                          -> (no match)
+    Taal                           -> (no match)

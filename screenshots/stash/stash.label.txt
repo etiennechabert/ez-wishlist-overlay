@@ -1,89 +1,79 @@
-# stash scan — Johnny's-Service junk-box terminal — contents read off the captures (item_id  count)
+# stash scan — Johnny's-Service junk-box terminal — contents read off the 20
+# capture frames (stash.shot00..19), item_id  count.
 #
-# NON-AUTHORITATIVE REFERENCE — `stash_scan_matches_label` is `#[ignore]`d
-# (issue #109). These 10 shots can't be stitched into the full box, so this file
-# is NOT a fixture the test asserts against; it documents what the captures show.
+# NON-AUTHORITATIVE REFERENCE — `stash_scan_matches_label` is `#[ignore]`d.
+# Read as 44 unique grid rows (218 tiles) by de-overlapping consecutive shots.
+# There are 3 SCROLL GAPS (between shots 11/12, 14/15, 16/17) where rows fall
+# between shots and appear in no capture — so counts are a LOWER BOUND across
+# those breaks, not an exact tally. `eval_report_json` scores partial tile
+# accuracy off this (informational, not a gate).
 #
-# Why it can't be a full tally:
-#   - SCROLL GAPS: shots 00→01→02→03→04 each share one full row (a clean scroll),
-#     but 04→05, 05→06, 06→07, 07→08, 08→09 share *no* row — rows fall between the
-#     shots, so the box's lower portion is sampled in disjoint windows that can't
-#     be de-overlapped or de-duplicated.
-#   - DROPPED OCR TILES: the engine omits whole labels (e.g. shot02 drops "Tape";
-#     "Wire Cutter"→"Cutter", "CPU Fan"→"CPU"), so even within 00–04 a rigid
-#     position-wise stitch breaks.
-#
-# The BODY below is the firm part: the contiguous shots 00–04 run (the top 11
-# rows = 55 tiles), de-overlapped row by row. Everything in it is verified
-# against the images. Item types that appear ONLY in the disjoint lower shots
-# (05–09) are listed under "ADDITIONAL TYPES" as comments — present in the box,
-# but not countable from these captures.
-#
-# Format: `<item_id>  <count>` — text after the count is a comment.
-#
-# --- Data-name divergences found while labelling (in-game label ≠ data.json
-#     `Item.name`, so the box-scan can't match these until data.json is patched;
-#     out of scope for #109's box-scan fix, tracked for a follow-up):
-#       misc_b_shampoo   in-game "Pet Shampoo"   data "Shampoo"
-#       misc_b_nail      in-game "Boxed Nails"   data "Nails"
-#       misc_b_bandaid   in-game "Band-aids"     data "Adhesive bandages"
-#       misc_b_match     in-game "Windproof Matches" data "Matches"   (lower shots)
-# --- Duplicate names in data.json (two ids share one name — the matcher can't
-#     tell them apart; the id chosen here is best-guess):
-#       "Gas can"        = misc_b_gastank + misc_b_tape_large
-#     The "Size D battery" pair is now disambiguated to battery1/battery2 (note the
-#     id<->name inversion: misc_1batterie_2 = "Size D battery1" [yellow pack],
-#     misc_b_1battery = "Size D battery2" [white pack]). This stash holds the
-#     yellow "battery1" = misc_1batterie_2; its tile OCRs "Size D batteryl" and the
-#     confusion-aware matcher (l<->1 cheap, l<->2 not) resolves it to battery1.
+# Name divergences (in-game label != data.json Item.name — the box-scan matcher
+# can't match these until patched in crates/scraper/src/corrections.rs):
+#   misc_b_match   in-game "Windproof Matches"  data "Matches"
+#   misc_b_nail    in-game "Boxed Nails"        data "Nails"
+#   misc_b_screw   in-game "Boxed Bolts"        data "Bolts"   (OCR-unrecognised)
+#   misc_b_nut     in-game "Boxed Nuts"         data "Nuts"    (OCR-unrecognised)
+#   misc_b_shampoo in-game "Pet Shampoo"        data "Shampoo"
+#   misc_barcleaner in-game "Cleanser/Cleaner"  data "Cleaner"
+#   misc_1batterie_2 = "Size D battery1" (yellow), misc_b_1battery = "Size D battery2" (white)
+# Duplicate data.json name: "Gas can" = misc_b_gastank + misc_b_tape_large (chose gastank).
 
-# === Contiguous run, shots 00–04 (verified de-overlap of the top 11 rows) ===
-misc_b_wrench            3    Wrench
-misc_b_pesticide         1    Pesticide
-misc_b_beardoil          2    Beard oil
-misc_b_lighter           1    Lighter
-misc_1batterie_2         2    Size D battery1 (yellow pack; the white "battery2" is misc_b_1battery — see header)
-misc_b_flashlight        1    Flash light
-misc_b_opticaldisc       5    CD
-misc_notebook            2    Notebook
-misc_b_shampoo           2    Pet Shampoo (name divergence — see header)
-misc_b_sparkplug         1    Spark Plug
-misc_b_tape              2    Tape
-misc_b_ionbattery        1    Ion Battery
-misc_b_recorder          3    Recorder
-misc_b_oldphone          1    Old Phone
-misc_b_gastank_large     2    Large gas can
-misc_screwdriver         1    Screwdriver
-misc_b_ceramic_adhesive  2    Ceramic adhesive
-misc_b_wirecutting       1    Wire Cutter
-misc_b_pcfan             2    CPU Fan
-misc_b_nail              4    Boxed Nails (name divergence — see header)
-misc_b_ram               1    RAM
-misc_b_deodorant         1    Deodorant
-misc_b_rat_poison        2    Rat Poison
-misc_b_pipeline          1    Valve
-misc_b_saltcan           2    Salt can
-misc_b_tire_sealant      1    Tire Sealant
-misc_b_wd40              2    WD-40
-misc_b_rustedcleaner     1    Rust cleaner
-misc_b_insulatingtape    1    Insulating Tape
-misc_b_glue_large        1    Instant glue
-misc_b_bandaid           1    Band-aids (name divergence — see header)
-misc_b_moldboard         1    Moldboard
-misc_b_lighterfluid      1    Lighter fluid
+# total tiles: 218
 
-# === ADDITIONAL TYPES in the lower shots 05–09 (present, counts indeterminate
-#     due to scroll gaps — NOT included in the tally above) ===
-#   misc_blimbingrope        Climbing rope
-#   misc_b_gastank           Gas can (combustible; duplicate name — see header)
-#   misc_b_newphone          New Phone
-#   misc_b_aspire            Aspirin
-#   misc_b_asthmamedication  Asthma medicine
-#   misc_b_gunoil            Gun Oil
-#   misc_b_iodophor          Iodine
-#   misc_b_superglue         Super Glue
-#   misc_b_match             Windproof Matches (name divergence — see header)
-#   misc_barcleaner          Cleaner
-#   misc_b_medicalscissors   Medical scissors
-#   misc_wrench              Small Wrench
-#   misc_floppydisk          Floppy disk
+misc_1batterie_2           10
+misc_b_1battery            3
+misc_b_aspire              4
+misc_b_asthmamedication    3
+misc_b_bandaid             3
+misc_b_beardoil            5
+misc_b_ceramic_adhesive    7
+misc_b_deodorant           3
+misc_b_disinfectingwipes   2
+misc_b_flashlight          3
+misc_b_gastank             7
+misc_b_gastank_large       3
+misc_b_glue_large          2
+misc_b_gunoil              3
+misc_b_harddrive           1
+misc_b_insulatingtape      7
+misc_b_iodophor            4
+misc_b_ionbattery          9
+misc_b_lighterfluid        3
+misc_b_match               5
+misc_b_medicalscissors     3
+misc_b_moldboard           2
+misc_b_nail                7
+misc_b_newphone            2
+misc_b_nut                 1
+misc_b_oldphone            1
+misc_b_opticaldisc         7
+misc_b_pcfan               8
+misc_b_pesticide           1
+misc_b_piezometer          1
+misc_b_pipeline            7
+misc_b_ram                 16
+misc_b_rat_poison          2
+misc_b_recorder            7
+misc_b_rustedcleaner       2
+misc_b_saltcan             1
+misc_b_screw               3
+misc_b_shampoo             2
+misc_b_socket              1
+misc_b_sparkplug           2
+misc_b_spraycan            3
+misc_b_superglue           2
+misc_b_tape                4
+misc_b_tire_sealant        4
+misc_b_wd40                7
+misc_b_wirecutting         3
+misc_b_wrench              7
+misc_barcleaner            1
+misc_blimbingrope          1
+misc_bpu                   2
+misc_copperwire            2
+misc_floppydisk            7
+misc_hammer                1
+misc_notebook              5
+misc_screwdriver           3
+misc_wastechip             3

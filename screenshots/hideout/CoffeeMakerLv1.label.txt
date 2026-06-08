@@ -1,0 +1,5 @@
+# CoffeeMakerLv1 — ground truth (owned / needed)
+misc_b_gastank           7/2
+misc_b_plier_large       0/1
+misc_wastechip           3/2
+misc_b_wirecutting       3/1

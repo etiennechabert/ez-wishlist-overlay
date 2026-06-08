@@ -1,0 +1,60 @@
+# stash.shot18 — what the OCR read in this one screenshot
+# (auto-generated; do not edit by hand — see screenshots/CLAUDE.md)
+#
+# This is ONE scroll shot of the stash grid. The grid is taller than the
+# screen, so the full contents come from merging every shot — that merged
+# result, scored against the label, lives in stash.ocr-result.txt. This file
+# just shows what the OCR pulled out of this single frame, regenerated from
+# the frozen stash.shot18.boxes.json (so it never runs the game).
+#
+## SUMMARY
+  recognized 8 item tile(s) across 3 grid row(s)
+  dropped 2 text(s) that matched no catalog item (window title, weight
+    readout, category tabs/subtitles — i.e. screen chrome, not items)
+#
+  items found in this frame:
+    1 x misc_b_aspire
+    1 x misc_b_opticaldisc
+    1 x misc_b_ram
+    3 x misc_b_spraycan
+    1 x misc_b_tape
+    1 x misc_floppydisk
+#
+## DETAIL — every text the OCR produced, row by row
+#   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
+#   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
+  [items ]
+    Tape                           -> misc_b_tape
+    Spray can                      -> misc_b_spraycan
+  [tabs  ]
+    Intel                          -> (no match)
+    Electric                       -> (no match)
+    Building                       -> (no match)
+    Intel                          -> (no match)
+    Electric                       -> (no match)
+  [chrome]
+    1                              -> (no match)
+  [items ]
+    Spray can                      -> misc_b_spraycan
+    Spray can                      -> misc_b_spraycan
+    Gu can                         -> (no match)
+  [tabs  ]
+    Electric                       -> (no match)
+    Electric                       -> (no match)
+    Building                       -> (no match)
+    Building                       -> (no match)
+    Combustible                    -> (no match)
+  [chrome]
+    NSPIR'N                        -> (no match)
+  [items ]
+    RAM                            -> misc_b_ram
+    co                             -> misc_b_opticaldisc
+    wutechip                       -> (no match)
+    Aspirin                        -> misc_b_aspire
+    Floppydisk                     -> misc_floppydisk
+  [tabs  ]
+    Electric                       -> (no match)
+    Intel                          -> (no match)
+    Electric                       -> (no match)
+    Medical Supplies               -> (no match)
+    Intel                          -> (no match)

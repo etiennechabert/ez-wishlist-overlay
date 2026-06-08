@@ -8,80 +8,60 @@
 # the frozen stash.shot01.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 14 item tile(s) across 3 grid row(s)
-  dropped 1 text(s) that matched no catalog item (window title, weight
+  recognized 10 item tile(s) across 3 grid row(s)
+  dropped 3 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
-    1 x misc_b_ceramic_adhesive
-    1 x misc_b_gastank_large
-    1 x misc_b_ionbattery
-    1 x misc_b_oldphone
-    2 x misc_b_recorder
-    1 x misc_b_sparkplug
-    2 x misc_b_tape
-    1 x misc_b_wirecutting
+    1 x misc_b_disinfectingwipes
+    1 x misc_b_gastank
+    1 x misc_b_harddrive
+    1 x misc_b_nail
+    1 x misc_b_opticaldisc
+    1 x misc_b_ram
+    1 x misc_b_socket
+    1 x misc_b_tape
     1 x misc_b_wrench
     1 x misc_bpu
-    1 x misc_notebook
-    1 x misc_screwdriver
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
 #   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
   [chrome]
-    105                            -> (no match)
-  [chrome]
     JUNK BOX                       -> (no match)
-  [chrome]
-    O 3379284                      -> (no match)
   [items ]
-    Pet Shampoo                    -> (no match)
-    Spark Plug                     -> misc_b_sparkplug
     Tape                           -> misc_b_tape
-    Ion Battery                    -> misc_b_ionbattery
-    Recorder                       -> misc_b_recorder
+    %ndproof Matches               -> (no match)
+    Gas                            -> (no match)
+    Gas can                        -> misc_b_gastank
   [tabs  ]
-    Household                      -> (no match)
-    Toot                           -> (no match)
     Intel                          -> (no match)
-    Intel                          -> (no match)
-  [chrome]
-    JOHNNY'S SERVICE               -> (no match)
-  [chrome]
-    UPGRADE                        -> (no match)
-  [items ]
-    Wrench                         -> misc_b_wrench
-    OldPhone                       -> misc_b_oldphone
-    Notebook                       -> misc_notebook
-    Large ge can                   -> misc_b_gastank_large
-    Screwdriver                    -> misc_screwdriver
-  [tabs  ]
-    Tool                           -> (no match)
-    Electric                       -> (no match)
-    Intel                          -> (no match)
+    Combus tibte                   -> (no match)
+    Medical Supplies               -> (no match)
     Combustible                    -> (no match)
-    Tool                           -> (no match)
-  [chrome]
-    SHOP EXPRESS                   -> (no match)
-  [chrome]
-    RESTOCK                        -> (no match)
+    Combustible                    -> (no match)
   [items ]
-    Ceramic adhesive               -> misc_b_ceramic_adhesive
-    Recorder                       -> misc_b_recorder
-    Wire Cutter                    -> misc_b_wirecutting
     CPU                            -> misc_bpu
-    Tape                           -> misc_b_tape
+    Hard Drive                     -> misc_b_harddrive
+    Socket                         -> misc_b_socket
+    Disinfectant wipes             -> misc_b_disinfectingwipes
+    co                             -> misc_b_opticaldisc
   [tabs  ]
-    Building                       -> (no match)
-    Intel                          -> (no match)
-    Tool                           -> (no match)
     Electric                       -> (no match)
     Intel                          -> (no match)
+    Electric                       -> (no match)
+    Medical Supplies               -> (no match)
+    Intel                          -> (no match)
   [chrome]
-    JUNK BOX                       -> (no match)
-  [chrome]
-    SUBMIT                         -> (no match)
-  [chrome]
-    - ONLY MISCELLANEOUS ITEMS CAN BE STOREO HERE -> (no match)
-    21.86/40 KG                    -> (no match)
+    Box Nail                       -> (no match)
+  [items ]
+    RAM                            -> misc_b_ram
+    Boxed Nails                    -> misc_b_nail
+    Wrench                         -> misc_b_wrench
+    Windproof Matches              -> (no match)
+  [tabs  ]
+    Electric                       -> (no match)
+    Building                       -> (no match)
+    Tool                           -> (no match)
+    Combustible                    -> (no match)
+    Electric                       -> (no match)

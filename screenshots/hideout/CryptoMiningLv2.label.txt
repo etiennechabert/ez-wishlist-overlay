@@ -1,5 +1,5 @@
 # CryptoMiningLv2 — ground truth (owned / needed)
-misc_bpu          0/4
-misc_b_pcfan      2/6
-misc_b_ram        2/4
-misc_floppydisk   1/4
+misc_bpu                 2/4
+misc_b_pcfan             8/6
+misc_b_ram               16/4
+misc_floppydisk          7/4

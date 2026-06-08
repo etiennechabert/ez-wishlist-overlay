@@ -1,0 +1,5 @@
+# RefrigeratorLv1 — ground truth (owned / needed)
+misc_oilcan              0/2
+misc_blimbingrope        1/2
+misc_b_spraycan          1/1
+misc_b_plier_large       0/1

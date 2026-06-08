@@ -1,0 +1,5 @@
+# RestRoomLv2 — ground truth (owned / needed)
+misc_b_toiletpaper       0/3
+misc_b_beardoil          5/3
+misc_barcleaner          0/3
+misc_b_shampoo           2/3

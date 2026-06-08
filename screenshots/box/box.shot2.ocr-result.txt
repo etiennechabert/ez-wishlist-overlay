@@ -8,47 +8,48 @@
 # the frozen box.shot2.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 10 item tile(s) across 3 grid row(s)
+  recognized 12 item tile(s) across 3 grid row(s)
   dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
     1 x misc_b_civilradio
     1 x misc_b_gaspipewrench
-    2 x misc_b_harddrive
+    4 x misc_b_harddrive
     2 x misc_barcleaner
     4 x misc_blimbingrope
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
 #   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
-  [chrome]
-    15                             -> (no match)
-  [chrome]
-    30                             -> (no match)
-  [chrome]
-    Can inspect items              -> (no match)
-  [chrome]
-    JUNK                           -> (no match)
-  [chrome]
-    BOX                            -> (no match)
   [tabs  ]
     ALL                            -> (no match)
-    Building Combustible Electric Household -> (no match)
+    Building                       -> (no match)
+    Combustible                    -> (no match)
+    Electric                       -> (no match)
+    Household                      -> (no match)
     Intel                          -> (no match)
-    Toot                           -> (no match)
+    Tool                           -> (no match)
   [items ]
     Civil Radio                    -> misc_b_civilradio
     Cleaner                        -> misc_barcleaner
     Cleaner                        -> misc_barcleaner
     Hard Drive                     -> misc_b_harddrive
+  [chrome]
+    Item Deposite                  -> (no match)
+  [chrome]
+    Submitted items transfen       -> (no match)
   [items ]
     Hard Drive                     -> misc_b_harddrive
-    Climbing rope                  -> misc_blimbingrope
-    Climbing rope                  -> misc_blimbingrope
+    Hard Drive                     -> misc_b_harddrive
+    Hard Drive                     -> misc_b_harddrive
     Climbing rope                  -> misc_blimbingrope
   [items ]
     Climbing rope                  -> misc_blimbingrope
-    Gas pipe püers                 -> misc_b_gaspipewrench
+    Climbing rope                  -> misc_blimbingrope
+    Climbing rope                  -> misc_blimbingrope
+    Gas pipe pliers                -> misc_b_gaspipewrench
   [chrome]
-    21.94 1 30                     -> (no match)
+    29.46                          -> (no match)
+    /                              -> (no match)
+    30                             -> (no match)

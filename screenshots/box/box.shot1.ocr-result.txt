@@ -14,39 +14,33 @@
 #
   items found in this frame:
     2 x misc_b_civilradio
-    1 x misc_b_gunoil
     1 x misc_b_harddrive
-    1 x misc_b_lightbulb
-    1 x misc_b_oliveoil
     1 x misc_b_tapeplayer
     1 x misc_b_transformer
     2 x misc_barcleaner
-    1 x misc_gunpowder
-    1 x misc_oilcan
+    2 x misc_gunpowder
+    3 x misc_oilcan
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
 #   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
-  [chrome]
-    30                             -> (no match)
-  [chrome]
-    Can inspect items              -> (no match)
-  [chrome]
-    JUNK                           -> (no match)
-  [chrome]
-    BOX                            -> (no match)
   [tabs  ]
     ALL                            -> (no match)
-    Medical supplies Building Combustible Electric Household -> (no match)
+    Building                       -> (no match)
+    Combustible                    -> (no match)
+    Electric                       -> (no match)
+    Household                      -> (no match)
     Intel                          -> (no match)
     Tool                           -> (no match)
   [items ]
-    Olive oil                      -> misc_b_oliveoil
-    Gun oil                        -> misc_b_gunoil
+    Gunpowder                      -> misc_gunpowder
     Gunpowder                      -> misc_gunpowder
     Oil can                        -> misc_oilcan
+    Oil can                        -> misc_oilcan
+  [chrome]
+    Submitted items transfer       -> (no match)
   [items ]
-    Energy-saving lamp             -> misc_b_lightbulb
+    Oil can                        -> misc_oilcan
     Tape player                    -> misc_b_tapeplayer
     Voltage transformer            -> misc_b_transformer
     Civil Radio                    -> misc_b_civilradio
@@ -56,4 +50,8 @@
     Cleaner                        -> misc_barcleaner
     Hard Drive                     -> misc_b_harddrive
   [chrome]
-    21.94 1 30                     -> (no match)
+    29.46                          -> (no match)
+    /                              -> (no match)
+    30                             -> (no match)
+  [chrome]
+    JUNK                           -> (no match)

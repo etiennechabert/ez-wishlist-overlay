@@ -81,7 +81,9 @@ $gateTests = @(
     'ocr::box_scan::tests::box_scan_matches_label',
     'ocr::pipeline::unit_ocr_tests'
 )
-& cargo test -p ez-wishlist-overlay --target $target @gateTests -- --nocapture
+# Test-name filters go AFTER `--` (libtest matches any); cargo rejects
+# multiple positional TESTNAMEs before `--`.
+& cargo test -p ez-wishlist-overlay --target $target -- --nocapture @gateTests
 $gatesExit = $LASTEXITCODE
 
 Write-Output ''

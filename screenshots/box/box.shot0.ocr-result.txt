@@ -9,44 +9,38 @@
 #
 ## SUMMARY
   recognized 8 item tile(s) across 2 grid row(s)
-  dropped 0 text(s) that matched no catalog item (window title, weight
+  dropped 1 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
     1 x misc_b_gunoil
-    1 x misc_b_oliveoil
     2 x misc_b_piezometer
-    1 x misc_b_uvlight
     1 x misc_copperwire
-    1 x misc_gunpowder
-    1 x misc_oilcan
+    2 x misc_gunpowder
+    2 x misc_oilcan
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
 #   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
-  [chrome]
-    15                             -> (no match)
-    30                             -> (no match)
-  [chrome]
-    JUNK                           -> (no match)
-  [chrome]
-    BOX                            -> (no match)
   [tabs  ]
     ALL                            -> (no match)
-    Building Combustible Electric Household -> (no match)
+    Building                       -> (no match)
+    Combustible                    -> (no match)
+    Electric                       -> (no match)
+    Household                      -> (no match)
     Intel                          -> (no match)
     Tool                           -> (no match)
   [items ]
-    UV Lamp                        -> misc_b_uvlight
     Copper wire                    -> misc_copperwire
     Piezometer                     -> misc_b_piezometer
     Piezometer                     -> misc_b_piezometer
-  [chrome]
-    VIRGIN                         -> (no match)
-  [items ]
-    Olive oil                      -> misc_b_oliveoil
     Gun oil                        -> misc_b_gunoil
+    Submitted items transfe        -> (no match)
+  [items ]
+    Gunpowder                      -> misc_gunpowder
     Gunpowder                      -> misc_gunpowder
     Oil can                        -> misc_oilcan
+    Oil can                        -> misc_oilcan
   [chrome]
-    21.94 / 30                     -> (no match)
+    29.46                          -> (no match)
+    30                             -> (no match)
