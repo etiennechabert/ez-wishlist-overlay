@@ -213,19 +213,18 @@ fn ocr_section(
     );
 
     ui.add_space(6.0);
-    // The fade duration only applies to the centered card, so gray it out when
-    // the card is disabled.
-    ui.add_enabled_ui(*ocr_show_center_card, |ui| {
-        ui.horizontal(|ui| {
-            ui.label("Hide feedback card after (s)").on_hover_text(
-                "After a capture, the head-locked feedback card in the headset \
-                 — the one listing each required item's new owned count — fades \
-                 this many seconds after it appears. Ignored while \"Save OCR \
-                 debug artifacts\" is on: then it stays up until the next \
-                 capture.",
-            );
-            stepper_slider_u32(ui, ocr_dismiss_seconds, bounds::OCR_DISMISS_SECS, 1, " s");
-        });
+    // Governs BOTH feedback surfaces — the per-item marks + chip on the guide
+    // box (always on) and the centered card (when enabled) — so it stays
+    // adjustable regardless of the card toggle above.
+    ui.horizontal(|ui| {
+        ui.label("Hide feedback after (s)").on_hover_text(
+            "How long the in-headset OCR feedback lingers after a capture before \
+             fading — both the per-item marks + result chip painted on the guide \
+             box and, when enabled, the centered card. Raise it to read a busy \
+             box grid without recapturing. Ignored while \"Save OCR debug \
+             artifacts\" is on: the card then stays up until the next capture.",
+        );
+        stepper_slider_u32(ui, ocr_dismiss_seconds, bounds::OCR_DISMISS_SECS, 1, " s");
     });
 }
 

@@ -389,9 +389,8 @@ fn render_loop(
     // the confirm expires. `None` = not shown.
     let mut guide_shown: Option<GuideShownKey> = None;
     // Post-capture OCR confirmation shown on the guide chip (over "Ready — pull
-    // trigger") until `GUIDE_CONFIRM_DURATION` after `shown_at`, plus the
-    // per-item marks painted over the real items for that window (issues
-    // #136/#137).
+    // trigger") for `ocr_dismiss_seconds` after `shown_at`, plus the per-item
+    // marks painted over the real items for that window (issues #136/#137).
     let mut guide_confirm: Option<GuideConfirm> = None;
 
     loop {
@@ -599,12 +598,14 @@ fn render_loop(
         // it's also pushed eagerly the instant the capture state flips (above).
         if cap_active {
             let st = *capture_state.read();
-            // The confirmation (chip text + color + per-item marks) shows for a
-            // few seconds after each capture, then expires back to the plain
-            // "Ready" prompt with no marks.
+            // The confirmation (chip text + color + per-item marks) shows for
+            // `ocr_dismiss_seconds` after each capture, then expires back to the
+            // plain "Ready" prompt with no marks. Same knob as the centered
+            // card's fade, so one "Hide feedback after" setting governs both.
+            let confirm_for = Duration::from_secs(settings.read().ocr_dismiss_seconds as u64);
             let confirm = guide_confirm
                 .as_ref()
-                .filter(|c| frame_start.duration_since(c.shown_at) < GUIDE_CONFIRM_DURATION);
+                .filter(|c| frame_start.duration_since(c.shown_at) < confirm_for);
             ensure_guide(
                 session,
                 &mode,
@@ -855,11 +856,6 @@ const GUIDE_DISTANCE_M: f32 = 1.0;
 /// around it by [`super::guide::layout_for_hole`]. Issue #141.
 #[cfg(target_os = "windows")]
 const GUIDE_HOLE_W: u32 = 1024;
-
-/// How long the post-capture OCR confirmation sits on the guide-box status chip
-/// (over "Ready — pull trigger") before reverting to the ready prompt. #136.
-#[cfg(target_os = "windows")]
-const GUIDE_CONFIRM_DURATION: Duration = Duration::from_secs(4);
 
 /// Cache key for the guide-box pixmap (`guide_shown` in `render_loop`): the
 /// inputs that change what it draws — mode, chip label, trigger hand, the

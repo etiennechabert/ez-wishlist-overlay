@@ -23,11 +23,12 @@ pub mod bounds {
     /// 0 sits the panel at eye level (looking forward sees its lower edge);
     /// the upper end pushes it well above so you have to crane up to see it.
     pub const HEIGHT_OFFSET_M: std::ops::RangeInclusive<f32> = 0.0..=1.5;
-    /// How long the terminal OCR feedback card stays before fading out.
-    /// 1 s is a reasonable lower bound (anything shorter and the user
-    /// barely sees the result); 15 s is generous enough that even a
-    /// careful read of a 4-cell panel fits in one show.
-    pub const OCR_DISMISS_SECS: std::ops::RangeInclusive<u32> = 1..=15;
+    /// How long in-headset OCR feedback stays before fading — both the
+    /// per-item marks + chip on the guide box and (when enabled) the centered
+    /// card. 1 s is a reasonable lower bound (anything shorter and the user
+    /// barely sees the result); 30 s is generous enough to linger over a busy
+    /// box grid without recapturing.
+    pub const OCR_DISMISS_SECS: std::ops::RangeInclusive<u32> = 1..=30;
     /// Seconds the auto-capture loop pauses between OCR reads. 1 s keeps it
     /// from hammering the compositor mirror back-to-back; 15 s is a relaxed
     /// "walking between panels" pace.
