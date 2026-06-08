@@ -1,0 +1,59 @@
+#!/bin/sh
+# pre-push: reject pushing a release tag whose version disagrees with the
+# crates/app/Cargo.toml committed at the tagged commit.
+#
+# This is the LOCAL mirror of release.yml's "Verify Cargo.toml version
+# matches tag" guard. The version lives in exactly one place
+# (crates/app/Cargo.toml) and ci.yml's version-bump gate pushes it ahead of
+# the last release on every PR, so hand-typing the next tag drifts behind it.
+# That bit v0.4.2 (tagged while Cargo.toml was 0.4.3) and v0.4.4 (tagged while
+# Cargo.toml was 0.4.7) — each only caught on the server AFTER the bad tag was
+# pushed, leaving a dangling tag and a red Actions run. Catching it here means
+# the bad tag never leaves your machine.
+#
+# Enable once per clone:   git config core.hooksPath .githooks
+# (Then this runs on every `git push`. Only refs/tags/v* are checked; branch
+#  pushes are untouched. CI uses fresh checkouts with no hooksPath, so
+#  release.yml stays the server-side backstop.)
+
+# All-zeros object id, length-correct for this repo's hash algo (sha1/sha256).
+zero=$(git hash-object --stdin </dev/null | tr '0-9a-f' '0')
+status=0
+
+# git feeds one line per ref being pushed:
+#   <local-ref> <local-oid> <remote-ref> <remote-oid>
+while read -r local_ref local_oid _remote_ref _remote_oid; do
+	# Only guard release tags (refs/tags/vX.Y.Z...).
+	case "$local_ref" in
+		refs/tags/v[0-9]*) ;;
+		*) continue ;;
+	esac
+
+	# Tag deletion (local_oid all zeros) — nothing to verify.
+	[ "$local_oid" = "$zero" ] && continue
+
+	tag_ver=${local_ref#refs/tags/v}
+
+	# Peel annotated/lightweight tag to its commit, then read the committed
+	# Cargo.toml version at that commit (NOT the working tree).
+	commit=$(git rev-parse --quiet --verify "${local_oid}^{commit}") || continue
+	cargo_ver=$(git show "${commit}:crates/app/Cargo.toml" 2>/dev/null \
+		| grep -m1 -E '^version *= *"' \
+		| sed -E 's/.*"([^"]+)".*/\1/')
+
+	if [ -z "$cargo_ver" ]; then
+		echo "pre-push: WARN: could not read crates/app/Cargo.toml at $local_ref — skipping version check" >&2
+		continue
+	fi
+
+	if [ "$tag_ver" != "$cargo_ver" ]; then
+		echo "pre-push: BLOCKED push of $local_ref" >&2
+		echo "  tag version        : v$tag_ver" >&2
+		echo "  Cargo.toml version : $cargo_ver  (crates/app/Cargo.toml @ tagged commit)" >&2
+		echo "  These must match. Tag v$cargo_ver instead, or bump Cargo.toml then re-tag." >&2
+		echo "  Tip: ./scripts/release.ps1 derives the tag from Cargo.toml so this can't happen." >&2
+		status=1
+	fi
+done
+
+exit $status

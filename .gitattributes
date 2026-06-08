@@ -1,0 +1,4 @@
+# Git hooks run under sh (Git Bash on Windows); CRLF makes sh mis-parse the
+# script (\r leaks into the shebang and comparisons), so force LF on checkout
+# regardless of the repo's core.autocrlf=true.
+.githooks/** text eol=lf
