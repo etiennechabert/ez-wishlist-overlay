@@ -679,11 +679,14 @@ fn render_loop(
         }
 
         {
-            let (ocr_debug, dismiss) = {
+            let (ocr_debug, dismiss, show_card) = {
                 let s = settings.read();
                 (
                     s.ocr_debug,
                     Duration::from_secs(s.ocr_dismiss_seconds as u64),
+                    // `ocr_debug` forces the card on so the on-disk debug bundle
+                    // stays inspectable alongside it.
+                    s.ocr_show_center_card || s.ocr_debug,
                 )
             };
             let terminal = drive_ocr_overlay(
@@ -694,6 +697,7 @@ fn render_loop(
                 ocr_debug,
                 matches!(mode, CaptureMode::Box(_)),
                 dismiss,
+                show_card,
             );
             if terminal {
                 // OCR finished — release the single-flight latch and return the
@@ -1491,6 +1495,7 @@ fn drive_ocr_overlay(
     ocr_debug: bool,
     box_scan_active: bool,
     auto_dismiss: Duration,
+    show_card: bool,
 ) -> bool {
     use crate::gui::OcrFeedbackKind;
 
@@ -1517,6 +1522,22 @@ fn drive_ocr_overlay(
     let Some(current) = state.as_mut() else {
         return terminal_consumed;
     };
+
+    // The centered card is opt-in (issue #137 follow-up: the per-item marks on
+    // the guide box are the default per-shot feedback now). When it's disabled
+    // we still drained the feedback into `state` above — so the guide-box marks
+    // + confirm chip keep working — but never render or show the card. Only
+    // touch the overlay when it's actually up (e.g. the setting was turned off
+    // mid-session while a card was visible), keyed on the tracked alpha so we
+    // don't churn HideOverlay every tick.
+    if !show_card {
+        if current.last_alpha != 0.0 {
+            let _ = session.set_ocr_alpha(0.0);
+            let _ = session.set_ocr_visible(false);
+            current.last_alpha = 0.0;
+        }
+        return terminal_consumed;
+    }
 
     // `ocr_debug` and an active box-scan both pin the card: it sticks until the
     // next capture replaces it (debug: inspect alongside on-disk artifacts;

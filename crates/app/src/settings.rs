@@ -236,6 +236,16 @@ pub struct Settings {
     /// it alongside the on-disk debug artifacts).
     #[serde(default = "default_ocr_dismiss_seconds")]
     pub ocr_dismiss_seconds: u32,
+    /// When true, the big centered OCR feedback card is shown in-headset after
+    /// each capture (the original feedback surface). **Default OFF** as of the
+    /// per-item-marks rework (issue #137): the ✓/✗ + count marks painted
+    /// directly on the guide box now cover the per-shot read, and the centered
+    /// card otherwise occludes the very panel / box grid it reports on. Turn it
+    /// back on to also get the cumulative "series so far" tally + weight
+    /// checksum in the headset (that lives in the desktop window regardless).
+    /// `ocr_debug` still forces it on so the debug bundle stays inspectable.
+    #[serde(default)]
+    pub ocr_show_center_card: bool,
     /// When true, a successful OCR auto-tracks the matched upgrade
     /// and marks every lower-level upgrade in the same module as
     /// completed (the game only shows Lv N's panel after Lv (N-1) is
@@ -363,6 +373,7 @@ impl Default for Settings {
             capture_eye: default_capture_eye(),
             ocr_debug: false,
             ocr_dismiss_seconds: default_ocr_dismiss_seconds(),
+            ocr_show_center_card: false,
             ocr_auto_track: default_ocr_auto_track(),
             ocr_capture_trace: false,
             auto_capture_interval_secs: default_auto_capture_interval_secs(),
@@ -769,6 +780,27 @@ mod tests {
         let json = serde_json::to_string(&s2).unwrap();
         let back: Settings = serde_json::from_str(&json).unwrap();
         assert!(back.vr.guide_eye_only);
+    }
+
+    #[test]
+    fn ocr_show_center_card_defaults_off_and_round_trips() {
+        // Absent from an older settings file → serde(default) fills `false`: the
+        // centered OCR card is opt-in now that the per-item marks exist (#137).
+        let s: Settings = serde_json::from_str(r#"{"ocr_enabled":true}"#).unwrap();
+        assert!(
+            !s.ocr_show_center_card,
+            "centered card must default OFF (marks are the default feedback)"
+        );
+        // The default Settings agrees.
+        assert!(!Settings::default().ocr_show_center_card);
+        // Round-trips when enabled.
+        let s2 = Settings {
+            ocr_show_center_card: true,
+            ..Settings::default()
+        };
+        let json = serde_json::to_string(&s2).unwrap();
+        let back: Settings = serde_json::from_str(&json).unwrap();
+        assert!(back.ocr_show_center_card);
     }
 
     #[test]

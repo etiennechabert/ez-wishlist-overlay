@@ -85,6 +85,7 @@ pub fn show(
                             &mut working.ocr_enabled,
                             &mut working.ocr_dismiss_seconds,
                             &mut working.ocr_auto_track,
+                            &mut working.ocr_show_center_card,
                         );
                         ui.add_space(12.0);
                         debug_section(ui, &mut working.ocr_debug, &mut working.ocr_capture_trace);
@@ -156,6 +157,7 @@ fn ocr_section(
     ocr_enabled: &mut bool,
     ocr_dismiss_seconds: &mut u32,
     ocr_auto_track: &mut bool,
+    ocr_show_center_card: &mut bool,
 ) {
     ui.heading("Screenshot OCR");
     ui.add_space(4.0);
@@ -196,15 +198,34 @@ fn ocr_section(
         );
 
     ui.add_space(6.0);
-    ui.horizontal(|ui| {
-        ui.label("Hide feedback card after (s)").on_hover_text(
-            "After a capture, the head-locked feedback card in the headset \
-             — the one listing each required item's new owned count — fades \
-             this many seconds after it appears. Ignored while \"Save OCR \
-             debug artifacts\" is on: then it stays up until the next \
-             capture.",
-        );
-        stepper_slider_u32(ui, ocr_dismiss_seconds, bounds::OCR_DISMISS_SECS, 1, " s");
+    ui.checkbox(
+        ocr_show_center_card,
+        "Show centered feedback card in headset",
+    )
+    .on_hover_text(
+        "The large head-locked card listing this capture's reads + the running \
+         series tally. Off by default: the per-item marks painted on the guide \
+         box (the owned count on each panel cell, a green ✓ / red ✗ on each box \
+         tile) now show what was read without covering the panel or grid you're \
+         aiming at. Turn on to also see the cumulative tally + weight checksum \
+         in the headset — it's always in the desktop window regardless. Forced \
+         on while \"Save OCR debug artifacts\" is on.",
+    );
+
+    ui.add_space(6.0);
+    // The fade duration only applies to the centered card, so gray it out when
+    // the card is disabled.
+    ui.add_enabled_ui(*ocr_show_center_card, |ui| {
+        ui.horizontal(|ui| {
+            ui.label("Hide feedback card after (s)").on_hover_text(
+                "After a capture, the head-locked feedback card in the headset \
+                 — the one listing each required item's new owned count — fades \
+                 this many seconds after it appears. Ignored while \"Save OCR \
+                 debug artifacts\" is on: then it stays up until the next \
+                 capture.",
+            );
+            stepper_slider_u32(ui, ocr_dismiss_seconds, bounds::OCR_DISMISS_SECS, 1, " s");
+        });
     });
 }
 
