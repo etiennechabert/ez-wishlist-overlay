@@ -11,9 +11,9 @@
 //! so they're easy to retune without hunting through the draw code.
 
 use crate::gui::{OcrFeedback, OcrFeedbackKind, OcrItemDelta};
-use crate::ocr::BoxScanStatus;
+use crate::ocr::{BoxScanStatus, GridRow};
 use crate::vr::text;
-use tiny_skia::{Color, Paint, PathBuilder, Pixmap, Rect, Stroke, Transform};
+use tiny_skia::{Color, LineCap, LineJoin, Paint, PathBuilder, Pixmap, Rect, Stroke, Transform};
 
 /// Card width in pixels. The OpenVR overlay's metric width is fixed by
 /// [`super::overlay::OcrOverlay::WIDTH_M`]; height-in-metres is derived
@@ -105,12 +105,34 @@ fn box_accent() -> Color {
     Color::from_rgba8(89, 190, 175, 255)
 }
 
+/// Render `feedback` to a fresh RGBA pixmap (always `CARD_W` wide, height
+/// bounded as documented on each variant).
+///
+/// `grid` selects the **mini-grid card** (issue #138): a small diagram with the
+/// per-item marks laid out in the same relative cell positions as on screen —
+/// owned counts for a hideout panel, ✓/✗ for a box/stash shot. It only applies
+/// to results that *have* a per-cell layout ([`OcrFeedbackKind::Done`] /
+/// [`OcrFeedbackKind::BoxScanProgress`]); every other state (Processing,
+/// NotAPanel, UnknownUpgrade, Failed) has nothing to lay out and falls back to
+/// the text [`render_card`]. `grid == false` always renders the text card.
+pub fn render(feedback: &OcrFeedback, auto_on: bool, grid: bool) -> Pixmap {
+    if grid
+        && matches!(
+            feedback.kind,
+            OcrFeedbackKind::Done { .. } | OcrFeedbackKind::BoxScanProgress { .. }
+        )
+    {
+        return render_grid(feedback);
+    }
+    render_card(feedback, auto_on)
+}
+
 /// Render `feedback` to a fresh RGBA pixmap. Height auto-fits the body
 /// content within `[CARD_H_MIN, CARD_H_MAX]`. Always wide enough at
 /// `CARD_W` — overlong text gets clipped at the card edge rather than
 /// reflowed; the on-screen overlay isn't a place to scroll, so it's
 /// better to stay snappy than to wrap unpredictably.
-pub fn render(feedback: &OcrFeedback, auto_on: bool) -> Pixmap {
+fn render_card(feedback: &OcrFeedback, auto_on: bool) -> Pixmap {
     let accent = accent_color(&feedback.kind);
     let banner_h = if auto_on { BANNER_H } else { 0.0 };
     let body_h = measure_body_height(&feedback.kind);
@@ -155,6 +177,297 @@ pub fn render(feedback: &OcrFeedback, auto_on: bool) -> Pixmap {
     let _ = y;
 
     pix
+}
+
+// ===========================================================================
+// Mini-grid card (issue #138).
+//
+// An alternative to the text card: a small diagram with the per-item marks laid
+// out in the same relative cell positions as on screen — owned counts for a
+// hideout panel (up to 4 cells), ✓/✗ for a box/stash shot (✓ matched a catalog
+// item, ✗ detected but unreadable). Positions come from the shared plumbing
+// (`OcrItemDelta::pos` / `GridRow`), already normalized to the OCR crop rect.
+// Same `CARD_W` width + the per-kind height ceilings as the text card, so the
+// overlay-submit path and its size invariants are unchanged.
+// ===========================================================================
+
+/// Padding inside the body rect the grid is drawn into.
+const GRID_PAD: f32 = 28.0;
+/// Per-row vertical pitch used to size the card *before* clamping — tall rows
+/// for the few big hideout count-cells, shorter for a box/stash ✓/✗ grid. The
+/// rows are then distributed to fill whatever height survives the clamp, so a
+/// pathological shot still fits inside the ceiling.
+const GRID_ROW_PITCH_HIDEOUT: f32 = 220.0;
+const GRID_ROW_PITCH_BOX: f32 = 120.0;
+/// The owned-count number in a hideout cell, and the smaller name / "/needed".
+const GRID_COUNT_PX: f32 = 72.0;
+const GRID_SUB_PX: f32 = 28.0;
+
+/// The rectangle the grid diagram is laid out inside (between the header and
+/// footer separators, inset by [`GRID_PAD`]).
+#[derive(Clone, Copy)]
+struct BodyRect {
+    left: f32,
+    top: f32,
+    right: f32,
+    bottom: f32,
+}
+
+impl BodyRect {
+    fn w(&self) -> f32 {
+        (self.right - self.left).max(1.0)
+    }
+    fn h(&self) -> f32 {
+        (self.bottom - self.top).max(1.0)
+    }
+    fn cy(&self) -> f32 {
+        (self.top + self.bottom) / 2.0
+    }
+}
+
+/// Render the mini-grid card. Same header / footer / border chrome as
+/// [`render_card`]; the body is a grid diagram instead of a text list. Only
+/// called (via [`render`]) for [`OcrFeedbackKind::Done`] /
+/// [`OcrFeedbackKind::BoxScanProgress`].
+fn render_grid(feedback: &OcrFeedback) -> Pixmap {
+    let accent = accent_color(&feedback.kind);
+    // Row count, sizing pitch, and the height ceiling that matches the text
+    // card's per-kind ceiling (so the documented bound invariants hold).
+    let (rows, pitch, max_h) = match &feedback.kind {
+        OcrFeedbackKind::BoxScanProgress { last_grid, .. } => {
+            (last_grid.len().max(1), GRID_ROW_PITCH_BOX, BOX_CARD_H_MAX)
+        }
+        // Done (and the unreachable fallback): a single row of count-cells.
+        _ => (1usize, GRID_ROW_PITCH_HIDEOUT, CARD_H_MAX),
+    };
+
+    let header_block = PAD_Y + TITLE_PX + SECTION_GAP * 0.4 + SECTION_GAP;
+    let footer_block = PAD_Y + SMALL_PX + 18.0;
+    let grid_block = GRID_PAD * 2.0 + rows as f32 * pitch;
+    let total_h = ((header_block + grid_block + footer_block) as u32).clamp(CARD_H_MIN, max_h);
+
+    let mut pix = Pixmap::new(CARD_W, total_h).expect("ocr grid pixmap alloc");
+    pix.fill(bg());
+    draw_border(&mut pix, accent);
+
+    let mut y = draw_header(&mut pix, &feedback.kind, accent, PAD_Y);
+    y += SECTION_GAP * 0.4;
+    draw_separator(&mut pix, y);
+    y += SECTION_GAP;
+
+    let footer_y = total_h as f32 - PAD_Y;
+    let body = BodyRect {
+        left: PAD_X,
+        top: y + GRID_PAD,
+        right: CARD_W as f32 - PAD_X,
+        bottom: footer_y - 14.0 - GRID_PAD,
+    };
+
+    match &feedback.kind {
+        OcrFeedbackKind::Done { items, .. } => draw_hideout_grid(&mut pix, items, body),
+        OcrFeedbackKind::BoxScanProgress { last_grid, .. } => {
+            draw_box_grid(&mut pix, last_grid, body)
+        }
+        _ => {}
+    }
+
+    draw_separator(&mut pix, footer_y - 14.0);
+    draw_footer(&mut pix, feedback, false, footer_y);
+    pix
+}
+
+/// Hideout grid: one row of up to four count-cells, each placed at its read
+/// horizontal position (falling back to even spacing when no geometry was
+/// threaded), showing the owned count colored by the before→after delta.
+fn draw_hideout_grid(pix: &mut Pixmap, items: &[OcrItemDelta], body: BodyRect) {
+    if items.is_empty() {
+        draw_centered(pix, "No cells were read.", body, ROW_PX, weak());
+        return;
+    }
+    let n = items.len();
+    let cell_w = ((body.w() / n as f32) * 0.82).clamp(90.0, 320.0);
+    let cell_h = (body.h() * 0.55).clamp(96.0, 220.0);
+    let cy = body.cy();
+    for (i, item) in items.iter().enumerate() {
+        // Faithful x from the read cell center; even spacing when absent.
+        let fx = item
+            .pos
+            .map(|p| p.center().0.clamp(0.0, 1.0))
+            .unwrap_or((i as f32 + 0.5) / n as f32);
+        let cx = body.left + fx * body.w();
+        draw_count_cell(pix, item, cx, cy, cell_w, cell_h);
+    }
+}
+
+/// One hideout count-cell: a bordered tile with the item name above, the big
+/// owned count inside, and "/ needed" below. `?` (in amber) marks a cell the
+/// pipeline saw but couldn't read.
+fn draw_count_cell(
+    pix: &mut Pixmap,
+    item: &OcrItemDelta,
+    cx: f32,
+    cy: f32,
+    cell_w: f32,
+    cell_h: f32,
+) {
+    let (count_text, color) = match item.after {
+        Some(after) => {
+            let c = match after.cmp(&item.before) {
+                std::cmp::Ordering::Greater => positive(),
+                std::cmp::Ordering::Less => negative(),
+                std::cmp::Ordering::Equal => fg(),
+            };
+            (format!("{after}"), c)
+        }
+        None => ("?".to_string(), not_panel_accent()),
+    };
+    let x0 = cx - cell_w / 2.0;
+    let y0 = cy - cell_h / 2.0;
+    if let Some(rect) = Rect::from_xywh(x0, y0, cell_w, cell_h) {
+        let mut fill = Paint::default();
+        fill.set_color(Color::from_rgba8(255, 255, 255, 18));
+        pix.fill_rect(rect, &fill, Transform::identity(), None);
+        let mut pb = PathBuilder::new();
+        pb.push_rect(rect);
+        if let Some(path) = pb.finish() {
+            let mut sp = Paint::default();
+            sp.set_color(color);
+            sp.anti_alias = true;
+            pix.stroke_path(
+                &path,
+                &sp,
+                &Stroke {
+                    width: 3.0,
+                    ..Default::default()
+                },
+                Transform::identity(),
+                None,
+            );
+        }
+    }
+    let name = truncate_to_width(&item.item_name, GRID_SUB_PX, cell_w);
+    let nw = text::measure_width(&name, GRID_SUB_PX);
+    text::draw_text(pix, &name, cx - nw / 2.0, y0 - 10.0, GRID_SUB_PX, weak());
+    let cw = text::measure_width(&count_text, GRID_COUNT_PX);
+    text::draw_text(
+        pix,
+        &count_text,
+        cx - cw / 2.0,
+        cy + GRID_COUNT_PX * 0.35,
+        GRID_COUNT_PX,
+        color,
+    );
+    if item.needed > 0 {
+        let nt = format!("/ {}", item.needed);
+        let tw = text::measure_width(&nt, GRID_SUB_PX);
+        text::draw_text(
+            pix,
+            &nt,
+            cx - tw / 2.0,
+            y0 + cell_h + GRID_SUB_PX,
+            GRID_SUB_PX,
+            weak(),
+        );
+    }
+}
+
+/// Box/stash grid: the current shot's rows top→bottom (evenly distributed to
+/// fill the body), each tile drawn at its read horizontal position as a green ✓
+/// (matched a catalog item) or red ✗ (detected but unreadable).
+fn draw_box_grid(pix: &mut Pixmap, rows: &[GridRow], body: BodyRect) {
+    if rows.is_empty() || rows.iter().all(|r| r.cells.is_empty()) {
+        draw_centered(
+            pix,
+            "No tiles recognized in this shot.",
+            body,
+            ROW_PX,
+            weak(),
+        );
+        return;
+    }
+    let nrows = rows.len();
+    let row_h = body.h() / nrows as f32;
+    let mark_r = (row_h * 0.30).clamp(12.0, 34.0);
+    for (ri, row) in rows.iter().enumerate() {
+        let cy = body.top + (ri as f32 + 0.5) * row_h;
+        for cell in &row.cells {
+            let cx = body.left + cell.x.clamp(0.0, 1.0) * body.w();
+            if cell.matched {
+                draw_check(pix, cx, cy, mark_r, positive());
+            } else {
+                draw_cross(pix, cx, cy, mark_r, negative());
+            }
+        }
+    }
+}
+
+/// Draw a check mark centered at `(cx, cy)` within radius `r`.
+fn draw_check(pix: &mut Pixmap, cx: f32, cy: f32, r: f32, color: Color) {
+    let mut pb = PathBuilder::new();
+    pb.move_to(cx - r, cy);
+    pb.line_to(cx - r * 0.3, cy + r * 0.75);
+    pb.line_to(cx + r, cy - r * 0.7);
+    stroke_marker(pix, pb, color, (r * 0.36).max(3.0));
+}
+
+/// Draw a cross (✗) centered at `(cx, cy)` within radius `r`.
+fn draw_cross(pix: &mut Pixmap, cx: f32, cy: f32, r: f32, color: Color) {
+    let mut pb = PathBuilder::new();
+    pb.move_to(cx - r, cy - r);
+    pb.line_to(cx + r, cy + r);
+    pb.move_to(cx + r, cy - r);
+    pb.line_to(cx - r, cy + r);
+    stroke_marker(pix, pb, color, (r * 0.36).max(3.0));
+}
+
+/// Stroke a marker path with round caps/joins (shared by ✓ and ✗).
+fn stroke_marker(pix: &mut Pixmap, pb: PathBuilder, color: Color, width: f32) {
+    let Some(path) = pb.finish() else {
+        return;
+    };
+    let mut p = Paint::default();
+    p.set_color(color);
+    p.anti_alias = true;
+    let stroke = Stroke {
+        width,
+        line_cap: LineCap::Round,
+        line_join: LineJoin::Round,
+        ..Default::default()
+    };
+    pix.stroke_path(&path, &p, &stroke, Transform::identity(), None);
+}
+
+/// Horizontally center one line of text within `body`, vertically at its middle.
+fn draw_centered(pix: &mut Pixmap, s: &str, body: BodyRect, size_px: f32, color: Color) {
+    let w = text::measure_width(s, size_px);
+    text::draw_text(
+        pix,
+        s,
+        body.left + (body.w() - w) / 2.0,
+        body.cy() + size_px * 0.35,
+        size_px,
+        color,
+    );
+}
+
+/// Trim `s` to fit `max_w` at `size_px`, appending an ellipsis when shortened.
+fn truncate_to_width(s: &str, size_px: f32, max_w: f32) -> String {
+    if text::measure_width(s, size_px) <= max_w {
+        return s.to_string();
+    }
+    let mut out = String::new();
+    for ch in s.chars() {
+        let trial = format!("{out}{ch}…");
+        if text::measure_width(&trial, size_px) > max_w {
+            break;
+        }
+        out.push(ch);
+    }
+    if out.is_empty() {
+        "…".to_string()
+    } else {
+        format!("{out}…")
+    }
 }
 
 fn accent_color(kind: &OcrFeedbackKind) -> Color {
@@ -629,6 +942,17 @@ fn draw_footer(pix: &mut Pixmap, feedback: &OcrFeedback, auto_on: bool, baseline
 mod tests {
     use super::*;
     use crate::gui::{OcrFeedback, OcrFeedbackKind, OcrItemDelta};
+    use crate::ocr::{GridCell, NormRect};
+
+    /// A normalized cell rect centered at `cx` (single hideout count-row).
+    fn cell_at(cx: f32) -> Option<NormRect> {
+        Some(NormRect {
+            x: cx - 0.08,
+            y: 0.45,
+            w: 0.16,
+            h: 0.12,
+        })
+    }
 
     fn done_feedback() -> OcrFeedback {
         OcrFeedback {
@@ -641,18 +965,21 @@ mod tests {
                         before: 0,
                         after: Some(4),
                         needed: 4,
+                        pos: cell_at(0.2),
                     },
                     OcrItemDelta {
                         item_name: "Floppy Disk".into(),
                         before: 3,
                         after: Some(2),
                         needed: 4,
+                        pos: cell_at(0.5),
                     },
                     OcrItemDelta {
                         item_name: "PC Fan (unread)".into(),
                         before: 5,
                         after: None,
                         needed: 6,
+                        pos: cell_at(0.8),
                     },
                 ],
                 progression_notes: vec![
@@ -665,7 +992,7 @@ mod tests {
 
     #[test]
     fn renders_done_variant_to_expected_size() {
-        let pix = render(&done_feedback(), false);
+        let pix = render(&done_feedback(), false, false);
         assert_eq!(pix.width(), CARD_W);
         assert!(pix.height() >= CARD_H_MIN);
         assert!(pix.height() <= CARD_H_MAX);
@@ -673,21 +1000,21 @@ mod tests {
 
     #[test]
     fn renders_processing_variant() {
-        let pix = render(&OcrFeedback::processing(), false);
+        let pix = render(&OcrFeedback::processing(), false, false);
         assert_eq!(pix.width(), CARD_W);
         assert_eq!(pix.height(), CARD_H_MIN);
     }
 
     #[test]
     fn renders_not_a_panel_variant() {
-        let pix = render(&OcrFeedback::not_a_panel(), false);
+        let pix = render(&OcrFeedback::not_a_panel(), false, false);
         assert_eq!(pix.width(), CARD_W);
         assert_eq!(pix.height(), CARD_H_MIN);
     }
 
     #[test]
     fn renders_failed_variant() {
-        let pix = render(&OcrFeedback::failed("file not found"), false);
+        let pix = render(&OcrFeedback::failed("file not found"), false, false);
         assert_eq!(pix.width(), CARD_W);
         assert!(pix.height() >= CARD_H_MIN);
     }
@@ -696,8 +1023,8 @@ mod tests {
     fn auto_banner_adds_height() {
         // Same feedback, banner on vs off — the banner strip must grow
         // the card without otherwise changing the body layout.
-        let base = render(&OcrFeedback::processing(), false);
-        let with_banner = render(&OcrFeedback::processing(), true);
+        let base = render(&OcrFeedback::processing(), false, false);
+        let with_banner = render(&OcrFeedback::processing(), true, false);
         assert_eq!(with_banner.width(), base.width());
         assert_eq!(with_banner.height(), base.height() + BANNER_H as u32);
     }
@@ -713,10 +1040,11 @@ mod tests {
                     before: 0,
                     after: Some(1),
                     needed: 5,
+                    pos: None,
                 });
             }
         }
-        let pix = render(&fb, false);
+        let pix = render(&fb, false, false);
         assert_eq!(pix.height(), CARD_H_MAX, "growth should clip at CARD_H_MAX");
     }
 
@@ -738,6 +1066,38 @@ mod tests {
                     ("Wire".into(), 4),
                     ("Tape".into(), 2),
                 ],
+                last_grid: vec![
+                    GridRow {
+                        y: 0.3,
+                        cells: vec![
+                            GridCell {
+                                x: 0.2,
+                                matched: true,
+                            },
+                            GridCell {
+                                x: 0.5,
+                                matched: true,
+                            },
+                            GridCell {
+                                x: 0.8,
+                                matched: false,
+                            },
+                        ],
+                    },
+                    GridRow {
+                        y: 0.7,
+                        cells: vec![
+                            GridCell {
+                                x: 0.2,
+                                matched: true,
+                            },
+                            GridCell {
+                                x: 0.5,
+                                matched: false,
+                            },
+                        ],
+                    },
+                ],
                 observed_weight: Some(21.9),
                 computed_weight: Some(21.3),
             },
@@ -746,7 +1106,7 @@ mod tests {
 
     #[test]
     fn renders_box_scan_progress_within_bounds() {
-        let pix = render(&box_progress_feedback(), false);
+        let pix = render(&box_progress_feedback(), false, false);
         assert_eq!(pix.width(), CARD_W);
         assert!(pix.height() >= CARD_H_MIN);
         assert!(pix.height() <= BOX_CARD_H_MAX);
@@ -765,7 +1125,7 @@ mod tests {
                 *last_items = (0..last).map(|i| (format!("L{i}"), 1)).collect();
                 *series_items = (0..series).map(|i| (format!("S{i}"), 1)).collect();
             }
-            render(&fb, false).height()
+            render(&fb, false, false).height()
         };
         // "This capture" is uncapped: 10 more items add exactly 10 row-heights.
         let h_last10 = mk(10, 4);
@@ -798,7 +1158,7 @@ mod tests {
             *last_rows_added = 0;
             *last_rows_duplicate = 3;
         }
-        let pix = render(&fb, false);
+        let pix = render(&fb, false, false);
         assert_eq!(pix.width(), CARD_W);
         assert!(pix.height() >= CARD_H_MIN);
         assert!(pix.height() <= BOX_CARD_H_MAX);
@@ -821,9 +1181,109 @@ mod tests {
             *observed_weight = None;
             *computed_weight = None;
         }
-        let pix = render(&fb, false);
+        let pix = render(&fb, false, false);
         assert_eq!(pix.width(), CARD_W);
         assert!(pix.height() >= CARD_H_MIN);
         assert!(pix.height() <= BOX_CARD_H_MAX);
+    }
+
+    // ---- Mini-grid card (issue #138) ----
+
+    /// A box-scan feedback whose latest shot is an `nrows × cols` grid, marks
+    /// alternating matched/unreadable. Cells are evenly spaced.
+    fn box_grid_feedback(nrows: usize, cols: usize) -> OcrFeedback {
+        let mut fb = box_progress_feedback();
+        if let OcrFeedbackKind::BoxScanProgress { last_grid, .. } = &mut fb.kind {
+            *last_grid = (0..nrows)
+                .map(|r| GridRow {
+                    y: (r as f32 + 0.5) / nrows.max(1) as f32,
+                    cells: (0..cols)
+                        .map(|c| GridCell {
+                            x: (c as f32 + 0.5) / cols.max(1) as f32,
+                            matched: (r + c) % 2 == 0,
+                        })
+                        .collect(),
+                })
+                .collect();
+        }
+        fb
+    }
+
+    #[test]
+    fn grid_done_renders_within_bounds() {
+        let pix = render(&done_feedback(), false, true);
+        assert_eq!(pix.width(), CARD_W);
+        assert!(pix.height() >= CARD_H_MIN);
+        assert!(pix.height() <= CARD_H_MAX);
+    }
+
+    #[test]
+    fn grid_done_handles_missing_positions() {
+        // No threaded geometry → even-spacing fallback, still bounded.
+        let mut fb = done_feedback();
+        if let OcrFeedbackKind::Done { items, .. } = &mut fb.kind {
+            for it in items {
+                it.pos = None;
+            }
+        }
+        let pix = render(&fb, false, true);
+        assert_eq!(pix.width(), CARD_W);
+        assert!(pix.height() >= CARD_H_MIN && pix.height() <= CARD_H_MAX);
+    }
+
+    #[test]
+    fn grid_done_empty_items_is_bounded() {
+        let mut fb = done_feedback();
+        if let OcrFeedbackKind::Done { items, .. } = &mut fb.kind {
+            items.clear();
+        }
+        let pix = render(&fb, false, true);
+        assert_eq!(pix.width(), CARD_W);
+        assert!(pix.height() >= CARD_H_MIN && pix.height() <= CARD_H_MAX);
+    }
+
+    #[test]
+    fn grid_box_renders_within_bounds() {
+        let pix = render(&box_grid_feedback(4, 4), false, true);
+        assert_eq!(pix.width(), CARD_W);
+        assert!(pix.height() >= CARD_H_MIN);
+        assert!(pix.height() <= BOX_CARD_H_MAX);
+    }
+
+    #[test]
+    fn grid_box_grows_with_more_rows_then_clamps() {
+        let h_few = render(&box_grid_feedback(2, 4), false, true).height();
+        let h_many = render(&box_grid_feedback(8, 4), false, true).height();
+        assert!(h_many > h_few, "more rows must make a taller grid card");
+        // A pathological row count still respects the box height ceiling.
+        let h_huge = render(&box_grid_feedback(300, 4), false, true).height();
+        assert!(h_huge <= BOX_CARD_H_MAX);
+    }
+
+    #[test]
+    fn grid_box_empty_is_bounded() {
+        let pix = render(&box_grid_feedback(0, 0), false, true);
+        assert_eq!(pix.width(), CARD_W);
+        assert!(pix.height() >= CARD_H_MIN && pix.height() <= BOX_CARD_H_MAX);
+    }
+
+    #[test]
+    fn grid_style_falls_back_to_card_for_non_result_kinds() {
+        // Processing / NotAPanel / Failed have no per-cell layout, so the grid
+        // flag is a no-op — they render exactly as the text card.
+        for fb in [
+            OcrFeedback::processing(),
+            OcrFeedback::not_a_panel(),
+            OcrFeedback::failed("boom"),
+        ] {
+            let card = render(&fb, false, false);
+            let grid = render(&fb, false, true);
+            assert_eq!(card.width(), grid.width());
+            assert_eq!(
+                card.height(),
+                grid.height(),
+                "non-result kinds must ignore the grid style"
+            );
+        }
     }
 }

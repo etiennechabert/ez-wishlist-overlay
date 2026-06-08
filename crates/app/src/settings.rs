@@ -261,6 +261,15 @@ pub struct Settings {
     /// per capture and the logs are voluminous.
     #[serde(default)]
     pub ocr_capture_trace: bool,
+    /// When true, the in-headset OCR feedback card renders as a **mini-grid
+    /// diagram** instead of the text list: per-cell owned counts (hideout) or
+    /// ✓/✗ marks (box/stash) laid out in the same relative positions as on
+    /// screen. An A/B alternative to the on-the-items markers (#137) — the user
+    /// looks away from the items to read it. Other feedback states (errors,
+    /// "not a panel", "reading…") still render as the normal card. Default OFF
+    /// (text card) — this is an opt-in experiment.
+    #[serde(default)]
+    pub ocr_feedback_grid: bool,
     /// **Currently unused** — retained so existing settings files keep
     /// loading. Capture used to run on a timer; as of issue #136 it's
     /// trigger-driven (the controller trigger takes one shot per pull), so
@@ -365,6 +374,7 @@ impl Default for Settings {
             ocr_dismiss_seconds: default_ocr_dismiss_seconds(),
             ocr_auto_track: default_ocr_auto_track(),
             ocr_capture_trace: false,
+            ocr_feedback_grid: false,
             auto_capture_interval_secs: default_auto_capture_interval_secs(),
         }
     }

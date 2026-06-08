@@ -278,6 +278,11 @@ pub fn process_image(
     }
 
     let mut items: Vec<(String, Option<u32>)> = Vec::with_capacity(upgrade.requirements.len());
+    // Normalized crop-space rect of each cell, aligned 1:1 with `items`, threaded
+    // to the in-headset feedback overlays (mini-grid card #138 / on-the-items
+    // markers #137). The image is already cropped to the guide-box region here,
+    // so dividing by `img_w`/`img_h` yields coordinates in the guide-box space.
+    let mut cell_rects: Vec<crate::ocr::NormRect> = Vec::with_capacity(upgrade.requirements.len());
     let mut debug_cells: Vec<crate::ocr::debug_dump::CellDebug<'_>> = Vec::new();
     for (i, (cell, req)) in cells.iter().zip(upgrade.requirements.iter()).enumerate() {
         let strip = prepped.crop_imm(cell.x, cell.y, cell.w, cell.h);
@@ -337,6 +342,12 @@ pub fn process_image(
             .filter(|_| digits_clear_confidence(&recog, req.quantity))
             .map(|(o, _)| o);
         items.push((req.item_id.clone(), owned_opt));
+        cell_rects.push(crate::ocr::NormRect {
+            x: cell.x as f32 / img_w as f32,
+            y: cell.y as f32 / img_h as f32,
+            w: cell.w as f32 / img_w as f32,
+            h: cell.h as f32 / img_h as f32,
+        });
         if owned_opt.is_none() {
             tracing::warn!(
                 item_id = %req.item_id,
@@ -402,6 +413,7 @@ pub fn process_image(
         upgrade_id: upgrade.id.clone(),
         upgrade_name: module.name.clone(),
         items,
+        cells: cell_rects,
     }))
 }
 
