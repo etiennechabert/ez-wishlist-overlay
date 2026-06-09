@@ -23,11 +23,12 @@ pub mod bounds {
     /// 0 sits the panel at eye level (looking forward sees its lower edge);
     /// the upper end pushes it well above so you have to crane up to see it.
     pub const HEIGHT_OFFSET_M: std::ops::RangeInclusive<f32> = 0.0..=1.5;
-    /// How long the terminal OCR feedback card stays before fading out.
-    /// 1 s is a reasonable lower bound (anything shorter and the user
-    /// barely sees the result); 15 s is generous enough that even a
-    /// careful read of a 4-cell panel fits in one show.
-    pub const OCR_DISMISS_SECS: std::ops::RangeInclusive<u32> = 1..=15;
+    /// How long in-headset OCR feedback stays before fading — both the
+    /// per-item marks + chip on the guide box and (when enabled) the centered
+    /// card. 1 s is a reasonable lower bound (anything shorter and the user
+    /// barely sees the result); 30 s is generous enough to linger over a busy
+    /// box grid without recapturing.
+    pub const OCR_DISMISS_SECS: std::ops::RangeInclusive<u32> = 1..=30;
     /// Seconds the auto-capture loop pauses between OCR reads. 1 s keeps it
     /// from hammering the compositor mirror back-to-back; 15 s is a relaxed
     /// "walking between panels" pace.
@@ -171,6 +172,51 @@ fn default_capture_trigger() -> CaptureHand {
     CaptureHand::Right
 }
 
+/// How the in-headset OCR result is shown after each capture — the user picks
+/// one detailed-feedback surface (issues #137 / #138). The guide box's aiming
+/// reticle + the short "Saved …" / "Stash: N" status chip show regardless; this
+/// only selects how the *per-item* read is presented. Errors / "reading…" /
+/// "not a panel" always fall back to the centered text card.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum OcrFeedbackStyle {
+    /// Per-item marks painted **on the real items** through the guide box: the
+    /// owned count on each hideout cell, a green ✓ / red ✗ on each box tile
+    /// (#137). The default — nothing occludes the panel / grid you're aiming at.
+    #[default]
+    OnItems,
+    /// The original centered, head-locked **text card** listing each item's
+    /// read + the running series tally.
+    Card,
+    /// A centered, head-locked **mini-grid diagram** (#138) — the per-item marks
+    /// laid out in the same relative positions as on screen, read at a glance.
+    Grid,
+    /// **No** detailed per-item feedback — only the guide-box status chip
+    /// confirms the capture. The lightest overlay.
+    Off,
+}
+
+// These map the chosen style to the three render decisions; the only non-test
+// caller is the Windows-only VR runtime (`vr::runtime`), so on Linux the bin
+// target sees them unused. Scope the `dead_code` lint here (binary-crate
+// convention — never `#[cfg(windows)]`, which would drop them from the Windows
+// build's reach, nor `#[expect]`, which then fires unfulfilled on Windows).
+#[allow(dead_code)]
+impl OcrFeedbackStyle {
+    /// The on-the-items markers (the default surface) only show in this style.
+    pub fn shows_on_item_marks(self) -> bool {
+        matches!(self, OcrFeedbackStyle::OnItems)
+    }
+    /// The centered card is shown for both card styles (text + grid).
+    pub fn shows_center_card(self) -> bool {
+        matches!(self, OcrFeedbackStyle::Card | OcrFeedbackStyle::Grid)
+    }
+    /// The centered card renders as the mini-grid diagram (vs the text list).
+    pub fn is_grid(self) -> bool {
+        matches!(self, OcrFeedbackStyle::Grid)
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Settings {
     #[serde(default)]
@@ -236,6 +282,14 @@ pub struct Settings {
     /// it alongside the on-disk debug artifacts).
     #[serde(default = "default_ocr_dismiss_seconds")]
     pub ocr_dismiss_seconds: u32,
+    /// Which in-headset surface shows each capture's per-item OCR read (issues
+    /// #137 / #138). Default [`OcrFeedbackStyle::OnItems`] — marks painted on the
+    /// real items via the guide box, so nothing occludes the panel / grid you're
+    /// aiming at. The guide-box status chip confirms every capture regardless.
+    /// `ocr_debug` forces the centered card on (whatever the style) so the debug
+    /// bundle stays inspectable.
+    #[serde(default)]
+    pub ocr_feedback_style: OcrFeedbackStyle,
     /// When true, a successful OCR auto-tracks the matched upgrade
     /// and marks every lower-level upgrade in the same module as
     /// completed (the game only shows Lv N's panel after Lv (N-1) is
@@ -261,15 +315,6 @@ pub struct Settings {
     /// per capture and the logs are voluminous.
     #[serde(default)]
     pub ocr_capture_trace: bool,
-    /// When true, the in-headset OCR feedback card renders as a **mini-grid
-    /// diagram** instead of the text list: per-cell owned counts (hideout) or
-    /// ✓/✗ marks (box/stash) laid out in the same relative positions as on
-    /// screen. An A/B alternative to the on-the-items markers (#137) — the user
-    /// looks away from the items to read it. Other feedback states (errors,
-    /// "not a panel", "reading…") still render as the normal card. Default OFF
-    /// (text card) — this is an opt-in experiment.
-    #[serde(default)]
-    pub ocr_feedback_grid: bool,
     /// **Currently unused** — retained so existing settings files keep
     /// loading. Capture used to run on a timer; as of issue #136 it's
     /// trigger-driven (the controller trigger takes one shot per pull), so
@@ -372,9 +417,9 @@ impl Default for Settings {
             capture_eye: default_capture_eye(),
             ocr_debug: false,
             ocr_dismiss_seconds: default_ocr_dismiss_seconds(),
+            ocr_feedback_style: OcrFeedbackStyle::default(),
             ocr_auto_track: default_ocr_auto_track(),
             ocr_capture_trace: false,
-            ocr_feedback_grid: false,
             auto_capture_interval_secs: default_auto_capture_interval_secs(),
         }
     }
@@ -779,6 +824,41 @@ mod tests {
         let json = serde_json::to_string(&s2).unwrap();
         let back: Settings = serde_json::from_str(&json).unwrap();
         assert!(back.vr.guide_eye_only);
+    }
+
+    #[test]
+    fn ocr_feedback_style_defaults_to_on_items_and_round_trips() {
+        // Absent from an older settings file → serde(default) picks the
+        // on-the-items markers (the default feedback now, #137).
+        let s: Settings = serde_json::from_str(r#"{"ocr_enabled":true}"#).unwrap();
+        assert_eq!(s.ocr_feedback_style, OcrFeedbackStyle::OnItems);
+        assert_eq!(
+            Settings::default().ocr_feedback_style,
+            OcrFeedbackStyle::OnItems
+        );
+        // Each variant round-trips (snake_case on the wire).
+        for style in [
+            OcrFeedbackStyle::OnItems,
+            OcrFeedbackStyle::Card,
+            OcrFeedbackStyle::Grid,
+            OcrFeedbackStyle::Off,
+        ] {
+            let s2 = Settings {
+                ocr_feedback_style: style,
+                ..Settings::default()
+            };
+            let json = serde_json::to_string(&s2).unwrap();
+            let back: Settings = serde_json::from_str(&json).unwrap();
+            assert_eq!(back.ocr_feedback_style, style);
+        }
+        // The selector logic maps to the three render decisions.
+        assert!(OcrFeedbackStyle::OnItems.shows_on_item_marks());
+        assert!(OcrFeedbackStyle::Card.shows_center_card());
+        assert!(OcrFeedbackStyle::Grid.shows_center_card() && OcrFeedbackStyle::Grid.is_grid());
+        assert!(
+            !OcrFeedbackStyle::Off.shows_on_item_marks()
+                && !OcrFeedbackStyle::Off.shows_center_card()
+        );
     }
 
     #[test]
