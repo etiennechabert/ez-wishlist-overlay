@@ -421,12 +421,11 @@ fn spawn_ocr_worker(
         .name("ez-wishlist-ocr".into())
         .spawn(move || {
             // Debounce key: the (upgrade_id, items) of the last read we
-            // actually applied. An identical follow-up read — the same
-            // panel still on screen during an auto-capture loop — is
+            // actually applied. An identical follow-up read — the same panel
+            // re-captured (e.g. a second trigger pull without moving) — is
             // skipped so it doesn't churn `version` → VR grid re-render →
-            // save on every loop iteration. `set_collected` bumps
-            // `version` unconditionally, so even a no-op rewrite is
-            // otherwise expensive.
+            // save. `set_collected` bumps `version` unconditionally, so even a
+            // no-op rewrite is otherwise expensive.
             #[allow(clippy::type_complexity)]
             let mut last_applied: Option<(String, Vec<(String, Option<u32>)>)> = None;
             // Active box-scan session, when one is running. Owned here; the GUI
