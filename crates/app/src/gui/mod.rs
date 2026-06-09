@@ -502,7 +502,7 @@ impl App {
             ui.colored_label(status.color(), status.label());
             ui.separator();
 
-            self.auto_capture_toggle(ui);
+            self.hideout_scan_control(ui);
             ui.separator();
 
             if ui.button("Reset progress").clicked() {
@@ -524,39 +524,54 @@ impl App {
         });
     }
 
-    /// Prominent main-window toggle for **hideout capture mode** (issue #136).
-    /// Loud when ON so it can't be left armed into a raid. While on, the
-    /// wishlist overlay is hidden and the in-headset guide box appears — pull
-    /// the controller trigger over an upgrade panel to read it. Gated on OCR
-    /// being enabled. The mode lives on the VR runtime and is never persisted,
-    /// so it always starts OFF on launch.
-    fn auto_capture_toggle(&mut self, ui: &mut egui::Ui) {
+    /// Main-window control for **hideout scan mode** (issue #136) — a "Scan from
+    /// screen" button to arm it, mirroring the per-container scan control. While
+    /// armed the wishlist overlay hides and an in-headset guide box appears; aim
+    /// it at an upgrade panel and **pull the controller trigger** to read it
+    /// (trigger-driven, never a timed loop — there is no "auto-capture"). A loud
+    /// "● Scanning…" indicator + a Stop button replace the button while active,
+    /// so it can't be silently left armed into a raid. Gated on OCR being
+    /// enabled; the mode lives on the VR runtime and never persists, so it
+    /// always starts off on launch.
+    fn hideout_scan_control(&mut self, ui: &mut egui::Ui) {
         let ocr_enabled = self.settings.read().ocr_enabled;
-        let mut on = self.vr.capture_mode() == CaptureMode::Hideout;
-        let label = if on {
-            egui::RichText::new("● Hideout capture ON")
-                .strong()
-                .color(egui::Color32::from_rgb(220, 99, 89))
-        } else {
-            egui::RichText::new("Capture hideout panel")
-        };
-        let tooltip = if ocr_enabled {
-            "Arm hideout capture: the wishlist overlay hides and a guide box \
-             appears in the headset. Aim it at an upgrade panel and pull the \
-             controller trigger to read its owned counts. Turn OFF to get the \
-             wishlist overlay back. Always starts OFF on launch."
-        } else {
-            "Enable \"Auto-extract counts from VR screenshots\" in Settings \
-             to use hideout capture."
-        };
-        let resp = ui.add_enabled(ocr_enabled, egui::Checkbox::new(&mut on, label));
-        if resp.on_hover_text(tooltip).changed() {
-            if on {
-                self.vr.set_capture_mode(CaptureMode::Hideout);
-            } else if self.vr.capture_mode() == CaptureMode::Hideout {
+        let mode = self.vr.capture_mode();
+        if mode == CaptureMode::Hideout {
+            ui.label(
+                egui::RichText::new("● Scanning hideout — pull trigger over a panel")
+                    .strong()
+                    .color(egui::Color32::from_rgb(220, 99, 89)),
+            );
+            if ui
+                .button("Stop")
+                .on_hover_text("Stop hideout scanning and bring the wishlist overlay back.")
+                .clicked()
+            {
                 self.vr.exit_capture_mode();
+                tracing::info!("hideout scan stopped from desktop header");
             }
-            tracing::info!(on, "hideout capture mode toggled from desktop header");
+            return;
+        }
+        // A container scan owns the single capture mode while it runs; don't let
+        // the hideout button silently hijack it (mirrors the container UI's
+        // "busy elsewhere" guard).
+        let box_active = matches!(mode, CaptureMode::Box(_));
+        let btn = egui::Button::new("Scan from screen");
+        let resp = ui.add_enabled(ocr_enabled && !box_active, btn);
+        let tooltip = if !ocr_enabled {
+            "Enable \"Auto-extract counts from VR screenshots\" in Settings to \
+             use hideout scanning."
+        } else if box_active {
+            "Finish the active container scan first."
+        } else {
+            "Arm hideout scanning: the wishlist overlay hides and a guide box \
+             appears in the headset. Aim it at an upgrade panel and pull the \
+             controller trigger to read its owned counts. Always starts off on \
+             launch."
+        };
+        if resp.on_hover_text(tooltip).clicked() {
+            self.vr.set_capture_mode(CaptureMode::Hideout);
+            tracing::info!("hideout scan started from desktop header");
         }
     }
 

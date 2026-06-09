@@ -1213,7 +1213,7 @@ fn encode_webp(img: &image::DynamicImage, q: f32) -> Vec<u8> {
 }
 
 /// Grab one compositor-mirror frame and hand it to the OCR worker.
-/// Shared by the manual SPACE path and the auto-capture loop.
+/// Shared by the controller-trigger capture path and the desktop SPACE hotkey.
 ///
 /// Retires any visible OCR card first: the card is a real SteamVR
 /// overlay composited into the eye buffers, so leaving it up would bake
@@ -1569,10 +1569,10 @@ fn drive_ocr_overlay(
     let processing = matches!(current.feedback.kind, OcrFeedbackKind::Processing);
     let age = frame_start.duration_since(current.visible_since);
 
-    // First submit for this feedback: render once and push. (No auto-capture
-    // banner — the guide box now shows capture state.)
+    // First submit for this feedback: render once and push. (Capture state +
+    // the post-capture confirmation live on the guide box, not this card.)
     if !current.submitted {
-        let pixmap = super::ocr_render::render(&current.feedback, false, feedback_grid);
+        let pixmap = super::ocr_render::render(&current.feedback, feedback_grid);
         if let Err(e) = session.submit_ocr_rgba(pixmap.data(), pixmap.width(), pixmap.height()) {
             tracing::warn!(error = %e, "OCR overlay: submit failed (continuing)");
         }

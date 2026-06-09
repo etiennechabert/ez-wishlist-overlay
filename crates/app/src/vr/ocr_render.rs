@@ -29,10 +29,6 @@ const CARD_H_MIN: u32 = 448;
 /// Hard ceiling — keeps the pixmap allocation bounded for upgrades with
 /// many requirements + several progression notes.
 const CARD_H_MAX: u32 = 1472;
-/// Height of the persistent "AUTO-CAPTURE ON" banner drawn at the top of
-/// every card while the looping auto-capture mode is active. Added on top
-/// of the normal card height so the body layout is untouched.
-const BANNER_H: f32 = 76.0;
 
 const PAD_X: f32 = 44.0;
 const PAD_Y: f32 = 36.0;
@@ -94,11 +90,6 @@ fn not_panel_accent() -> Color {
 fn failed_accent() -> Color {
     Color::from_rgba8(220, 99, 89, 255)
 }
-/// Fill behind the auto-capture banner — a muted red so the alert text
-/// reads against it without being as loud as a solid `failed_accent` bar.
-fn banner_bg() -> Color {
-    Color::from_rgba8(74, 30, 28, 255)
-}
 /// Accent for box/stash-scan cards — a teal distinct from the upgrade card's
 /// blue so the two read apart at a glance in the headset.
 fn box_accent() -> Color {
@@ -115,7 +106,7 @@ fn box_accent() -> Color {
 /// [`OcrFeedbackKind::BoxScanProgress`]); every other state (Processing,
 /// NotAPanel, UnknownUpgrade, Failed) has nothing to lay out and falls back to
 /// the text [`render_card`]. `grid == false` always renders the text card.
-pub fn render(feedback: &OcrFeedback, auto_on: bool, grid: bool) -> Pixmap {
+pub fn render(feedback: &OcrFeedback, grid: bool) -> Pixmap {
     if grid
         && matches!(
             feedback.kind,
@@ -124,7 +115,7 @@ pub fn render(feedback: &OcrFeedback, auto_on: bool, grid: bool) -> Pixmap {
     {
         return render_grid(feedback);
     }
-    render_card(feedback, auto_on)
+    render_card(feedback)
 }
 
 /// Render `feedback` to a fresh RGBA pixmap. Height auto-fits the body
@@ -132,13 +123,9 @@ pub fn render(feedback: &OcrFeedback, auto_on: bool, grid: bool) -> Pixmap {
 /// `CARD_W` — overlong text gets clipped at the card edge rather than
 /// reflowed; the on-screen overlay isn't a place to scroll, so it's
 /// better to stay snappy than to wrap unpredictably.
-fn render_card(feedback: &OcrFeedback, auto_on: bool) -> Pixmap {
+fn render_card(feedback: &OcrFeedback) -> Pixmap {
     let accent = accent_color(&feedback.kind);
-    let banner_h = if auto_on { BANNER_H } else { 0.0 };
     let body_h = measure_body_height(&feedback.kind);
-    // Banner height is added on top of the clamped body height so the
-    // body layout (and CARD_H_MIN/MAX budget) is unchanged whether or
-    // not the loop is running.
     // Box cards get a taller ceiling because "This capture" is uncapped; every
     // other card keeps the standard CARD_H_MAX.
     let max_h = if matches!(feedback.kind, OcrFeedbackKind::BoxScanProgress { .. }) {
@@ -146,17 +133,12 @@ fn render_card(feedback: &OcrFeedback, auto_on: bool) -> Pixmap {
     } else {
         CARD_H_MAX
     };
-    let total_h = (body_h as u32).clamp(CARD_H_MIN, max_h) + banner_h as u32;
+    let total_h = (body_h as u32).clamp(CARD_H_MIN, max_h);
     let mut pix = Pixmap::new(CARD_W, total_h).expect("ocr card pixmap alloc");
     pix.fill(bg());
     draw_border(&mut pix, accent);
 
-    let mut y = if auto_on {
-        draw_auto_banner(&mut pix);
-        BANNER_H + PAD_Y
-    } else {
-        PAD_Y
-    };
+    let mut y = PAD_Y;
     y = draw_header(&mut pix, &feedback.kind, accent, y);
     y += SECTION_GAP * 0.4;
     draw_separator(&mut pix, y);
@@ -169,7 +151,7 @@ fn render_card(feedback: &OcrFeedback, auto_on: bool) -> Pixmap {
     // Processing variant where the body is a single line).
     let footer_y = (total_h as f32) - PAD_Y;
     draw_separator(&mut pix, footer_y - 14.0);
-    draw_footer(&mut pix, feedback, auto_on, footer_y);
+    draw_footer(&mut pix, feedback, footer_y);
 
     // `y` is read above to layout the body; the unused var-name keeps
     // the order obvious for future extension. Drop it here to silence
@@ -272,7 +254,7 @@ fn render_grid(feedback: &OcrFeedback) -> Pixmap {
     }
 
     draw_separator(&mut pix, footer_y - 14.0);
-    draw_footer(&mut pix, feedback, false, footer_y);
+    draw_footer(&mut pix, feedback, footer_y);
     pix
 }
 
@@ -564,27 +546,6 @@ fn draw_separator(pix: &mut Pixmap, y: f32) {
     let mut paint = Paint::default();
     paint.set_color(Color::from_rgba8(89, 89, 97, 255));
     pix.fill_rect(rect, &paint, Transform::identity(), None);
-}
-
-/// Persistent alert strip drawn at the very top while the auto-capture
-/// loop is running. It's the "you can't forget this is on" reminder —
-/// head-locked, so it follows your gaze no matter where you look.
-fn draw_auto_banner(pix: &mut Pixmap) {
-    // Fill inset 2 px so the card's accent border still frames it.
-    if let Some(rect) = Rect::from_xywh(2.0, 2.0, pix.width() as f32 - 4.0, BANNER_H - 2.0) {
-        let mut paint = Paint::default();
-        paint.set_color(banner_bg());
-        pix.fill_rect(rect, &paint, Transform::identity(), None);
-    }
-    let baseline = BANNER_H * 0.66;
-    text::draw_text(
-        pix,
-        "● AUTO-CAPTURE ON — turn off before playing",
-        PAD_X,
-        baseline,
-        ROW_PX,
-        failed_accent(),
-    );
 }
 
 fn draw_header(pix: &mut Pixmap, kind: &OcrFeedbackKind, accent: Color, y_top: f32) -> f32 {
@@ -920,20 +881,19 @@ fn draw_item_row(pix: &mut Pixmap, item: &OcrItemDelta, y_top: f32) {
     }
 }
 
-fn draw_footer(pix: &mut Pixmap, feedback: &OcrFeedback, auto_on: bool, baseline_y: f32) {
+fn draw_footer(pix: &mut Pixmap, feedback: &OcrFeedback, baseline_y: f32) {
     // The card renders exactly once per feedback (see
     // `vr::runtime::drive_ocr_overlay`), so a live countdown would
     // freeze on the first-second value and look broken. Static text
     // describing the lifecycle mode instead.
     let manual_dismiss = cfg!(debug_assertions);
-    let footer = match (&feedback.kind, auto_on, manual_dismiss) {
-        (OcrFeedbackKind::BoxScanProgress { .. }, ..) => {
+    let footer = match (&feedback.kind, manual_dismiss) {
+        (OcrFeedbackKind::BoxScanProgress { .. }, _) => {
             "Scanning — Finish or Cancel in the desktop app."
         }
-        (OcrFeedbackKind::Processing, _, _) => "Working… replaced when the pipeline finishes.",
-        (_, true, _) => "Auto-capture loop running — disable it in the desktop app to stop.",
-        (_, false, true) => "Debug build — stays until the next OCR run replaces it.",
-        (_, false, false) => "Fades out in a few seconds.",
+        (OcrFeedbackKind::Processing, _) => "Working… replaced when the pipeline finishes.",
+        (_, true) => "Debug build — stays until the next OCR run replaces it.",
+        (_, false) => "Fades out in a few seconds.",
     };
     text::draw_text(pix, footer, PAD_X, baseline_y, SMALL_PX, weak());
 }
@@ -992,7 +952,7 @@ mod tests {
 
     #[test]
     fn renders_done_variant_to_expected_size() {
-        let pix = render(&done_feedback(), false, false);
+        let pix = render(&done_feedback(), false);
         assert_eq!(pix.width(), CARD_W);
         assert!(pix.height() >= CARD_H_MIN);
         assert!(pix.height() <= CARD_H_MAX);
@@ -1000,33 +960,23 @@ mod tests {
 
     #[test]
     fn renders_processing_variant() {
-        let pix = render(&OcrFeedback::processing(), false, false);
+        let pix = render(&OcrFeedback::processing(), false);
         assert_eq!(pix.width(), CARD_W);
         assert_eq!(pix.height(), CARD_H_MIN);
     }
 
     #[test]
     fn renders_not_a_panel_variant() {
-        let pix = render(&OcrFeedback::not_a_panel(), false, false);
+        let pix = render(&OcrFeedback::not_a_panel(), false);
         assert_eq!(pix.width(), CARD_W);
         assert_eq!(pix.height(), CARD_H_MIN);
     }
 
     #[test]
     fn renders_failed_variant() {
-        let pix = render(&OcrFeedback::failed("file not found"), false, false);
+        let pix = render(&OcrFeedback::failed("file not found"), false);
         assert_eq!(pix.width(), CARD_W);
         assert!(pix.height() >= CARD_H_MIN);
-    }
-
-    #[test]
-    fn auto_banner_adds_height() {
-        // Same feedback, banner on vs off — the banner strip must grow
-        // the card without otherwise changing the body layout.
-        let base = render(&OcrFeedback::processing(), false, false);
-        let with_banner = render(&OcrFeedback::processing(), true, false);
-        assert_eq!(with_banner.width(), base.width());
-        assert_eq!(with_banner.height(), base.height() + BANNER_H as u32);
     }
 
     #[test]
@@ -1044,7 +994,7 @@ mod tests {
                 });
             }
         }
-        let pix = render(&fb, false, false);
+        let pix = render(&fb, false);
         assert_eq!(pix.height(), CARD_H_MAX, "growth should clip at CARD_H_MAX");
     }
 
@@ -1106,7 +1056,7 @@ mod tests {
 
     #[test]
     fn renders_box_scan_progress_within_bounds() {
-        let pix = render(&box_progress_feedback(), false, false);
+        let pix = render(&box_progress_feedback(), false);
         assert_eq!(pix.width(), CARD_W);
         assert!(pix.height() >= CARD_H_MIN);
         assert!(pix.height() <= BOX_CARD_H_MAX);
@@ -1125,7 +1075,7 @@ mod tests {
                 *last_items = (0..last).map(|i| (format!("L{i}"), 1)).collect();
                 *series_items = (0..series).map(|i| (format!("S{i}"), 1)).collect();
             }
-            render(&fb, false, false).height()
+            render(&fb, false).height()
         };
         // "This capture" is uncapped: 10 more items add exactly 10 row-heights.
         let h_last10 = mk(10, 4);
@@ -1158,7 +1108,7 @@ mod tests {
             *last_rows_added = 0;
             *last_rows_duplicate = 3;
         }
-        let pix = render(&fb, false, false);
+        let pix = render(&fb, false);
         assert_eq!(pix.width(), CARD_W);
         assert!(pix.height() >= CARD_H_MIN);
         assert!(pix.height() <= BOX_CARD_H_MAX);
@@ -1181,7 +1131,7 @@ mod tests {
             *observed_weight = None;
             *computed_weight = None;
         }
-        let pix = render(&fb, false, false);
+        let pix = render(&fb, false);
         assert_eq!(pix.width(), CARD_W);
         assert!(pix.height() >= CARD_H_MIN);
         assert!(pix.height() <= BOX_CARD_H_MAX);
@@ -1211,7 +1161,7 @@ mod tests {
 
     #[test]
     fn grid_done_renders_within_bounds() {
-        let pix = render(&done_feedback(), false, true);
+        let pix = render(&done_feedback(), true);
         assert_eq!(pix.width(), CARD_W);
         assert!(pix.height() >= CARD_H_MIN);
         assert!(pix.height() <= CARD_H_MAX);
@@ -1226,7 +1176,7 @@ mod tests {
                 it.pos = None;
             }
         }
-        let pix = render(&fb, false, true);
+        let pix = render(&fb, true);
         assert_eq!(pix.width(), CARD_W);
         assert!(pix.height() >= CARD_H_MIN && pix.height() <= CARD_H_MAX);
     }
@@ -1237,14 +1187,14 @@ mod tests {
         if let OcrFeedbackKind::Done { items, .. } = &mut fb.kind {
             items.clear();
         }
-        let pix = render(&fb, false, true);
+        let pix = render(&fb, true);
         assert_eq!(pix.width(), CARD_W);
         assert!(pix.height() >= CARD_H_MIN && pix.height() <= CARD_H_MAX);
     }
 
     #[test]
     fn grid_box_renders_within_bounds() {
-        let pix = render(&box_grid_feedback(4, 4), false, true);
+        let pix = render(&box_grid_feedback(4, 4), true);
         assert_eq!(pix.width(), CARD_W);
         assert!(pix.height() >= CARD_H_MIN);
         assert!(pix.height() <= BOX_CARD_H_MAX);
@@ -1252,17 +1202,17 @@ mod tests {
 
     #[test]
     fn grid_box_grows_with_more_rows_then_clamps() {
-        let h_few = render(&box_grid_feedback(2, 4), false, true).height();
-        let h_many = render(&box_grid_feedback(8, 4), false, true).height();
+        let h_few = render(&box_grid_feedback(2, 4), true).height();
+        let h_many = render(&box_grid_feedback(8, 4), true).height();
         assert!(h_many > h_few, "more rows must make a taller grid card");
         // A pathological row count still respects the box height ceiling.
-        let h_huge = render(&box_grid_feedback(300, 4), false, true).height();
+        let h_huge = render(&box_grid_feedback(300, 4), true).height();
         assert!(h_huge <= BOX_CARD_H_MAX);
     }
 
     #[test]
     fn grid_box_empty_is_bounded() {
-        let pix = render(&box_grid_feedback(0, 0), false, true);
+        let pix = render(&box_grid_feedback(0, 0), true);
         assert_eq!(pix.width(), CARD_W);
         assert!(pix.height() >= CARD_H_MIN && pix.height() <= BOX_CARD_H_MAX);
     }
@@ -1276,8 +1226,8 @@ mod tests {
             OcrFeedback::not_a_panel(),
             OcrFeedback::failed("boom"),
         ] {
-            let card = render(&fb, false, false);
-            let grid = render(&fb, false, true);
+            let card = render(&fb, false);
+            let grid = render(&fb, true);
             assert_eq!(card.width(), grid.width());
             assert_eq!(
                 card.height(),

@@ -29,10 +29,6 @@ pub mod bounds {
     /// barely sees the result); 30 s is generous enough to linger over a busy
     /// box grid without recapturing.
     pub const OCR_DISMISS_SECS: std::ops::RangeInclusive<u32> = 1..=30;
-    /// Seconds the auto-capture loop pauses between OCR reads. 1 s keeps it
-    /// from hammering the compositor mirror back-to-back; 15 s is a relaxed
-    /// "walking between panels" pace.
-    pub const AUTO_CAPTURE_INTERVAL_SECS: std::ops::RangeInclusive<u32> = 1..=15;
     /// Cap on how many items the VR overlay shows (top priority first). `0` is
     /// the sentinel for "no cap — show the whole wishlist" (still bounded by
     /// the MAX_ROWS render ceiling). The upper end is a generous focus-list
@@ -315,13 +311,6 @@ pub struct Settings {
     /// per capture and the logs are voluminous.
     #[serde(default)]
     pub ocr_capture_trace: bool,
-    /// **Currently unused** — retained so existing settings files keep
-    /// loading. Capture used to run on a timer; as of issue #136 it's
-    /// trigger-driven (the controller trigger takes one shot per pull), so
-    /// there's no inter-capture interval to wait. Kept for backward-compat
-    /// (and in case a timed mode returns); not read by the runtime.
-    #[serde(default = "default_auto_capture_interval_secs")]
-    pub auto_capture_interval_secs: u32,
 }
 
 fn default_check_for_updates() -> bool {
@@ -338,10 +327,6 @@ fn default_capture_eye() -> CaptureEye {
 
 fn default_ocr_dismiss_seconds() -> u32 {
     4
-}
-
-fn default_auto_capture_interval_secs() -> u32 {
-    3
 }
 
 fn default_ocr_auto_track() -> bool {
@@ -396,9 +381,6 @@ impl Settings {
     pub fn sanitize_ocr(&mut self) {
         let d = bounds::OCR_DISMISS_SECS;
         self.ocr_dismiss_seconds = self.ocr_dismiss_seconds.clamp(*d.start(), *d.end());
-        let a = bounds::AUTO_CAPTURE_INTERVAL_SECS;
-        self.auto_capture_interval_secs =
-            self.auto_capture_interval_secs.clamp(*a.start(), *a.end());
     }
 }
 
@@ -420,7 +402,6 @@ impl Default for Settings {
             ocr_feedback_style: OcrFeedbackStyle::default(),
             ocr_auto_track: default_ocr_auto_track(),
             ocr_capture_trace: false,
-            auto_capture_interval_secs: default_auto_capture_interval_secs(),
         }
     }
 }
