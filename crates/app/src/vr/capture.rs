@@ -2,10 +2,16 @@
 //!
 //! Steam's F12 screenshot is a JPEG that mangles the chunky pixel-art digit
 //! font we need to OCR. The compositor's mirror texture, exposed by
-//! `IVRCompositor::GetMirrorTextureD3D11`, is the lossless eye render-target
-//! the game submitted, *before* JPEG compression and *before* SteamVR's
-//! overlays (including this app's own overlay) are composited on top. That
-//! makes it ideal for grabbing a clean shot of the in-game UI for OCR.
+//! `IVRCompositor::GetMirrorTextureD3D11`, is the lossless, native-resolution
+//! eye render-target (no JPEG compression), which is what makes it tractable
+//! for OCR.
+//!
+//! It does, however, reflect the *composited* mirror: SteamVR overlays —
+//! including this app's own wishlist / OCR / guide overlays — ARE present in
+//! it. So the caller ([`super::runtime`]'s `capture_and_forward`) hides/clears
+//! its overlays and waits one compositor present before grabbing; otherwise the
+//! previous shot's on-the-items feedback marks (which sit inside the crop hole,
+//! right over the items) bake into the crop this OCR reads.
 //!
 //! This module is Windows-only because it leans on D3D11. On other targets
 //! the entire `vr::overlay` + `vr::capture` chain is `cfg`'d out.

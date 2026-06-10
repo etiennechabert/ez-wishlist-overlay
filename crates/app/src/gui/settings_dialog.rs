@@ -242,8 +242,8 @@ fn ocr_section(
             "How long the in-headset OCR feedback lingers after a capture before \
              fading — both the per-item marks + result chip painted on the guide \
              box and, when enabled, the centered card. Raise it to read a busy \
-             box grid without recapturing. Ignored while \"Save OCR debug \
-             artifacts\" is on: the card then stays up until the next capture.",
+             box grid without recapturing. (A box-scan series stays up until you \
+             leave capture mode.)",
         );
         stepper_slider_u32(ui, ocr_dismiss_seconds, bounds::OCR_DISMISS_SECS, 1, " s");
     });
@@ -259,12 +259,12 @@ fn debug_section(ui: &mut egui::Ui, ocr_debug: &mut bool, ocr_capture_trace: &mu
     ui.checkbox(ocr_debug, "Save OCR debug artifacts (for bug reports)")
         .on_hover_text(
             "When on, every OCR pass keeps the full screenshot PNG, drops \
-             one binarised strip per cell, writes a debug text file next \
-             to the capture, AND keeps the in-headset card visible until \
-             the next capture (so you can read it alongside the files). \
-             Attach the bundle to a GitHub issue if OCR misreads a panel. \
-             When off (default), all OCR artifacts are deleted after the \
-             read finishes — screenshots are ~10 MB each.",
+             one binarised strip per cell, and writes a debug text file \
+             next to the capture — inspect these off-headset. The \
+             in-headset feedback is unaffected (it follows your feedback \
+             style + hide timer). Attach the bundle to a GitHub issue if \
+             OCR misreads a panel. When off (default), all OCR artifacts \
+             are deleted after the read finishes — screenshots are ~10 MB each.",
         );
 
     ui.add_space(6.0);

@@ -680,27 +680,26 @@ fn render_loop(
         }
 
         {
-            let (ocr_debug, dismiss, style) = {
+            let (dismiss, style) = {
                 let s = settings.read();
                 (
-                    s.ocr_debug,
                     Duration::from_secs(s.ocr_dismiss_seconds as u64),
                     s.ocr_feedback_style,
                 )
             };
             // The chosen feedback style selects the surfaces (issues #137/#138):
-            // the centered card shows for Card/Grid (and `ocr_debug` forces it on
-            // so the debug bundle stays inspectable); Grid restyles that card as
+            // the centered card shows for Card/Grid; Grid restyles that card as
             // the mini-grid; the on-the-items marks (built below) only show for
-            // OnItems.
+            // OnItems. `ocr_debug` deliberately does NOT force the card on — it
+            // governs only the on-disk artifacts (see `capture_and_forward`), so
+            // the in-headset feedback always honors the user's chosen style.
             let feedback_grid = style.is_grid();
-            let show_card = style.shows_center_card() || ocr_debug;
+            let show_card = style.shows_center_card();
             let terminal = drive_ocr_overlay(
                 session,
                 ocr_feedback_rx,
                 &mut ocr_state,
                 frame_start,
-                ocr_debug,
                 matches!(mode, CaptureMode::Box(_)),
                 dismiss,
                 feedback_grid,
@@ -1212,13 +1211,29 @@ fn encode_webp(img: &image::DynamicImage, q: f32) -> Vec<u8> {
     encoder.encode(q).to_vec()
 }
 
+/// How long to let the SteamVR compositor present our just-issued overlay edits
+/// (OCR-card hide + the caller's mark-free guide re-render) into the mirror
+/// before we grab it. `SetOverlayRaw` / `HideOverlay` are async — the mirror
+/// keeps showing the prior composite for a frame or two — so without this wait
+/// the *previous* capture's on-the-items ✓/✗ marks, which sit inside the crop
+/// hole, leak into this shot's OCR input and debug WebP. ~3 compositor frames at
+/// 72–90 Hz, comfortably ≥1 present; negligible against the seconds-apart
+/// capture cadence.
+#[cfg(target_os = "windows")]
+const OVERLAY_SETTLE: Duration = Duration::from_millis(50);
+
 /// Grab one compositor-mirror frame and hand it to the OCR worker.
 /// Shared by the controller-trigger capture path and the desktop SPACE hotkey.
 ///
-/// Retires any visible OCR card first: the card is a real SteamVR
-/// overlay composited into the eye buffers, so leaving it up would bake
-/// it into the screenshot and the next OCR pass would read itself over
-/// the panel. The debug image-on-disk (WebP q95, issue #141) is gated on
+/// Retires our own overlays from the shot first. The compositor mirror is the
+/// *composited* output, so any SteamVR overlay we're showing bakes into the
+/// grab. The OCR card is hidden here; the guide box's per-item ✓/✗ marks
+/// (issue #137) — which sit *inside* the crop hole, right over the items — were
+/// re-rendered mark-free by the caller just before this call. Both are async
+/// overlay edits, so we then wait one compositor present ([`OVERLAY_SETTLE`])
+/// before grabbing: without it the mirror still shows the *previous* shot's
+/// marks, polluting both the OCR input and the debug WebP. The debug
+/// image-on-disk (WebP q95, issue #141) is gated on
 /// `settings.ocr_debug` (off by default → no disk round-trip, ~2-3 s OCR
 /// instead of ~6-7 s). Capture errors are surfaced to the GUI via
 /// `last_capture` rather than aborting the render loop.
@@ -1270,6 +1285,14 @@ fn capture_and_forward(
         .eye_offset(capture_eye_setting)
         .unwrap_or((0.0, 0.0, 0.0));
     let debug_path = ocr_debug.then(|| next_screenshot_path(paths));
+    // Let the compositor present a frame WITHOUT our in-crop overlays before we
+    // grab. The OCR card was just hidden (above) and the caller re-rendered the
+    // guide box mark-free right before this call, but those are async overlay
+    // edits — the mirror still shows the prior composite for a frame or two. The
+    // freshness poll below only watches for *game* change, so on a near-static
+    // inventory screen it would otherwise hand back a baseline still carrying the
+    // previous shot's ✓/✗ marks. See [`OVERLAY_SETTLE`].
+    std::thread::sleep(OVERLAY_SETTLE);
     // Capture the mirror frame into memory; the debug image we keep (when
     // enabled) is the *cropped* OCR input, written below — not the full frame.
     let capture_result = session.capture_screenshot(capture_eye, trace);
@@ -1463,8 +1486,8 @@ fn submit_with_hover(
 
 /// Render state for the head-locked OCR feedback overlay. Carries the
 /// most recently published [`crate::gui::OcrFeedback`] plus the moment
-/// the card became visible — together they drive auto-fade in release
-/// builds and replace-on-new in debug builds.
+/// the card became visible — together they drive the auto-fade timer (and
+/// the box-scan pin that keeps the running series up until capture ends).
 #[cfg(target_os = "windows")]
 struct OcrOverlayState {
     feedback: crate::gui::OcrFeedback,
@@ -1488,10 +1511,9 @@ struct OcrOverlayState {
 /// show / hide / fade lifecycle.
 ///
 /// Replace semantics: any new feedback supersedes the current one
-/// (timer resets, pixmap re-renders). Auto-dismiss only fires in
-/// release builds — debug builds keep the latest card on screen until
-/// the next OCR run replaces it, so the developer has time to read
-/// every per-item line.
+/// (timer resets, pixmap re-renders). Terminal cards auto-dismiss after
+/// `auto_dismiss`; an active box-scan pins the card until capture mode is
+/// left, so the running series stays readable between trigger pulls.
 ///
 /// We render the pixmap **exactly once** per state transition, then
 /// only touch `set_ocr_alpha` per frame. Re-submitting the same
@@ -1510,7 +1532,6 @@ fn drive_ocr_overlay(
     feedback_rx: &Receiver<crate::gui::OcrFeedback>,
     state: &mut Option<OcrOverlayState>,
     frame_start: std::time::Instant,
-    ocr_debug: bool,
     box_scan_active: bool,
     auto_dismiss: Duration,
     feedback_grid: bool,
@@ -1558,14 +1579,14 @@ fn drive_ocr_overlay(
         return terminal_consumed;
     }
 
-    // `ocr_debug` and an active box-scan both pin the card: it sticks until the
-    // next capture replaces it (debug: inspect alongside on-disk artifacts;
-    // box scan: captures are deliberate and seconds apart, so the "series so
-    // far" should stay up between trigger pulls and only resume fading once
-    // the desktop Finish/Cancel leaves capture mode). Otherwise terminal kinds
-    // fade after `auto_dismiss`; Processing kinds never auto-fade (replaced
-    // when OCR finishes).
-    let manual_dismiss = ocr_debug || box_scan_active;
+    // An active box-scan pins the card: captures are deliberate and seconds
+    // apart, so the "series so far" should stay up between trigger pulls and
+    // only resume fading once the desktop Finish/Cancel leaves capture mode.
+    // Otherwise terminal kinds fade after `auto_dismiss`; Processing kinds never
+    // auto-fade (replaced when OCR finishes). `ocr_debug` no longer pins it —
+    // the on-disk artifacts are what you inspect off-headset, so the card just
+    // follows the normal timer.
+    let manual_dismiss = box_scan_active;
     let processing = matches!(current.feedback.kind, OcrFeedbackKind::Processing);
     let age = frame_start.duration_since(current.visible_since);
 
