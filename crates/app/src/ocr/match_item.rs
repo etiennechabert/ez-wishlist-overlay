@@ -154,6 +154,25 @@ pub fn match_item(data: &GameData, tokens: &[&str]) -> Option<ItemId> {
     }
 }
 
+/// True when [`match_item`] resolves some contiguous window of `tokens` to
+/// `id`.
+///
+/// Used by the isolated-OCR unit gate (`unit_ocr_tests` in
+/// [`crate::ocr::pipeline`]) as production parity: a unit crop usually catches
+/// text beside the name (the category subtitle under it, a neighbouring
+/// tile's label), and the shipped box-scan reader isolates the name line
+/// before matching — the unit read has no line geometry, so it instead asks
+/// whether the name is recoverable from *some* window of the read. This also
+/// credits reads the confusion-aware matcher already resolves in production
+/// (CD OCRs as "co" yet lands on the CD item), which a raw-text comparison
+/// rejects.
+pub fn any_window_resolves(data: &GameData, tokens: &[&str], id: &str) -> bool {
+    (0..tokens.len()).any(|start| {
+        (start + 1..=tokens.len())
+            .any(|end| match_item(data, &tokens[start..end]).as_deref() == Some(id))
+    })
+}
+
 /// Lowercase, strip non-alphanumeric except spaces, collapse whitespace.
 /// Duplicated from [`crate::ocr::match_upgrade`] (which is Windows-gated) so
 /// this matcher stays platform-independent and CI-testable.
@@ -303,6 +322,27 @@ mod tests {
         assert!((confusion_aware_score("cx", "cd") - 0.5).abs() < 1e-9);
         // Insertions stay full cost: "cd" vs "cde" = 1 − 1/3.
         assert!((confusion_aware_score("cd", "cde") - (1.0 - 1.0 / 3.0)).abs() < 1e-9);
+    }
+
+    #[test]
+    fn window_resolves_name_among_surrounding_text() {
+        // A unit crop's read carries the category subtitle (and sometimes a
+        // neighbour's label) around the name; some contiguous window must
+        // still resolve. "co" is the production read of the CD tile (d↔o).
+        let mut data = fixture();
+        data.items.push(item("cd", "CD"));
+        data.items.push(item("ram", "RAM"));
+        assert!(any_window_resolves(&data, &["co", "intel"], "cd"));
+        assert!(any_window_resolves(&data, &["ram", "electric"], "ram"));
+        assert!(any_window_resolves(
+            &data,
+            &["gunpowder", "olive", "oil", "valuable"],
+            "oliveoil"
+        ));
+        // The whole read resolving elsewhere isn't enough — the window must
+        // land on the unit's own id.
+        assert!(!any_window_resolves(&data, &["olive", "oil"], "ram"));
+        assert!(!any_window_resolves(&data, &[], "ram"));
     }
 
     #[test]

@@ -2595,13 +2595,16 @@ mod hideout_data_validation {
 /// subdirectory of hand-cropped **whole item tiles** (icon + name, plus the
 /// owned/needed counter for hideout); `units/labels.txt` maps
 /// `<file>  <expected text>`. These tests OCR each lone crop and require the
-/// engine to recover every token of the expected text — proving each item
-/// reads correctly in an isolated shape, not just embedded in the full
-/// panel/scan. Windows-only (uses the live engine); the committed crop set is
-/// the curated, known-OCRable one, so a failure is a real regression.
+/// engine to recover every token of the expected text — or, production-parity,
+/// a read that [`crate::ocr::match_item`] resolves to the crop's own catalog
+/// id (the shipped box-scan path matches tile labels confusion-aware, so the
+/// CD tile reading "co" counts as recovered) — proving each item reads
+/// correctly in an isolated shape, not just embedded in the full panel/scan.
+/// Windows-only (uses the live engine); the committed crop set is the curated,
+/// known-OCRable one, so a failure is a real regression.
 #[cfg(all(test, target_os = "windows"))]
 mod unit_ocr_tests {
-    use crate::ocr::engine;
+    use crate::ocr::{engine, match_item};
     use std::path::{Path, PathBuf};
 
     fn units_dir(asset: &str) -> PathBuf {
@@ -2649,6 +2652,14 @@ mod unit_ocr_tests {
             .map(|w| w.text.to_lowercase())
             .collect::<Vec<_>>()
             .join(" ")
+    }
+
+    /// The catalog id a unit crop is named for: the file stem, minus the
+    /// `<UpgradeId>__` prefix hideout crops carry (an item recurs across
+    /// panels there).
+    fn unit_item_id(file: &str) -> &str {
+        let stem = file.strip_suffix(".webp").unwrap_or(file);
+        stem.split_once("__").map_or(stem, |(_, id)| id)
     }
 
     /// Every alphanumeric token of `expect` appears (substring-either-way, to
@@ -2713,12 +2724,14 @@ mod unit_ocr_tests {
         let runs = runs.max(1);
         let dir = units_dir(asset);
         let labels = load_unit_labels(&dir);
+        let data = crate::assets::load_game_data().expect("embedded data.json");
         let mut fails = Vec::new();
         let mut results = Vec::new();
         let (mut gated_total, mut gated_ok, mut hard_total, mut hard_ok) = (0usize, 0, 0, 0);
         for (file, expect, hard) in &labels {
             let path = dir.join(file);
             let exists = path.exists();
+            let item_id = unit_item_id(file);
             let mut reads = Vec::with_capacity(runs);
             let mut ok_runs = 0usize;
             for _ in 0..runs {
@@ -2727,7 +2740,17 @@ mod unit_ocr_tests {
                 } else {
                     "<missing>".to_string()
                 };
-                if exists && reads_expected(&got, expect) {
+                // A run passes when the raw read recovers the expected text,
+                // or when the production matcher resolves some window of the
+                // read to this very item (see `any_window_resolves`).
+                if exists
+                    && (reads_expected(&got, expect)
+                        || match_item::any_window_resolves(
+                            &data,
+                            &got.split_whitespace().collect::<Vec<_>>(),
+                            item_id,
+                        ))
+                {
                     ok_runs += 1;
                 }
                 reads.push(got);

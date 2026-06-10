@@ -2,6 +2,13 @@
 # A `#hard  <file>  <name>` line is OCR'd + reported but not gated (engine can't
 # read that tile in isolation — an OCR-improvement target, not a regression).
 # Crops placed from dump_stash_unit_tiles geometry (best mid-screen occurrence).
+#
+# Re-cropped + relabelled after the #hard review (the cropper had locked onto
+# look-alike tiles): misc_bpu was the CPU-Fan tile (its gated pass was spurious
+# — "cpu" ⊂ "cpu fan"), misc_1batterie_2 was the battery2 tile, misc_b_pipeline
+# was half-occluded by the header band, and misc_barcleaner's tile displays
+# "Cleanser", not "Cleaner" (see the stash.label.txt name-divergence note).
+# All four are `#hard` pending a Windows eval run — promote the ones that pass.
 
 #hard  misc_1batterie_2.webp  Size D battery1
 misc_b_1battery.webp  Size D battery2
@@ -44,9 +51,9 @@ misc_b_tire_sealant.webp  Tire Sealant
 misc_b_wd40.webp  WD-40
 misc_b_wirecutting.webp  Wire Cutter
 misc_b_wrench.webp  Wrench
-#hard  misc_barcleaner.webp  Cleaner
+#hard  misc_barcleaner.webp  Cleanser
 misc_blimbingrope.webp  Climbing rope
-misc_bpu.webp  CPU
+#hard  misc_bpu.webp  CPU
 misc_copperwire.webp  Copper wire
 misc_floppydisk.webp  Floppydisk
 misc_hammer.webp  Hammer

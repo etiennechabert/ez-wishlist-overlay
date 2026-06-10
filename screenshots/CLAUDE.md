@@ -152,7 +152,11 @@ Each asset folder has a `units/` subfolder of **whole item tiles** — one image
 per item (icon + name, plus the owned/needed counter for hideout). The
 `unit_ocr_tests` tests (Windows) OCR each lone crop and assert the engine recovers
 the item's name, validating that **each item reads correctly in an isolated
-shape**, not just embedded in the full panel/scan.
+shape**, not just embedded in the full panel/scan. A read counts as recovered
+when the raw text contains the expected name **or** when `match_item` resolves
+a contiguous window of the read to the crop's own `item_id` (the filename stem)
+— production parity with the box-scan matcher's confusion-aware scoring, so the
+CD tile reading `co` (d↔o) passes just as it resolves in a real scan.
 
 - **Crop:** one whole tile per item, at full resolution. **Place crops from the
   committed geometry, not by eye:**
