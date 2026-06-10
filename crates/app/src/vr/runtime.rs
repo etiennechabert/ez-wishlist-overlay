@@ -1212,13 +1212,29 @@ fn encode_webp(img: &image::DynamicImage, q: f32) -> Vec<u8> {
     encoder.encode(q).to_vec()
 }
 
+/// How long to let the SteamVR compositor present our just-issued overlay edits
+/// (OCR-card hide + the caller's mark-free guide re-render) into the mirror
+/// before we grab it. `SetOverlayRaw` / `HideOverlay` are async — the mirror
+/// keeps showing the prior composite for a frame or two — so without this wait
+/// the *previous* capture's on-the-items ✓/✗ marks, which sit inside the crop
+/// hole, leak into this shot's OCR input and debug WebP. ~3 compositor frames at
+/// 72–90 Hz, comfortably ≥1 present; negligible against the seconds-apart
+/// capture cadence.
+#[cfg(target_os = "windows")]
+const OVERLAY_SETTLE: Duration = Duration::from_millis(50);
+
 /// Grab one compositor-mirror frame and hand it to the OCR worker.
 /// Shared by the controller-trigger capture path and the desktop SPACE hotkey.
 ///
-/// Retires any visible OCR card first: the card is a real SteamVR
-/// overlay composited into the eye buffers, so leaving it up would bake
-/// it into the screenshot and the next OCR pass would read itself over
-/// the panel. The debug image-on-disk (WebP q95, issue #141) is gated on
+/// Retires our own overlays from the shot first. The compositor mirror is the
+/// *composited* output, so any SteamVR overlay we're showing bakes into the
+/// grab. The OCR card is hidden here; the guide box's per-item ✓/✗ marks
+/// (issue #137) — which sit *inside* the crop hole, right over the items — were
+/// re-rendered mark-free by the caller just before this call. Both are async
+/// overlay edits, so we then wait one compositor present ([`OVERLAY_SETTLE`])
+/// before grabbing: without it the mirror still shows the *previous* shot's
+/// marks, polluting both the OCR input and the debug WebP. The debug
+/// image-on-disk (WebP q95, issue #141) is gated on
 /// `settings.ocr_debug` (off by default → no disk round-trip, ~2-3 s OCR
 /// instead of ~6-7 s). Capture errors are surfaced to the GUI via
 /// `last_capture` rather than aborting the render loop.
@@ -1270,6 +1286,14 @@ fn capture_and_forward(
         .eye_offset(capture_eye_setting)
         .unwrap_or((0.0, 0.0, 0.0));
     let debug_path = ocr_debug.then(|| next_screenshot_path(paths));
+    // Let the compositor present a frame WITHOUT our in-crop overlays before we
+    // grab. The OCR card was just hidden (above) and the caller re-rendered the
+    // guide box mark-free right before this call, but those are async overlay
+    // edits — the mirror still shows the prior composite for a frame or two. The
+    // freshness poll below only watches for *game* change, so on a near-static
+    // inventory screen it would otherwise hand back a baseline still carrying the
+    // previous shot's ✓/✗ marks. See [`OVERLAY_SETTLE`].
+    std::thread::sleep(OVERLAY_SETTLE);
     // Capture the mirror frame into memory; the debug image we keep (when
     // enabled) is the *cropped* OCR input, written below — not the full frame.
     let capture_result = session.capture_screenshot(capture_eye, trace);
