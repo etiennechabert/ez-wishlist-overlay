@@ -264,26 +264,22 @@ pub struct Settings {
     /// When true, every OCR pass keeps the source screenshot PNG, drops
     /// per-cell binarised strip PNGs (`<stem>.cell<i>.<HHMMSS>.png`),
     /// and writes a `<stem>.ocr-debug.<HHMMSS>.txt` sidecar with every
-    /// intermediate the pipeline produced. Also keeps the in-headset
-    /// feedback card visible until the next capture replaces it (so
-    /// the user has time to inspect the read before grabbing the
-    /// debug artifacts). Default OFF — production users would
-    /// otherwise accumulate ~10 MB screenshots per capture in their
-    /// data dir, and the long-lived overlay would obstruct play.
+    /// intermediate the pipeline produced. These are inspected off-headset;
+    /// this flag does NOT change the in-headset feedback, which always
+    /// follows `ocr_feedback_style` + `ocr_dismiss_seconds`. Default OFF —
+    /// production users would otherwise accumulate ~10 MB screenshots per
+    /// capture in their data dir.
     #[serde(default)]
     pub ocr_debug: bool,
-    /// How long the OCR feedback card stays before fading out, when
-    /// `ocr_debug` is off. Ignored when `ocr_debug` is on (the card
-    /// then sticks until the next capture so you have time to read
-    /// it alongside the on-disk debug artifacts).
+    /// How long the OCR feedback (the centered card and the on-item marks)
+    /// stays before fading out. An active box-scan holds the running series
+    /// up until you leave capture mode, regardless of this value.
     #[serde(default = "default_ocr_dismiss_seconds")]
     pub ocr_dismiss_seconds: u32,
     /// Which in-headset surface shows each capture's per-item OCR read (issues
     /// #137 / #138). Default [`OcrFeedbackStyle::OnItems`] — marks painted on the
     /// real items via the guide box, so nothing occludes the panel / grid you're
     /// aiming at. The guide-box status chip confirms every capture regardless.
-    /// `ocr_debug` forces the centered card on (whatever the style) so the debug
-    /// bundle stays inspectable.
     #[serde(default)]
     pub ocr_feedback_style: OcrFeedbackStyle,
     /// When true, a successful OCR auto-tracks the matched upgrade
