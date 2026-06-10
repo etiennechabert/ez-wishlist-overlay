@@ -6,6 +6,7 @@ use crate::state::{AppState, PersistedOverrides, PersistedState};
 use anyhow::{Context, Result};
 use directories::ProjectDirs;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub struct PersistPaths {
@@ -174,9 +175,24 @@ fn save_overrides(paths: &PersistPaths, state: &AppState) -> Result<()> {
 }
 
 fn atomic_write(path: &std::path::Path, bytes: &[u8]) -> Result<()> {
-    let tmp = path.with_extension("tmp");
-    std::fs::write(&tmp, bytes).with_context(|| format!("writing {}", tmp.display()))?;
-    std::fs::rename(&tmp, path).with_context(|| format!("renaming to {}", path.display()))?;
+    // The temp name must be unique per call: the exit-time flush
+    // (`gui::App::on_exit`) can run while the debounced save thread is
+    // mid-write. With a shared name, one thread's rename can promote — or
+    // delete out from under — the other's half-written temp file, leaving a
+    // truncated state.json. Unique names keep each save independently atomic;
+    // whichever rename lands last wins with complete content. The pid guards
+    // the same way against a second app instance writing the same file.
+    static SEQ: AtomicU64 = AtomicU64::new(0);
+    let seq = SEQ.fetch_add(1, Ordering::Relaxed);
+    let tmp = path.with_extension(format!("tmp.{}.{seq}", std::process::id()));
+    if let Err(e) = std::fs::write(&tmp, bytes) {
+        let _ = std::fs::remove_file(&tmp);
+        return Err(e).with_context(|| format!("writing {}", tmp.display()));
+    }
+    if let Err(e) = std::fs::rename(&tmp, path) {
+        let _ = std::fs::remove_file(&tmp);
+        return Err(e).with_context(|| format!("renaming to {}", path.display()));
+    }
     Ok(())
 }
 
@@ -288,6 +304,60 @@ mod tests {
 
         assert!(paths.debug_dir.is_dir());
         assert_eq!(count_entries(&paths.debug_dir), 0);
+
+        let _ = std::fs::remove_dir_all(&paths.data_dir);
+    }
+
+    /// The exit-time flush (`gui::App::on_exit`) can race the debounced save
+    /// thread's own in-flight write. Each save must be independently atomic:
+    /// with a shared temp name, one thread's rename could promote — or delete
+    /// out from under — the other's half-written temp, surfacing as a failed
+    /// `save()` or a truncated `state.json`. Unique temp names make every
+    /// call succeed and leave the survivor complete, with no temp residue.
+    #[test]
+    fn concurrent_saves_all_succeed_and_leave_a_parseable_file() {
+        use crate::data::GameData;
+        use crate::state::{AppState, PersistedState};
+        use std::sync::Arc;
+
+        let paths = temp_paths("concurrent-saves");
+        paths.ensure_dirs().unwrap();
+        let state = Arc::new(parking_lot::RwLock::new(AppState::new(Arc::new(
+            GameData {
+                data_version: "test".into(),
+                scraped_at: "now".into(),
+                source_repo: "test".into(),
+                source_commit: "deadbeef".into(),
+                modules: Vec::new(),
+                items: Vec::new(),
+            },
+        ))));
+        state.write().set_collected(&"bolts".to_string(), 7);
+
+        std::thread::scope(|s| {
+            for _ in 0..2 {
+                let state = &state;
+                let paths = &paths;
+                s.spawn(move || {
+                    for _ in 0..100 {
+                        save(paths, &state.read()).expect("every concurrent save must succeed");
+                    }
+                });
+            }
+        });
+
+        let raw = std::fs::read_to_string(&paths.state_file).unwrap();
+        let parsed: PersistedState =
+            serde_json::from_str(&raw).expect("surviving state.json parses");
+        assert_eq!(parsed.collected.get("bolts"), Some(&7));
+        // Every temp file was either renamed into place or cleaned up.
+        let leftovers: Vec<String> = std::fs::read_dir(&paths.data_dir)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .filter(|n| n.contains(".tmp"))
+            .collect();
+        assert!(leftovers.is_empty(), "tmp files left behind: {leftovers:?}");
 
         let _ = std::fs::remove_dir_all(&paths.data_dir);
     }

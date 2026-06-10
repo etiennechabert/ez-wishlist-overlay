@@ -484,6 +484,22 @@ impl eframe::App for App {
             }
         }
     }
+
+    /// Final synchronous flush of user state (issue #157). The save loop
+    /// debounces `SaveTick`s by 500 ms and its thread is never joined — it
+    /// dies with the process, and its disconnect-flush can't fire because the
+    /// VR worker keeps the channel's sender graph alive. Without this hook, a
+    /// change made in the last half-second before closing the window (or
+    /// before "Update now" launches msiexec and closes us) was silently lost.
+    /// `persist::save` is atomic per call, so racing the save thread's own
+    /// in-flight write is harmless — last rename wins with complete content.
+    fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+        if let Err(e) = crate::persist::save(&self.paths, &self.state.read()) {
+            tracing::error!(error = %e, "final save on exit failed");
+        } else {
+            tracing::debug!("final save on exit complete");
+        }
+    }
 }
 
 impl App {
