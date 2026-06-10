@@ -144,12 +144,12 @@ impl CaptureCrop {
 
 /// Which controller trigger fires an OCR capture while a capture mode is armed
 /// (issue #136). The other hand's trigger is intentionally left untouched so it
-/// stays free for in-game menu navigation. Default `Right`.
+/// stays free for in-game menu navigation. Default `Left`.
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum CaptureHand {
-    Left,
     #[default]
+    Left,
     Right,
 }
 
@@ -165,7 +165,7 @@ impl CaptureHand {
 }
 
 fn default_capture_trigger() -> CaptureHand {
-    CaptureHand::Right
+    CaptureHand::Left
 }
 
 /// How the in-headset OCR result is shown after each capture — the user picks
@@ -461,7 +461,7 @@ pub struct VrSettings {
     pub max_items: u32,
     /// Which controller trigger takes the OCR capture while a mode is armed;
     /// the other hand's trigger stays free for in-game menu navigation. Shown
-    /// on the guide box. Defaulted (`Right`) for forward-compatible files.
+    /// on the guide box. Defaulted (`Left`) for forward-compatible files.
     #[serde(default = "default_capture_trigger")]
     pub capture_trigger: CaptureHand,
     /// When on, the capture guide box renders **only in the capture eye** (via a
@@ -470,9 +470,10 @@ pub struct VrSettings {
     /// panel at a different depth it ghosts into a doubled "two box" image;
     /// showing it in just the capture eye removes that. Pairs with
     /// [`Settings::capture_eye`] (the doubled eye is the one OCR doesn't use).
-    /// Default **off** (both eyes) — a one-eye HUD element can cause binocular
-    /// rivalry for some users, so it's opt-in (issue #143).
-    #[serde(default)]
+    /// Default **on** (capture eye only) — kills that doubled-box ghosting; users
+    /// prone to binocular rivalry from a one-eye HUD element can turn it off
+    /// (issue #143).
+    #[serde(default = "default_guide_eye_only")]
     pub guide_eye_only: bool,
 }
 
@@ -492,6 +493,12 @@ fn default_max_items() -> u32 {
     0
 }
 
+fn default_guide_eye_only() -> bool {
+    // Capture eye only — the head-locked box at a fixed depth otherwise ghosts
+    // into a doubled "two box" image when the eyes converge on the panel (#143).
+    true
+}
+
 impl Default for VrSettings {
     fn default() -> Self {
         // Defaults track the SPEC.md §7.2 baselines documented in vr/pose.rs.
@@ -503,7 +510,7 @@ impl Default for VrSettings {
             height_offset_m: default_height_offset_m(),
             max_items: default_max_items(),
             capture_trigger: default_capture_trigger(),
-            guide_eye_only: false,
+            guide_eye_only: default_guide_eye_only(),
         }
     }
 }
@@ -782,25 +789,25 @@ mod tests {
     }
 
     #[test]
-    fn guide_eye_only_defaults_off_and_round_trips() {
+    fn guide_eye_only_defaults_on_and_round_trips() {
         // Absent from a settings file written before this field → serde(default)
-        // fills `false` (both eyes), not an error.
+        // fills `true` (capture eye only), not an error.
         let s: Settings = serde_json::from_str(
             r#"{"vr":{"width_meters":1.0,"show_pitch_deg":20.0,"hide_pitch_deg":10.0,"grid_cols":8,"height_offset_m":0.6}}"#,
         )
         .unwrap();
-        assert!(!s.vr.guide_eye_only);
-        // Round-trips when enabled.
+        assert!(s.vr.guide_eye_only);
+        // An explicit opt-out (the non-default) round-trips.
         let s2 = Settings {
             vr: VrSettings {
-                guide_eye_only: true,
+                guide_eye_only: false,
                 ..VrSettings::default()
             },
             ..Settings::default()
         };
         let json = serde_json::to_string(&s2).unwrap();
         let back: Settings = serde_json::from_str(&json).unwrap();
-        assert!(back.vr.guide_eye_only);
+        assert!(!back.vr.guide_eye_only);
     }
 
     #[test]
