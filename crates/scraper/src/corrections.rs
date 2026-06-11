@@ -1,4 +1,4 @@
-//! Local corrections for known upstream item-name bugs.
+//! Local corrections for known upstream item-data bugs (names and ids).
 //!
 //! Upstream (exfil-zone-assistant) is a fan-maintained catalog and occasionally
 //! ships an item `name` that doesn't match the in-game label — including
@@ -13,7 +13,7 @@
 //! a synonym/fallback shim in the match path. Keep the table minimal: one entry
 //! per *observed* divergence, not speculative fixes for every upstream duplicate.
 
-/// Upstream item id → corrected `name`. See module docs.
+/// Item id (after [`correct_id`]) → corrected `name`. See module docs.
 const NAME_CORRECTIONS: &[(&str, &str)] = &[
     // Upstream names this "Civil radio", colliding with the actual civil radio
     // (`misc_b_civilradio`). In-game the tile reads "Tape player" (a cassette
@@ -29,27 +29,34 @@ const NAME_CORRECTIONS: &[(&str, &str)] = &[
     // unmatched. The hideout panel uses item_id (count read positionally), so
     // the rename only affects the box-scan matcher + the display name.
     ("misc_b_nail", "Boxed Nails"),
-    // `misc_b_1battery` and `misc_1batterie_2` are TWO real items; upstream
-    // collapsed both to a bare "Size D battery". The game distinguishes them —
-    // note the id<->name INVERSION, confirmed against in-game captures:
-    //   misc_b_1battery   -> "Size D battery2"  (white SiLurGor 2-pack)
-    //   misc_1batterie_2  -> "Size D battery1"  (yellow SiLurGor 2-pack)
-    // Ground truth is the captured Procurement System (Moreitem) Lv1 panel, whose
-    // `misc_b_1battery` requirement tile reads "Size D battery2"
-    // (screenshots/hideout/units/MoreitemLv1__misc_b_1battery.webp). The yellow
-    // "battery1" tile in the stash is therefore `misc_1batterie_2`
-    // (screenshots/stash/units/misc_1batterie_2.webp). This corrects the inverted
-    // mapping shipped in #126, which had read the stash tile as `misc_b_1battery`.
+    // The size-D-battery twins (ids remapped from upstream's inverted slugs —
+    // see [`ID_CORRECTIONS`]): upstream collapsed both to a bare "Size D
+    // battery"; in-game they are distinct, verified against captures:
+    //   misc_b_battery_1 -> "Size D battery1"  (yellow SiLurGor 2-pack)
+    //   misc_b_battery_2 -> "Size D battery2"  (white SiLurGor 2-pack)
     //
-    // OCR note: the stash tile OCRs "Size D batteryl" (trailing 1 read as l).
-    // match_item's confusion-aware distance makes l<->1 cheap but l<->2 full-cost,
-    // so "batteryl" still resolves to "battery1" = `misc_1batterie_2` even with
-    // both twins named — i.e. the symmetric names are safe (the earlier worry that
-    // a symmetric name would re-tie the candidates predates that confusion cost).
-    // A *fully dropped* digit ("Size D battery", no suffix) is genuinely ambiguous
-    // and not recoverable from the label alone.
-    ("misc_b_1battery", "Size D battery2"),
-    ("misc_1batterie_2", "Size D battery1"),
+    // OCR note: a tile can OCR "Size D batteryl" (trailing 1 read as l).
+    // match_item's confusion-aware distance makes l<->1 cheap but l<->2
+    // full-cost, so "batteryl" still resolves to "Size D battery1" — the
+    // symmetric names are safe. A *fully dropped* digit ("Size D battery", no
+    // suffix) is genuinely ambiguous and not recoverable from the label alone.
+    ("misc_b_battery_1", "Size D battery1"),
+    ("misc_b_battery_2", "Size D battery2"),
+];
+
+/// Upstream item id → our item id. Applied at catalog load, before any other
+/// correction — everything downstream (emitted item ids, [`NAME_CORRECTIONS`]
+/// keys, icon filenames) speaks the corrected id.
+///
+/// Upstream ids mirror the game's internal blueprint slugs and we normally
+/// preserve them 1:1. The size-D-battery twins are the exception: the game's
+/// own slugs are id↔name *inverted* against its display labels
+/// (`misc_1batterie_2` is "Size D battery1", `misc_b_1battery` is "Size D
+/// battery2"), which kept causing name/icon mix-ups (#126). We rename both so
+/// that id, display name and icon file all say the same thing.
+const ID_CORRECTIONS: &[(&str, &str)] = &[
+    ("misc_1batterie_2", "misc_b_battery_1"), // "Size D battery1" (yellow pack)
+    ("misc_b_1battery", "misc_b_battery_2"),  // "Size D battery2" (white pack)
 ];
 
 /// Corrected display name for an upstream item: the [`NAME_CORRECTIONS`] entry
@@ -59,6 +66,15 @@ pub fn correct_name(id: &str, upstream_name: &str) -> String {
         .iter()
         .find(|(cid, _)| *cid == id)
         .map_or_else(|| upstream_name.to_string(), |(_, fixed)| fixed.to_string())
+}
+
+/// Our id for an upstream item: the [`ID_CORRECTIONS`] entry when one exists,
+/// otherwise the upstream id unchanged.
+pub fn correct_id(upstream_id: &str) -> &str {
+    ID_CORRECTIONS
+        .iter()
+        .find(|(uid, _)| *uid == upstream_id)
+        .map_or(upstream_id, |(_, fixed)| fixed)
 }
 
 #[cfg(test)]
@@ -79,16 +95,24 @@ mod tests {
     }
 
     #[test]
+    fn remaps_battery_twin_ids() {
+        // Upstream's slugs are id↔name inverted; ours match the labels.
+        assert_eq!(correct_id("misc_1batterie_2"), "misc_b_battery_1");
+        assert_eq!(correct_id("misc_b_1battery"), "misc_b_battery_2");
+        assert_eq!(correct_id("misc_b_nail"), "misc_b_nail");
+    }
+
+    #[test]
     fn disambiguates_size_d_battery_twins() {
-        // Both ship from upstream as a bare "Size D battery"; the game gives them
-        // distinct names, with an id<->name inversion (see NAME_CORRECTIONS).
+        // Both ship from upstream as a bare "Size D battery"; names are keyed
+        // by the corrected ids (correct_id runs first, at catalog load).
         assert_eq!(
-            correct_name("misc_b_1battery", "Size D battery"),
-            "Size D battery2"
+            correct_name("misc_b_battery_1", "Size D battery"),
+            "Size D battery1"
         );
         assert_eq!(
-            correct_name("misc_1batterie_2", "Size D battery"),
-            "Size D battery1"
+            correct_name("misc_b_battery_2", "Size D battery"),
+            "Size D battery2"
         );
     }
 

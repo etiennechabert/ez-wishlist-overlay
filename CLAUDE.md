@@ -48,7 +48,11 @@ Paks are **pak v11, UNENCRYPTED** (no AES key); file data is **Oodle**-compresse
 - Recipes are **seasonal** (`_S2`…`_S5`); `data.json` currently tracks ~**S5**.
   Re-confirm the live season against `screenshots/hideout/` each game update.
 - **Name drift:** app "Nails" vs game "Boxed Nails"; `misc_b_storagebattery`="Car
-  Battery". **Module aliases:** app `Intelligent`=game `IntelCenter`,
+  Battery". **Id drift:** the size-D-battery twins are renamed via the scraper's
+  `ID_CORRECTIONS` — game blueprints `ValuableItem_1batterie_2` ("Size D
+  battery1") / `ValuableItem_B_1battery` ("Size D battery2") have id↔name-
+  inverted slugs; the app ids are `misc_b_battery_1` / `misc_b_battery_2`.
+  **Module aliases:** app `Intelligent`=game `IntelCenter`,
   `Generator`≈`PowerGenerator`, storage modules `StorageZoneLock/Storagevaluable/
   TerminalStorage/WorkshopZone`≈`StorageExpansion/Workshop/RestArea`.
 - The OCR count font (`crates/app/src/ocr`) is **Quantico-Bold**, also identified

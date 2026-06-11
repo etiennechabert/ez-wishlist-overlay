@@ -209,20 +209,20 @@ map each on-screen item to its `item_id` by display name, watching for:
   ("Storagevaluable"/"Storage"), `TerminalStorage` ("Terminal Storage"/"Starter's
   Storage Expansion"). If a new module's row label disagrees with `module.name`,
   **patch `data.json` to match the row label.**
-- **Upstream display names are sometimes wrong, but never rename a catalog id to
-  match a label.** `misc_b_pipeline` has name "Valve" (id ≠ name) — keep the
+- **Upstream display names are sometimes wrong, but never rename a catalog id in
+  `data.json` alone.** `misc_b_pipeline` has name "Valve" (id ≠ name) — keep the
   upstream slug; the scraper rebuilds the catalog every run and would revert a
-  renamed id, orphaning the requirement (issue #89). Same rule for
-  `misc_b_storagebattery` ("Car Battery" in JSON, larger item in-game) and
+  data.json-only rename, orphaning the requirement (issue #89). An id rename is
+  only safe via `ID_CORRECTIONS` in `crates/scraper/src/corrections.rs` (done for
+  the size-D-battery twins → `misc_b_battery_1`/`misc_b_battery_2`). Same caution
+  for `misc_b_storagebattery` ("Car Battery" in JSON, larger item in-game) and
   `misc_b_batter_large` ("Storage Battery" in JSON, the small one in-game) —
   compare icons and ask the user.
 - **Two items can share a display name** — disambiguate by the upstream icon
   filename suffix and the in-game label; never collapse them. Still live:
-  `misc_b_gastank` + `misc_b_tape_large` are both "Gas can". Resolved:
-  `misc_1batterie_2` and `misc_b_1battery` were both upstream "Size D battery"; the
-  game distinguishes them with an **id↔name inversion** — `misc_1batterie_2` =
-  "Size D battery1" (yellow pack), `misc_b_1battery` = "Size D battery2" (white
-  pack) — now corrected in `crates/scraper/src/corrections.rs`.
+  `misc_b_gastank` + `misc_b_tape_large` are both "Gas can". Resolved cases are
+  patched in `crates/scraper/src/corrections.rs` (e.g. the size-D-battery twins,
+  now `misc_b_battery_1`/`misc_b_battery_2` with names matching their labels).
 - **Digit OCR ambiguity:** `0/2/8` and `6/8` confuse in the small counter font.
   Crop + upscale before assuming; ask the user if still blurry.
 - **"Storage Zone Upgraded: 0/3" at a panel's top is a global status counter,

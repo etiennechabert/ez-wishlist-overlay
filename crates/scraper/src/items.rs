@@ -60,8 +60,9 @@ struct UpstreamItemStats {
 }
 
 pub struct ItemCatalog {
-    /// All items, keyed by upstream id. The id is also our `ItemId` (we
-    /// preserve upstream slugs 1:1).
+    /// All items, keyed by our `ItemId` — the upstream id after
+    /// [`crate::corrections::correct_id`] (normally identical: upstream slugs
+    /// are preserved 1:1 except for the listed corrections).
     pub items: HashMap<ItemId, ItemRecord>,
 }
 
@@ -96,8 +97,9 @@ impl ItemCatalog {
             for u in raw {
                 let icon = u.images.and_then(|i| i.icon);
                 let stats = u.stats.unwrap_or_default();
+                let id = crate::corrections::correct_id(&u.id).to_string();
                 let rec = ItemRecord {
-                    id: u.id.clone(),
+                    id: id.clone(),
                     name: u.name.clone(),
                     upstream_icon: icon,
                     category: u.category,
@@ -106,7 +108,7 @@ impl ItemCatalog {
                     weight: stats.weight,
                     rarity: stats.rarity,
                 };
-                items.insert(u.id, rec);
+                items.insert(id, rec);
             }
         }
 
