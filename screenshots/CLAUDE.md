@@ -10,6 +10,7 @@ screenshots/
   hideout/   <UpgradeId>.webp        + <UpgradeId>.label.txt     # Facility Upgrade panels (15)
   box/       box.shotN.webp/.boxes.json + box.label.txt          # world container tablet  (3 shots)
   stash/     stash.shotNN.webp/.boxes.json + stash.label.txt     # Johnny's-Service junk-box terminal (38 shots)
+  research/  tree.shotN.webp + <node>.webp + research.label.txt  # Neumann's RESEARCH tree (19 nodes; not OCR-gated yet)
 ```
 
 Three asset types, each scored **independently** by the pipeline:
@@ -151,6 +152,35 @@ upstream catalog this dataset was bootstrapped from had mislabels/duplicates
 that break the name match) — not worked around in the label.
 
 ---
+
+## research/ — Neumann's RESEARCH tree (panel-verified dataset, not OCR-gated)
+
+The gunsmith merchant Neumann's blueprint research tree (Basic category, 19
+nodes `a1–a9 / b1–b3 / c1–c4 / d1–d3` = the game's `task.research.<node>` ids).
+Unlike the other assets these are **dataset ground truth first**: the future
+`data.json` `research` section is validated against them the way hideout labels
+validate upgrade recipes. No OCR gate consumes them yet (a "scan research tree"
+mode is a candidate later phase).
+
+- **`tree.shot0/1.webp`** — the full tree, top/bottom scroll positions (node
+  layout + connector edges; note `b3→a8` and `c4→a7` merge into the centre
+  spine, so it's a DAG, not a tree).
+- **`<node>.webp`** — that node's detail pane: the unlocked part (name, class,
+  price, weight) and the OBJECTIVE strip of required submissions with `X/N`
+  counters, every one tagged FROM RAID. Panes are readable on *locked* nodes
+  too, so the whole dataset can be re-captured after a game update without
+  progressing the tree.
+- **`research.label.txt`** — the transcription: per node its parents, the
+  unlocked item (game `gunsmith.*` tag from `WFItemsStringTable`), and each
+  requirement as `<item ref> <needed>`. Misc requirements use `data.json`
+  `item_id`s (all resolve by exact display name; sole alias: tile "Badge" =
+  `misc_badge` "Sheriff's Badge"); gun-part requirements keep their game tag
+  until app ids are minted. Same rule as everywhere: the pane is ground truth —
+  if `data.json` disagrees, patch the data.
+
+These captures are the box-scan **gaze-crop** debug WebPs (`~1424×927`), not
+full 3096×3312 mirror frames — fine for ground truth + icon cutouts; recapture
+full frames only if an OCR gate ever needs them.
 
 ## units/ — per-item isolated-OCR fixtures
 
