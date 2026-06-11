@@ -212,6 +212,7 @@ mod tests {
             scraped_at: "now".into(),
             source_repo: "test".into(),
             source_commit: "deadbeef".into(),
+            research: Vec::new(),
             modules: vec![HideoutModule {
                 id: "kitchen".into(),
                 name: "Kitchen".into(),

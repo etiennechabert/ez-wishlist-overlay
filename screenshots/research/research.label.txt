@@ -67,8 +67,10 @@ gunsmith.g3.clip.30    1
 misc_b_socket       3
 
 [b3]  Falcon  parents=b2  unlocks=gunsmith.g3.mount.falconscope  # G3/HK51 Falcon 1.5-6X Scope // RARE WEAPON // 12636 // 0.32kg
-gunsmith.g3.stock.polyak4    1
-# ^ tile says "AK4"; G3AK4 upper/lower receiver tags also exist — confirm on first submit
+gunsmith.g3.lowerreceiver.g3ak4    1
+# ^ tile says "AK4"; its icon is a G3-family LOWER RECEIVER (grip + trigger frame +
+#   selector dots), not a stock — matches lowerreceiver.g3ak4 ("G3 AK4 assault
+#   rifle"). The polyak4 stock remains the fallback reading; confirm on first submit
 misc_b_tapeplayer   4
 misc_videotape      1
 

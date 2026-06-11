@@ -1311,6 +1311,7 @@ mod tests {
             scraped_at: "now".into(),
             source_repo: "test".into(),
             source_commit: "deadbeef".into(),
+            research: Vec::new(),
             modules: vec![
                 HideoutModule {
                     id: "workbench".into(),
@@ -2682,6 +2683,7 @@ mod tests {
             scraped_at: "now".into(),
             source_repo: "test".into(),
             source_commit: "deadbeef".into(),
+            research: Vec::new(),
             modules: vec![
                 module("m_ready", up("u_ready", &[("ra", 2)])),
                 module("m_nearly", up("u_nearly", &[("na", 2)])),

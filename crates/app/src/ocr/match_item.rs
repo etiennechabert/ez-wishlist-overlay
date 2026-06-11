@@ -199,6 +199,7 @@ mod tests {
             source_repo: "test".into(),
             source_commit: "test".into(),
             modules: Vec::new(),
+            research: Vec::new(),
             items: vec![
                 item("uvlight", "UV lamp"),
                 item("copperwire", "Copper wire"),

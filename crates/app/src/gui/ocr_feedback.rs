@@ -477,6 +477,7 @@ mod tests {
             source_commit: "deadbeef".into(),
             modules: vec![],
             items,
+            research: Vec::new(),
         }))
     }
 
