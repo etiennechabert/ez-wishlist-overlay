@@ -8,8 +8,8 @@
 # the frozen stash.shot05.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 13 item tile(s) across 3 grid row(s)
-  dropped 2 text(s) that matched no catalog item (window title, weight
+  recognized 15 item tile(s) across 3 grid row(s)
+  dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
@@ -22,6 +22,7 @@
     1 x misc_b_lighterfluid
     1 x misc_b_nail
     1 x misc_b_ram
+    2 x misc_b_screw
     1 x misc_copperwire
 #
 ## DETAIL — every text the OCR produced, row by row
@@ -46,7 +47,7 @@
     Ceramic adhesive               -> misc_b_ceramic_adhesive
     Size O batterye                -> misc_b_battery_1
     Size O batteryl                -> misc_b_battery_1
-    Boxed Bolts                    -> (no match)
+    Boxed Bolts                    -> misc_b_screw
   [tabs  ]
     Medical Supplies               -> (no match)
     Building                       -> (no match)
@@ -56,7 +57,7 @@
   [chrome]
     Box Nail                       -> (no match)
   [items ]
-    Boxed Bol ts                   -> (no match)
+    Boxed Bol ts                   -> misc_b_screw
     Gun oil                        -> misc_b_gunoil
     Lighter fluid                  -> misc_b_lighterfluid
     Copper wire                    -> misc_copperwire

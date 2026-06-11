@@ -8,8 +8,8 @@
 # the frozen stash.shot32.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 10 item tile(s) across 3 grid row(s)
-  dropped 3 text(s) that matched no catalog item (window title, weight
+  recognized 11 item tile(s) across 3 grid row(s)
+  dropped 2 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
@@ -17,6 +17,7 @@
     1 x misc_b_disinfectingwipes
     1 x misc_b_gastank
     1 x misc_b_iodophor
+    1 x misc_b_match
     1 x misc_b_medicalscissors
     1 x misc_b_socket
     1 x misc_b_sparkplug
@@ -45,7 +46,7 @@
   [items ]
     G" can                         -> (no match)
     Iodine                         -> misc_b_iodophor
-    Windproof Matches              -> (no match)
+    Windproof Matches              -> misc_b_match
     Tape                           -> misc_b_tape
   [tabs  ]
     Combustible                    -> (no match)

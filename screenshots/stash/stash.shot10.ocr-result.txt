@@ -8,8 +8,8 @@
 # the frozen stash.shot10.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 9 item tile(s) across 3 grid row(s)
-  dropped 4 text(s) that matched no catalog item (window title, weight
+  recognized 11 item tile(s) across 3 grid row(s)
+  dropped 2 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
@@ -18,7 +18,9 @@
     1 x misc_b_ionbattery
     1 x misc_b_medicalscissors
     1 x misc_b_newphone
+    1 x misc_b_nut
     1 x misc_b_pcfan
+    1 x misc_b_screw
     1 x misc_notebook
     2 x misc_screwdriver
 #
@@ -31,7 +33,7 @@
     Ion Battery                    -> misc_b_ionbattery
     Iodine                         -> misc_b_iodophor
     CPU Fan                        -> misc_b_pcfan
-    Boxed Nuts                     -> (no match)
+    Boxed Nuts                     -> misc_b_nut
   [tabs  ]
     Power                          -> (no match)
     Medical Supplies               -> (no match)
@@ -41,7 +43,7 @@
   [chrome]
     CEBOL                          -> (no match)
   [items ]
-    Boxed Bolts                    -> (no match)
+    Boxed Bolts                    -> misc_b_screw
     ScrewdrWer                     -> misc_screwdriver
     Screwdriver                    -> misc_screwdriver
     Ftoppy&k                       -> (no match)

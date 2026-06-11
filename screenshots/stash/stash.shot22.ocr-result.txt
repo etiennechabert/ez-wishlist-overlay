@@ -8,13 +8,14 @@
 # the frozen stash.shot22.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 11 item tile(s) across 3 grid row(s)
-  dropped 4 text(s) that matched no catalog item (window title, weight
+  recognized 13 item tile(s) across 3 grid row(s)
+  dropped 2 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
+    1 x misc_b_bandaid
     1 x misc_b_battery_1
-    1 x misc_b_beardoil
+    2 x misc_b_beardoil
     1 x misc_b_flashlight
     1 x misc_b_gastank
     2 x misc_b_glue_large
@@ -41,11 +42,11 @@
     Building                       -> (no match)
     Electric                       -> (no match)
   [items ]
-    Be.rdOi1                       -> (no match)
+    Be.rdOi1                       -> misc_b_beardoil
     Lighter fluid                  -> misc_b_lighterfluid
     wo-40                          -> misc_b_wd40
     Moldboard                      -> misc_b_moldboard
-    Band-aids                      -> (no match)
+    Band-aids                      -> misc_b_bandaid
   [tabs  ]
     Household                      -> (no match)
     Combustible                    -> (no match)

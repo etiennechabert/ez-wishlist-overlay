@@ -8,8 +8,8 @@
 # the frozen stash.shot07.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 12 item tile(s) across 3 grid row(s)
-  dropped 1 text(s) that matched no catalog item (window title, weight
+  recognized 13 item tile(s) across 3 grid row(s)
+  dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
@@ -18,6 +18,7 @@
     2 x misc_b_ionbattery
     1 x misc_b_lighterfluid
     1 x misc_b_nail
+    1 x misc_b_screw
     1 x misc_b_superglue
     1 x misc_b_tape
     1 x misc_copperwire
@@ -30,7 +31,7 @@
   [chrome]
     JUNK BOX                       -> (no match)
   [items ]
-    Boxed Botts                    -> (no match)
+    Boxed Botts                    -> misc_b_screw
     Gun oil                        -> misc_b_gunoil
     Lighter fluid                  -> misc_b_lighterfluid
     Copper wire                    -> misc_copperwire

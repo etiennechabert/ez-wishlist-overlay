@@ -8,18 +8,20 @@
 # the frozen stash.shot17.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 13 item tile(s) across 4 grid row(s)
-  dropped 4 text(s) that matched no catalog item (window title, weight
+  recognized 15 item tile(s) across 4 grid row(s)
+  dropped 2 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
     3 x misc_b_aspire
     2 x misc_b_battery_1
+    1 x misc_b_beardoil
     1 x misc_b_flashlight
     1 x misc_b_gastank
     1 x misc_b_gunoil
     1 x misc_b_iodophor
     1 x misc_b_ionbattery
+    1 x misc_b_match
     1 x misc_b_superglue
     1 x misc_b_wd40
     1 x misc_notebook
@@ -30,7 +32,7 @@
   [chrome]
     JUNK BOX                       -> (no match)
   [items ]
-    Windproof Match"               -> (no match)
+    Windproof Match"               -> misc_b_match
     Gun on                         -> (no match)
     Super Glue                     -> misc_b_superglue
     Aspirin                        -> misc_b_aspire
@@ -57,7 +59,7 @@
     Power                          -> (no match)
     Power                          -> (no match)
   [items ]
-    Be.rdOi1                       -> (no match)
+    Be.rdOi1                       -> misc_b_beardoil
     Iodine                         -> misc_b_iodophor
     Gun oil                        -> misc_b_gunoil
     Size O bat teryl               -> misc_b_battery_1

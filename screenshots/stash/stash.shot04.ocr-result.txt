@@ -8,8 +8,8 @@
 # the frozen stash.shot04.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 13 item tile(s) across 3 grid row(s)
-  dropped 1 text(s) that matched no catalog item (window title, weight
+  recognized 14 item tile(s) across 3 grid row(s)
+  dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
@@ -21,6 +21,7 @@
     2 x misc_b_insulatingtape
     1 x misc_b_pcfan
     2 x misc_b_pipeline
+    1 x misc_b_screw
     1 x misc_hammer
     1 x misc_notebook
 #
@@ -61,7 +62,7 @@
     Ceramic adhesive               -> misc_b_ceramic_adhesive
     Size D battery2                -> misc_b_battery_2
     Size O batteryi                -> misc_b_battery_1
-    Boxed Bolts                    -> (no match)
+    Boxed Bolts                    -> misc_b_screw
   [tabs  ]
     Medical Supplies               -> (no match)
     Building                       -> (no match)

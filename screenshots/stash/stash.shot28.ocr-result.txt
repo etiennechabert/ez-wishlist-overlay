@@ -8,8 +8,8 @@
 # the frozen stash.shot28.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 11 item tile(s) across 3 grid row(s)
-  dropped 3 text(s) that matched no catalog item (window title, weight
+  recognized 13 item tile(s) across 3 grid row(s)
+  dropped 1 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
@@ -20,6 +20,7 @@
     1 x misc_b_lighterfluid
     1 x misc_b_opticaldisc
     1 x misc_b_pesticide
+    2 x misc_b_shampoo
     1 x misc_b_sparkplug
     1 x misc_floppydisk
 #
@@ -31,8 +32,8 @@
   [items ]
     Ion Battery                    -> misc_b_ionbattery
     Spark Plug                     -> misc_b_sparkplug
-    Pet Shampoo                    -> (no match)
-    Pet Shampoo                    -> (no match)
+    Pet Shampoo                    -> misc_b_shampoo
+    Pet Shampoo                    -> misc_b_shampoo
     Fluh tight                     -> (no match)
   [tabs  ]
     Power                          -> (no match)
