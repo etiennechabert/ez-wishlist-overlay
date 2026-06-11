@@ -161,6 +161,7 @@ mod tests {
             scraped_at: "test".into(),
             source_repo: "test".into(),
             source_commit: "test".into(),
+            research: Vec::new(),
             modules: vec![
                 module("RestRoom", "Toilet", 3),
                 module("CryptoMining", "Bitcoin Mine", 4),

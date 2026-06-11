@@ -1,0 +1,111 @@
+# research — Neumann's RESEARCH tree (Basic category), ground truth.
+# Captured 2026-06-11. tree.shot0/1 = the full 19-node tree (top/bottom scroll);
+# <node>.webp = that node's detail pane (node id = the game's task.research.<node>).
+#
+# Node line:    [<node>]  <tree label>  parents=<csv>  unlocks=<gunsmith tag>  # full item name // class // price // weight
+# Requirement:  <item ref>  <needed>    — item ref is a data.json misc item_id where
+#               one exists; otherwise the game's WFItemsStringTable gunsmith tag
+#               (app ids for gun-part items aren't minted yet — see the Research-tab issue).
+# Every requirement is tagged FROM RAID in-game. No money cost / duration shown.
+# Edges read off tree.shot0/1: note b3->a8 and c4->a7 merge back into the a-spine (DAG).
+# Pane-vs-tree naming: a7's tree label says "Gen4" but its pane shows the SSR *Gen3* item.
+
+[a1]  AR-15 4in RIS  parents=  unlocks=gunsmith.ar15.handguard.4inchris  # AR-15 4inch RIS handguard // UNUSUAL WEAPON // 3966 // 0.28kg
+misc_b_moldboard    2
+misc_screwdriver    2
+
+[a2]  MOE-K  parents=a1  unlocks=gunsmith.ar15.pistolgrip.moe-k  # AR-15 MOE-K pistolgrip // EPIC WEAPON // 4127 // 0.045kg
+gunsmith.ar15.clip.20r    2
+misc_b_nut          2
+misc_b_screw        1
+
+[a3]  AR-15 DD  parents=a2  unlocks=gunsmith.arstock.stock.dd  # AR-15 DD stock (the STOCK, not the handguard) // LEGENDARY WEAPON // 8604 // 0.22kg
+gunsmith.arstock.stock.car15    1
+misc_b_gunoil       1
+misc_b_ceramic_adhesive    2
+
+[a4]  UBR  parents=a3  unlocks=gunsmith.arbuffer.stock.ubr  # AR-15 UBR buffer tube stock // ULTIMATE WEAPON // 9411 // 0.45kg
+gunsmith.arbuffer.stock.hunterwood    1
+# ^ tile says "Hunter Wood", icon shows a stock; handguard/pistolgrip hunterwood variants also exist — confirm on first submit
+misc_b_glue_large   2
+misc_b_oldphone     3
+
+[a5]  AR-15 PRSGen3  parents=a4  unlocks=gunsmith.arbuffer.stock.prsgen3  # AR-15 PRSGen3 buffer tube stock // ULTIMATE WEAPON // 10874 // 0.6kg
+gunsmith.ar10.upperreceiver.ar308    1
+misc_b_wrench       2
+misc_floppydisk     2
+
+[a6]  AR15/AR10 CookieCutter Comp  parents=a5  unlocks=gunsmith.ar15&ar10.muzzle.cookiecutter  # AR15&AR10 CookieCutter 5.56x45mm&7.62x51mm compensator // LEGENDARY ATTACHMENT // 15790 // 0.13kg
+gunsmith.ar15.muzzle.slr    1
+gunsmith.ar15.pistolgrip.prs    1
+misc_b_nail         4
+
+[a7]  AR-15 SSR Gen4  parents=a6,c4  unlocks=gunsmith.ar15.handguard.ssgen3  # AR-15 SSR Gen3 handguard (pane shows Gen3; tree label says Gen4) // LEGENDARY WEAPON // 17022 // 0.4kg
+gunsmith.arstock.stock.dd    1
+misc_wastechip      2
+misc_floppydisk     1
+misc_videotape      1
+
+[a8]  AR15/AR10 TBeast MC-Cover  parents=a7,b3  unlocks=gunsmith.ar15&ar10.muzzle.tbeast-mccover  # AR15&AR10 TBeast 5.56x45mm&7.62x51mm suppressor MC-Cover // LEGENDARY ATTACHMENT // 25367 // 0.47kg
+gunsmith.ar15.barrel.180mmsight    1
+gunsmith.arbuffer.stock.ubr    1
+misc_cpu            1
+
+[a9]  Monster556  parents=a8  unlocks=gunsmith.aug.muzzle.sfmonster556  # Monster556 5.56x45mm for SF compensator suppressor // ULTIMATE ATTACHMENT // 23471 // 0.36kg
+gunsmith.ar15&ar10.muzzle.cookiecutter    1
+gunsmith.ar15.handguard.4inchris    1
+misc_b_storagebattery    1
+misc_b_gunoil       3
+
+[b1]  G3 SPUHR  parents=a2  unlocks=gunsmith.g3.handguard.spuhr  # G3 SPUHR handguard // RARE WEAPON // 8531 // 0.32kg
+gunsmith.g3.stock.polyblack    1
+gunsmith.g3.stock.polygreen    1
+misc_b_rustedcleaner    2
+
+[b2]  G3 PRS Black  parents=b1  unlocks=gunsmith.g3.pistolgrip.prsblack  # G3 PRS Black pistol grip // EPIC WEAPON // 11075 // 0.12kg
+gunsmith.g3.clip.30    1
+misc_b_socket       3
+
+[b3]  Falcon  parents=b2  unlocks=gunsmith.g3.mount.falconscope  # G3/HK51 Falcon 1.5-6X Scope // RARE WEAPON // 12636 // 0.32kg
+gunsmith.g3.lowerreceiver.g3ak4    1
+# ^ tile says "AK4"; its icon is a G3-family LOWER RECEIVER (grip + trigger frame +
+#   selector dots), not a stock — matches lowerreceiver.g3ak4 ("G3 AK4 assault
+#   rifle"). The polyak4 stock remains the fallback reading; confirm on first submit
+misc_b_tapeplayer   4
+misc_videotape      1
+
+[c1]  MOE  parents=a1  unlocks=gunsmith.ak.pistolgrip.moeak  # AK74/AKM MOE pistol grip // EPIC WEAPON // 4486 // 0kg
+gunsmith.ak74u.stock.6p26-sb5    1
+misc_b_moldboard    3
+
+[c2]  XRS  parents=c1  unlocks=gunsmith.ak.handguard.xrs74yg  # AK74/AKM XRS handguard // ULTIMATE WEAPON // 8546 // 0.49kg
+gunsmith.ak.pistolgrip.scorpius    1
+misc_b_glue_large   1
+misc_b_wirecutting  2
+
+[c3]  AKM Hexagon  parents=c2  unlocks=gunsmith.ak.muzzle.762hexagon  # AKM 7.62x39mm Hexagon suppressor // RARE ATTACHMENT // 16976 // 0.47kg
+gunsmith.ak.muzzle.762srvv    1
+misc_b_recorder     2
+misc_b_superglue    2
+
+[c4]  AK103 DTK-4m  parents=c3  unlocks=gunsmith.ak103.muzzle.762dtk-4m  # AK103 DTK-4m 7.62x39mm suppressor // EPIC ATTACHMENT // 18280 // 0.36kg
+gunsmith.ak100.muzzle.545&762dtk2    1
+misc_b_tapeplayer   1
+misc_b_tape         5
+misc_b_socket       3
+
+[d1]  MX400 Light  parents=a1  unlocks=gunsmith.20rail.tactical.pf-mx400  # MX400 20mm tactical pistol flashlight // UNUSUAL ATTACHMENT // 11894 // 0.09kg
+gunsmith.20rail.foregrip.starkverticalshort    1
+misc_hammer         2
+
+[d2]  AR-15 60rd P-Drum  parents=d1  unlocks=gunsmith.ar15.clip.pdrum60  # AR-15 5.56x45mm 60rnd P-Drum magazine // ULTIMATE MAGAZINE // 16740 // 0.45kg
+gunsmith.ar15.clip.pmag30    1
+gunsmith.ar10.clip.20    1
+misc_blimbingrope   2
+
+[d3]  VerTac X  parents=d2  unlocks=gunsmith.20rail.sight.vertex  # VerTac X 1-6x 20mm adjustable magnifer scope // ULTIMATE ATTACHMENT // 24595 // 0.57kg
+gunsmith.sks.stock.uas    1
+misc_b_transformer  1
+misc_b_newphone     2
+misc_badge          1
+# ^ tile label "Badge" = misc_badge "Sheriff's Badge" (icon-confirmed short label)

@@ -193,6 +193,7 @@ mod tests {
             scraped_at: "now".into(),
             source_repo: "test".into(),
             source_commit: "test".into(),
+            research: Vec::new(),
             modules: vec![HideoutModule {
                 id: "m".into(),
                 name: "Mod".into(),

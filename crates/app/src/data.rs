@@ -7,6 +7,7 @@ use std::collections::HashMap;
 pub type UpgradeId = String;
 pub type ItemId = String;
 pub type ModuleId = String;
+pub type ResearchNodeId = String;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GameData {
@@ -16,6 +17,42 @@ pub struct GameData {
     pub source_commit: String,
     pub modules: Vec<HideoutModule>,
     pub items: Vec<Item>,
+    /// Merchant research trees (issue #168) — hand-maintained like the hideout
+    /// recipes, panel-verified against `screenshots/research/`. Defaulted so
+    /// older `data.json` files without the section still load.
+    #[serde(default)]
+    pub research: Vec<ResearchCategory>,
+}
+
+/// One research tree tab at a merchant (the game has Basic / Advanced /
+/// In-depth Research; only Basic is populated as of S5).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResearchCategory {
+    pub id: String,
+    pub name: String,
+    /// Display name of the merchant offering this tree (e.g. "Neumann").
+    pub merchant: String,
+    pub nodes: Vec<ResearchNode>,
+}
+
+/// One blueprint node in a research tree. Nodes form a DAG, not a tree —
+/// side branches merge back into the main spine (e.g. Basic's `b3`→`a8`,
+/// `c4`→`a7`) — so a node carries a full `parents` list; it is researchable
+/// only once every parent is developed.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResearchNode {
+    /// The game's task id, e.g. `task.research.a1` (stable across UI renames).
+    pub id: ResearchNodeId,
+    /// The tree-node label, e.g. "AR-15 4in RIS" (`WFTaskStringTable`); can
+    /// differ from the unlocked item's full display name.
+    pub name: String,
+    #[serde(default)]
+    pub parents: Vec<ResearchNodeId>,
+    /// Catalog item this node's blueprint unlocks for purchase.
+    pub unlocks_item_id: ItemId,
+    /// Items consumed to develop the node ("research samples"; all FROM RAID
+    /// in-game). At most [`RECIPE_SLOTS`] entries, same as hideout recipes.
+    pub samples: Vec<Requirement>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -246,6 +283,254 @@ mod tests {
              slug in data.json):\n  {}",
             orphans.len(),
             orphans.join("\n  ")
+        );
+    }
+
+    /// Same ratchet for the research section (issue #168): node ids unique,
+    /// every parent resolves and the graph is acyclic, every `unlocks_item_id`
+    /// and sample `item_id` exists in the catalog, and sample lists stay
+    /// within the game's 4-slot pane (`RECIPE_SLOTS`, same cap as recipes).
+    #[test]
+    fn research_section_is_internally_consistent() {
+        let raw = include_str!("assets/data.json");
+        let data: GameData = serde_json::from_str(raw).expect("data.json deserializes");
+        let item_ids: HashSet<&str> = data.items.iter().map(|i| i.id.as_str()).collect();
+
+        assert!(
+            !data.research.is_empty(),
+            "data.json lost its research section"
+        );
+
+        let mut errs: Vec<String> = Vec::new();
+        for cat in &data.research {
+            let node_ids: HashSet<&str> = cat.nodes.iter().map(|n| n.id.as_str()).collect();
+            assert_eq!(
+                node_ids.len(),
+                cat.nodes.len(),
+                "{}: duplicate node ids",
+                cat.id
+            );
+            for node in &cat.nodes {
+                if node.samples.is_empty() || node.samples.len() > RECIPE_SLOTS {
+                    errs.push(format!(
+                        "{}: {} has {} samples (want 1..={RECIPE_SLOTS})",
+                        cat.id,
+                        node.id,
+                        node.samples.len()
+                    ));
+                }
+                if !item_ids.contains(node.unlocks_item_id.as_str()) {
+                    errs.push(format!(
+                        "{}: {} unlocks unknown item '{}'",
+                        cat.id, node.id, node.unlocks_item_id
+                    ));
+                }
+                for s in &node.samples {
+                    if !item_ids.contains(s.item_id.as_str()) {
+                        errs.push(format!(
+                            "{}: {} sample references unknown item '{}'",
+                            cat.id, node.id, s.item_id
+                        ));
+                    }
+                    if s.quantity == 0 {
+                        errs.push(format!(
+                            "{}: {} has a zero-quantity sample",
+                            cat.id, node.id
+                        ));
+                    }
+                }
+                for p in &node.parents {
+                    if p == &node.id {
+                        errs.push(format!("{}: {} is its own parent", cat.id, node.id));
+                    } else if !node_ids.contains(p.as_str()) {
+                        errs.push(format!("{}: {} has unknown parent '{p}'", cat.id, node.id));
+                    }
+                }
+            }
+
+            // Acyclicity via Kahn's algorithm: peel nodes whose parents are all
+            // peeled; anything left sits on a cycle.
+            let mut resolved: HashSet<&str> = HashSet::new();
+            loop {
+                let before = resolved.len();
+                for node in &cat.nodes {
+                    if !resolved.contains(node.id.as_str())
+                        && node.parents.iter().all(|p| resolved.contains(p.as_str()))
+                    {
+                        resolved.insert(node.id.as_str());
+                    }
+                }
+                if resolved.len() == before {
+                    break;
+                }
+            }
+            if resolved.len() != cat.nodes.len() {
+                let stuck: Vec<&str> = cat
+                    .nodes
+                    .iter()
+                    .map(|n| n.id.as_str())
+                    .filter(|id| !resolved.contains(id))
+                    .collect();
+                errs.push(format!("{}: parent cycle through {:?}", cat.id, stuck));
+            }
+        }
+
+        assert!(
+            errs.is_empty(),
+            "{} research integrity error(s):\n  {}",
+            errs.len(),
+            errs.join("\n  ")
+        );
+    }
+
+    /// Every gunsmith item must ship its icon: unlike the misc catalog (icons
+    /// inherited from upstream), these are extracted from the game's 128x
+    /// texture atlases, so a typo'd `icon_path` or a forgotten PNG would
+    /// silently render as the placeholder rect.
+    #[test]
+    fn every_gunsmith_item_has_an_embedded_icon() {
+        let raw = include_str!("assets/data.json");
+        let data: GameData = serde_json::from_str(raw).expect("data.json deserializes");
+        let missing: Vec<&str> = data
+            .items
+            .iter()
+            .filter(|i| i.category.as_deref() == Some("gunsmith"))
+            .filter(|i| crate::assets::read_icon(&i.icon_path).is_none())
+            .map(|i| i.id.as_str())
+            .collect();
+        assert!(
+            missing.is_empty(),
+            "gunsmith item(s) missing their embedded icon: {missing:?}"
+        );
+    }
+
+    /// Validates the research **database** against the panel-verified ground
+    /// truth in `screenshots/research/research.label.txt` (the in-game pane is
+    /// the source of truth, per `screenshots/CLAUDE.md`): same node set, same
+    /// parents, same unlocked item, and the same ordered sample list. Gun-part
+    /// refs in the label keep their game tag (`gunsmith.ar15&ar10.muzzle…`);
+    /// app ids are that tag with `.`/`&`/`-` flattened to `_` — the transform
+    /// asserted here is the canonical bridge.
+    #[test]
+    fn research_label_matches_data_json() {
+        let raw = include_str!("assets/data.json");
+        let data: GameData = serde_json::from_str(raw).expect("data.json deserializes");
+        let basic = data
+            .research
+            .iter()
+            .find(|c| c.id == "basic")
+            .expect("basic research category");
+
+        let label_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../screenshots/research/research.label.txt");
+        let text = std::fs::read_to_string(&label_path)
+            .unwrap_or_else(|e| panic!("read {}: {e}", label_path.display()));
+
+        fn tag_to_id(tag: &str) -> String {
+            tag.replace(['.', '&', '-'], "_")
+        }
+
+        struct LabelNode {
+            name: String,
+            parents: Vec<String>,
+            unlocks: String,
+            samples: Vec<(String, u32)>,
+        }
+        let mut nodes: Vec<(String, LabelNode)> = Vec::new();
+        for line in text.lines() {
+            let line = line.split('#').next().unwrap_or("").trim();
+            if line.is_empty() {
+                continue;
+            }
+            if let Some(rest) = line.strip_prefix('[') {
+                let (id, rest) = rest.split_once(']').expect("node header");
+                let pi = rest.find("parents=").expect("parents field");
+                let ui = rest.find("unlocks=").expect("unlocks field");
+                let name = rest[..pi].trim().to_string();
+                let parents: Vec<String> = rest[pi + 8..ui]
+                    .trim()
+                    .split(',')
+                    .filter(|s| !s.is_empty())
+                    .map(|p| format!("task.research.{}", p.trim()))
+                    .collect();
+                let unlocks = tag_to_id(rest[ui + 8..].trim());
+                nodes.push((
+                    format!("task.research.{id}"),
+                    LabelNode {
+                        name,
+                        parents,
+                        unlocks,
+                        samples: Vec::new(),
+                    },
+                ));
+            } else {
+                let mut it = line.split_whitespace();
+                let (Some(item), Some(qty)) = (it.next(), it.next()) else {
+                    panic!("malformed label line: {line}");
+                };
+                let id = if item.starts_with("gunsmith.") {
+                    tag_to_id(item)
+                } else {
+                    item.to_string()
+                };
+                nodes
+                    .last_mut()
+                    .expect("requirement before first node header")
+                    .1
+                    .samples
+                    .push((id, qty.parse().expect("quantity")));
+            }
+        }
+
+        assert_eq!(
+            nodes.len(),
+            basic.nodes.len(),
+            "label has {} nodes, data.json has {}",
+            nodes.len(),
+            basic.nodes.len()
+        );
+        let mut errs: Vec<String> = Vec::new();
+        for (id, label) in &nodes {
+            let Some(node) = basic.nodes.iter().find(|n| &n.id == id) else {
+                errs.push(format!("{id}: in label but not in data.json"));
+                continue;
+            };
+            if node.name != label.name {
+                errs.push(format!(
+                    "{id}: name '{}' != label '{}'",
+                    node.name, label.name
+                ));
+            }
+            if node.parents != label.parents {
+                errs.push(format!(
+                    "{id}: parents {:?} != label {:?}",
+                    node.parents, label.parents
+                ));
+            }
+            if node.unlocks_item_id != label.unlocks {
+                errs.push(format!(
+                    "{id}: unlocks '{}' != label '{}'",
+                    node.unlocks_item_id, label.unlocks
+                ));
+            }
+            let got: Vec<(String, u32)> = node
+                .samples
+                .iter()
+                .map(|s| (s.item_id.clone(), s.quantity))
+                .collect();
+            if got != label.samples {
+                errs.push(format!(
+                    "{id}: samples {got:?} != label {:?}",
+                    label.samples
+                ));
+            }
+        }
+        assert!(
+            errs.is_empty(),
+            "{} research label divergence(s) (the pane is ground truth — patch \
+             data.json):\n  {}",
+            errs.len(),
+            errs.join("\n  ")
         );
     }
 }

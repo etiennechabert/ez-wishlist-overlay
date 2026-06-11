@@ -1883,6 +1883,7 @@ mod tests {
             source_commit: "deadbeef".into(),
             modules: Vec::new(),
             items: Vec::new(),
+            research: Vec::new(),
         })
     }
 

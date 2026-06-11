@@ -1948,6 +1948,7 @@ mod tests {
             source_commit: "deadbeef".into(),
             modules,
             items,
+            research: Vec::new(),
         })
     }
 

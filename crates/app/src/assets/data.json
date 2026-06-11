@@ -1745,6 +1745,329 @@
   ],
   "items": [
     {
+      "id": "gunsmith_20rail_foregrip_starkverticalshort",
+      "name": "Stark vertical short 20mm foregrip",
+      "icon_path": "icons/gunsmith_20rail_foregrip_starkverticalshort.png",
+      "category": "gunsmith",
+      "subcategory": "Foregrip"
+    },
+    {
+      "id": "gunsmith_20rail_sight_vertex",
+      "name": "VerTac X 1-6x 20mm adjustable magnifer scope",
+      "icon_path": "icons/gunsmith_20rail_sight_vertex.png",
+      "category": "gunsmith",
+      "subcategory": "Sight",
+      "weight": 0.57,
+      "price": 24595,
+      "rarity": "Ultimate"
+    },
+    {
+      "id": "gunsmith_20rail_tactical_pf_mx400",
+      "name": "MX400 20mm tactical pistol flashlight",
+      "icon_path": "icons/gunsmith_20rail_tactical_pf_mx400.png",
+      "category": "gunsmith",
+      "subcategory": "Tactical",
+      "weight": 0.09,
+      "price": 11894,
+      "rarity": "Unusual"
+    },
+    {
+      "id": "gunsmith_ak100_muzzle_545_762dtk2",
+      "name": "AK74/AKM DTK2 5.45x39mm/7.62x39mm compensator",
+      "icon_path": "icons/gunsmith_ak100_muzzle_545_762dtk2.png",
+      "category": "gunsmith",
+      "subcategory": "Muzzle"
+    },
+    {
+      "id": "gunsmith_ak103_muzzle_762dtk_4m",
+      "name": "AK103 DTK-4m 7.62x39mm suppressor",
+      "icon_path": "icons/gunsmith_ak103_muzzle_762dtk_4m.png",
+      "category": "gunsmith",
+      "subcategory": "Muzzle",
+      "weight": 0.36,
+      "price": 18280,
+      "rarity": "Epic"
+    },
+    {
+      "id": "gunsmith_ak74u_stock_6p26_sb5",
+      "name": "AKS74U 6p26-sb5 stock",
+      "icon_path": "icons/gunsmith_ak74u_stock_6p26_sb5.png",
+      "category": "gunsmith",
+      "subcategory": "Stock"
+    },
+    {
+      "id": "gunsmith_ak_handguard_xrs74yg",
+      "name": "AK74/AKM XRS handguard",
+      "icon_path": "icons/gunsmith_ak_handguard_xrs74yg.png",
+      "category": "gunsmith",
+      "subcategory": "Handguard",
+      "weight": 0.49,
+      "price": 8546,
+      "rarity": "Ultimate"
+    },
+    {
+      "id": "gunsmith_ak_muzzle_762hexagon",
+      "name": "AKM 7.62x39mm Hexagon suppressor",
+      "icon_path": "icons/gunsmith_ak_muzzle_762hexagon.png",
+      "category": "gunsmith",
+      "subcategory": "Muzzle",
+      "weight": 0.47,
+      "price": 16976,
+      "rarity": "Rare"
+    },
+    {
+      "id": "gunsmith_ak_muzzle_762srvv",
+      "name": "AKM Srvv 7.62x39mm compensator",
+      "icon_path": "icons/gunsmith_ak_muzzle_762srvv.png",
+      "category": "gunsmith",
+      "subcategory": "Muzzle"
+    },
+    {
+      "id": "gunsmith_ak_pistolgrip_moeak",
+      "name": "AK74/AKM MOE pistol grip",
+      "icon_path": "icons/gunsmith_ak_pistolgrip_moeak.png",
+      "category": "gunsmith",
+      "subcategory": "Pistol grip",
+      "weight": 0.0,
+      "price": 4486,
+      "rarity": "Epic"
+    },
+    {
+      "id": "gunsmith_ak_pistolgrip_scorpius",
+      "name": "AK74/AKM Scorpius pistol grip",
+      "icon_path": "icons/gunsmith_ak_pistolgrip_scorpius.png",
+      "category": "gunsmith",
+      "subcategory": "Pistol grip"
+    },
+    {
+      "id": "gunsmith_ar10_clip_20",
+      "name": "AR-10 7.62x51mm 20rnd magazine",
+      "icon_path": "icons/gunsmith_ar10_clip_20.png",
+      "category": "gunsmith",
+      "subcategory": "Magazine"
+    },
+    {
+      "id": "gunsmith_ar10_upperreceiver_ar308",
+      "name": "AR-10 AR308 7.62x51mm upper receiver",
+      "icon_path": "icons/gunsmith_ar10_upperreceiver_ar308.png",
+      "category": "gunsmith",
+      "subcategory": "Upper receiver"
+    },
+    {
+      "id": "gunsmith_ar15_ar10_muzzle_cookiecutter",
+      "name": "AR15&AR10 CookieCutter 5.56x45mm&7.62x51mm compensator",
+      "icon_path": "icons/gunsmith_ar15_ar10_muzzle_cookiecutter.png",
+      "category": "gunsmith",
+      "subcategory": "Muzzle",
+      "weight": 0.13,
+      "price": 15790,
+      "rarity": "Legendary"
+    },
+    {
+      "id": "gunsmith_ar15_ar10_muzzle_tbeast_mccover",
+      "name": "AR15&AR10 TBeast 5.56x45mm&7.62x51mm suppressor MC-Cover",
+      "icon_path": "icons/gunsmith_ar15_ar10_muzzle_tbeast_mccover.png",
+      "category": "gunsmith",
+      "subcategory": "Muzzle",
+      "weight": 0.47,
+      "price": 25367,
+      "rarity": "Legendary"
+    },
+    {
+      "id": "gunsmith_ar15_barrel_180mmsight",
+      "name": "AR-15 5.56x45mm 180mm barrel with sight",
+      "icon_path": "icons/gunsmith_ar15_barrel_180mmsight.png",
+      "category": "gunsmith",
+      "subcategory": "Barrel"
+    },
+    {
+      "id": "gunsmith_ar15_clip_20r",
+      "name": "AR-15 5.56x45mm 20rnd magazine",
+      "icon_path": "icons/gunsmith_ar15_clip_20r.png",
+      "category": "gunsmith",
+      "subcategory": "Magazine"
+    },
+    {
+      "id": "gunsmith_ar15_clip_pdrum60",
+      "name": "AR-15 5.56x45mm 60rnd P-Drum magazine",
+      "icon_path": "icons/gunsmith_ar15_clip_pdrum60.png",
+      "category": "gunsmith",
+      "subcategory": "Magazine",
+      "weight": 0.45,
+      "price": 16740,
+      "rarity": "Ultimate"
+    },
+    {
+      "id": "gunsmith_ar15_clip_pmag30",
+      "name": "AR-15 5.56x45mm 30rnd P-Mag magazine",
+      "icon_path": "icons/gunsmith_ar15_clip_pmag30.png",
+      "category": "gunsmith",
+      "subcategory": "Magazine"
+    },
+    {
+      "id": "gunsmith_ar15_handguard_4inchris",
+      "name": "AR-15 4inch RIS handguard",
+      "icon_path": "icons/gunsmith_ar15_handguard_4inchris.png",
+      "category": "gunsmith",
+      "subcategory": "Handguard",
+      "weight": 0.28,
+      "price": 3966,
+      "rarity": "Unusual"
+    },
+    {
+      "id": "gunsmith_ar15_handguard_ssgen3",
+      "name": "AR-15 SSR Gen3 handguard",
+      "icon_path": "icons/gunsmith_ar15_handguard_ssgen3.png",
+      "category": "gunsmith",
+      "subcategory": "Handguard",
+      "weight": 0.4,
+      "price": 17022,
+      "rarity": "Legendary"
+    },
+    {
+      "id": "gunsmith_ar15_muzzle_slr",
+      "name": "AR15 SLR 5.56x45mm compensator",
+      "icon_path": "icons/gunsmith_ar15_muzzle_slr.png",
+      "category": "gunsmith",
+      "subcategory": "Muzzle"
+    },
+    {
+      "id": "gunsmith_ar15_pistolgrip_moe_k",
+      "name": "AR-15 MOE-K pistolgrip",
+      "icon_path": "icons/gunsmith_ar15_pistolgrip_moe_k.png",
+      "category": "gunsmith",
+      "subcategory": "Pistol grip",
+      "weight": 0.045,
+      "price": 4127,
+      "rarity": "Epic"
+    },
+    {
+      "id": "gunsmith_ar15_pistolgrip_prs",
+      "name": "AR-15 PRS pistolgrip",
+      "icon_path": "icons/gunsmith_ar15_pistolgrip_prs.png",
+      "category": "gunsmith",
+      "subcategory": "Pistol grip"
+    },
+    {
+      "id": "gunsmith_arbuffer_stock_hunterwood",
+      "name": "AR-15 Hunter Wood buffer tube stock",
+      "icon_path": "icons/gunsmith_arbuffer_stock_hunterwood.png",
+      "category": "gunsmith",
+      "subcategory": "Stock"
+    },
+    {
+      "id": "gunsmith_arbuffer_stock_prsgen3",
+      "name": "AR-15 PRSGen3 buffer tube stock",
+      "icon_path": "icons/gunsmith_arbuffer_stock_prsgen3.png",
+      "category": "gunsmith",
+      "subcategory": "Stock",
+      "weight": 0.6,
+      "price": 10874,
+      "rarity": "Ultimate"
+    },
+    {
+      "id": "gunsmith_arbuffer_stock_ubr",
+      "name": "AR-15 UBR buffer tube stock",
+      "icon_path": "icons/gunsmith_arbuffer_stock_ubr.png",
+      "category": "gunsmith",
+      "subcategory": "Stock",
+      "weight": 0.45,
+      "price": 9411,
+      "rarity": "Ultimate"
+    },
+    {
+      "id": "gunsmith_arstock_stock_car15",
+      "name": "AR-15 CAR15 stock",
+      "icon_path": "icons/gunsmith_arstock_stock_car15.png",
+      "category": "gunsmith",
+      "subcategory": "Stock"
+    },
+    {
+      "id": "gunsmith_arstock_stock_dd",
+      "name": "AR-15 DD stock",
+      "icon_path": "icons/gunsmith_arstock_stock_dd.png",
+      "category": "gunsmith",
+      "subcategory": "Stock",
+      "weight": 0.22,
+      "price": 8604,
+      "rarity": "Legendary"
+    },
+    {
+      "id": "gunsmith_aug_muzzle_sfmonster556",
+      "name": "Monster556 5.56x45mm for SF compensator suppressor",
+      "icon_path": "icons/gunsmith_aug_muzzle_sfmonster556.png",
+      "category": "gunsmith",
+      "subcategory": "Muzzle",
+      "weight": 0.36,
+      "price": 23471,
+      "rarity": "Ultimate"
+    },
+    {
+      "id": "gunsmith_g3_clip_30",
+      "name": "G3 7.62x51mm 30rnd magazine",
+      "icon_path": "icons/gunsmith_g3_clip_30.png",
+      "category": "gunsmith",
+      "subcategory": "Magazine"
+    },
+    {
+      "id": "gunsmith_g3_handguard_spuhr",
+      "name": "G3 SPUHR handguard",
+      "icon_path": "icons/gunsmith_g3_handguard_spuhr.png",
+      "category": "gunsmith",
+      "subcategory": "Handguard",
+      "weight": 0.32,
+      "price": 8531,
+      "rarity": "Rare"
+    },
+    {
+      "id": "gunsmith_g3_lowerreceiver_g3ak4",
+      "name": "G3 AK4 7.62x51mm assault rifle",
+      "icon_path": "icons/gunsmith_g3_lowerreceiver_g3ak4.png",
+      "category": "gunsmith",
+      "subcategory": "Lower receiver"
+    },
+    {
+      "id": "gunsmith_g3_mount_falconscope",
+      "name": "G3/HK51 Falcon 1.5-6X Scope",
+      "icon_path": "icons/gunsmith_g3_mount_falconscope.png",
+      "category": "gunsmith",
+      "subcategory": "Mount",
+      "weight": 0.32,
+      "price": 12636,
+      "rarity": "Rare"
+    },
+    {
+      "id": "gunsmith_g3_pistolgrip_prsblack",
+      "name": "G3 PRS Black pistol grip",
+      "icon_path": "icons/gunsmith_g3_pistolgrip_prsblack.png",
+      "category": "gunsmith",
+      "subcategory": "Pistol grip",
+      "weight": 0.12,
+      "price": 11075,
+      "rarity": "Epic"
+    },
+    {
+      "id": "gunsmith_g3_stock_polyblack",
+      "name": "G3 polymer Black stock",
+      "icon_path": "icons/gunsmith_g3_stock_polyblack.png",
+      "category": "gunsmith",
+      "subcategory": "Stock"
+    },
+    {
+      "id": "gunsmith_g3_stock_polygreen",
+      "name": "G3 polymer Green stock",
+      "icon_path": "icons/gunsmith_g3_stock_polygreen.png",
+      "category": "gunsmith",
+      "subcategory": "Stock"
+    },
+    {
+      "id": "gunsmith_sks_stock_uas",
+      "name": "SKS UAS stock",
+      "icon_path": "icons/gunsmith_sks_stock_uas.png",
+      "category": "gunsmith",
+      "subcategory": "Stock"
+    },
+    {
       "id": "misc_b_battery_1",
       "name": "Size D battery1",
       "icon_path": "icons/misc_b_battery_1.png",
@@ -3243,6 +3566,224 @@
       "weight": 0.3,
       "price": 743,
       "rarity": "Uncommon"
+    }
+  ],
+  "research": [
+    {
+      "id": "basic",
+      "name": "Basic Research",
+      "merchant": "Neumann",
+      "nodes": [
+        {
+          "id": "task.research.a1",
+          "name": "AR-15 4in RIS",
+          "parents": [],
+          "unlocks_item_id": "gunsmith_ar15_handguard_4inchris",
+          "samples": [
+            { "item_id": "misc_b_moldboard", "quantity": 2 },
+            { "item_id": "misc_screwdriver", "quantity": 2 }
+          ]
+        },
+        {
+          "id": "task.research.a2",
+          "name": "MOE-K",
+          "parents": ["task.research.a1"],
+          "unlocks_item_id": "gunsmith_ar15_pistolgrip_moe_k",
+          "samples": [
+            { "item_id": "gunsmith_ar15_clip_20r", "quantity": 2 },
+            { "item_id": "misc_b_nut", "quantity": 2 },
+            { "item_id": "misc_b_screw", "quantity": 1 }
+          ]
+        },
+        {
+          "id": "task.research.a3",
+          "name": "AR-15 DD",
+          "parents": ["task.research.a2"],
+          "unlocks_item_id": "gunsmith_arstock_stock_dd",
+          "samples": [
+            { "item_id": "gunsmith_arstock_stock_car15", "quantity": 1 },
+            { "item_id": "misc_b_gunoil", "quantity": 1 },
+            { "item_id": "misc_b_ceramic_adhesive", "quantity": 2 }
+          ]
+        },
+        {
+          "id": "task.research.a4",
+          "name": "UBR",
+          "parents": ["task.research.a3"],
+          "unlocks_item_id": "gunsmith_arbuffer_stock_ubr",
+          "samples": [
+            { "item_id": "gunsmith_arbuffer_stock_hunterwood", "quantity": 1 },
+            { "item_id": "misc_b_glue_large", "quantity": 2 },
+            { "item_id": "misc_b_oldphone", "quantity": 3 }
+          ]
+        },
+        {
+          "id": "task.research.a5",
+          "name": "AR-15 PRSGen3",
+          "parents": ["task.research.a4"],
+          "unlocks_item_id": "gunsmith_arbuffer_stock_prsgen3",
+          "samples": [
+            { "item_id": "gunsmith_ar10_upperreceiver_ar308", "quantity": 1 },
+            { "item_id": "misc_b_wrench", "quantity": 2 },
+            { "item_id": "misc_floppydisk", "quantity": 2 }
+          ]
+        },
+        {
+          "id": "task.research.a6",
+          "name": "AR15/AR10 CookieCutter Comp",
+          "parents": ["task.research.a5"],
+          "unlocks_item_id": "gunsmith_ar15_ar10_muzzle_cookiecutter",
+          "samples": [
+            { "item_id": "gunsmith_ar15_muzzle_slr", "quantity": 1 },
+            { "item_id": "gunsmith_ar15_pistolgrip_prs", "quantity": 1 },
+            { "item_id": "misc_b_nail", "quantity": 4 }
+          ]
+        },
+        {
+          "id": "task.research.a7",
+          "name": "AR-15 SSR Gen4",
+          "parents": ["task.research.a6", "task.research.c4"],
+          "unlocks_item_id": "gunsmith_ar15_handguard_ssgen3",
+          "samples": [
+            { "item_id": "gunsmith_arstock_stock_dd", "quantity": 1 },
+            { "item_id": "misc_wastechip", "quantity": 2 },
+            { "item_id": "misc_floppydisk", "quantity": 1 },
+            { "item_id": "misc_videotape", "quantity": 1 }
+          ]
+        },
+        {
+          "id": "task.research.a8",
+          "name": "AR15/AR10 TBeast MC-Cover",
+          "parents": ["task.research.a7", "task.research.b3"],
+          "unlocks_item_id": "gunsmith_ar15_ar10_muzzle_tbeast_mccover",
+          "samples": [
+            { "item_id": "gunsmith_ar15_barrel_180mmsight", "quantity": 1 },
+            { "item_id": "gunsmith_arbuffer_stock_ubr", "quantity": 1 },
+            { "item_id": "misc_cpu", "quantity": 1 }
+          ]
+        },
+        {
+          "id": "task.research.a9",
+          "name": "Monster556",
+          "parents": ["task.research.a8"],
+          "unlocks_item_id": "gunsmith_aug_muzzle_sfmonster556",
+          "samples": [
+            { "item_id": "gunsmith_ar15_ar10_muzzle_cookiecutter", "quantity": 1 },
+            { "item_id": "gunsmith_ar15_handguard_4inchris", "quantity": 1 },
+            { "item_id": "misc_b_storagebattery", "quantity": 1 },
+            { "item_id": "misc_b_gunoil", "quantity": 3 }
+          ]
+        },
+        {
+          "id": "task.research.b1",
+          "name": "G3 SPUHR",
+          "parents": ["task.research.a2"],
+          "unlocks_item_id": "gunsmith_g3_handguard_spuhr",
+          "samples": [
+            { "item_id": "gunsmith_g3_stock_polyblack", "quantity": 1 },
+            { "item_id": "gunsmith_g3_stock_polygreen", "quantity": 1 },
+            { "item_id": "misc_b_rustedcleaner", "quantity": 2 }
+          ]
+        },
+        {
+          "id": "task.research.b2",
+          "name": "G3 PRS Black",
+          "parents": ["task.research.b1"],
+          "unlocks_item_id": "gunsmith_g3_pistolgrip_prsblack",
+          "samples": [
+            { "item_id": "gunsmith_g3_clip_30", "quantity": 1 },
+            { "item_id": "misc_b_socket", "quantity": 3 }
+          ]
+        },
+        {
+          "id": "task.research.b3",
+          "name": "Falcon",
+          "parents": ["task.research.b2"],
+          "unlocks_item_id": "gunsmith_g3_mount_falconscope",
+          "samples": [
+            { "item_id": "gunsmith_g3_lowerreceiver_g3ak4", "quantity": 1 },
+            { "item_id": "misc_b_tapeplayer", "quantity": 4 },
+            { "item_id": "misc_videotape", "quantity": 1 }
+          ]
+        },
+        {
+          "id": "task.research.c1",
+          "name": "MOE",
+          "parents": ["task.research.a1"],
+          "unlocks_item_id": "gunsmith_ak_pistolgrip_moeak",
+          "samples": [
+            { "item_id": "gunsmith_ak74u_stock_6p26_sb5", "quantity": 1 },
+            { "item_id": "misc_b_moldboard", "quantity": 3 }
+          ]
+        },
+        {
+          "id": "task.research.c2",
+          "name": "XRS",
+          "parents": ["task.research.c1"],
+          "unlocks_item_id": "gunsmith_ak_handguard_xrs74yg",
+          "samples": [
+            { "item_id": "gunsmith_ak_pistolgrip_scorpius", "quantity": 1 },
+            { "item_id": "misc_b_glue_large", "quantity": 1 },
+            { "item_id": "misc_b_wirecutting", "quantity": 2 }
+          ]
+        },
+        {
+          "id": "task.research.c3",
+          "name": "AKM Hexagon",
+          "parents": ["task.research.c2"],
+          "unlocks_item_id": "gunsmith_ak_muzzle_762hexagon",
+          "samples": [
+            { "item_id": "gunsmith_ak_muzzle_762srvv", "quantity": 1 },
+            { "item_id": "misc_b_recorder", "quantity": 2 },
+            { "item_id": "misc_b_superglue", "quantity": 2 }
+          ]
+        },
+        {
+          "id": "task.research.c4",
+          "name": "AK103 DTK-4m",
+          "parents": ["task.research.c3"],
+          "unlocks_item_id": "gunsmith_ak103_muzzle_762dtk_4m",
+          "samples": [
+            { "item_id": "gunsmith_ak100_muzzle_545_762dtk2", "quantity": 1 },
+            { "item_id": "misc_b_tapeplayer", "quantity": 1 },
+            { "item_id": "misc_b_tape", "quantity": 5 },
+            { "item_id": "misc_b_socket", "quantity": 3 }
+          ]
+        },
+        {
+          "id": "task.research.d1",
+          "name": "MX400 Light",
+          "parents": ["task.research.a1"],
+          "unlocks_item_id": "gunsmith_20rail_tactical_pf_mx400",
+          "samples": [
+            { "item_id": "gunsmith_20rail_foregrip_starkverticalshort", "quantity": 1 },
+            { "item_id": "misc_hammer", "quantity": 2 }
+          ]
+        },
+        {
+          "id": "task.research.d2",
+          "name": "AR-15 60rd P-Drum",
+          "parents": ["task.research.d1"],
+          "unlocks_item_id": "gunsmith_ar15_clip_pdrum60",
+          "samples": [
+            { "item_id": "gunsmith_ar15_clip_pmag30", "quantity": 1 },
+            { "item_id": "gunsmith_ar10_clip_20", "quantity": 1 },
+            { "item_id": "misc_blimbingrope", "quantity": 2 }
+          ]
+        },
+        {
+          "id": "task.research.d3",
+          "name": "VerTac X",
+          "parents": ["task.research.d2"],
+          "unlocks_item_id": "gunsmith_20rail_sight_vertex",
+          "samples": [
+            { "item_id": "gunsmith_sks_stock_uas", "quantity": 1 },
+            { "item_id": "misc_b_transformer", "quantity": 1 },
+            { "item_id": "misc_b_newphone", "quantity": 2 },
+            { "item_id": "misc_badge", "quantity": 1 }
+          ]
+        }
+      ]
     }
   ]
 }

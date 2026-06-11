@@ -670,10 +670,12 @@ fn opt_u64_cmp(a: Option<u64>, b: Option<u64>) -> std::cmp::Ordering {
 
 /// Order rarity by the upstream tier scale (Common → Ultimate) so sorting by
 /// "Rarity" isn't just alphabetical. Unknown strings sort after Ultimate.
+/// "Unusual" is the game's own word for the tier the upstream catalog calls
+/// "Uncommon" (gunsmith items are sourced from in-game panes, not upstream).
 fn rarity_rank(r: &str) -> u8 {
     match r {
         "Common" => 0,
-        "Uncommon" => 1,
+        "Uncommon" | "Unusual" => 1,
         "Rare" => 2,
         "Epic" => 3,
         "Legendary" => 4,
