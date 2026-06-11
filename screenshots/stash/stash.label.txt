@@ -20,7 +20,10 @@
 #   misc_b_shampoo  in-game "Pet Shampoo"        data "Shampoo"   (2)
 #   misc_b_screw    in-game "Boxed Bolts"        data "Bolts"
 #   misc_b_nut      in-game "Boxed Nuts"         data "Nuts"
-#   misc_barcleaner in-game "Cleanser"           data "Cleaner"
+# Near-collision resolved by the in-game names themselves: the stash's white
+# "Cleanser" tube is misc_facialcleaner (data name patched to the in-game
+# "Cleanser"); misc_barcleaner "Cleaner" is the yellow spray bottle seen on the
+# RestRoomLv2 hideout panel — two distinct items one edit apart.
 #   misc_b_battery_1 = "Size D battery1" (yellow pack), misc_b_battery_2 =
 #     "Size D battery2" (white pack); the battery digit OCRs as l/i/e, so
 #     battery2 tiles often misread as battery1 (tracked OCR limit).
@@ -45,7 +48,7 @@
 #  R14 notebook       pcfan          pcfan         gastank_large  ceramic_adhesive
 #  R15 ceramic_adhesive deodorant    tape          floppydisk     rustedcleaner
 #  R16 floppydisk     bandaid        b_battery_1   asthmamedication b_battery_1
-#  R17 wd40           wirecutting    wd40          barcleaner     ram
+#  R17 wd40           wirecutting    wd40          facialcleaner  ram
 #  R18 match          gunoil         superglue     aspire         wd40
 #  R19 notebook       gastank        aspire        b_battery_1    ionbattery
 #  R20 beardoil       iodophor       gunoil        b_battery_1    flashlight
@@ -120,9 +123,9 @@ misc_b_tire_sealant        2
 misc_b_wd40                7
 misc_b_wirecutting         3
 misc_b_wrench              1
-misc_barcleaner            1
 misc_copperwire            1
 misc_cpu                   2
+misc_facialcleaner         1
 misc_floppydisk            7
 misc_hammer                2
 misc_notebook              6

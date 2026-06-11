@@ -2956,7 +2956,7 @@
     },
     {
       "id": "misc_facialcleaner",
-      "name": "Facial Cleanser",
+      "name": "Cleanser",
       "icon_path": "icons/misc_facialcleaner.png",
       "category": "misc",
       "subcategory": "Household",

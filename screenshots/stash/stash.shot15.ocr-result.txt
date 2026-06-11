@@ -20,7 +20,7 @@
     1 x misc_b_superglue
     3 x misc_b_wd40
     1 x misc_b_wirecutting
-    1 x misc_barcleaner
+    1 x misc_facialcleaner
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
@@ -42,7 +42,7 @@
     WD-40                          -> misc_b_wd40
     Wire Cutter                    -> misc_b_wirecutting
     wo-40                          -> misc_b_wd40
-    Cleanser                       -> misc_barcleaner
+    Cleanser                       -> misc_facialcleaner
   [tabs  ]
     Combustible                    -> (no match)
     Tool                           -> (no match)
