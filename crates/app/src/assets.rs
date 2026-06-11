@@ -1,4 +1,5 @@
-//! Embedded `data.json` + `icons/*.png` produced by the scraper.
+//! Embedded `data.json` + `icons/*.png` — the committed, hand-maintained
+//! dataset (validated against `screenshots/`; see `screenshots/CLAUDE.md`).
 
 use anyhow::{Context, Result};
 use rust_embed::RustEmbed;
@@ -36,8 +37,8 @@ pub fn load_game_data() -> Result<crate::data::GameData> {
     Ok(data)
 }
 
-/// Read an embedded icon as raw bytes. The `icon_path` is what the scraper
-/// wrote (e.g. `"icons/misc_b_bolts.png"`).
+/// Read an embedded icon as raw bytes. The `icon_path` comes straight from
+/// `data.json` (e.g. `"icons/misc_b_bolts.png"`).
 pub fn read_icon(icon_path: &str) -> Option<std::borrow::Cow<'static, [u8]>> {
     Assets::get(icon_path).map(|f| f.data)
 }

@@ -323,8 +323,8 @@ mod tests {
         );
         // Real stash capture: the trailing "1" OCRs as "l". l↔1 is confusable
         // (cost 0.3) but l↔2 is not (1.0), so "batteryl" lands on battery1 —
-        // the symmetric names don't re-tie it. See match_item module + the
-        // crates/scraper/src/corrections.rs NAME_CORRECTIONS note.
+        // the symmetric names don't re-tie it. See the match_item module docs
+        // + the battery-twins note in screenshots/CLAUDE.md.
         assert_eq!(
             match_item(&data, &["Size", "D", "batteryl"]).as_deref(),
             Some("misc_b_battery_1")

@@ -52,7 +52,7 @@ pub enum OcrFeedbackKind {
     NotAPanel,
     /// Pipeline found an upgrade panel but couldn't match the
     /// (module name, level) pair in `data.json` — almost always an
-    /// upgrade the scraper hasn't picked up yet. Distinguished from
+    /// upgrade the dataset doesn't have yet. Distinguished from
     /// `NotAPanel` because the user's capture WAS a valid panel and
     /// they shouldn't be told "not a panel" (they'd spend time
     /// re-taking the screenshot for nothing).

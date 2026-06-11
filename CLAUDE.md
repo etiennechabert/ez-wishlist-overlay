@@ -5,9 +5,12 @@
 **Principle:** the *shipped binary* never touches the game (anti-cheat-safe at
 runtime — that's the user promise). *Sourcing the dataset* is a separate
 **dev-time, offline** activity that does read the game's files. Keep these
-distinct. `data.json` is normally scraped from the upstream community project
-**exfil-zone-assistant** (`source_repo` in `data.json`); the game's own files are
-the **authoritative ground truth** for validating/refreshing it.
+distinct. `data.json` is the **canonical, hand-maintained dataset** — patch it
+directly. It was originally bootstrapped from the upstream community project
+**exfil-zone-assistant** (`source_repo` in `data.json`; the scraper that pulled
+it was retired in #162 — upstream lagged seasons and carried wrong/duplicate
+names); the game's own files are the **authoritative ground truth** for
+validating/refreshing it.
 
 > Don't commit raw extracted game tables, and don't publish **unreleased-season**
 > data. This file documents *where to look and how* — not the data itself.
@@ -48,10 +51,10 @@ Paks are **pak v11, UNENCRYPTED** (no AES key); file data is **Oodle**-compresse
 - Recipes are **seasonal** (`_S2`…`_S5`); `data.json` currently tracks ~**S5**.
   Re-confirm the live season against `screenshots/hideout/` each game update.
 - **Name drift:** app "Nails" vs game "Boxed Nails"; `misc_b_storagebattery`="Car
-  Battery". **Id drift:** the size-D-battery twins are renamed via the scraper's
-  `ID_CORRECTIONS` — game blueprints `ValuableItem_1batterie_2` ("Size D
-  battery1") / `ValuableItem_B_1battery` ("Size D battery2") have id↔name-
-  inverted slugs; the app ids are `misc_b_battery_1` / `misc_b_battery_2`.
+  Battery". **Id drift:** the size-D-battery twins were renamed in #162 — game
+  blueprints `ValuableItem_1batterie_2` ("Size D battery1") /
+  `ValuableItem_B_1battery` ("Size D battery2") have id↔name-inverted slugs; the
+  app ids are `misc_b_battery_1` / `misc_b_battery_2`.
   **Module aliases:** app `Intelligent`=game `IntelCenter`,
   `Generator`≈`PowerGenerator`, storage modules `StorageZoneLock/Storagevaluable/
   TerminalStorage/WorkshopZone`≈`StorageExpansion/Workshop/RestArea`.

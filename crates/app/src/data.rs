@@ -1,5 +1,5 @@
 //! Loaded, immutable game data. Deserialized once at startup from the embedded
-//! `data.json` produced by the scraper.
+//! `data.json` (hand-maintained; validated against `screenshots/`).
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
