@@ -221,13 +221,10 @@ impl LabelBox {
 /// ([`format_capture_dump`]) so a failed scan is debuggable in-app.
 #[derive(Clone, Debug, Default)]
 pub struct BoxReadResult {
-    /// Every `Names`-row tile flattened in reading order — the per-shot "this
-    /// capture" tally and the `ocr_debug` dump. The cross-capture merge uses
-    /// [`tile_rows`](Self::tile_rows) instead.
-    pub tiles: Vec<Tile>,
     /// One entry per `Names` sub-row: the tiles composing that grid row, in
     /// reading order. This is the unit fed to [`merge_capture`] — the merge
-    /// dedups whole rows, never individual tiles.
+    /// dedups whole rows, never individual tiles (on a multi-round burst the
+    /// rounds' rows pass through [`union_rounds`] first).
     pub tile_rows: Vec<Vec<Tile>>,
     pub observed_weight: Option<f32>,
     /// Estimated perspective-shear slope used to de-tilt rows ([`shear_slope`]).
@@ -553,7 +550,6 @@ pub fn read_tiles(boxes: &[LabelBox], img_h: f32, data: &GameData) -> BoxReadRes
     // separate even if the slope estimate is a little off.
     let blocks = cluster_rows(&refs, slope, med_h * 4.0);
 
-    let mut tiles: Vec<Tile> = Vec::new();
     let mut tile_rows: Vec<Vec<Tile>> = Vec::new();
     let mut rows: Vec<RowReport> = Vec::new();
     for block in &blocks {
@@ -598,15 +594,12 @@ pub fn read_tiles(boxes: &[LabelBox], img_h: f32, data: &GameData) -> BoxReadRes
                 cxs,
             });
             if kind == RowKind::Names {
-                let row_tiles: Vec<Tile> = resolved.into_iter().map(|(_, m)| m).collect();
-                tiles.extend(row_tiles.iter().cloned());
-                tile_rows.push(row_tiles);
+                tile_rows.push(resolved.into_iter().map(|(_, m)| m).collect());
             }
         }
     }
 
     BoxReadResult {
-        tiles,
         tile_rows,
         observed_weight,
         slope,
@@ -642,26 +635,25 @@ fn tile_cx(tile: &[&LabelBox]) -> f32 {
 /// Build the normalized per-shot tile grid for the feedback overlays (the
 /// mini-grid card #138 and the on-the-items markers #137).
 ///
-/// Keeps only [`RowKind::Names`] rows (the real item grid — tab strips, the
-/// weight readout, and other chrome are dropped), maps each cell to a
-/// [`GridCell`] at its normalized x-center (✓ when it matched a catalog item,
-/// ✗ when it was detected but unreadable), and each row to its normalized
-/// y-center. `img_w` / `img_h` are the cropped frame's pixel dimensions the OCR
-/// ran on, so the output is in the same crop space as the guide box. Pure and
-/// cross-platform — unit-tested on every target.
-pub fn grid_rows(read: &BoxReadResult, img_w: f32, img_h: f32) -> Vec<GridRow> {
+/// `rows` are a read's [`round_rows`] — already just the [`RowKind::Names`]
+/// rows (the real item grid; tab strips, the weight readout, and other chrome
+/// were dropped) — or the round-fused rows of a burst shot ([`union_rounds`]),
+/// so the marks reflect what actually fed the merge, fills included. Maps each
+/// cell to a [`GridCell`] at its normalized x-center (✓ when it matched a
+/// catalog item, ✗ when it was detected but unreadable), and each row to its
+/// normalized y-center. `img_w` / `img_h` are the cropped frame's pixel
+/// dimensions the OCR ran on, so the output is in the same crop space as the
+/// guide box. Pure and cross-platform — unit-tested on every target.
+pub fn grid_rows(rows: &[RoundRow], img_w: f32, img_h: f32) -> Vec<GridRow> {
     let iw = img_w.max(1.0);
     let ih = img_h.max(1.0);
-    read.rows
-        .iter()
-        .filter(|r| r.kind == RowKind::Names)
+    rows.iter()
         .map(|r| GridRow {
             y: (r.ry / ih).clamp(0.0, 1.0),
             cells: r
                 .cells
                 .iter()
-                .zip(r.cxs.iter())
-                .map(|((_, tile), &cx)| GridCell {
+                .map(|(cx, tile)| GridCell {
                     x: (cx / iw).clamp(0.0, 1.0),
                     matched: tile.is_some(),
                 })
@@ -670,24 +662,289 @@ pub fn grid_rows(read: &BoxReadResult, img_w: f32, img_h: f32) -> Vec<GridRow> {
         .collect()
 }
 
+// ===========================================================================
+// Round union (issue #165): one trigger pull can burst-capture several mirror
+// frames ~100 ms apart and OCR each independently. Re-OCRing one frame is
+// deterministic — two engine passes over the same pixels return identical
+// words — but in VR the head is never perfectly still, so consecutive frames
+// are genuinely different pixels, and a busy-icon tile (RAM above all) that
+// OCRs to nothing in one frame often resolves in another. The union below
+// fuses those per-round reads into one capture *before* [`merge_capture`].
+// Pure and platform-independent, like the merge core.
+// ===========================================================================
+
+/// One grid row of a single round's read, carrying the geometry the
+/// cross-round union needs: each tile's pixel x-center (to align the *same
+/// physical tile* across rounds) and the de-sheared row position (kept for
+/// the feedback overlays). Extracted from a [`BoxReadResult`] by
+/// [`round_rows`], aligned 1:1 with [`BoxReadResult::tile_rows`].
+#[derive(Clone, Debug, PartialEq)]
+pub struct RoundRow {
+    /// De-sheared vertical row position in the cropped frame. Display only —
+    /// the union identifies rows by composition, never by position.
+    pub ry: f32,
+    /// `(x_center, tile)` per detected tile, left→right.
+    pub cells: Vec<(f32, Tile)>,
+}
+
+impl RoundRow {
+    /// The row's tiles without geometry — the shape [`merge_capture`] eats.
+    pub fn tiles(&self) -> Vec<Tile> {
+        self.cells.iter().map(|(_, t)| t.clone()).collect()
+    }
+}
+
+/// A read's `Names` rows with their geometry, aligned 1:1 with
+/// [`BoxReadResult::tile_rows`].
+pub fn round_rows(read: &BoxReadResult) -> Vec<RoundRow> {
+    read.rows
+        .iter()
+        .filter(|r| r.kind == RowKind::Names)
+        .map(|r| RoundRow {
+            ry: r.ry,
+            cells: r
+                .cxs
+                .iter()
+                .zip(&r.cells)
+                .map(|(&cx, (_, tile))| (cx, tile.clone()))
+                .collect(),
+        })
+        .collect()
+}
+
+/// One round's sighting of a physical row, tiles pre-extracted so the
+/// grouping loop doesn't re-collect them per comparison.
+struct Sighting<'a> {
+    round: usize,
+    row: &'a RoundRow,
+    tiles: Vec<Tile>,
+}
+
+/// Fuse several rounds' reads of the same view into one capture's rows.
+///
+/// Rows are identified across rounds with [`rows_match`] — two rows of the
+/// *same* round are never grouped (two rows in one frame are distinct
+/// physical rows). Each group keeps the union of its sightings' recognized
+/// tiles: the sightings' cells are clustered into columns by x-center
+/// (cross-round head jitter is far smaller than the grid's column pitch),
+/// and each column resolves to one tile — a tile read in any round counts,
+/// disagreeing reads resolve by majority, ties go to the earliest round.
+/// Data-safe by construction: it only fills unknowns / votes within a row
+/// already identified as the same physical row, so it can never invent a
+/// row, and a row seen in a single round passes through unchanged. With one
+/// round the whole call is a pass-through.
+pub fn union_rounds(rounds: &[Vec<RoundRow>]) -> Vec<RoundRow> {
+    // Group sightings of the same physical row, in first-sighting order.
+    let mut groups: Vec<Vec<Sighting>> = Vec::new();
+    for (round, rows) in rounds.iter().enumerate() {
+        for row in rows {
+            let tiles = row.tiles();
+            // Best group: none of its sightings is from this round, and the
+            // strongest item overlap among those `rows_match` accepts — so an
+            // exact re-read prefers its own row over a one-drift neighbour.
+            let mut best: Option<(usize, usize)> = None; // (shared, group idx)
+            for (gi, g) in groups.iter().enumerate() {
+                if g.iter().any(|s| s.round == round) {
+                    continue;
+                }
+                let shared = g
+                    .iter()
+                    .filter(|s| rows_match(&s.tiles, &tiles))
+                    .map(|s| shared_items(&s.tiles, &tiles))
+                    .max();
+                if let Some(shared) = shared {
+                    if best.is_none_or(|(b, _)| shared > b) {
+                        best = Some((shared, gi));
+                    }
+                }
+            }
+            let sighting = Sighting { round, row, tiles };
+            match best {
+                Some((_, gi)) => groups[gi].push(sighting),
+                None => groups.push(vec![sighting]),
+            }
+        }
+    }
+    groups.iter().map(|g| fuse_row(g)).collect()
+}
+
+/// Fuse one group of sightings (the same physical row seen in ≥1 rounds)
+/// into a single row. See [`union_rounds`] for the column/vote rules.
+fn fuse_row(sightings: &[Sighting]) -> RoundRow {
+    if sightings.len() == 1 {
+        return sightings[0].row.clone();
+    }
+    // Column pitch: the tightest adjacent-tile gap any single sighting
+    // exhibits. Half of it separates neighbouring columns while absorbing the
+    // cross-round x jitter (head drift over ~100 ms is a small fraction of a
+    // grid column). Infinite when every sighting is a single tile — then
+    // `rows_match` already said they're the same one-item row, one column.
+    let mut pitch = f32::INFINITY;
+    for s in sightings {
+        let mut xs: Vec<f32> = s.row.cells.iter().map(|&(cx, _)| cx).collect();
+        xs.sort_by(f32::total_cmp);
+        for w in xs.windows(2) {
+            pitch = pitch.min(w[1] - w[0]);
+        }
+    }
+    let tol = pitch * 0.5;
+
+    // Cluster every sighting's cells into columns by x-center against the
+    // running column mean (the same greedy shape as `cluster_rows`).
+    let mut cells: Vec<(f32, usize, &Tile)> = sightings
+        .iter()
+        .flat_map(|s| s.row.cells.iter().map(|(cx, t)| (*cx, s.round, t)))
+        .collect();
+    cells.sort_by(|a, b| a.0.total_cmp(&b.0));
+    let mut columns: Vec<Vec<(f32, usize, &Tile)>> = Vec::new();
+    let mut mean = f32::NEG_INFINITY;
+    for c in cells {
+        match columns.last_mut() {
+            Some(col) if (c.0 - mean).abs() <= tol => col.push(c),
+            _ => columns.push(vec![c]),
+        }
+        let col = columns.last().expect("just pushed");
+        mean = col.iter().map(|c| c.0).sum::<f32>() / col.len() as f32;
+    }
+
+    // One tile per column: a read in any round counts (fills a tile that
+    // OCR'd to nothing or matched nothing elsewhere); disagreeing reads
+    // resolve by majority, ties to the earliest round.
+    struct FusedCell {
+        cx: f32,
+        tile: Tile,
+        votes: usize,
+        round: usize,
+    }
+    let mut fused: Vec<FusedCell> = columns
+        .iter()
+        .map(|col| {
+            let cx = col.iter().map(|c| c.0).sum::<f32>() / col.len() as f32;
+            let mut votes: Vec<(&ItemId, usize, usize)> = Vec::new(); // (id, count, first round)
+            for &(_, round, tile) in col {
+                if let Some(id) = tile {
+                    match votes.iter_mut().find(|(v, _, _)| *v == id) {
+                        Some(v) => {
+                            v.1 += 1;
+                            v.2 = v.2.min(round);
+                        }
+                        None => votes.push((id, 1, round)),
+                    }
+                }
+            }
+            let mut winner: Option<(&ItemId, usize, usize)> = None;
+            for v in votes {
+                let better = match winner {
+                    None => true,
+                    Some((_, count, round)) => v.1 > count || (v.1 == count && v.2 < round),
+                };
+                if better {
+                    winner = Some(v);
+                }
+            }
+            match winner {
+                Some((id, votes, round)) => FusedCell {
+                    cx,
+                    tile: Some(id.clone()),
+                    votes,
+                    round,
+                },
+                None => FusedCell {
+                    cx,
+                    tile: None,
+                    votes: 0,
+                    round: usize::MAX,
+                },
+            }
+        })
+        .collect();
+
+    // Data-safety cap: the union FILLS tiles, it must never MULTIPLY them.
+    // Two columns claiming the same item when no single sighting saw that
+    // many means the column clustering split one physical tile (e.g. the
+    // stash's lone ALL-CAPS icon-print rows, identical in composition but
+    // sighted at different x): the surplus column demotes to an
+    // unrecognized tile instead of minting a duplicate. A row genuinely
+    // holding N copies keeps them — some sighting saw the N tiles.
+    let mut ids: Vec<ItemId> = fused.iter().filter_map(|c| c.tile.clone()).collect();
+    ids.sort();
+    ids.dedup();
+    for id in ids {
+        let allowed = sightings
+            .iter()
+            .map(|s| s.tiles.iter().filter(|t| t.as_ref() == Some(&id)).count())
+            .max()
+            .unwrap_or(0);
+        let mut cols: Vec<usize> = (0..fused.len())
+            .filter(|&i| fused[i].tile.as_ref() == Some(&id))
+            .collect();
+        if cols.len() <= allowed {
+            continue;
+        }
+        // Keep the strongest `allowed` columns: most votes, then earliest
+        // round, then leftmost. The rest demote.
+        cols.sort_by(|&a, &b| {
+            fused[b]
+                .votes
+                .cmp(&fused[a].votes)
+                .then(fused[a].round.cmp(&fused[b].round))
+                .then(fused[a].cx.total_cmp(&fused[b].cx))
+        });
+        for &i in cols.iter().skip(allowed) {
+            fused[i].tile = None;
+        }
+    }
+
+    RoundRow {
+        ry: sightings.iter().map(|s| s.row.ry).sum::<f32>() / sightings.len() as f32,
+        cells: fused.into_iter().map(|c| (c.cx, c.tile)).collect(),
+    }
+}
+
+/// Render one tile row as its item ids, `_` for an unmatched tile, left→right.
+#[allow(dead_code)]
+fn format_tile_row(row: &[Tile]) -> String {
+    row.iter()
+        .map(|t| t.clone().unwrap_or_else(|| "_".to_string()))
+        .collect::<Vec<String>>()
+        .join("  ")
+}
+
 /// Render a human-readable recognition dump for one box-scan capture, for the
 /// `ocr_debug` sidecar. Shows the de-shear slope, every sub-row's classification
 /// and per-tile match, this shot's reading-order tiles, the stitch verdict, and
 /// the running session tally — enough to see *why* a scan mis-read without the
 /// game running. Pure (no I/O); the caller writes it next to the source PNG.
+///
+/// `reads` is one [`BoxReadResult`] per burst round (a single element on the
+/// default 1-round setting) and `merged_rows` the round-unioned rows that
+/// actually fed [`merge_capture`]. A multi-round dump additionally records
+/// each round's raw per-row read next to the union, so a recovered (or still
+/// missing) tile is observable per round.
 #[allow(dead_code)]
 pub fn format_capture_dump(
-    read: &BoxReadResult,
+    reads: &[BoxReadResult],
+    merged_rows: &[Vec<Tile>],
     outcome: CaptureMerge,
     tally: &HashMap<ItemId, u32>,
     unrecognized: usize,
     captures: u32,
 ) -> String {
     use std::fmt::Write as _;
+    let multi = reads.len() > 1;
     let mut s = String::new();
-    let _ = writeln!(s, "=== BOX-SCAN CAPTURE #{captures} ===");
-    let _ = writeln!(s, "shear slope     : {:+.4}", read.slope);
-    match read.observed_weight {
+    if multi {
+        let _ = writeln!(
+            s,
+            "=== BOX-SCAN CAPTURE #{captures} ({} rounds) ===",
+            reads.len()
+        );
+    } else {
+        let _ = writeln!(s, "=== BOX-SCAN CAPTURE #{captures} ===");
+    }
+    let slopes: Vec<String> = reads.iter().map(|r| format!("{:+.4}", r.slope)).collect();
+    let _ = writeln!(s, "shear slope     : {}", slopes.join(" | "));
+    match reads.iter().find_map(|r| r.observed_weight) {
         Some(w) => {
             let _ = writeln!(s, "observed weight : {w:.2}");
         }
@@ -703,8 +960,8 @@ pub fn format_capture_dump(
     let _ = writeln!(
         s,
         "this shot       : {} row(s), {} tile(s)",
-        read.tile_rows.len(),
-        read.tiles.len()
+        merged_rows.len(),
+        merged_rows.iter().map(Vec::len).sum::<usize>()
     );
     let _ = writeln!(s);
 
@@ -712,36 +969,55 @@ pub fn format_capture_dump(
     // grid row that resolved to an item, each tile shown as its item id (`_` for
     // a tile that matched nothing), left→right. This concise view sits above the
     // verbose per-row trace below so a scan can be read — and a ground-truth
-    // label rebuilt — row by row without wading through the chrome/category lines.
+    // label rebuilt — row by row without wading through the chrome/category
+    // lines. On a burst these are the round-unioned rows fed to the merge.
     let _ = writeln!(s, "=== CAPTURED ITEMS (this shot, per row) ===");
-    if read.tile_rows.is_empty() {
+    if merged_rows.is_empty() {
         let _ = writeln!(s, "  (no item rows this capture)");
     } else {
-        for (i, row) in read.tile_rows.iter().enumerate() {
-            let cells: Vec<String> = row
-                .iter()
-                .map(|t| t.clone().unwrap_or_else(|| "_".to_string()))
-                .collect();
-            let _ = writeln!(s, "  row {:>2}: {}", i + 1, cells.join("  "));
+        for (i, row) in merged_rows.iter().enumerate() {
+            let _ = writeln!(s, "  row {:>2}: {}", i + 1, format_tile_row(row));
         }
     }
     let _ = writeln!(s);
 
+    if multi {
+        let _ = writeln!(
+            s,
+            "=== PER-ROUND READS (unioned into the rows above; issue #165) ==="
+        );
+        for (i, read) in reads.iter().enumerate() {
+            let _ = writeln!(s, "  round {}/{}:", i + 1, reads.len());
+            if read.tile_rows.is_empty() {
+                let _ = writeln!(s, "    (no item rows this round)");
+            }
+            for (ri, row) in read.tile_rows.iter().enumerate() {
+                let _ = writeln!(s, "    row {:>2}: {}", ri + 1, format_tile_row(row));
+            }
+        }
+        let _ = writeln!(s);
+    }
+
     let _ = writeln!(s, "=== ROWS (reading order, de-sheared) ===");
-    for r in &read.rows {
-        let (tag, note) = match r.kind {
-            RowKind::Names => ("name  ", ""),
-            RowKind::Category => ("CAT   ", "  (skipped: tab strip / subtitles)"),
-            RowKind::Chrome => ("chrome", "  (dropped: no item matched)"),
-        };
-        let _ = writeln!(s, "  [{tag}] ry={:>7.1}{note}", r.ry);
-        for (text, resolved) in &r.cells {
-            match resolved {
-                Some(id) => {
-                    let _ = writeln!(s, "      {text:<28} -> {id}");
-                }
-                None => {
-                    let _ = writeln!(s, "      {text:<28} -> —");
+    for (i, read) in reads.iter().enumerate() {
+        if multi {
+            let _ = writeln!(s, "  --- round {}/{} ---", i + 1, reads.len());
+        }
+        for r in &read.rows {
+            let (tag, note) = match r.kind {
+                RowKind::Names => ("name  ", ""),
+                RowKind::Category => ("CAT   ", "  (skipped: tab strip / subtitles)"),
+                RowKind::Chrome => ("chrome", "  (dropped: no item matched)"),
+            };
+            let _ = writeln!(s, "  [{tag}] ry={:>7.1}{note}", r.ry);
+            for (text, resolved) in &r.cells {
+                match resolved {
+                    Some(id) => {
+                        let _ = writeln!(s, "      {text:<28} -> {id}");
+                    }
+                    None => {
+                        let _ = writeln!(s, "      {text:<28} -> —");
+                    }
                 }
             }
         }
@@ -811,14 +1087,14 @@ pub(crate) mod tests {
             .collect()
     }
 
-    /// `grid_rows` keeps only `Names` rows (chrome / category dropped) and maps
-    /// each cell to a normalized `(x, matched)` at its pixel x-center, with the
-    /// row at its normalized y-center. This is the position→normalized-coord
-    /// mapping the feedback overlays (#137 / #138) rely on.
+    /// `round_rows` + `grid_rows` keep only `Names` rows (chrome / category
+    /// dropped) and map each cell to a normalized `(x, matched)` at its pixel
+    /// x-center, with the row at its normalized y-center. This is the
+    /// position→normalized-coord mapping the feedback overlays (#137 / #138)
+    /// rely on.
     #[test]
     fn grid_rows_filters_names_and_normalizes() {
         let read = BoxReadResult {
-            tiles: vec![],
             tile_rows: vec![],
             observed_weight: None,
             slope: 0.0,
@@ -843,7 +1119,7 @@ pub(crate) mod tests {
                 },
             ],
         };
-        let grid = grid_rows(&read, 800.0, 200.0);
+        let grid = grid_rows(&round_rows(&read), 800.0, 200.0);
         // Only the single Names row survives.
         assert_eq!(grid.len(), 1);
         let row = &grid[0];
@@ -1008,7 +1284,17 @@ pub(crate) mod tests {
     pub(crate) fn score_scan(category: &str, shots: &[String], label_file: &str) -> ScanScore {
         let read = run_box_scan(category, shots);
         let label = load_box_label(category, label_file);
+        score_tally(category, &read, &label)
+    }
 
+    /// Score an already-merged tally against a ground-truth label — the body
+    /// of [`score_scan`], split out so a variant pipeline (e.g. the round
+    /// union) can score its own tally against the same label.
+    pub(crate) fn score_tally(
+        scan: &str,
+        read: &HashMap<ItemId, u32>,
+        label: &HashMap<ItemId, u32>,
+    ) -> ScanScore {
         let mut keys: std::collections::BTreeSet<&ItemId> = read.keys().collect();
         keys.extend(label.keys());
 
@@ -1032,7 +1318,7 @@ pub(crate) mod tests {
         diffs.sort_by(|a, b| a.item_id.cmp(&b.item_id));
 
         ScanScore {
-            scan: category.to_string(),
+            scan: scan.to_string(),
             tiles_correct,
             tiles_total,
             exact_match: read == label,
@@ -1481,6 +1767,92 @@ pub(crate) mod tests {
         );
     }
 
+    /// Run a scan with the issue-#165 round union harvesting the scroll
+    /// overlap between consecutive shots: each shot is fused with its
+    /// successor as a synthetic 2-round burst before merging. The committed
+    /// stash series scrolls one row per shot, so the same physical row gets
+    /// sightings from genuinely different engine reads — exactly the
+    /// redundancy a live burst produces, replayed from the frozen fixtures.
+    fn run_box_scan_with_pair_union(category: &str, shots: &[String]) -> HashMap<ItemId, u32> {
+        let data = crate::assets::load_game_data().expect("embedded data.json");
+        let reads: Vec<BoxReadResult> = shots
+            .iter()
+            .map(|shot| {
+                let fx = BoxFixture::load(category, shot);
+                read_tiles(&fx.label_boxes(), fx.img_h, &data)
+            })
+            .collect();
+        let mut master: Vec<ScanRow> = Vec::new();
+        let mut next_id = 0u64;
+        for (i, read) in reads.iter().enumerate() {
+            let mut rounds = vec![round_rows(read)];
+            if let Some(next) = reads.get(i + 1) {
+                rounds.push(round_rows(next));
+            }
+            let fused = union_rounds(&rounds);
+            let rows: Vec<Vec<Tile>> = fused.iter().map(RoundRow::tiles).collect();
+            merge_capture(&mut master, &mut next_id, &rows);
+        }
+        tally_rows(&master).0
+    }
+
+    /// What the pair-union run captures on the frozen stash series:
+    /// strictly more than the single-read baseline's
+    /// [`STASH_GATE_TILES_CORRECT`] (178) — the union recovers a RAM tile
+    /// the engine read in only one of a row's sightings, the exact
+    /// engine-miss class issue #165 targets. **Ratchet** like the baseline
+    /// gates: if a change legitimately raises this, bump it in the same PR.
+    const STASH_UNION_TILES_CORRECT: u32 = 179;
+    /// Companion cap on the pair-union run's over-counted tiles. One above
+    /// the single-read [`STASH_GATE_EXTRA_MAX`] (16), and **not** a
+    /// hallucination: the union correctly fills the unmatched tile of
+    /// `[rat_poison deodorant _ ram pcfan]` to `ceramic_adhesive`, but the
+    /// baseline master already holds that physical row twice — its garbled
+    /// sibling `[rat_poison deodorant ceramic_adhesive _]` differs by two
+    /// drifts, beyond `rows_match`'s one-drift dedup tolerance — so the
+    /// correct fill lands in a double-counted row. The union never *mints*
+    /// tiles (see `union_never_multiplies_an_item_beyond_any_sighting`).
+    const STASH_UNION_EXTRA_MAX: u32 = 17;
+
+    /// Offline validation for the round union (issue #165), on the frozen
+    /// stash fixtures: fusing each shot with its successor as a 2-round
+    /// burst must read strictly more of the label than the single-read
+    /// baseline (the recovered busy-icon tile) without inflating
+    /// over-counts beyond the documented fill-into-a-duplicate (see the
+    /// constants above). This scores the union on real engine variance —
+    /// the per-shot reads of the same physical rows genuinely differ across
+    /// frames — before any in-headset testing.
+    #[test]
+    fn stash_pair_union_improves_graded_score() {
+        let read = run_box_scan_with_pair_union("stash", &scan_shots("stash"));
+        let label = load_box_label("stash", "stash.label.txt");
+        let score = score_tally("stash+union", &read, &label);
+        eprintln!(
+            "stash pair-union: {}/{} tiles, {} missing, {} extra",
+            score.tiles_correct, score.tiles_total, score.missing, score.extra
+        );
+        assert!(
+            score.tiles_correct >= STASH_UNION_TILES_CORRECT,
+            "round union regressed: captured {}/{} label tiles (floor \
+             {STASH_UNION_TILES_CORRECT}; the single-read baseline reads \
+             {STASH_GATE_TILES_CORRECT}); diffs: {:?}",
+            score.tiles_correct,
+            score.tiles_total,
+            score
+                .diffs
+                .iter()
+                .map(|d| format!("{} {}/{}", d.item_id, d.read, d.label))
+                .collect::<Vec<_>>(),
+        );
+        assert!(
+            score.extra <= STASH_UNION_EXTRA_MAX,
+            "round union over-counts: {} extra tile(s) beyond the label \
+             (cap {STASH_UNION_EXTRA_MAX}) — the union must fill tiles, \
+             never mint them",
+            score.extra,
+        );
+    }
+
     /// Merge a series of captures (each a list of rows) and return the final
     /// unique-row set. `seq` builds one row's tiles from a token spec.
     fn merge_all(captures: &[Vec<Vec<Tile>>]) -> Vec<ScanRow> {
@@ -1618,6 +1990,166 @@ pub(crate) mod tests {
         assert_eq!(unrecognized, 2);
     }
 
+    // --- Round union (issue #165) ---------------------------------------------
+
+    /// One round-row from a spec, tokens left→right at columns 0,1,2… (x =
+    /// 100 + 200·col). `_` = a detected-but-unmatched tile (`None`); `.` = no
+    /// tile detected at that column at all (the busy-icon engine miss — the
+    /// word never existed, so the column is simply absent from this sighting).
+    fn rrow(spec: &str) -> RoundRow {
+        let cells = spec
+            .split_whitespace()
+            .enumerate()
+            .filter(|(_, t)| *t != ".")
+            .map(|(i, t)| {
+                let tile = if t == "_" { None } else { Some(t.to_string()) };
+                (100.0 + 200.0 * i as f32, tile)
+            })
+            .collect();
+        RoundRow { ry: 0.0, cells }
+    }
+
+    /// The unioned rows as bare tile rows, for compact assertions.
+    fn union_tiles(rounds: &[Vec<RoundRow>]) -> Vec<Vec<Tile>> {
+        union_rounds(rounds).iter().map(RoundRow::tiles).collect()
+    }
+
+    #[test]
+    fn union_single_round_is_a_passthrough() {
+        let rounds = vec![vec![rrow("a b c"), rrow("d _ f")]];
+        assert_eq!(union_tiles(&rounds), vec![seq("a b c"), seq("d _ f")]);
+    }
+
+    #[test]
+    fn union_fills_a_tile_the_engine_missed() {
+        // The RAM case: the busy-icon tile OCRs to *no text at all* in round
+        // 1 (absent, not unmatched) but reads in round 2 — the union recovers
+        // it without inventing a fourth tile.
+        let rounds = vec![vec![rrow("a . c")], vec![rrow("a b c")]];
+        assert_eq!(union_tiles(&rounds), vec![seq("a b c")]);
+    }
+
+    #[test]
+    fn union_fills_a_tile_that_matched_nothing() {
+        // Round 1 detected the tile but couldn't match it (`None`); round 2
+        // read it. Any round's successful read counts.
+        let rounds = vec![vec![rrow("a _ c")], vec![rrow("a b c")]];
+        assert_eq!(union_tiles(&rounds), vec![seq("a b c")]);
+    }
+
+    #[test]
+    fn union_majority_resolves_a_conflicting_tile() {
+        // The same physical tile (same column) reads `x` once and `c` twice:
+        // majority wins, and the row keeps three tiles — the conflict is one
+        // tile disputed, not two tiles seen.
+        let rounds = vec![
+            vec![rrow("a b x")],
+            vec![rrow("a b c")],
+            vec![rrow("a b c")],
+        ];
+        assert_eq!(union_tiles(&rounds), vec![seq("a b c")]);
+    }
+
+    #[test]
+    fn union_tie_goes_to_the_earliest_round() {
+        let rounds = vec![vec![rrow("a b x")], vec![rrow("a b c")]];
+        assert_eq!(union_tiles(&rounds), vec![seq("a b x")]);
+    }
+
+    #[test]
+    fn union_fills_from_both_sides() {
+        // Each round misses a different tile of the same 4-tile row; the
+        // union has all four.
+        let rounds = vec![vec![rrow("a b c .")], vec![rrow("a b . d")]];
+        assert_eq!(union_tiles(&rounds), vec![seq("a b c d")]);
+    }
+
+    #[test]
+    fn union_keeps_a_never_matched_tile_unrecognized() {
+        // A tile detected in every round but matched in none stays one
+        // unrecognized tile — not dropped, not duplicated.
+        let rounds = vec![vec![rrow("a _ c")], vec![rrow("a _ c")]];
+        assert_eq!(union_tiles(&rounds), vec![seq("a _ c")]);
+    }
+
+    #[test]
+    fn union_appends_a_row_seen_in_one_round_only() {
+        // A row visible only in round 2 (crop-edge wobble) passes through
+        // unchanged after the rows both rounds saw.
+        let rounds = vec![vec![rrow("a b c")], vec![rrow("a b c"), rrow("d e f")]];
+        assert_eq!(union_tiles(&rounds), vec![seq("a b c"), seq("d e f")]);
+    }
+
+    #[test]
+    fn union_never_groups_rows_of_the_same_round() {
+        // Two identical-composition rows in ONE frame are distinct physical
+        // rows (the documented duplicate-row layout); each round re-seeing
+        // both must fuse pairwise, not collapse to one or grow to four.
+        let rounds = vec![
+            vec![rrow("nail nail nail"), rrow("nail nail nail")],
+            vec![rrow("nail nail nail"), rrow("nail nail nail")],
+        ];
+        assert_eq!(
+            union_tiles(&rounds),
+            vec![seq("nail nail nail"), seq("nail nail nail")]
+        );
+    }
+
+    #[test]
+    fn union_flicker_in_one_column_does_not_grow_the_row() {
+        // Round 2 reads the third tile as a different item at the SAME
+        // column: that's one disputed tile (resolved first-round), never a
+        // four-tile row — position separates "disagreeing read" from "two
+        // different tiles".
+        let rounds = vec![vec![rrow("a b x .")], vec![rrow("a b c .")]];
+        let fused = union_tiles(&rounds);
+        assert_eq!(fused, vec![seq("a b x")]);
+    }
+
+    #[test]
+    fn union_never_multiplies_an_item_beyond_any_sighting() {
+        // Two junk one-aspirin sightings of the same composition at far-apart
+        // columns (the stash's lone ALL-CAPS icon-print rows): grouping is
+        // right (identical composition) but the fused row must not mint a
+        // second aspirin no round ever saw — the surplus column demotes to
+        // an unrecognized tile, so the row keeps deduping against the lone
+        // variant in the cross-shot merge.
+        let r1 = RoundRow {
+            ry: 0.0,
+            cells: vec![(100.0, Some("aspire".into()))],
+        };
+        let r2 = RoundRow {
+            ry: 0.0,
+            cells: vec![(500.0, Some("aspire".into())), (700.0, None)],
+        };
+        let fused = union_tiles(&[vec![r1], vec![r2]]);
+        assert_eq!(fused.len(), 1);
+        let knowns = fused[0].iter().filter(|t| t.is_some()).count();
+        assert_eq!(knowns, 1, "no sighting saw two aspirins: {fused:?}");
+    }
+
+    #[test]
+    fn union_keeps_real_copies_a_sighting_saw_together() {
+        // A row genuinely holding two nails: round 1 read both, so two
+        // same-item columns are legitimate and survive the multiply cap
+        // (round 2 missed one of them).
+        let rounds = vec![vec![rrow("nail nail screw")], vec![rrow("nail . screw")]];
+        assert_eq!(union_tiles(&rounds), vec![seq("nail nail screw")]);
+    }
+
+    #[test]
+    fn union_fused_geometry_feeds_the_feedback_grid() {
+        // The fused row keeps usable geometry: a tile filled from round 2
+        // shows ✓ at its column in the normalized feedback grid.
+        let rounds = vec![vec![rrow("a . c")], vec![rrow("a b c")]];
+        let fused = union_rounds(&rounds);
+        let grid = grid_rows(&fused, 1000.0, 100.0);
+        assert_eq!(grid.len(), 1);
+        let xs: Vec<f32> = grid[0].cells.iter().map(|c| c.x).collect();
+        assert_eq!(xs, vec![0.1, 0.3, 0.5]);
+        assert!(grid[0].cells.iter().all(|c| c.matched));
+    }
+
     // --- OCR geometry (platform-independent clustering) ----------------------
 
     use crate::data::Item;
@@ -1702,7 +2234,7 @@ pub(crate) mod tests {
         ];
         let res = read_tiles(&boxes, 500.0, &data);
         assert_eq!(
-            res.tiles,
+            res.tile_rows.concat(),
             vec![
                 Some("uvlight".to_string()),
                 Some("copperwire".to_string()),
@@ -1725,7 +2257,7 @@ pub(crate) mod tests {
         ];
         let res = read_tiles(&boxes, 500.0, &data);
         assert_eq!(
-            res.tiles,
+            res.tile_rows.concat(),
             vec![
                 Some("piezometer".to_string()),
                 None,
@@ -1754,7 +2286,7 @@ pub(crate) mod tests {
         assert!(kinds.contains(&RowKind::Chrome), "weight row → Chrome");
         // Only the Names row contributes tiles.
         assert_eq!(
-            res.tiles,
+            res.tile_rows.concat(),
             vec![Some("uvlight".into()), Some("piezometer".into())]
         );
     }
@@ -1776,7 +2308,14 @@ pub(crate) mod tests {
         let mut next_id = 0u64;
         let merge = merge_capture(&mut master, &mut next_id, &res.tile_rows);
         let (counts, unrecognized) = tally_rows(&master);
-        let dump = format_capture_dump(&res, merge, &counts, unrecognized, 1);
+        let dump = format_capture_dump(
+            std::slice::from_ref(&res),
+            &res.tile_rows,
+            merge,
+            &counts,
+            unrecognized,
+            1,
+        );
         assert!(dump.contains("BOX-SCAN CAPTURE #1"));
         assert!(dump.contains("shear slope"));
         assert!(dump.contains("new row")); // merge summary: "+N new row(s)"
@@ -1785,5 +2324,51 @@ pub(crate) mod tests {
         // Concise per-row reconstruction sits above the verbose trace.
         assert!(dump.contains("CAPTURED ITEMS (this shot, per row)"));
         assert!(dump.contains("row  1: uvlight"));
+        // The single-round dump carries no burst sections.
+        assert!(!dump.contains("PER-ROUND READS"));
+        assert!(!dump.contains("--- round"));
+    }
+
+    /// A burst dump records each round's raw read next to the unioned rows
+    /// that fed the merge, so a tile recovered by an extra round is
+    /// observable per round (issue #165).
+    #[test]
+    fn format_capture_dump_records_rounds_and_union() {
+        let data = box_data();
+        // Round 1 misses the middle tile entirely (busy icon → no text);
+        // round 2 reads all three.
+        let r1 = read_tiles(
+            &[lb("Piezometer", 50.0, 120.0), lb("Gunpowder", 360.0, 120.0)],
+            500.0,
+            &data,
+        );
+        let r2 = read_tiles(
+            &[
+                lb("Piezometer", 50.0, 120.0),
+                lb("Gunpowder", 360.0, 120.0),
+                lb("Olive", 200.0, 120.0),
+                lb("oil", 235.0, 120.0),
+            ],
+            500.0,
+            &data,
+        );
+        let reads = vec![r1, r2];
+        let per_round: Vec<Vec<RoundRow>> = reads.iter().map(round_rows).collect();
+        let fused = union_rounds(&per_round);
+        let merged_rows: Vec<Vec<Tile>> = fused.iter().map(RoundRow::tiles).collect();
+        let mut master = Vec::new();
+        let mut next_id = 0u64;
+        let merge = merge_capture(&mut master, &mut next_id, &merged_rows);
+        let (counts, unrecognized) = tally_rows(&master);
+        let dump = format_capture_dump(&reads, &merged_rows, merge, &counts, unrecognized, 1);
+        assert!(dump.contains("BOX-SCAN CAPTURE #1 (2 rounds)"));
+        // The union fed the merge: all three items in one row.
+        assert!(dump.contains("row  1: piezometer  oliveoil  gunpowder"));
+        // Each round's raw read is recorded for comparison.
+        assert!(dump.contains("PER-ROUND READS"));
+        assert!(dump.contains("round 1/2:"));
+        assert!(dump.contains("--- round 2/2 ---"));
+        // Both rounds' slopes are shown side by side.
+        assert!(dump.contains(" | "));
     }
 }

@@ -1222,6 +1222,15 @@ fn encode_webp(img: &image::DynamicImage, q: f32) -> Vec<u8> {
 #[cfg(target_os = "windows")]
 const OVERLAY_SETTLE: Duration = Duration::from_millis(50);
 
+/// Gap between burst rounds of one box-scan shot (issue #165) — a handful of
+/// compositor presents. Re-grabbing immediately would mostly hand back the
+/// same composited frame; ~100 ms is long enough that head jitter makes each
+/// round genuinely different pixels (which is where all the recoverable OCR
+/// signal lives), short enough that a 5-round burst still feels like one
+/// trigger pull. Only reached when `Settings::ocr_rounds` > 1.
+#[cfg(target_os = "windows")]
+const ROUND_SPACING: Duration = Duration::from_millis(100);
+
 /// Grab one compositor-mirror frame and hand it to the OCR worker.
 /// Shared by the controller-trigger capture path and the desktop SPACE hotkey.
 ///
@@ -1273,9 +1282,14 @@ fn capture_and_forward(
         }
         *ocr_state = None;
     }
-    let (capture_eye_setting, trace, ocr_debug) = {
+    let (capture_eye_setting, trace, ocr_debug, ocr_rounds) = {
         let s = settings.read();
-        (s.capture_eye, s.ocr_capture_trace, s.ocr_debug)
+        (
+            s.capture_eye,
+            s.ocr_capture_trace,
+            s.ocr_debug,
+            s.ocr_rounds,
+        )
     };
     let capture_eye: super::capture::CaptureEye = capture_eye_setting.into();
     // Capture eye's head-space offset (≈ ±IPD/2), for the crop's parallax
@@ -1396,8 +1410,55 @@ fn capture_and_forward(
                 );
                 let _ = std::fs::write(path.with_extension("guide.txt"), diag);
             }
+            // Burst rounds (issue #165): a box scan with the OCR-rounds
+            // setting above 1 grabs extra mirror frames a few compositor
+            // presents apart. Re-OCRing one frame is deterministic — all the
+            // recoverable signal is in *more frames*, where head jitter
+            // re-rolls which busy-icon tiles (RAM, CD, CPU fan) resolve — so
+            // each round is captured fresh and cropped to the same guide-box
+            // region; the worker OCRs them independently and unions the
+            // reads at the row level. A failed round is dropped: the shot
+            // proceeds on whatever rounds were grabbed.
+            let mut extra_rounds: Vec<image::DynamicImage> = Vec::new();
+            if box_scan && ocr_rounds > 1 {
+                for round in 2..=ocr_rounds {
+                    std::thread::sleep(ROUND_SPACING);
+                    match session.capture_screenshot(capture_eye, trace) {
+                        Ok(frame) => {
+                            let (fw, fh) = frame.dimensions();
+                            let (rx, ry, rw, rh) = mirror_crop.px_rect(fw, fh);
+                            let frame = frame.crop_imm(rx, ry, rw, rh);
+                            // Keep each round's cropped input next to the
+                            // primary (debug mode only), so a recovered or
+                            // still-missing tile is diagnosable per round.
+                            if let Some(path) = &debug_path {
+                                let round_path = path.with_extension(format!("round{round}.webp"));
+                                if let Err(e) =
+                                    std::fs::write(&round_path, encode_webp(&frame, 95.0))
+                                {
+                                    tracing::warn!(error = %e, round, "failed to write round debug WebP");
+                                }
+                            }
+                            extra_rounds.push(frame);
+                        }
+                        Err(e) => {
+                            tracing::warn!(
+                                error = %e,
+                                round,
+                                "burst round capture failed — shot continues with fewer rounds"
+                            );
+                        }
+                    }
+                }
+                tracing::info!(
+                    rounds = 1 + extra_rounds.len(),
+                    requested = ocr_rounds,
+                    "box-scan burst captured"
+                );
+            }
             let job = OcrJob {
                 image: img,
+                extra_rounds,
                 source_path: debug_path.clone(),
                 kind,
             };

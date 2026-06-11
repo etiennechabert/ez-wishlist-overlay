@@ -29,6 +29,11 @@ pub mod bounds {
     /// barely sees the result); 30 s is generous enough to linger over a busy
     /// box grid without recapturing.
     pub const OCR_DISMISS_SECS: std::ops::RangeInclusive<u32> = 1..=30;
+    /// Capture/OCR rounds per box-scan shot (issue #165). 1 = the plain
+    /// single read; the cap keeps the per-shot latency bounded — each extra
+    /// round costs a full engine pass (~0.5–1 s), and past a handful of
+    /// sightings the row union has nothing left to recover.
+    pub const OCR_ROUNDS: std::ops::RangeInclusive<u32> = 1..=5;
     /// Cap on how many items the VR overlay shows (top priority first). `0` is
     /// the sentinel for "no cap — show the whole wishlist" (still bounded by
     /// the MAX_ROWS render ceiling). The upper end is a generous focus-list
@@ -276,6 +281,17 @@ pub struct Settings {
     /// up until you leave capture mode, regardless of this value.
     #[serde(default = "default_ocr_dismiss_seconds")]
     pub ocr_dismiss_seconds: u32,
+    /// How many capture/OCR rounds one box/stash scan shot performs (issue
+    /// #165). Re-OCRing one frame is deterministic and buys nothing, but in
+    /// VR the head is never perfectly still, so frames grabbed ~100 ms apart
+    /// are genuinely different pixels — a busy-icon tile (RAM, CD, CPU fan)
+    /// that OCRs to no text in one frame often resolves in another. The
+    /// rounds' reads union at the row level before the cross-shot merge, so
+    /// a tile read in any round counts. Default 1 (single read): each extra
+    /// round adds an engine pass (~0.5–1 s) to every shot. Hideout
+    /// upgrade-panel captures ignore this.
+    #[serde(default = "default_ocr_rounds")]
+    pub ocr_rounds: u32,
     /// Which in-headset surface shows each capture's per-item OCR read (issues
     /// #137 / #138). Default [`OcrFeedbackStyle::OnItems`] — marks painted on the
     /// real items via the guide box, so nothing occludes the panel / grid you're
@@ -323,6 +339,10 @@ fn default_capture_eye() -> CaptureEye {
 
 fn default_ocr_dismiss_seconds() -> u32 {
     4
+}
+
+fn default_ocr_rounds() -> u32 {
+    1
 }
 
 fn default_ocr_auto_track() -> bool {
@@ -377,6 +397,8 @@ impl Settings {
     pub fn sanitize_ocr(&mut self) {
         let d = bounds::OCR_DISMISS_SECS;
         self.ocr_dismiss_seconds = self.ocr_dismiss_seconds.clamp(*d.start(), *d.end());
+        let r = bounds::OCR_ROUNDS;
+        self.ocr_rounds = self.ocr_rounds.clamp(*r.start(), *r.end());
     }
 }
 
@@ -395,6 +417,7 @@ impl Default for Settings {
             capture_eye: default_capture_eye(),
             ocr_debug: false,
             ocr_dismiss_seconds: default_ocr_dismiss_seconds(),
+            ocr_rounds: default_ocr_rounds(),
             ocr_feedback_style: OcrFeedbackStyle::default(),
             ocr_auto_track: default_ocr_auto_track(),
             ocr_capture_trace: false,
@@ -843,6 +866,38 @@ mod tests {
             !OcrFeedbackStyle::Off.shows_on_item_marks()
                 && !OcrFeedbackStyle::Off.shows_center_card()
         );
+    }
+
+    #[test]
+    fn ocr_rounds_defaults_to_single_read_when_absent() {
+        // Settings files written before this field lack the key; serde(default)
+        // must fill the plain single-read behavior (1), not error.
+        let s: Settings = serde_json::from_str("{}").unwrap();
+        assert_eq!(s.ocr_rounds, 1);
+        assert_eq!(Settings::default().ocr_rounds, 1);
+    }
+
+    #[test]
+    fn ocr_rounds_round_trips_and_sanitizes() {
+        let s = Settings {
+            ocr_rounds: 3,
+            ..Settings::default()
+        };
+        let json = serde_json::to_string(&s).unwrap();
+        let back: Settings = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.ocr_rounds, 3);
+
+        // A hand-edited 0 clamps up to the 1-round minimum (a shot must
+        // capture at least once); an absurd value clamps down to the cap.
+        let mut s = Settings {
+            ocr_rounds: 0,
+            ..Settings::default()
+        };
+        s.sanitize_ocr();
+        assert_eq!(s.ocr_rounds, *bounds::OCR_ROUNDS.start());
+        s.ocr_rounds = 99;
+        s.sanitize_ocr();
+        assert_eq!(s.ocr_rounds, *bounds::OCR_ROUNDS.end());
     }
 
     #[test]
