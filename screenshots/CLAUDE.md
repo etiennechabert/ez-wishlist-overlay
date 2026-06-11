@@ -195,6 +195,12 @@ shape**, not just embedded in the full panel/scan.
 - **The committed set is curated:** only tiles that OCR cleanly are gated, so the
   test is a regression guard. Coverage grows as tiles are added; the `#hard` ones
   are leads for the `ocr-tune` loop, not blockers.
+- **Units are cumulative per-item coverage, not a snapshot of the current
+  container.** When a capture refresh drops an item from the box/stash, keep its
+  existing unit tile from the earlier series (e.g. stash `misc_b_harddrive`,
+  `misc_blimbingrope`) — the item can reappear, and the tile keeps validating
+  that the engine still reads it. Only replace a tile when the new series offers
+  a better crop of the same item.
 
 ---
 

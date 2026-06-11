@@ -9,6 +9,11 @@
 # frame-verified yellow battery1 tile (a battery2 misread can otherwise supply
 # its crop); it stays #hard — the battery digit OCRs as l/i/e, the tracked
 # twin-pack limit. Gated set is stable over a 5-run union.
+#
+# Units are CUMULATIVE per-item coverage, not a snapshot of the current stash:
+# when a refresh drops an item from the container, its tile from the earlier
+# series is kept (misc_b_harddrive, misc_blimbingrope) so the engine keeps
+# being validated on items that may reappear.
 
 misc_b_aspire.webp  Aspirin
 misc_b_asthmamedication.webp  Asthma medicine
@@ -23,6 +28,7 @@ misc_b_gastank.webp  Gas can
 misc_b_gastank_large.webp  Large gas can
 misc_b_glue_large.webp  Instant glue
 misc_b_gunoil.webp  Gun oil
+misc_b_harddrive.webp  Hard Drive
 misc_b_insulatingtape.webp  Insulating Tape
 misc_b_iodophor.webp  Iodine
 misc_b_ionbattery.webp  Ion Battery
@@ -54,6 +60,7 @@ misc_b_wd40.webp  WD-40
 misc_b_wirecutting.webp  Wire Cutter
 misc_b_wrench.webp  Wrench
 misc_barcleaner.webp  Cleanser
+misc_blimbingrope.webp  Climbing rope
 misc_copperwire.webp  Copper wire
 misc_cpu.webp  CPU
 misc_floppydisk.webp  Floppydisk
