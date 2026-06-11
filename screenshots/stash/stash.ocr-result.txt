@@ -6,18 +6,18 @@
 # stash.label.txt. Per-shot reads are in the sibling stash.shotN.ocr-result.txt.
 #
 ## SUMMARY
-  captured 164/200 label tile(s)  (36 missing, 16 extra)
+  captured 178/200 label tile(s)  (22 missing, 16 extra)
   exact match: NO — see the per-item breakdown below
-  note: the 38-shot row-by-row series is gap-free, but several in-game labels diverge from data.json names (Windproof Matches, Band-aids, Pet Shampoo, …) and stay unmatchable — informational, not gated
+  note: the 38-shot row-by-row series is gap-free and data.json names now match the game's own strings; the residual misses are engine-level (busy-icon tiles OCR to no text, e.g. RAM) plus phantom rows from garbled first sightings — informational, not gated
 #
 ## PER ITEM   (read = scan count, label = ground truth)
 # status  read/label  item_id
   EXTRA      5/4      misc_b_aspire
   EXTRA      5/4      misc_b_asthmamedication
-  MISSING    0/3      misc_b_bandaid
+  MISSING    2/3      misc_b_bandaid
   EXTRA     13/10     misc_b_battery_1
   MISSING    3/5      misc_b_battery_2
-  MISSING    4/6      misc_b_beardoil
+  OK         6/6      misc_b_beardoil
   OK         7/7      misc_b_ceramic_adhesive
   EXTRA      4/3      misc_b_deodorant
   OK         2/2      misc_b_disinfectingwipes
@@ -28,15 +28,15 @@
   OK         3/3      misc_b_gunoil
   OK         5/5      misc_b_insulatingtape
   EXTRA      7/5      misc_b_iodophor
-  EXTRA     11/9      misc_b_ionbattery
+  EXTRA     10/9      misc_b_ionbattery
   OK         1/1      misc_b_lighter
   OK         4/4      misc_b_lighterfluid
-  MISSING    0/5      misc_b_match
+  EXTRA      6/5      misc_b_match
   OK         2/2      misc_b_medicalscissors
   OK         3/3      misc_b_moldboard
   OK         1/1      misc_b_nail
   OK         2/2      misc_b_newphone
-  MISSING    0/1      misc_b_nut
+  EXTRA      2/1      misc_b_nut
   OK         2/2      misc_b_oldphone
   MISSING    6/8      misc_b_opticaldisc
   MISSING    6/8      misc_b_pcfan
@@ -49,12 +49,12 @@
   OK         1/1      misc_b_recorder
   OK         3/3      misc_b_rustedcleaner
   OK         1/1      misc_b_saltcan
-  MISSING    0/3      misc_b_screw
-  MISSING    0/2      misc_b_shampoo
+  OK         3/3      misc_b_screw
+  OK         2/2      misc_b_shampoo
   OK         1/1      misc_b_socket
   OK         2/2      misc_b_sparkplug
   OK         2/2      misc_b_spraycan
-  EXTRA      3/2      misc_b_superglue
+  OK         2/2      misc_b_superglue
   EXTRA      6/5      misc_b_tape
   EXTRA      3/2      misc_b_tire_sealant
   OK         7/7      misc_b_wd40
@@ -63,7 +63,7 @@
   OK         1/1      misc_copperwire
   EXTRA      3/2      misc_cpu
   OK         1/1      misc_facialcleaner
-  OK         7/7      misc_floppydisk
+  MISSING    6/7      misc_floppydisk
   OK         2/2      misc_hammer
   OK         6/6      misc_notebook
   OK         3/3      misc_screwdriver

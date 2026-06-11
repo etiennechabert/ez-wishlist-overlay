@@ -8,8 +8,8 @@
 # the frozen stash.shot34.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 13 item tile(s) across 3 grid row(s)
-  dropped 2 text(s) that matched no catalog item (window title, weight
+  recognized 14 item tile(s) across 3 grid row(s)
+  dropped 1 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
@@ -19,6 +19,7 @@
     1 x misc_b_gastank
     1 x misc_b_insulatingtape
     1 x misc_b_iodophor
+    1 x misc_b_match
     1 x misc_b_medicalscissors
     1 x misc_b_moldboard
     1 x misc_b_sparkplug
@@ -45,7 +46,7 @@
     Building                       -> (no match)
     Tool                           -> (no match)
   [items ]
-    Windproof Matches              -> (no match)
+    Windproof Matches              -> misc_b_match
     Spray can                      -> misc_b_spraycan
     Insulating Tape                -> misc_b_insulatingtape
     Hammer                         -> misc_hammer

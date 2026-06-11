@@ -8,12 +8,13 @@
 # the frozen stash.shot13.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 13 item tile(s) across 3 grid row(s)
-  dropped 2 text(s) that matched no catalog item (window title, weight
+  recognized 14 item tile(s) across 3 grid row(s)
+  dropped 1 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
     1 x misc_b_asthmamedication
+    1 x misc_b_bandaid
     2 x misc_b_battery_1
     2 x misc_b_ceramic_adhesive
     1 x misc_b_deodorant
@@ -57,7 +58,7 @@
     sacx                           -> (no match)
   [items ]
     Floppydisk                     -> misc_floppydisk
-    Band-aids                      -> (no match)
+    Band-aids                      -> misc_b_bandaid
     Size O batteryl                -> misc_b_battery_1
     Asthma medicine                -> misc_b_asthmamedication
     Size O batteryi                -> misc_b_battery_1

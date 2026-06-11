@@ -8,13 +8,14 @@
 # the frozen stash.shot01.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 11 item tile(s) across 4 grid row(s)
-  dropped 1 text(s) that matched no catalog item (window title, weight
+  recognized 12 item tile(s) across 4 grid row(s)
+  dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
     2 x misc_b_aspire
     1 x misc_b_iodophor
+    1 x misc_b_match
     1 x misc_b_opticaldisc
     2 x misc_b_ram
     1 x misc_b_spraycan
@@ -27,7 +28,7 @@
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
 #   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
   [items ]
-    Windproof Matches              -> (no match)
+    Windproof Matches              -> misc_b_match
     co                             -> misc_b_opticaldisc
     Iodine                         -> misc_b_iodophor
     Wrench                         -> misc_b_wrench

@@ -228,9 +228,11 @@ map each on-screen item to its `item_id` by display name, watching for:
   An id ≠ name is not by itself a bug: `misc_b_pipeline` is named "Valve" —
   verify against in-game captures before renaming anything, and remember an id
   rename orphans any persisted owned-counts under the old id (state.rs prunes
-  them). Same caution for `misc_b_storagebattery` ("Car Battery" in JSON, larger
-  item in-game) and `misc_b_batter_large` ("Storage Battery" in JSON, the small
-  one in-game) — compare icons and ask the user.
+  them). The battery-family slugs lie outright (resolved against the game's
+  `WFItemsStringTable`): `misc_b_storagebattery` is the game's
+  `valuable.batteries.carbattery` = **"Vehicle battery"**, while
+  `misc_b_batter_large` is `valuable.batteries.storagebattery` = "Storage
+  Battery" — names follow the game string, never the slug.
 - **Two items can share a display name** — disambiguate by the upstream icon
   filename suffix and the in-game label; never collapse them. Still live:
   `misc_b_gastank` + `misc_b_tape_large` are both "Gas can". Resolved by patching

@@ -10,16 +10,13 @@
 # difference is 2 tiles), so the row-uniqueness merge cannot collapse distinct
 # rows even with its one-drift tolerance.
 #
-# `stash_scan_matches_label` stays `#[ignore]`d: the capture is gap-free, but
-# an exact tally is still blocked by in-game labels that diverge from
-# data.json `Item.name` (the matcher can't resolve them until `Item.name` is
-# fixed in data.json itself — the canonical hand-maintained dataset since the
-# scraper was retired in #162) plus residual glyph misreads:
-#   misc_b_match    in-game "Windproof Matches"  data "Matches"   (5 tiles)
-#   misc_b_bandaid  in-game "Band-aids"          data "Adhesive bandages" (3)
-#   misc_b_shampoo  in-game "Pet Shampoo"        data "Shampoo"   (2)
-#   misc_b_screw    in-game "Boxed Bolts"        data "Bolts"
-#   misc_b_nut      in-game "Boxed Nuts"         data "Nuts"
+# `stash_scan_matches_label` stays `#[ignore]`d: the capture is gap-free and
+# the old name divergences (Windproof Matches, Band-aids, Boxed Bolts, Boxed
+# Nuts, Pet Shampoo) were fixed in data.json against the game's own
+# WFItemsStringTable — what still blocks an exact tally is the engine itself:
+# busy-diagonal-icon tiles (RAM above all) often OCR to no text at all, and
+# garbled first sightings leave phantom rows (the merge keeps the first read
+# of a row and never back-fills a better later one).
 # Near-collision resolved by the in-game names themselves: the stash's white
 # "Cleanser" tube is misc_facialcleaner (data name patched to the in-game
 # "Cleanser"); misc_barcleaner "Cleaner" is the yellow spray bottle seen on the

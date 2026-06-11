@@ -1270,9 +1270,10 @@ pub(crate) mod tests {
         let data = crate::assets::load_game_data().expect("embedded data.json");
         let notes: std::collections::HashMap<&str, &str> = [(
             "stash",
-            "the 38-shot row-by-row series is gap-free, but several in-game labels \
-             diverge from data.json names (Windproof Matches, Band-aids, Pet \
-             Shampoo, …) and stay unmatchable — informational, not gated",
+            "the 38-shot row-by-row series is gap-free and data.json names now \
+             match the game's own strings; the residual misses are engine-level \
+             (busy-icon tiles OCR to no text, e.g. RAM) plus phantom rows from \
+             garbled first sightings — informational, not gated",
         )]
         .into_iter()
         .collect();
@@ -1416,13 +1417,14 @@ pub(crate) mod tests {
     /// pairwise distinct (≥2 differing tiles), so re-seen rows dedup and no two
     /// distinct rows can collapse even with the one-drift tolerance.
     ///
-    /// Still `#[ignore]`d because an exact tally needs every tile *recognized*:
-    /// several in-game labels diverge from data.json `Item.name` and cannot
-    /// match until `Item.name` is fixed in data.json itself — the canonical
-    /// hand-maintained dataset since #162 ("Windproof Matches"/"Matches",
-    /// "Band-aids"/"Adhesive bandages", "Pet Shampoo"/"Shampoo", "Boxed
-    /// Bolts"/"Bolts", "Boxed Nuts"/"Nuts"), and the battery pack digit
-    /// misreads battery2 as battery1 (tracked OCR limit). The
+    /// Still `#[ignore]`d because an exact tally needs every tile *recognized*.
+    /// The old name divergences (Windproof Matches, Band-aids, Boxed Bolts,
+    /// Boxed Nuts, Pet Shampoo) are fixed — data.json now carries the game's
+    /// own display names (WFItemsStringTable ground truth) — so what remains
+    /// is the engine: busy-diagonal-icon tiles (RAM above all) often produce
+    /// no text at all in the frozen OCR, the battery pack digit misreads
+    /// battery2 as battery1 (tracked limit), and garbled first sightings
+    /// leave phantom rows (the merge keeps a row's first read). The
     /// `eval_report_json` diagnostic scores the scan's graded tile accuracy (a
     /// signal, not a gate); see `screenshots/CLAUDE.md`.
     #[test]

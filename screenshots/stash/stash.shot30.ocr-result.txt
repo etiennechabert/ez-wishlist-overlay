@@ -8,8 +8,8 @@
 # the frozen stash.shot30.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 10 item tile(s) across 3 grid row(s)
-  dropped 2 text(s) that matched no catalog item (window title, weight
+  recognized 11 item tile(s) across 3 grid row(s)
+  dropped 1 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
@@ -17,6 +17,7 @@
     1 x misc_b_disinfectingwipes
     2 x misc_b_ionbattery
     1 x misc_b_lighterfluid
+    1 x misc_b_match
     1 x misc_b_opticaldisc
     1 x misc_b_piezometer
     1 x misc_b_socket
@@ -42,7 +43,7 @@
   [items ]
     Piezometer                     -> misc_b_piezometer
     Ion Battery                    -> misc_b_ionbattery
-    Windproof Matches              -> (no match)
+    Windproof Matches              -> misc_b_match
   [tabs  ]
     Building                       -> (no match)
     Power                          -> (no match)

@@ -8,15 +8,18 @@
 # the frozen stash.shot09.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 9 item tile(s) across 3 grid row(s)
-  dropped 3 text(s) that matched no catalog item (window title, weight
+  recognized 12 item tile(s) across 3 grid row(s)
+  dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
+    1 x misc_b_beardoil
     1 x misc_b_iodophor
     2 x misc_b_ionbattery
     1 x misc_b_medicalscissors
+    1 x misc_b_nut
     1 x misc_b_pcfan
+    1 x misc_b_screw
     1 x misc_b_superglue
     1 x misc_floppydisk
     2 x misc_screwdriver
@@ -28,7 +31,7 @@
     JUNK BOX                       -> (no match)
   [items ]
     Super Glue                     -> misc_b_superglue
-    Be.rdOi1                       -> (no match)
+    Be.rdOi1                       -> misc_b_beardoil
     Floppydisk                     -> misc_floppydisk
     Ion Battery                    -> misc_b_ionbattery
   [tabs  ]
@@ -41,7 +44,7 @@
     Ion Battery                    -> misc_b_ionbattery
     Iodine                         -> misc_b_iodophor
     CPU Fan                        -> misc_b_pcfan
-    Boxed Nub                      -> (no match)
+    Boxed Nub                      -> misc_b_nut
   [tabs  ]
     Power                          -> (no match)
     Medical Supplies               -> (no match)
@@ -49,7 +52,7 @@
     Electric                       -> (no match)
     Building                       -> (no match)
   [items ]
-    Boxed Bolts                    -> (no match)
+    Boxed Bolts                    -> misc_b_screw
     Screwdriver                    -> misc_screwdriver
     Screwdriver                    -> misc_screwdriver
     Medical scissors               -> misc_b_medicalscissors

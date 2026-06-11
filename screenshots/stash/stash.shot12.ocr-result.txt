@@ -8,15 +8,17 @@
 # the frozen stash.shot12.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 12 item tile(s) across 3 grid row(s)
-  dropped 2 text(s) that matched no catalog item (window title, weight
+  recognized 14 item tile(s) across 3 grid row(s)
+  dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
+    1 x misc_b_bandaid
     1 x misc_b_battery_1
     2 x misc_b_ceramic_adhesive
     1 x misc_b_deodorant
     1 x misc_b_gastank_large
+    1 x misc_b_newphone
     2 x misc_b_pcfan
     1 x misc_b_rustedcleaner
     1 x misc_b_tape
@@ -29,10 +31,10 @@
   [chrome]
     JUNK BOX                       -> (no match)
   [items ]
-    Band-aids                      -> (no match)
+    Band-aids                      -> misc_b_bandaid
     Size O batterye                -> misc_b_battery_1
     Notebook                       -> misc_notebook
-    NewPhane                       -> (no match)
+    NewPhane                       -> misc_b_newphone
   [tabs  ]
     Medical Supplies               -> (no match)
     Power                          -> (no match)

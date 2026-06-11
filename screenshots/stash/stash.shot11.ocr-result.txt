@@ -8,12 +8,15 @@
 # the frozen stash.shot11.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 5 item tile(s) across 2 grid row(s)
-  dropped 4 text(s) that matched no catalog item (window title, weight
+  recognized 8 item tile(s) across 2 grid row(s)
+  dropped 1 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
+    1 x misc_b_bandaid
     1 x misc_b_battery_1
+    1 x misc_b_newphone
+    1 x misc_b_screw
     1 x misc_floppydisk
     1 x misc_notebook
     2 x misc_screwdriver
@@ -24,7 +27,7 @@
   [chrome]
     JUNK BOX                       -> (no match)
   [items ]
-    Boxed Bolts                    -> (no match)
+    Boxed Bolts                    -> misc_b_screw
     Screwdriver                    -> misc_screwdriver
     Screwdriver                    -> misc_screwdriver
     Fl oppydisk                    -> misc_floppydisk
@@ -38,10 +41,10 @@
   [chrome]
     Lu r Gor                       -> (no match)
   [items ]
-    Band-aids                      -> (no match)
+    Band-aids                      -> misc_b_bandaid
     Size O batterye                -> misc_b_battery_1
     Notebook                       -> misc_notebook
-    NewPhane                       -> (no match)
+    NewPhane                       -> misc_b_newphone
   [tabs  ]
     Medical Supplies               -> (no match)
     Power                          -> (no match)
