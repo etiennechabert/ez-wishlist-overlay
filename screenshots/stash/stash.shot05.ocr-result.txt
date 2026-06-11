@@ -9,59 +9,61 @@
 #
 ## SUMMARY
   recognized 13 item tile(s) across 3 grid row(s)
-  dropped 0 text(s) that matched no catalog item (window title, weight
+  dropped 2 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
+    1 x misc_b_asthmamedication
+    3 x misc_b_battery_1
     1 x misc_b_ceramic_adhesive
-    1 x misc_b_deodorant
-    1 x misc_b_gastank_large
-    3 x misc_b_nail
-    1 x misc_b_pipeline
-    2 x misc_b_rat_poison
-    2 x misc_b_recorder
-    1 x misc_b_wirecutting
-    1 x misc_bpu
+    1 x misc_b_disinfectingwipes
+    1 x misc_b_gunoil
+    2 x misc_b_insulatingtape
+    1 x misc_b_lighterfluid
+    1 x misc_b_nail
+    1 x misc_b_ram
+    1 x misc_copperwire
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
 #   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
-  [chrome]
-    JUNK BOX                       -> (no match)
   [items ]
-    Recorder                       -> misc_b_recorder
-    Wire Cutter                    -> misc_b_wirecutting
-    CPU                            -> misc_bpu
-    Recorder                       -> misc_b_recorder
-    B oxed Nails                   -> misc_b_nail
+    Insulating Tape                -> misc_b_insulatingtape
+    Size O batterye                -> misc_b_battery_1
+    Insulating Tape                -> misc_b_insulatingtape
+    RAM                            -> misc_b_ram
+    Asthma medicine                -> misc_b_asthmamedication
   [tabs  ]
-    Intel                          -> (no match)
-    Tool                           -> (no match)
+    Building                       -> (no match)
+    Power                          -> (no match)
+    Building                       -> (no match)
     Electric                       -> (no match)
-    Intel                          -> (no match)
+    Medical Supplies               -> (no match)
+  [chrome]
+    Si L u r G or                  -> (no match)
+  [items ]
+    Disinfectant wipes             -> misc_b_disinfectingwipes
+    Ceramic adhesive               -> misc_b_ceramic_adhesive
+    Size O batterye                -> misc_b_battery_1
+    Size O batteryl                -> misc_b_battery_1
+    Boxed Bolts                    -> (no match)
+  [tabs  ]
+    Medical Supplies               -> (no match)
+    Building                       -> (no match)
+    Power                          -> (no match)
+    Power                          -> (no match)
     Building                       -> (no match)
   [chrome]
     Box Nail                       -> (no match)
-    TIGHT                          -> (no match)
   [items ]
+    Boxed Bol ts                   -> (no match)
+    Gun oil                        -> misc_b_gunoil
+    Lighter fluid                  -> misc_b_lighterfluid
+    Copper wire                    -> misc_copperwire
     Boxed Nails                    -> misc_b_nail
-    Boxed Nails                    -> misc_b_nail
-    Ceramic adhesive               -> misc_b_ceramic_adhesive
-    Deodorant                      -> misc_b_deodorant
   [tabs  ]
     Building                       -> (no match)
-    Building                       -> (no match)
-    Electric                       -> (no match)
-    Building                       -> (no match)
-    Household                      -> (no match)
-  [items ]
-    Rat Poison                     -> misc_b_rat_poison
-    Rat Poison                     -> misc_b_rat_poison
-    Large gas can                  -> misc_b_gastank_large
-    Valve                          -> misc_b_pipeline
-  [tabs  ]
-    Household                      -> (no match)
-    Howehold                       -> (no match)
+    Combustible                    -> (no match)
     Combustible                    -> (no match)
     Building                       -> (no match)
-    Intel                          -> (no match)
+    Building                       -> (no match)

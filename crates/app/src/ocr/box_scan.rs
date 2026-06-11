@@ -873,11 +873,12 @@ pub(crate) mod tests {
     // are regenerated from them by `regen_box_fixtures` (Windows, --ignored).
     //
     // Expected results live in `<scan>.label.txt` (`<item_id>  <count>` lines).
-    // The `box` scan passes. The `stash` scan may stay `#[ignore]`d: row-uniqueness
-    // is immune to the dropped-tile desync that blocked the old position stitch,
-    // but its 10 shots have real *scroll gaps* (rows that appear in no shot at all)
-    // past shot 04 — those rows are simply missing data and under-count, which no
-    // merge can recover. See `stash_scan_matches_label` and `screenshots/CLAUDE.md`.
+    // The `box` scan passes. The `stash` scan stays `#[ignore]`d: its 38-shot
+    // row-by-row series (2026-06-11) is gap-free — every grid row is captured,
+    // most in 3 consecutive frames — but an exact tally is still blocked by
+    // in-game labels that diverge from data.json names (Windproof Matches,
+    // Band-aids, Pet Shampoo, …) plus residual glyph misreads. See
+    // `stash_scan_matches_label` and `screenshots/CLAUDE.md`.
     // ===================================================================
 
     #[derive(serde::Serialize, serde::Deserialize)]
@@ -1243,12 +1244,13 @@ pub(crate) mod tests {
     }
 
     /// Shot fixtures per scan, in scroll order: `(category, [boxes.json names])`.
-    /// Single source of truth shared by the eval scorer and the sidecar writer.
+    /// Single source of truth shared by the gate tests, the eval scorer and the
+    /// sidecar writer.
     #[allow(dead_code)]
-    fn scan_shots(category: &str) -> Vec<String> {
+    pub(crate) fn scan_shots(category: &str) -> Vec<String> {
         match category {
             "box" => (0..3).map(|i| format!("box.shot{i}.boxes.json")).collect(),
-            "stash" => (0..20)
+            "stash" => (0..38)
                 .map(|i| format!("stash.shot{i:02}.boxes.json"))
                 .collect(),
             other => panic!("unknown scan category {other:?}"),
@@ -1268,8 +1270,9 @@ pub(crate) mod tests {
         let data = crate::assets::load_game_data().expect("embedded data.json");
         let notes: std::collections::HashMap<&str, &str> = [(
             "stash",
-            "captures have real scroll gaps (some grid rows appear in no shot), so a \
-             partial capture is expected here — informational, not gated",
+            "the 38-shot row-by-row series is gap-free, but several in-game labels \
+             diverge from data.json names (Windproof Matches, Band-aids, Pet \
+             Shampoo, …) and stay unmatchable — informational, not gated",
         )]
         .into_iter()
         .collect();
@@ -1339,7 +1342,7 @@ pub(crate) mod tests {
     }
 
     /// (Ignored authoring aid) Dump `(shot, item_id, name-bbox)` for every
-    /// recognized tile across all 10 stash shots, mirroring `read_tiles`'
+    /// recognized tile across every box/stash shot, mirroring `read_tiles`'
     /// clustering. Used to generate the per-item `screenshots/stash/units/`
     /// crops without hand-identifying each tile: the cropper expands each
     /// name-bbox up for the icon and labels by `item_id`. Cross-platform (runs
@@ -1396,37 +1399,37 @@ pub(crate) mod tests {
     /// overlapping rows and the tally matches `box.label.txt` exactly (issue #109).
     #[test]
     fn box_scan_matches_label() {
-        let shots: Vec<String> = (0..3).map(|i| format!("box.shot{i}.boxes.json")).collect();
         assert_eq!(
-            run_box_scan("box", &shots),
+            run_box_scan("box", &scan_shots("box")),
             load_box_label("box", "box.label.txt")
         );
     }
 
-    /// `stash` scan — the Johnny's-Service submit terminal (10 scroll shots) →
+    /// `stash` scan — the Johnny's-Service submit terminal (38 scroll shots) →
     /// its full contents.
     ///
-    /// Row-uniqueness fixed one of the two old blockers: the OCR dropping whole
-    /// labels (shot02 missing "Tape"; "Wire Cutter"→"Cutter") used to shift later
-    /// columns and break the rigid position stitch — but the row merge tolerates
-    /// one drifted/missing tile, so those rows now dedup correctly.
+    /// The 2026-06-11 series was captured row by row: the 5-column grid scrolls
+    /// one row per shot, so every interior row appears in 3 consecutive frames
+    /// — there are NO scroll gaps (the blocker in the previous series), and
+    /// `stash.label.txt` is a hand-read of the complete 40-row grid. The
+    /// redundancy also exercises the row-uniqueness merge: all 40 rows are
+    /// pairwise distinct (≥2 differing tiles), so re-seen rows dedup and no two
+    /// distinct rows can collapse even with the one-drift tolerance.
     ///
-    /// What remains is genuine **scroll gaps**: shots 00–04 share a full row each
-    /// (clean scroll), but 04→05→06→07→08→09 share *no* row — some grid rows fall
-    /// between shots and appear in no capture at all. Those rows are missing data;
-    /// no merge can invent them, so the tally under-counts and this stays
-    /// `#[ignore]`d. Un-ignoring needs better captures (no row skipped between
-    /// shots). `stash.label.txt` is kept as a verified reference of the contents;
-    /// see `screenshots/CLAUDE.md`. The `eval_report_json` diagnostic still scores
-    /// this scan's partial tile accuracy (a graded signal, not a gate).
+    /// Still `#[ignore]`d because an exact tally needs every tile *recognized*:
+    /// several in-game labels diverge from data.json `Item.name` and cannot
+    /// match until `Item.name` is fixed in data.json itself — the canonical
+    /// hand-maintained dataset since #162 ("Windproof Matches"/"Matches",
+    /// "Band-aids"/"Adhesive bandages", "Pet Shampoo"/"Shampoo", "Boxed
+    /// Bolts"/"Bolts", "Boxed Nuts"/"Nuts"), and the battery pack digit
+    /// misreads battery2 as battery1 (tracked OCR limit). The
+    /// `eval_report_json` diagnostic scores the scan's graded tile accuracy (a
+    /// signal, not a gate); see `screenshots/CLAUDE.md`.
     #[test]
     #[ignore]
     fn stash_scan_matches_label() {
-        let shots: Vec<String> = (0..20)
-            .map(|i| format!("stash.shot{i:02}.boxes.json"))
-            .collect();
         assert_eq!(
-            run_box_scan("stash", &shots),
+            run_box_scan("stash", &scan_shots("stash")),
             load_box_label("stash", "stash.label.txt")
         );
     }

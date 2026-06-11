@@ -1,0 +1,67 @@
+# stash.shot25 — what the OCR read in this one screenshot
+# (auto-generated; do not edit by hand — see screenshots/CLAUDE.md)
+#
+# This is ONE scroll shot of the stash grid. The grid is taller than the
+# screen, so the full contents come from merging every shot — that merged
+# result, scored against the label, lives in stash.ocr-result.txt. This file
+# just shows what the OCR pulled out of this single frame, regenerated from
+# the frozen stash.shot25.boxes.json (so it never runs the game).
+#
+## SUMMARY
+  recognized 14 item tile(s) across 3 grid row(s)
+  dropped 0 text(s) that matched no catalog item (window title, weight
+    readout, category tabs/subtitles — i.e. screen chrome, not items)
+#
+  items found in this frame:
+    2 x misc_b_ceramic_adhesive
+    1 x misc_b_deodorant
+    2 x misc_b_gastank_large
+    1 x misc_b_oldphone
+    1 x misc_b_opticaldisc
+    1 x misc_b_pcfan
+    2 x misc_b_rat_poison
+    1 x misc_b_saltcan
+    1 x misc_b_tire_sealant
+    1 x misc_b_wirecutting
+    1 x misc_screwdriver
+#
+## DETAIL — every text the OCR produced, row by row
+#   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
+#   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
+  [items ]
+    Tire Sealant                   -> misc_b_tire_sealant
+    Salt can                       -> misc_b_saltcan
+    co                             -> misc_b_opticaldisc
+    Large gas can                  -> misc_b_gastank_large
+    Rat Poison                     -> misc_b_rat_poison
+  [tabs  ]
+    Tool                           -> (no match)
+    Household                      -> (no match)
+    Intel                          -> (no match)
+    Combustible                    -> (no match)
+    Household                      -> (no match)
+  [items ]
+    Rat Poison                     -> misc_b_rat_poison
+    Deodorant                      -> misc_b_deodorant
+    Ceramic adhesive               -> misc_b_ceramic_adhesive
+    CPU Fan                        -> misc_b_pcfan
+  [tabs  ]
+    Household                      -> (no match)
+    Household                      -> (no match)
+    Building                       -> (no match)
+    Electric                       -> (no match)
+    Electric                       -> (no match)
+  [chrome]
+    —j                             -> (no match)
+  [items ]
+    Wire Cutter                    -> misc_b_wirecutting
+    Ceramic adhesive               -> misc_b_ceramic_adhesive
+    Screwdriver                    -> misc_screwdriver
+    Large gas can                  -> misc_b_gastank_large
+    OldPhone                       -> misc_b_oldphone
+  [tabs  ]
+    Tool                           -> (no match)
+    Building                       -> (no match)
+    Tool                           -> (no match)
+    Combustible                    -> (no match)
+    Electric                       -> (no match)

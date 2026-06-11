@@ -1,0 +1,69 @@
+# stash.shot37 — what the OCR read in this one screenshot
+# (auto-generated; do not edit by hand — see screenshots/CLAUDE.md)
+#
+# This is ONE scroll shot of the stash grid. The grid is taller than the
+# screen, so the full contents come from merging every shot — that merged
+# result, scored against the label, lives in stash.ocr-result.txt. This file
+# just shows what the OCR pulled out of this single frame, regenerated from
+# the frozen stash.shot37.boxes.json (so it never runs the game).
+#
+## SUMMARY
+  recognized 13 item tile(s) across 3 grid row(s)
+  dropped 0 text(s) that matched no catalog item (window title, weight
+    readout, category tabs/subtitles — i.e. screen chrome, not items)
+#
+  items found in this frame:
+    1 x misc_b_battery_1
+    1 x misc_b_beardoil
+    1 x misc_b_flashlight
+    1 x misc_b_glue_large
+    2 x misc_b_insulatingtape
+    1 x misc_b_lighter
+    1 x misc_b_lighterfluid
+    1 x misc_b_recorder
+    1 x misc_b_rustedcleaner
+    1 x misc_b_tape
+    1 x misc_b_tire_sealant
+    1 x misc_notebook
+#
+## DETAIL — every text the OCR produced, row by row
+#   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
+#   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
+  [chrome]
+    JUNK BOX                       -> (no match)
+  [items ]
+    Lighter                        -> misc_b_lighter
+    Flash light                    -> misc_b_flashlight
+    Notebook                       -> misc_notebook
+  [tabs  ]
+    Electric                       -> (no match)
+    Combustible                    -> (no match)
+    Electric                       -> (no match)
+    Intel                          -> (no match)
+    Intel                          -> (no match)
+  [chrome]
+    Lu r Gor                       -> (no match)
+  [items ]
+    Size O batterye                -> misc_b_battery_1
+    Insulating Tape                -> misc_b_insulatingtape
+    Insulating Tape                -> misc_b_insulatingtape
+    BeardOi1                       -> misc_b_beardoil
+    Lighter fluid                  -> misc_b_lighterfluid
+  [tabs  ]
+    Power                          -> (no match)
+    Building                       -> (no match)
+    Building                       -> (no match)
+    Household                      -> (no match)
+    Combustible                    -> (no match)
+  [items ]
+    Tape                           -> misc_b_tape
+    Tire Sealant                   -> misc_b_tire_sealant
+    Recorder                       -> misc_b_recorder
+    Instant glue                   -> misc_b_glue_large
+    Rust cleaner                   -> misc_b_rustedcleaner
+  [tabs  ]
+    Intel                          -> (no match)
+    Tool                           -> (no match)
+    Intel                          -> (no match)
+    Building                       -> (no match)
+    Household                      -> (no match)

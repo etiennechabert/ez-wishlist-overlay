@@ -9,7 +9,8 @@
 #        hideout : identification_and_cell_ordering_on_native_pngs  (15/15)
 #                  owned_count_accuracy_floor_on_native_pngs        (>= 45)
 #        box     : box_scan_matches_label                           (exact)
-#      (stash has no gate — its captures can't be stitched; it is scored only.)
+#      (stash has no scan gate — in-game name divergences keep its tally
+#       inexact even on the gap-free 38-shot series; it is scored only.)
 #
 #   2. SCORE — the `eval_report_json` diagnostic, which scores each asset
 #      independently and writes one combined JSON to -Out:

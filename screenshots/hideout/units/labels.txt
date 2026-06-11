@@ -12,7 +12,7 @@ CoffeeMakerLv1__misc_b_wirecutting.webp  Wire Cutter
 CoffeeMakerLv1__misc_wastechip.webp  Waste Chip
 CryptoMiningLv2__misc_b_pcfan.webp  CPU Fan
 #hard  CryptoMiningLv2__misc_b_ram.webp  RAM
-CryptoMiningLv2__misc_bpu.webp  CPU
+CryptoMiningLv2__misc_cpu.webp  CPU
 CryptoMiningLv2__misc_floppydisk.webp  Floppy Disk
 GeneratorLv2__misc_b_insulatingtape.webp  Insulating Tape
 GeneratorLv2__misc_b_lighterfluid.webp  Lighter fluid

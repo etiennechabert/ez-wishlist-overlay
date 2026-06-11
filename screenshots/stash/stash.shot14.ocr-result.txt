@@ -8,20 +8,21 @@
 # the frozen stash.shot14.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 10 item tile(s) across 3 grid row(s)
-  dropped 4 text(s) that matched no catalog item (window title, weight
+  recognized 12 item tile(s) across 3 grid row(s)
+  dropped 1 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
-    1 x misc_b_1battery
-    1 x misc_b_insulatingtape
-    1 x misc_b_iodophor
-    1 x misc_b_ionbattery
-    1 x misc_b_medicalscissors
-    1 x misc_b_pcfan
-    1 x misc_b_recorder
-    1 x misc_b_wrench
-    2 x misc_screwdriver
+    1 x misc_b_asthmamedication
+    2 x misc_b_battery_1
+    1 x misc_b_ceramic_adhesive
+    1 x misc_b_deodorant
+    1 x misc_b_rustedcleaner
+    1 x misc_b_tape
+    2 x misc_b_wd40
+    1 x misc_b_wirecutting
+    1 x misc_facialcleaner
+    1 x misc_floppydisk
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
@@ -29,37 +30,36 @@
   [chrome]
     JUNK BOX                       -> (no match)
   [items ]
-    Size O battery2                -> misc_b_1battery
-    Bnd-aids                       -> (no match)
-    Medical scissors               -> misc_b_medicalscissors
-    Recorder                       -> misc_b_recorder
-    Roppydisk                      -> (no match)
+    Ceramic adhesive               -> misc_b_ceramic_adhesive
+    Deodorant                      -> misc_b_deodorant
+    Tape                           -> misc_b_tape
+    RLBt cleaner                   -> misc_b_rustedcleaner
   [tabs  ]
-    Power                          -> (no match)
-    Medical Supplies               -> (no match)
-    Medical Supplies               -> (no match)
+    Building                       -> (no match)
+    Household                      -> (no match)
     Intel                          -> (no match)
     Intel                          -> (no match)
+    Household                      -> (no match)
   [items ]
-    Screwdriver                    -> misc_screwdriver
-    Screwdriver                    -> misc_screwdriver
-    Insulating Tape                -> misc_b_insulatingtape
-    Boxed Bolts                    -> (no match)
-    Boxed Nuts                     -> (no match)
+    Floppydisk                     -> misc_floppydisk
+    Band-aids                      -> (no match)
+    Size O batteryl                -> misc_b_battery_1
+    Asthma medicine                -> misc_b_asthmamedication
+    Size D batteryl                -> misc_b_battery_1
   [tabs  ]
-    Tool                           -> (no match)
-    Tool                           -> (no match)
-    Building                       -> (no match)
-    Building                       -> (no match)
-    Building                       -> (no match)
-  [items ]
-    Wrench                         -> misc_b_wrench
-    CPU Fan                        -> misc_b_pcfan
-    Iodine                         -> misc_b_iodophor
-    Ion Battery                    -> misc_b_ionbattery
-  [tabs  ]
-    Tool                           -> (no match)
-    Electric                       -> (no match)
-    Electric                       -> (no match)
+    Intel                          -> (no match)
     Medical Supplies               -> (no match)
     Power                          -> (no match)
+    Medical Supplies               -> (no match)
+    Power                          -> (no match)
+  [items ]
+    wo-40                          -> misc_b_wd40
+    Wire Cutter                    -> misc_b_wirecutting
+    wo-40                          -> misc_b_wd40
+    Cleanser                       -> misc_facialcleaner
+  [tabs  ]
+    Combustible                    -> (no match)
+    Tool                           -> (no match)
+    Combustible                    -> (no match)
+    Household                      -> (no match)
+    Electric                       -> (no match)

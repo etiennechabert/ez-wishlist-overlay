@@ -1,0 +1,71 @@
+# stash.shot27 — what the OCR read in this one screenshot
+# (auto-generated; do not edit by hand — see screenshots/CLAUDE.md)
+#
+# This is ONE scroll shot of the stash grid. The grid is taller than the
+# screen, so the full contents come from merging every shot — that merged
+# result, scored against the label, lives in stash.ocr-result.txt. This file
+# just shows what the OCR pulled out of this single frame, regenerated from
+# the frozen stash.shot27.boxes.json (so it never runs the game).
+#
+## SUMMARY
+  recognized 13 item tile(s) across 3 grid row(s)
+  dropped 2 text(s) that matched no catalog item (window title, weight
+    readout, category tabs/subtitles — i.e. screen chrome, not items)
+#
+  items found in this frame:
+    1 x misc_b_battery_1
+    1 x misc_b_beardoil
+    2 x misc_b_ceramic_adhesive
+    1 x misc_b_flashlight
+    1 x misc_b_gastank_large
+    1 x misc_b_ionbattery
+    1 x misc_b_oldphone
+    1 x misc_b_opticaldisc
+    1 x misc_b_pesticide
+    1 x misc_b_sparkplug
+    1 x misc_b_wirecutting
+    1 x misc_screwdriver
+#
+## DETAIL — every text the OCR produced, row by row
+#   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
+#   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
+  [chrome]
+    JUNK BOX                       -> (no match)
+  [items ]
+    Wire Cutter                    -> misc_b_wirecutting
+    Ceramic adhesive               -> misc_b_ceramic_adhesive
+    Screwdriver                    -> misc_screwdriver
+    Large gas can                  -> misc_b_gastank_large
+    OldPhone                       -> misc_b_oldphone
+  [tabs  ]
+    Tool                           -> (no match)
+    Building                       -> (no match)
+    Tool                           -> (no match)
+    Combustible                    -> (no match)
+    Electric                       -> (no match)
+  [chrome]
+    4                              -> (no match)
+  [items ]
+    Ion Battery                    -> misc_b_ionbattery
+    Spark Plug                     -> misc_b_sparkplug
+    Pet Sh.mpoo                    -> (no match)
+    Pet Shampoo                    -> (no match)
+    Fluh light                     -> misc_b_flashlight
+  [tabs  ]
+    Power                          -> (no match)
+    Tool                           -> (no match)
+    Household                      -> (no match)
+    Household                      -> (no match)
+    Electric                       -> (no match)
+  [items ]
+    Size D batteryl                -> misc_b_battery_1
+    BeardOil                       -> misc_b_beardoil
+    Pesticide                      -> misc_b_pesticide
+    co                             -> misc_b_opticaldisc
+    Ceramic adhesive               -> misc_b_ceramic_adhesive
+  [tabs  ]
+    Power                          -> (no match)
+    Household                      -> (no match)
+    Household                      -> (no match)
+    Intel                          -> (no match)
+    Building                       -> (no match)

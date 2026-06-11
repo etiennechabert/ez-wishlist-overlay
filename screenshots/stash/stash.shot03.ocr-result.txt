@@ -9,20 +9,20 @@
 #
 ## SUMMARY
   recognized 13 item tile(s) across 3 grid row(s)
-  dropped 2 text(s) that matched no catalog item (window title, weight
+  dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
-    2 x misc_1batterie_2
-    1 x misc_b_beardoil
-    1 x misc_b_ceramic_adhesive
-    1 x misc_b_flashlight
-    2 x misc_b_ionbattery
+    1 x misc_b_asthmamedication
+    1 x misc_b_battery_2
+    2 x misc_b_insulatingtape
     1 x misc_b_opticaldisc
-    1 x misc_b_pesticide
-    1 x misc_b_recorder
-    1 x misc_b_sparkplug
-    2 x misc_b_wrench
+    1 x misc_b_pcfan
+    2 x misc_b_pipeline
+    2 x misc_b_ram
+    1 x misc_b_tape
+    1 x misc_hammer
+    1 x misc_notebook
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
@@ -30,38 +30,39 @@
   [chrome]
     JUNK BOX                       -> (no match)
   [items ]
-    Ion Battery                    -> misc_b_ionbattery
-    Size O batteryi                -> misc_1batterie_2
-    Ceramic adhesive               -> misc_b_ceramic_adhesive
+    RAM                            -> misc_b_ram
     co                             -> misc_b_opticaldisc
-    Wrench                         -> misc_b_wrench
+    Tape                           -> misc_b_tape
   [tabs  ]
-    Power                          -> (no match)
+    Electric                       -> (no match)
+    Electric                       -> (no match)
+    Intel                          -> (no match)
+    Electric                       -> (no match)
+    Intel                          -> (no match)
+  [items ]
+    CPU Fan                        -> misc_b_pcfan
+    Notebook                       -> misc_notebook
+    Hammer                         -> misc_hammer
+    Valve                          -> misc_b_pipeline
+    Valve                          -> misc_b_pipeline
+  [tabs  ]
+    Electric                       -> (no match)
+    Intel                          -> (no match)
+    Tool                           -> (no match)
+    Building                       -> (no match)
+    Building                       -> (no match)
+  [chrome]
+    Si                             -> (no match)
+    G or                           -> (no match)
+  [items ]
+    Insulating Tape                -> misc_b_insulatingtape
+    Size O battery2                -> misc_b_battery_2
+    Insulating Tape                -> misc_b_insulatingtape
+    RAM                            -> misc_b_ram
+    Asthma medicine                -> misc_b_asthmamedication
+  [tabs  ]
+    Building                       -> (no match)
     Power                          -> (no match)
     Building                       -> (no match)
-    Intel                          -> (no match)
-    Tool                           -> (no match)
-  [items ]
-    Wrench                         -> misc_b_wrench
-    Pesticide                      -> misc_b_pesticide
-    BeardOi1                       -> misc_b_beardoil
-    Size O bat teryl               -> misc_1batterie_2
-    Flash light                    -> misc_b_flashlight
-  [tabs  ]
-    Tool                           -> (no match)
-    Household                      -> (no match)
-    Household                      -> (no match)
-    Power                          -> (no match)
     Electric                       -> (no match)
-  [items ]
-    Pet Shampoo                    -> (no match)
-    Pet Sh•mpoo                    -> (no match)
-    Spar k Plug                    -> misc_b_sparkplug
-    Ion Battery                    -> misc_b_ionbattery
-    Recorder                       -> misc_b_recorder
-  [tabs  ]
-    Household                      -> (no match)
-    Household                      -> (no match)
-    Tool                           -> (no match)
-    Power                          -> (no match)
-    Intel                          -> (no match)
+    Medical Supplies               -> (no match)

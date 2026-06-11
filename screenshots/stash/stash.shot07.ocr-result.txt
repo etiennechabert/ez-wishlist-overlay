@@ -9,20 +9,20 @@
 #
 ## SUMMARY
   recognized 12 item tile(s) across 3 grid row(s)
-  dropped 2 text(s) that matched no catalog item (window title, weight
+  dropped 1 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
-    2 x misc_b_beardoil
-    1 x misc_b_flashlight
-    2 x misc_b_glue_large
-    1 x misc_b_insulatingtape
+    1 x misc_b_beardoil
+    1 x misc_b_gunoil
+    2 x misc_b_ionbattery
     1 x misc_b_lighterfluid
-    1 x misc_b_moldboard
     1 x misc_b_nail
-    1 x misc_b_rustedcleaner
-    1 x misc_blimbingrope
-    1 x misc_wastechip
+    1 x misc_b_superglue
+    1 x misc_b_tape
+    1 x misc_copperwire
+    2 x misc_floppydisk
+    1 x misc_notebook
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
@@ -30,41 +30,36 @@
   [chrome]
     JUNK BOX                       -> (no match)
   [items ]
-    Rust cleaner                   -> misc_b_rustedcleaner
-    Insulating Tape                -> misc_b_insulatingtape
-    Instant glue                   -> misc_b_glue_large
-    Band-aids                      -> (no match)
-    Moldboard                      -> misc_b_moldboard
-  [tabs  ]
-    Household                      -> (no match)
-    Building                       -> (no match)
-    Building                       -> (no match)
-    Medical Supplies               -> (no match)
-    Tool                           -> (no match)
-  [chrome]
-    Box Nail                       -> (no match)
-  [items ]
+    Boxed Botts                    -> (no match)
+    Gun oil                        -> misc_b_gunoil
     Lighter fluid                  -> misc_b_lighterfluid
+    Copper wire                    -> misc_copperwire
     Boxed Nails                    -> misc_b_nail
-    BeardOi1                       -> misc_b_beardoil
-    Climbing rape                  -> misc_blimbingrope
   [tabs  ]
+    Building                       -> (no match)
     Combustible                    -> (no match)
     Combustible                    -> (no match)
     Building                       -> (no match)
-    Household                      -> (no match)
-    Tool                           -> (no match)
-  [chrome]
-    1                              -> (no match)
+    Building                       -> (no match)
   [items ]
-    w•stechip                      -> misc_wastechip
-    Int•nt glue                    -> misc_b_glue_large
-    G" can                         -> (no match)
-    Flash light                    -> misc_b_flashlight
-    BeardOi1                       -> misc_b_beardoil
+    Tape                           -> misc_b_tape
+    Ion Battery                    -> misc_b_ionbattery
+    Notebook                       -> misc_notebook
   [tabs  ]
+    In tel                         -> (no match)
     Electric                       -> (no match)
+    Power                          -> (no match)
+    Electric                       -> (no match)
+    Intel                          -> (no match)
+  [items ]
+    Super Glue                     -> misc_b_superglue
+    BeardOil                       -> misc_b_beardoil
+    Floppydisk                     -> misc_floppydisk
+    Floppydisk                     -> misc_floppydisk
+    Ion Battery                    -> misc_b_ionbattery
+  [tabs  ]
     Building                       -> (no match)
-    Combustible                    -> (no match)
-    Electric                       -> (no match)
     Household                      -> (no match)
+    Intel                          -> (no match)
+    Intel                          -> (no match)
+    Power                          -> (no match)

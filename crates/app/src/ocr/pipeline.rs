@@ -1999,26 +1999,22 @@ mod fixture_tests {
             }
         };
 
-        let box_shots: Vec<String> = (0..3).map(|i| format!("box.shot{i}.boxes.json")).collect();
         let box_ = asset_report(
             vec![crate::ocr::box_scan::tests::score_scan(
                 "box",
-                &box_shots,
+                &crate::ocr::box_scan::tests::scan_shots("box"),
                 "box.label.txt",
             )],
             None,
         );
 
-        let stash_shots: Vec<String> = (0..20)
-            .map(|i| format!("stash.shot{i:02}.boxes.json"))
-            .collect();
         let stash = asset_report(
             vec![crate::ocr::box_scan::tests::score_scan(
                 "stash",
-                &stash_shots,
+                &crate::ocr::box_scan::tests::scan_shots("stash"),
                 "stash.label.txt",
             )],
-            Some("captures have real scroll gaps (rows in no shot); informational, not gated"),
+            Some("gap-free series; name divergences keep it inexact — informational, not gated"),
         );
 
         // Per-asset unit tallies + per-unit read detail. Each crop is OCR'd

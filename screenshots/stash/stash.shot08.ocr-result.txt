@@ -8,21 +8,17 @@
 # the frozen stash.shot08.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 13 item tile(s) across 4 grid row(s)
-  dropped 3 text(s) that matched no catalog item (window title, weight
+  recognized 9 item tile(s) across 3 grid row(s)
+  dropped 1 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
-    2 x misc_1batterie_2
-    2 x misc_b_aspire
-    1 x misc_b_asthmamedication
-    1 x misc_b_flashlight
-    1 x misc_b_gastank
-    2 x misc_b_ionbattery
-    1 x misc_b_newphone
-    1 x misc_b_pcfan
-    1 x misc_b_ram
-    1 x misc_b_tire_sealant
+    1 x misc_b_beardoil
+    3 x misc_b_ionbattery
+    1 x misc_b_superglue
+    1 x misc_b_tape
+    2 x misc_floppydisk
+    1 x misc_notebook
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
@@ -30,42 +26,32 @@
   [chrome]
     JUNK BOX                       -> (no match)
   [items ]
-    wutechip                       -> (no match)
-    Itut•nt glue                   -> (no match)
-    Gas can                        -> misc_b_gastank
-    Fluh light                     -> misc_b_flashlight
-    Be•rdOil                       -> (no match)
+    Tape                           -> misc_b_tape
+    Ion Battery                    -> misc_b_ionbattery
+    Notebook                       -> misc_notebook
   [tabs  ]
+    Intel                          -> (no match)
     Electric                       -> (no match)
+    Power                          -> (no match)
+    Electric                       -> (no match)
+    Intel                          -> (no match)
+  [items ]
+    Super Glue                     -> misc_b_superglue
+    BeardOil                       -> misc_b_beardoil
+    Floppydisk                     -> misc_floppydisk
+    Floppydisk                     -> misc_floppydisk
+    Ion Battery                    -> misc_b_ionbattery
+  [tabs  ]
     Building                       -> (no match)
-    Combustible                    -> (no match)
-    Electric                       -> (no match)
     Household                      -> (no match)
+    Intel                          -> (no match)
+    Intel                          -> (no match)
+    Power                          -> (no match)
   [chrome]
-    SurG•r                         -> (no match)
+    yws                            -> (no match)
   [items ]
-    Size D batteryl                -> misc_1batterie_2
-    Size O batteryl                -> misc_1batterie_2
     Ion Battery                    -> misc_b_ionbattery
-    RAM                            -> misc_b_ram
-    NewPhone                       -> misc_b_newphone
+    Boxed Nuts                     -> (no match)
   [tabs  ]
     Power                          -> (no match)
-    Power                          -> (no match)
-    Power                          -> (no match)
-    Electric                       -> (no match)
-    Electric                       -> (no match)
-  [items ]
-    ASPIRIN                        -> misc_b_aspire
-  [items ]
-    CPU Fan                        -> misc_b_pcfan
-    Aspirin                        -> misc_b_aspire
-    Ion Battery                    -> misc_b_ionbattery
-    Asthma medicine                -> misc_b_asthmamedication
-    Tire Sealant                   -> misc_b_tire_sealant
-  [tabs  ]
-    Electric                       -> (no match)
-    Medical Supplies               -> (no match)
-    Power                          -> (no match)
-    Medical Supplies               -> (no match)
-    Tool                           -> (no match)
+    Building                       -> (no match)

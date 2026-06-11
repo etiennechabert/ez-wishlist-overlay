@@ -1,0 +1,65 @@
+# stash.shot30 — what the OCR read in this one screenshot
+# (auto-generated; do not edit by hand — see screenshots/CLAUDE.md)
+#
+# This is ONE scroll shot of the stash grid. The grid is taller than the
+# screen, so the full contents come from merging every shot — that merged
+# result, scored against the label, lives in stash.ocr-result.txt. This file
+# just shows what the OCR pulled out of this single frame, regenerated from
+# the frozen stash.shot30.boxes.json (so it never runs the game).
+#
+## SUMMARY
+  recognized 10 item tile(s) across 3 grid row(s)
+  dropped 2 text(s) that matched no catalog item (window title, weight
+    readout, category tabs/subtitles — i.e. screen chrome, not items)
+#
+  items found in this frame:
+    1 x misc_b_battery_1
+    1 x misc_b_disinfectingwipes
+    2 x misc_b_ionbattery
+    1 x misc_b_lighterfluid
+    1 x misc_b_opticaldisc
+    1 x misc_b_piezometer
+    1 x misc_b_socket
+    1 x misc_cpu
+    1 x misc_floppydisk
+#
+## DETAIL — every text the OCR produced, row by row
+#   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
+#   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
+  [chrome]
+    purl'                          -> (no match)
+  [items ]
+    Size D batteryi                -> misc_b_battery_1
+    Ion Battery                    -> misc_b_ionbattery
+    Lighter fluid                  -> misc_b_lighterfluid
+    Floppydisk                     -> misc_floppydisk
+  [tabs  ]
+    Power                          -> (no match)
+    Power                          -> (no match)
+    Intel                          -> (no match)
+    Combustible                    -> (no match)
+    Intel                          -> (no match)
+  [items ]
+    Piezometer                     -> misc_b_piezometer
+    Ion Battery                    -> misc_b_ionbattery
+    Windproof Matches              -> (no match)
+  [tabs  ]
+    Building                       -> (no match)
+    Power                          -> (no match)
+    Electric                       -> (no match)
+    Combustible                    -> (no match)
+    Electric                       -> (no match)
+  [chrome]
+    3                              -> (no match)
+  [items ]
+    co                             -> misc_b_opticaldisc
+    Disinfectant wipes             -> misc_b_disinfectingwipes
+    Socket                         -> misc_b_socket
+    CPU                            -> misc_cpu
+    G" can                         -> (no match)
+  [tabs  ]
+    Intel                          -> (no match)
+    Medical Supplies               -> (no match)
+    Electric                       -> (no match)
+    Electric                       -> (no match)
+    Combustible                    -> (no match)

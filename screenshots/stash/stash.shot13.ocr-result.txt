@@ -8,19 +8,19 @@
 # the frozen stash.shot13.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 12 item tile(s) across 3 grid row(s)
+  recognized 13 item tile(s) across 3 grid row(s)
   dropped 2 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
-    1 x misc_1batterie_2
+    1 x misc_b_asthmamedication
+    2 x misc_b_battery_1
     2 x misc_b_ceramic_adhesive
     1 x misc_b_deodorant
     1 x misc_b_gastank_large
-    1 x misc_b_medicalscissors
-    1 x misc_b_newphone
     2 x misc_b_pcfan
-    1 x misc_b_recorder
+    1 x misc_b_rustedcleaner
+    1 x misc_b_tape
     1 x misc_floppydisk
     1 x misc_notebook
 #
@@ -30,39 +30,40 @@
   [chrome]
     JUNK BOX                       -> (no match)
   [items ]
-    Deodorant                      -> misc_b_deodorant
-    Ceramic adhesive               -> misc_b_ceramic_adhesive
-    Ceramic adhesive               -> misc_b_ceramic_adhesive
-    Large gas can                  -> misc_b_gastank_large
-    CPU Fan                        -> misc_b_pcfan
-  [tabs  ]
-    Ho'Behold                      -> (no match)
-    Building                       -> (no match)
-    Building                       -> (no match)
-    Combustible                    -> (no match)
-    Electric                       -> (no match)
-  [items ]
-    CPU Fan                        -> misc_b_pcfan
-    No teboak                      -> (no match)
-    NewPhone                       -> misc_b_newphone
     Notebook                       -> misc_notebook
+    CPU Fan                        -> misc_b_pcfan
+    CPU Fan                        -> misc_b_pcfan
+    Large gas can                  -> misc_b_gastank_large
+    Ceramic •dhuive                -> misc_b_ceramic_adhesive
   [tabs  ]
-    Electric                       -> (no match)
     Intel                          -> (no match)
+    El ectric                      -> (no match)
     Electric                       -> (no match)
-    Electric                       -> (no match)
-    Intel                          -> (no match)
-  [chrome]
-    SiL urGor                      -> (no match)
+    Combustible                    -> (no match)
+    Building                       -> (no match)
   [items ]
-    Size O batterye                -> misc_1batterie_2
-    Band-aids                      -> (no match)
-    Medical scissors               -> misc_b_medicalscissors
-    Recorder                       -> misc_b_recorder
-    Floppydisk                     -> misc_floppydisk
+    Ceramic adhesive               -> misc_b_ceramic_adhesive
+    Deodorant                      -> misc_b_deodorant
+    Tape                           -> misc_b_tape
+    Floppyük                       -> (no match)
+    Rust cl •aner                  -> misc_b_rustedcleaner
   [tabs  ]
+    Building                       -> (no match)
+    Household                      -> (no match)
+    Intel                          -> (no match)
+    Intel                          -> (no match)
+    Household                      -> (no match)
+  [chrome]
+    sacx                           -> (no match)
+  [items ]
+    Floppydisk                     -> misc_floppydisk
+    Band-aids                      -> (no match)
+    Size O batteryl                -> misc_b_battery_1
+    Asthma medicine                -> misc_b_asthmamedication
+    Size O batteryi                -> misc_b_battery_1
+  [tabs  ]
+    Intel                          -> (no match)
+    Medical Supplies               -> (no match)
     Power                          -> (no match)
     Medical Supplies               -> (no match)
-    Medical Supplies               -> (no match)
-    Intel                          -> (no match)
-    Intel                          -> (no match)
+    Power                          -> (no match)

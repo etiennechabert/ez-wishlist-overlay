@@ -8,19 +8,20 @@
 # the frozen stash.shot17.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 11 item tile(s) across 3 grid row(s)
-  dropped 1 text(s) that matched no catalog item (window title, weight
+  recognized 13 item tile(s) across 4 grid row(s)
+  dropped 4 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
-    1 x misc_1batterie_2
-    2 x misc_b_insulatingtape
-    1 x misc_b_opticaldisc
-    1 x misc_b_pcfan
-    2 x misc_b_pipeline
-    1 x misc_b_spraycan
-    1 x misc_b_tape
-    1 x misc_hammer
+    3 x misc_b_aspire
+    2 x misc_b_battery_1
+    1 x misc_b_flashlight
+    1 x misc_b_gastank
+    1 x misc_b_gunoil
+    1 x misc_b_iodophor
+    1 x misc_b_ionbattery
+    1 x misc_b_superglue
+    1 x misc_b_wd40
     1 x misc_notebook
 #
 ## DETAIL — every text the OCR produced, row by row
@@ -29,35 +30,41 @@
   [chrome]
     JUNK BOX                       -> (no match)
   [items ]
-    Insulating Tape                -> misc_b_insulatingtape
-    Size D batterye                -> misc_1batterie_2
-    Insulating Tape                -> misc_b_insulatingtape
-    Valve                          -> misc_b_pipeline
+    Windproof Match"               -> (no match)
+    Gun on                         -> (no match)
+    Super Glue                     -> misc_b_superglue
+    Aspirin                        -> misc_b_aspire
+    wo-40                          -> misc_b_wd40
   [tabs  ]
-    Electric                       -> (no match)
+    Combustible                    -> (no match)
+    Combustible                    -> (no match)
     Building                       -> (no match)
-    Power                          -> (no match)
-    Building                       -> (no match)
-    Building                       -> (no match)
+    Medical Supplies               -> (no match)
+    Combustible                    -> (no match)
   [items ]
-    Valve                          -> misc_b_pipeline
-    Hammer                         -> misc_hammer
+    ASPIR'N                        -> misc_b_aspire
+    LurG•r                         -> (no match)
+  [items ]
     Notebook                       -> misc_notebook
-    wutechip                       -> (no match)
-    CPU Fan                        -> misc_b_pcfan
+    Gas can                        -> misc_b_gastank
+    Aspirin                        -> misc_b_aspire
+    Size O bat teryl               -> misc_b_battery_1
+    Ion Battery                    -> misc_b_ionbattery
   [tabs  ]
-    Building                       -> (no match)
-    Tool                           -> (no match)
-    In tel                         -> (no match)
-    Electric                       -> (no match)
-    Electric                       -> (no match)
+    Intel                          -> (no match)
+    Combustible                    -> (no match)
+    Medical Supplies               -> (no match)
+    Power                          -> (no match)
+    Power                          -> (no match)
   [items ]
-    Tape                           -> misc_b_tape
-    Spray can                      -> misc_b_spraycan
-    co                             -> misc_b_opticaldisc
+    Be.rdOi1                       -> (no match)
+    Iodine                         -> misc_b_iodophor
+    Gun oil                        -> misc_b_gunoil
+    Size O bat teryl               -> misc_b_battery_1
+    Flash light                    -> misc_b_flashlight
   [tabs  ]
-    Intel                          -> (no match)
-    Electric                       -> (no match)
-    Building                       -> (no match)
-    Intel                          -> (no match)
+    Household                      -> (no match)
+    Medical Supplies               -> (no match)
+    Combustible                    -> (no match)
+    Power                          -> (no match)
     Electric                       -> (no match)

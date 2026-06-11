@@ -8,58 +8,48 @@
 # the frozen stash.shot02.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 12 item tile(s) across 3 grid row(s)
-  dropped 2 text(s) that matched no catalog item (window title, weight
+  recognized 10 item tile(s) across 3 grid row(s)
+  dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
-    1 x misc_1batterie_2
-    1 x misc_b_ceramic_adhesive
-    2 x misc_b_ionbattery
-    1 x misc_b_lighterfluid
-    1 x misc_b_nail
-    2 x misc_b_opticaldisc
-    1 x misc_b_piezometer
-    1 x misc_b_ram
-    2 x misc_b_wrench
+    1 x misc_b_aspire
+    1 x misc_b_opticaldisc
+    1 x misc_b_pcfan
+    2 x misc_b_pipeline
+    1 x misc_b_spraycan
+    1 x misc_b_tape
+    1 x misc_cpu
+    1 x misc_hammer
+    1 x misc_notebook
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
 #   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
-  [chrome]
-    JUNK BOX                       -> (no match)
   [items ]
-    RAM                            -> misc_b_ram
-    Boxed Nails                    -> misc_b_nail
-    Wrench                         -> misc_b_wrench
-    Windproof Matches              -> (no match)
+    Aspirin                        -> misc_b_aspire
+    co                             -> misc_b_opticaldisc
+    Spray can                      -> misc_b_spraycan
+    CPU                            -> misc_cpu
   [tabs  ]
+    Medical Supplies               -> (no match)
+    Intel                          -> (no match)
     Electric                       -> (no match)
     Building                       -> (no match)
+    Electric                       -> (no match)
+  [items ]
+    Tape                           -> misc_b_tape
+  [tabs  ]
+    Intel                          -> (no match)
+  [items ]
+    CPU Fan                        -> misc_b_pcfan
+    Notebook                       -> misc_notebook
+    Hammer                         -> misc_hammer
+    Valve                          -> misc_b_pipeline
+    Valve                          -> misc_b_pipeline
+  [tabs  ]
+    Electric                       -> (no match)
+    Intel                          -> (no match)
     Tool                           -> (no match)
-    Combustible                    -> (no match)
-    Electric                       -> (no match)
-  [items ]
-    Ion Battery                    -> misc_b_ionbattery
-    Piezometer                     -> misc_b_piezometer
-    Rop"sk                         -> (no match)
-    Lighter fluid                  -> misc_b_lighterfluid
-    co                             -> misc_b_opticaldisc
-  [tabs  ]
-    Power                          -> (no match)
     Building                       -> (no match)
-    Intel                          -> (no match)
-    Combustible                    -> (no match)
-    Intel                          -> (no match)
-  [items ]
-    Ion Battery                    -> misc_b_ionbattery
-    Size D batteryl                -> misc_1batterie_2
-    Ceramic adhesive               -> misc_b_ceramic_adhesive
-    co                             -> misc_b_opticaldisc
-    Wrench                         -> misc_b_wrench
-  [tabs  ]
-    Power                          -> (no match)
-    Power                          -> (no match)
     Building                       -> (no match)
-    Intel                          -> (no match)
-    Taal                           -> (no match)

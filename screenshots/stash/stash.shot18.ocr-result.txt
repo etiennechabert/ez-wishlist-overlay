@@ -8,53 +8,62 @@
 # the frozen stash.shot18.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 8 item tile(s) across 3 grid row(s)
+  recognized 14 item tile(s) across 4 grid row(s)
   dropped 2 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
-    1 x misc_b_aspire
-    1 x misc_b_opticaldisc
-    1 x misc_b_ram
-    3 x misc_b_spraycan
-    1 x misc_b_tape
-    1 x misc_floppydisk
+    3 x misc_b_aspire
+    1 x misc_b_asthmamedication
+    2 x misc_b_battery_1
+    1 x misc_b_flashlight
+    1 x misc_b_gunoil
+    1 x misc_b_iodophor
+    2 x misc_b_ionbattery
+    1 x misc_b_wd40
+    1 x misc_cpu
+    1 x misc_notebook
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
 #   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
-  [items ]
-    Tape                           -> misc_b_tape
-    Spray can                      -> misc_b_spraycan
-  [tabs  ]
-    Intel                          -> (no match)
-    Electric                       -> (no match)
-    Building                       -> (no match)
-    Intel                          -> (no match)
-    Electric                       -> (no match)
   [chrome]
-    1                              -> (no match)
+    JUNK BOX                       -> (no match)
   [items ]
-    Spray can                      -> misc_b_spraycan
-    Spray can                      -> misc_b_spraycan
-    Gu can                         -> (no match)
-  [tabs  ]
-    Electric                       -> (no match)
-    Electric                       -> (no match)
-    Building                       -> (no match)
-    Building                       -> (no match)
-    Combustible                    -> (no match)
-  [chrome]
-    NSPIR'N                        -> (no match)
-  [items ]
-    RAM                            -> misc_b_ram
-    co                             -> misc_b_opticaldisc
-    wutechip                       -> (no match)
+    Notebook                       -> misc_notebook
+    G" can                         -> (no match)
     Aspirin                        -> misc_b_aspire
-    Floppydisk                     -> misc_floppydisk
+    Size D batteryi                -> misc_b_battery_1
+    Ion Battery                    -> misc_b_ionbattery
   [tabs  ]
-    Electric                       -> (no match)
     Intel                          -> (no match)
-    Electric                       -> (no match)
+    Combustible                    -> (no match)
     Medical Supplies               -> (no match)
-    Intel                          -> (no match)
+    Power                          -> (no match)
+    Power                          -> (no match)
+  [items ]
+    Be.rdOi1                       -> (no match)
+    Iodine                         -> misc_b_iodophor
+    Gun oil                        -> misc_b_gunoil
+    Size O batteryl                -> misc_b_battery_1
+    Fluh light                     -> misc_b_flashlight
+  [tabs  ]
+    Household                      -> (no match)
+    Medical Supplies               -> (no match)
+    Combustible                    -> (no match)
+    Power                          -> (no match)
+    Electric                       -> (no match)
+  [items ]
+    ASPIR'N                        -> misc_b_aspire
+  [items ]
+    WD-40                          -> misc_b_wd40
+    Asthma medicine                -> misc_b_asthmamedication
+    Ion Battery                    -> misc_b_ionbattery
+    Aspirin                        -> misc_b_aspire
+    CPU                            -> misc_cpu
+  [tabs  ]
+    Combustible                    -> (no match)
+    Medical Supplies               -> (no match)
+    Power                          -> (no match)
+    Medical Supplies               -> (no match)
+    Electric                       -> (no match)
