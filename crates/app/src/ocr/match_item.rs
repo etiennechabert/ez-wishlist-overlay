@@ -36,12 +36,13 @@ const MIN_SCORE: f64 = 0.80;
 /// a label whose only error is a glyph the OCR routinely mistakes still resolves
 /// — without loosening [`MIN_SCORE`] for genuine mismatches. Observed in real
 /// captures: `1`↔`l` ("batteryl" for "Battery1"), `d`↔`o` ("co" for "CD"),
-/// `o`↔`0` ("piez0meter"), `i`↔`l` ("wlre" for "wire"). General per-glyph cost,
-/// NOT a per-item synonym.
+/// `o`↔`0` ("piez0meter"), `i`↔`l` ("wlre" for "wire"), `a`↔`d` ("wa-40" for
+/// "WD-40", stash shot23). General per-glyph cost, NOT a per-item synonym.
 const CONFUSABLE: &[(char, char)] = &[
     ('o', '0'),
     ('o', 'd'),
     ('d', '0'),
+    ('a', 'd'),
     ('l', '1'),
     ('i', '1'),
     ('i', 'l'),
@@ -292,6 +293,23 @@ mod tests {
         data.items.push(item("cd", "CD"));
         // Shares nothing confusable with "CD" — must not be forced to match.
         assert_eq!(match_item(&data, &["xy"]), None);
+    }
+
+    #[test]
+    fn resolves_a_for_d_misread() {
+        // Real stash capture (shot23): "WD-40" OCRs as "wa-40" — the pixel
+        // font's `d` read as `a`. a↔d is confusable (one 0.3-cost edit on the
+        // 4-char normalized "wd40" → 0.925), so the tile still resolves.
+        let mut data = fixture();
+        data.items.push(item("misc_b_wd40", "WD-40"));
+        assert_eq!(
+            match_item(&data, &["wa-40"]).as_deref(),
+            Some("misc_b_wd40")
+        );
+        assert_eq!(
+            match_item(&data, &["WD-40"]).as_deref(),
+            Some("misc_b_wd40")
+        );
     }
 
     #[test]

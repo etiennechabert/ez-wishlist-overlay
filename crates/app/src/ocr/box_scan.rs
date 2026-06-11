@@ -1003,8 +1003,8 @@ pub(crate) mod tests {
     /// Score a scan's stitched tally against its `<scan>.label.txt`. Reuses the
     /// same pure `read_tiles` / `stitch` / `tally` path as `run_box_scan`, so it
     /// runs on every target from the frozen `.boxes.json` fixtures. Used by the
-    /// combined `eval_report_json` (Windows) to score box + stash independently.
-    #[allow(dead_code)] // called only from the Windows-gated eval diagnostic
+    /// graded stash gate (`stash_scan_meets_graded_baseline`, every target) and
+    /// the combined `eval_report_json` (Windows) to score box + stash.
     pub(crate) fn score_scan(category: &str, shots: &[String], label_file: &str) -> ScanScore {
         let read = run_box_scan(category, shots);
         let label = load_box_label(category, label_file);
@@ -1433,6 +1433,51 @@ pub(crate) mod tests {
         assert_eq!(
             run_box_scan("stash", &scan_shots("stash")),
             load_box_label("stash", "stash.label.txt")
+        );
+    }
+
+    /// Graded-accuracy floor for the stash scan: ≥ this many label tiles
+    /// captured (`Σ min(read, label)` over the 200-tile ground truth). The
+    /// 2026-06-11 baseline reads 178/200; the remaining misses are engine-level
+    /// (see [`stash_scan_matches_label`]), so post-processing changes must not
+    /// eat into them. **Ratchet:** when a change legitimately raises the score,
+    /// bump this floor (and [`STASH_GATE_EXTRA_MAX`]) to the new value in the
+    /// same PR — the committed `stash.ocr-result.txt` SUMMARY is the number to
+    /// copy.
+    const STASH_GATE_TILES_CORRECT: u32 = 178;
+    /// Companion cap on over-counted / hallucinated tiles (`Σ max(0, read −
+    /// label)`), so the floor above can't be gamed by a looser matcher that
+    /// trades precision for recall. Baseline: 16 (phantom rows from garbled
+    /// first sightings — see [`stash_scan_matches_label`]).
+    const STASH_GATE_EXTRA_MAX: u32 = 16;
+
+    /// The stash scan's enforced quality gate. Unlike the strict (`#[ignore]`d)
+    /// exact-match above, this runs everywhere — Linux CI included, off the
+    /// frozen `.boxes.json` — and fails any PR whose matcher / clustering /
+    /// merge change drops graded tile accuracy below the committed baseline or
+    /// inflates hallucinated tiles past it. `box` needs no graded twin: its
+    /// scan is already gated exact by [`box_scan_matches_label`].
+    #[test]
+    fn stash_scan_meets_graded_baseline() {
+        let score = score_scan("stash", &scan_shots("stash"), "stash.label.txt");
+        assert!(
+            score.tiles_correct >= STASH_GATE_TILES_CORRECT,
+            "stash graded accuracy regressed: captured {}/{} label tiles \
+             (gate floor {STASH_GATE_TILES_CORRECT}); diffs: {:?}",
+            score.tiles_correct,
+            score.tiles_total,
+            score
+                .diffs
+                .iter()
+                .map(|d| format!("{} {}/{}", d.item_id, d.read, d.label))
+                .collect::<Vec<_>>(),
+        );
+        assert!(
+            score.extra <= STASH_GATE_EXTRA_MAX,
+            "stash scan over-counts: {} extra tile(s) read beyond the label \
+             (gate cap {STASH_GATE_EXTRA_MAX}) — a looser matcher is \
+             hallucinating items",
+            score.extra,
         );
     }
 
