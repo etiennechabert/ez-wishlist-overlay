@@ -8,17 +8,20 @@
 # the frozen stash.shot19.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 6 item tile(s) across 3 grid row(s)
-  dropped 1 text(s) that matched no catalog item (window title, weight
+  recognized 13 item tile(s) across 4 grid row(s)
+  dropped 2 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
-    1 x misc_b_aspire
-    1 x misc_b_deodorant
-    1 x misc_b_moldboard
-    1 x misc_b_opticaldisc
+    2 x misc_b_aspire
+    1 x misc_b_asthmamedication
+    3 x misc_b_battery_1
+    1 x misc_b_gunoil
+    1 x misc_b_iodophor
+    2 x misc_b_ionbattery
+    1 x misc_b_newphone
     1 x misc_b_pcfan
-    1 x misc_wastechip
+    1 x misc_b_wd40
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
@@ -26,20 +29,39 @@
   [chrome]
     JUNK BOX                       -> (no match)
   [items ]
-    co                             -> misc_b_opticaldisc
-    wastechip                      -> misc_wastechip
-    Aspirin                        -> misc_b_aspire
-    FloppydBk                      -> (no match)
+    Be•rdOil                       -> (no match)
+    Iodine                         -> misc_b_iodophor
+    Gun oil                        -> misc_b_gunoil
+    Size O batteryl                -> misc_b_battery_1
+    light                          -> (no match)
   [tabs  ]
-    Intel                          -> (no match)
-  [items ]
-    CPU Fan                        -> misc_b_pcfan
-  [tabs  ]
-    Electric                       -> (no match)
-  [items ]
-    Deodorant                      -> misc_b_deodorant
-    Moldboard                      -> misc_b_moldboard
-  [tabs  ]
-    Electric                       -> (no match)
     Household                      -> (no match)
-    Tool                           -> (no match)
+    Medical Supplies               -> (no match)
+    Combustible                    -> (no match)
+    Power                          -> (no match)
+    Electric                       -> (no match)
+  [items ]
+    ASPIRIN                        -> misc_b_aspire
+  [items ]
+    wo-40                          -> misc_b_wd40
+    Asthma medicine                -> misc_b_asthmamedication
+    Ion Battery                    -> misc_b_ionbattery
+    Aspirin                        -> misc_b_aspire
+    CPU F.n                        -> misc_b_pcfan
+  [tabs  ]
+    Combustible                    -> (no match)
+    Medical Supplies               -> (no match)
+    Power                          -> (no match)
+    Medical Supplies               -> (no match)
+    Electric                       -> (no match)
+  [items ]
+    NewPhone                       -> misc_b_newphone
+    Ion Battery                    -> misc_b_ionbattery
+    Size O batteryl                -> misc_b_battery_1
+    Size O batteryl                -> misc_b_battery_1
+  [tabs  ]
+    Electric                       -> (no match)
+    Electric                       -> (no match)
+    Power                          -> (no match)
+    Power                          -> (no match)
+    Power                          -> (no match)

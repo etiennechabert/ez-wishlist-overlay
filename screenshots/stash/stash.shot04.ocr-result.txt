@@ -8,20 +8,21 @@
 # the frozen stash.shot04.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 11 item tile(s) across 3 grid row(s)
-  dropped 4 text(s) that matched no catalog item (window title, weight
+  recognized 13 item tile(s) across 3 grid row(s)
+  dropped 1 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
+    1 x misc_b_asthmamedication
+    1 x misc_b_battery_1
+    2 x misc_b_battery_2
     1 x misc_b_ceramic_adhesive
-    1 x misc_b_ionbattery
-    1 x misc_b_nail
-    1 x misc_b_oldphone
+    1 x misc_b_disinfectingwipes
+    2 x misc_b_insulatingtape
     1 x misc_b_pcfan
-    3 x misc_b_recorder
-    1 x misc_b_sparkplug
-    1 x misc_b_wrench
-    1 x misc_screwdriver
+    2 x misc_b_pipeline
+    1 x misc_hammer
+    1 x misc_notebook
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
@@ -29,40 +30,41 @@
   [chrome]
     JUNK BOX                       -> (no match)
   [items ]
-    Pet Shampoo                    -> (no match)
-    Pet Shampoo                    -> (no match)
-    Spark Plug                     -> misc_b_sparkplug
-    Ion Battery                    -> misc_b_ionbattery
-    Recorder                       -> misc_b_recorder
+    CPU Fan                        -> misc_b_pcfan
+    Notebook                       -> misc_notebook
+    Hammer                         -> misc_hammer
+    Valve                          -> misc_b_pipeline
+    Valve                          -> misc_b_pipeline
   [tabs  ]
-    Household                      -> (no match)
-    Household                      -> (no match)
-    Tool                           -> (no match)
-    Power                          -> (no match)
-    Intel                          -> (no match)
-  [items ]
-    Wrench                         -> misc_b_wrench
-    OldPhone                       -> misc_b_oldphone
-    Large gas                      -> (no match)
-    Screwdriver                    -> misc_screwdriver
-    Cer•mic adhesive               -> misc_b_ceramic_adhesive
-  [tabs  ]
-    Tool                           -> (no match)
     Electric                       -> (no match)
-    Combustible                    -> (no match)
+    Intel                          -> (no match)
     Tool                           -> (no match)
     Building                       -> (no match)
+    Building                       -> (no match)
   [chrome]
-    Box Nail                       -> (no match)
+    Si Lu r G or                   -> (no match)
   [items ]
-    Recorder                       -> misc_b_recorder
-    Cutter                         -> (no match)
-    CPU Fan                        -> misc_b_pcfan
-    Recorder                       -> misc_b_recorder
-    Boxed Nails                    -> misc_b_nail
+    Insulating Tape                -> misc_b_insulatingtape
+    Size O battery2                -> misc_b_battery_2
+    Insulating Tape                -> misc_b_insulatingtape
+    Asthma medicine                -> misc_b_asthmamedication
   [tabs  ]
-    Intel                          -> (no match)
-    Tool                           -> (no match)
+    Building                       -> (no match)
+    Power                          -> (no match)
+    Building                       -> (no match)
     Electric                       -> (no match)
-    Intel                          -> (no match)
+    Medical Supplies               -> (no match)
+  [chrome]
+    Si L ur Gor                    -> (no match)
+  [items ]
+    Disinfectant wipes             -> misc_b_disinfectingwipes
+    Ceramic adhesive               -> misc_b_ceramic_adhesive
+    Size D battery2                -> misc_b_battery_2
+    Size O batteryi                -> misc_b_battery_1
+    Boxed Bolts                    -> (no match)
+  [tabs  ]
+    Medical Supplies               -> (no match)
+    Building                       -> (no match)
+    Power                          -> (no match)
+    Power                          -> (no match)
     Building                       -> (no match)

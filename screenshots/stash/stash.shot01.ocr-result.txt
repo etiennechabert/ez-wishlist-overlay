@@ -8,60 +8,55 @@
 # the frozen stash.shot01.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 10 item tile(s) across 3 grid row(s)
-  dropped 3 text(s) that matched no catalog item (window title, weight
+  recognized 11 item tile(s) across 4 grid row(s)
+  dropped 1 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
-    1 x misc_b_disinfectingwipes
-    1 x misc_b_gastank
-    1 x misc_b_harddrive
-    1 x misc_b_nail
+    2 x misc_b_aspire
+    1 x misc_b_iodophor
     1 x misc_b_opticaldisc
-    1 x misc_b_ram
-    1 x misc_b_socket
+    2 x misc_b_ram
+    1 x misc_b_spraycan
     1 x misc_b_tape
     1 x misc_b_wrench
     1 x misc_bpu
+    1 x misc_floppydisk
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
 #   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
-  [chrome]
-    JUNK BOX                       -> (no match)
   [items ]
-    Tape                           -> misc_b_tape
-    %ndproof Matches               -> (no match)
-    Gas                            -> (no match)
-    Gas can                        -> misc_b_gastank
-  [tabs  ]
-    Intel                          -> (no match)
-    Combus tibte                   -> (no match)
-    Medical Supplies               -> (no match)
-    Combustible                    -> (no match)
-    Combustible                    -> (no match)
-  [items ]
-    CPU                            -> misc_bpu
-    Hard Drive                     -> misc_b_harddrive
-    Socket                         -> misc_b_socket
-    Disinfectant wipes             -> misc_b_disinfectingwipes
-    co                             -> misc_b_opticaldisc
-  [tabs  ]
-    Electric                       -> (no match)
-    Intel                          -> (no match)
-    Electric                       -> (no match)
-    Medical Supplies               -> (no match)
-    Intel                          -> (no match)
-  [chrome]
-    Box Nail                       -> (no match)
-  [items ]
-    RAM                            -> misc_b_ram
-    Boxed Nails                    -> misc_b_nail
-    Wrench                         -> misc_b_wrench
     Windproof Matches              -> (no match)
+    co                             -> misc_b_opticaldisc
+    Iodine                         -> misc_b_iodophor
+    Wrench                         -> misc_b_wrench
+    Floppydisk                     -> misc_floppydisk
   [tabs  ]
+    Combustible                    -> (no match)
+    Intel                          -> (no match)
+    Medical Supplies               -> (no match)
+    Tool                           -> (no match)
+    Intel                          -> (no match)
+  [items ]
+    ASPIRIN                        -> misc_b_aspire
+  [items ]
+    Aspirin                        -> misc_b_aspire
+    RAM                            -> misc_b_ram
+    Spray can                      -> misc_b_spraycan
+    CPU                            -> misc_bpu
+  [tabs  ]
+    Medical Supplies               -> (no match)
+    Intel                          -> (no match)
     Electric                       -> (no match)
     Building                       -> (no match)
-    Tool                           -> (no match)
-    Combustible                    -> (no match)
     Electric                       -> (no match)
+  [items ]
+    RAM                            -> misc_b_ram
+    Tape                           -> misc_b_tape
+  [tabs  ]
+    Electric                       -> (no match)
+    Electric                       -> (no match)
+    Intel                          -> (no match)
+    Electric                       -> (no match)
+    Intel                          -> (no match)

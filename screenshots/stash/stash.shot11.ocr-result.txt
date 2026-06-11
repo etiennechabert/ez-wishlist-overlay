@@ -8,20 +8,15 @@
 # the frozen stash.shot11.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 12 item tile(s) across 3 grid row(s)
-  dropped 2 text(s) that matched no catalog item (window title, weight
+  recognized 5 item tile(s) across 2 grid row(s)
+  dropped 4 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
-    2 x misc_1batterie_2
-    1 x misc_b_aspire
-    1 x misc_b_asthmamedication
-    1 x misc_b_gunoil
-    1 x misc_b_insulatingtape
-    1 x misc_b_superglue
-    3 x misc_b_wd40
-    1 x misc_b_wirecutting
-    1 x misc_barcleaner
+    1 x misc_b_battery_1
+    1 x misc_floppydisk
+    1 x misc_notebook
+    2 x misc_screwdriver
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
@@ -29,39 +24,27 @@
   [chrome]
     JUNK BOX                       -> (no match)
   [items ]
-    wo-40                          -> misc_b_wd40
-    Aspirin                        -> misc_b_aspire
-    Super Glue                     -> misc_b_superglue
-    G" can                         -> (no match)
-    Gun oil                        -> misc_b_gunoil
+    Boxed Bolts                    -> (no match)
+    Screwdriver                    -> misc_screwdriver
+    Screwdriver                    -> misc_screwdriver
+    Fl oppydisk                    -> misc_floppydisk
+    scbsors                        -> (no match)
   [tabs  ]
-    Combustible                    -> (no match)
-    Supplies                       -> (no match)
     Building                       -> (no match)
-    Combustible                    -> (no match)
-    Combustible                    -> (no match)
-  [items ]
-    Windproof M. tches             -> (no match)
-    Cleanser                       -> misc_barcleaner
-    WD-40                          -> misc_b_wd40
-    Insulating Tape                -> misc_b_insulatingtape
-  [tabs  ]
-    Combwtible                     -> (no match)
-    Electric                       -> (no match)
-    Household                      -> (no match)
-    CombLBtible                    -> (no match)
-    Building                       -> (no match)
-  [chrome]
-    SLurG•or                       -> (no match)
-  [items ]
-    Wire Cutter                    -> misc_b_wirecutting
-    wo-40                          -> misc_b_wd40
-    Size D batteryl                -> misc_1batterie_2
-    Asthma medicine                -> misc_b_asthmamedication
-    Size D batteryl                -> misc_1batterie_2
-  [tabs  ]
     Tool                           -> (no match)
-    Combustible                    -> (no match)
-    Power                          -> (no match)
+    Tool                           -> (no match)
+    Intel                          -> (no match)
+    Medical Supplies               -> (no match)
+  [chrome]
+    Lu r Gor                       -> (no match)
+  [items ]
+    Band-aids                      -> (no match)
+    Size O batterye                -> misc_b_battery_1
+    Notebook                       -> misc_notebook
+    NewPhane                       -> (no match)
+  [tabs  ]
     Medical Supplies               -> (no match)
     Power                          -> (no match)
+    Intel                          -> (no match)
+    Electric                       -> (no match)
+    Electric                       -> (no match)

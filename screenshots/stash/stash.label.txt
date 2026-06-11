@@ -1,79 +1,130 @@
-# stash scan — Johnny's-Service junk-box terminal — contents read off the 20
-# capture frames (stash.shot00..19), item_id  count.
+# stash scan — Johnny's-Service junk-box terminal — contents read off the 38
+# capture frames (stash.shot00..37), item_id  count.
 #
-# NON-AUTHORITATIVE REFERENCE — `stash_scan_matches_label` is `#[ignore]`d.
-# Read as 44 unique grid rows (218 tiles) by de-overlapping consecutive shots.
-# There are 3 SCROLL GAPS (between shots 11/12, 14/15, 16/17) where rows fall
-# between shots and appear in no capture — so counts are a LOWER BOUND across
-# those breaks, not an exact tally. `eval_report_json` scores partial tile
-# accuracy off this (informational, not a gate).
+# GROUND TRUTH (hand-read from the frames, not from the OCR). The 2026-06-11
+# series was captured row by row: the 5-column grid scrolls one row per shot,
+# so every interior row is visible in 3 consecutive frames (the first/last
+# rows in 1–2). 40 unique rows × 5 columns = 200 tiles, NO scroll gaps — the
+# full grid is covered, unlike the previous 20-shot series. Row uniqueness
+# holds: no two distinct rows share an item multiset (minimum pairwise
+# difference is 2 tiles), so the row-uniqueness merge cannot collapse distinct
+# rows even with its one-drift tolerance.
 #
-# Name divergences (in-game label != data.json Item.name — the box-scan matcher
-# can't match these until patched in crates/scraper/src/corrections.rs):
-#   misc_b_match   in-game "Windproof Matches"  data "Matches"
-#   misc_b_nail    in-game "Boxed Nails"        data "Nails"
-#   misc_b_screw   in-game "Boxed Bolts"        data "Bolts"   (OCR-unrecognised)
-#   misc_b_nut     in-game "Boxed Nuts"         data "Nuts"    (OCR-unrecognised)
-#   misc_b_shampoo in-game "Pet Shampoo"        data "Shampoo"
-#   misc_barcleaner in-game "Cleanser/Cleaner"  data "Cleaner"
-#   misc_1batterie_2 = "Size D battery1" (yellow), misc_b_1battery = "Size D battery2" (white)
-# Duplicate data.json name: "Gas can" = misc_b_gastank + misc_b_tape_large (chose gastank).
+# `stash_scan_matches_label` stays `#[ignore]`d: the capture is gap-free, but
+# an exact tally is still blocked by in-game labels that diverge from
+# data.json `Item.name` (the matcher can't resolve them until `Item.name` is
+# fixed in data.json itself — the canonical hand-maintained dataset since the
+# scraper was retired in #162) plus residual glyph misreads:
+#   misc_b_match    in-game "Windproof Matches"  data "Matches"   (5 tiles)
+#   misc_b_bandaid  in-game "Band-aids"          data "Adhesive bandages" (3)
+#   misc_b_shampoo  in-game "Pet Shampoo"        data "Shampoo"   (2)
+#   misc_b_screw    in-game "Boxed Bolts"        data "Bolts"
+#   misc_b_nut      in-game "Boxed Nuts"         data "Nuts"
+#   misc_barcleaner in-game "Cleanser"           data "Cleaner"
+#   misc_b_battery_1 = "Size D battery1" (yellow pack), misc_b_battery_2 =
+#     "Size D battery2" (white pack); the battery digit OCRs as l/i/e, so
+#     battery2 tiles often misread as battery1 (tracked OCR limit).
+# Duplicate data.json name: "Gas can" = misc_b_gastank + misc_b_tape_large
+# (chose gastank). `eval_report_json` scores graded tile accuracy off this
+# label (informational, not a gate).
+#
+# Row map (top → bottom of the grid; left → right within a row):
+#  R01 plier_large    moldboard      deodorant     ram            pcfan
+#  R02 match          opticaldisc    iodophor      wrench         floppydisk
+#  R03 aspire         opticaldisc    ram           spraycan       bpu
+#  R04 ram            ram            opticaldisc   ram            tape
+#  R05 pcfan          notebook       hammer        pipeline       pipeline
+#  R06 insulatingtape b_battery_2     insulatingtape ram           asthmamedication
+#  R07 disinfectingwipes ceramic_adhesive b_battery_2 b_battery_1  screw
+#  R08 screw          gunoil         lighterfluid  copperwire     nail
+#  R09 tape           ram            ionbattery    ram            notebook
+#  R10 superglue      beardoil       floppydisk    floppydisk     ionbattery
+#  R11 ionbattery     iodophor       ram           pcfan          nut
+#  R12 screw          screwdriver    screwdriver   floppydisk     medicalscissors
+#  R13 bandaid        b_battery_2     notebook      ram            newphone
+#  R14 notebook       pcfan          pcfan         gastank_large  ceramic_adhesive
+#  R15 ceramic_adhesive deodorant    tape          floppydisk     rustedcleaner
+#  R16 floppydisk     bandaid        b_battery_1   asthmamedication b_battery_1
+#  R17 wd40           wirecutting    wd40          barcleaner     ram
+#  R18 match          gunoil         superglue     aspire         wd40
+#  R19 notebook       gastank        aspire        b_battery_1    ionbattery
+#  R20 beardoil       iodophor       gunoil        b_battery_1    flashlight
+#  R21 wd40           asthmamedication ionbattery  aspire         pcfan
+#  R22 newphone       ram            ionbattery    b_battery_1    b_battery_1
+#  R23 beardoil       flashlight     gastank       glue_large     wastechip
+#  R24 beardoil       lighterfluid   wd40          moldboard      bandaid
+#  R25 glue_large     rustedcleaner  wd40          b_battery_1    pcfan
+#  R26 tire_sealant   saltcan        opticaldisc   gastank_large  rat_poison
+#  R27 rat_poison     deodorant      ceramic_adhesive ram         pcfan
+#  R28 wirecutting    ceramic_adhesive screwdriver gastank_large  oldphone
+#  R29 ionbattery     sparkplug      shampoo       shampoo        flashlight
+#  R30 b_battery_1    beardoil       pesticide     opticaldisc    ceramic_adhesive
+#  R31 b_battery_1    ionbattery     opticaldisc   lighterfluid   floppydisk
+#  R32 piezometer     ionbattery     ram           match          ram
+#  R33 opticaldisc    disinfectingwipes socket     bpu            gastank
+#  R34 gastank        iodophor       match         tape           ram
+#  R35 medicalscissors gastank       wd40          ceramic_adhesive sparkplug
+#  R36 match          spraycan       insulatingtape hammer        oldphone
+#  R37 b_battery_2     asthmamedication iodophor    wirecutting    moldboard
+#  R38 ram            b_lighter      flashlight    opticaldisc    notebook
+#  R39 b_battery_2     insulatingtape insulatingtape beardoil      lighterfluid
+#  R40 tape           tire_sealant   recorder      glue_large     rustedcleaner
 
-# total tiles: 218
+# total tiles: 200
 
-misc_1batterie_2           10
-misc_b_1battery            3
 misc_b_aspire              4
-misc_b_asthmamedication    3
+misc_b_asthmamedication    4
 misc_b_bandaid             3
-misc_b_beardoil            5
+misc_b_battery_1           10
+misc_b_battery_2           5
+misc_b_beardoil            6
 misc_b_ceramic_adhesive    7
 misc_b_deodorant           3
 misc_b_disinfectingwipes   2
-misc_b_flashlight          3
-misc_b_gastank             7
+misc_b_flashlight          4
+misc_b_gastank             5
 misc_b_gastank_large       3
-misc_b_glue_large          2
+misc_b_glue_large          3
 misc_b_gunoil              3
-misc_b_harddrive           1
-misc_b_insulatingtape      7
-misc_b_iodophor            4
+misc_b_insulatingtape      5
+misc_b_iodophor            5
 misc_b_ionbattery          9
-misc_b_lighterfluid        3
+misc_b_lighter             1
+misc_b_lighterfluid        4
 misc_b_match               5
-misc_b_medicalscissors     3
-misc_b_moldboard           2
-misc_b_nail                7
+misc_b_medicalscissors     2
+misc_b_moldboard           3
+misc_b_nail                1
 misc_b_newphone            2
 misc_b_nut                 1
-misc_b_oldphone            1
-misc_b_opticaldisc         7
+misc_b_oldphone            2
+misc_b_opticaldisc         8
 misc_b_pcfan               8
 misc_b_pesticide           1
 misc_b_piezometer          1
-misc_b_pipeline            7
-misc_b_ram                 16
+misc_b_pipeline            2
+misc_b_plier_large         1
+misc_b_ram                 17
 misc_b_rat_poison          2
-misc_b_recorder            7
-misc_b_rustedcleaner       2
+misc_b_recorder            1
+misc_b_rustedcleaner       3
 misc_b_saltcan             1
 misc_b_screw               3
 misc_b_shampoo             2
 misc_b_socket              1
 misc_b_sparkplug           2
-misc_b_spraycan            3
+misc_b_spraycan            2
 misc_b_superglue           2
-misc_b_tape                4
-misc_b_tire_sealant        4
+misc_b_tape                5
+misc_b_tire_sealant        2
 misc_b_wd40                7
 misc_b_wirecutting         3
-misc_b_wrench              7
+misc_b_wrench              1
 misc_barcleaner            1
-misc_blimbingrope          1
 misc_bpu                   2
-misc_copperwire            2
+misc_copperwire            1
 misc_floppydisk            7
-misc_hammer                1
-misc_notebook              5
+misc_hammer                2
+misc_notebook              6
 misc_screwdriver           3
-misc_wastechip             3
+misc_wastechip             1

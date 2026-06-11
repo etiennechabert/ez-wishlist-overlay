@@ -8,22 +8,18 @@
 # the frozen stash.shot09.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 14 item tile(s) across 3 grid row(s)
-  dropped 1 text(s) that matched no catalog item (window title, weight
+  recognized 9 item tile(s) across 3 grid row(s)
+  dropped 3 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
-    2 x misc_1batterie_2
-    2 x misc_b_aspire
-    1 x misc_b_asthmamedication
-    1 x misc_b_flashlight
-    1 x misc_b_gunoil
     1 x misc_b_iodophor
     2 x misc_b_ionbattery
+    1 x misc_b_medicalscissors
     1 x misc_b_pcfan
-    1 x misc_b_pipeline
-    1 x misc_b_tire_sealant
-    1 x misc_b_wd40
+    1 x misc_b_superglue
+    1 x misc_floppydisk
+    2 x misc_screwdriver
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
@@ -31,42 +27,35 @@
   [chrome]
     JUNK BOX                       -> (no match)
   [items ]
-    cpu Fan                        -> misc_b_pcfan
-    Aspirin                        -> misc_b_aspire
+    Super Glue                     -> misc_b_superglue
+    Be.rdOi1                       -> (no match)
+    Floppydisk                     -> misc_floppydisk
     Ion Battery                    -> misc_b_ionbattery
-    Asthma medicine                -> misc_b_asthmamedication
-    Tire Sealant                   -> misc_b_tire_sealant
-  [tabs  ]
-    Electric                       -> (no match)
-    Medical Supplies               -> (no match)
-    Power                          -> (no match)
-    Medical Supplies               -> (no match)
-    Tool                           -> (no match)
-  [chrome]
-    SierG•r                        -> (no match)
-  [items ]
-    Valve                          -> misc_b_pipeline
-    wo-40                          -> misc_b_wd40
-    Ft•sh light                    -> misc_b_flashlight
-    Size O batteryl                -> misc_1batterie_2
-    Gun oil                        -> misc_b_gunoil
   [tabs  ]
     Building                       -> (no match)
-    Combustible                    -> (no match)
-    Electric                       -> (no match)
-    Power                          -> (no match)
-    Combus tible                   -> (no match)
-  [chrome]
-    LurG«                          -> (no match)
-  [items ]
-    Iodine                         -> misc_b_iodophor
-    Be.rdOi1                       -> (no match)
-    Ion Battery                    -> misc_b_ionbattery
-    Size O batteryl                -> misc_1batterie_2
-    Aspirin                        -> misc_b_aspire
-  [tabs  ]
-    Medical Supplies               -> (no match)
     Household                      -> (no match)
+    Intel                          -> (no match)
+    Intel                          -> (no match)
     Power                          -> (no match)
+  [items ]
+    Ion Battery                    -> misc_b_ionbattery
+    Iodine                         -> misc_b_iodophor
+    CPU Fan                        -> misc_b_pcfan
+    Boxed Nub                      -> (no match)
+  [tabs  ]
     Power                          -> (no match)
+    Medical Supplies               -> (no match)
+    Electric                       -> (no match)
+    Electric                       -> (no match)
+    Building                       -> (no match)
+  [items ]
+    Boxed Bolts                    -> (no match)
+    Screwdriver                    -> misc_screwdriver
+    Screwdriver                    -> misc_screwdriver
+    Medical scissors               -> misc_b_medicalscissors
+  [tabs  ]
+    Building                       -> (no match)
+    T 001                          -> (no match)
+    Tool                           -> (no match)
+    Intel                          -> (no match)
     Medical Supplies               -> (no match)

@@ -8,21 +8,21 @@
 # the frozen stash.shot16.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 12 item tile(s) across 3 grid row(s)
+  recognized 15 item tile(s) across 5 grid row(s)
   dropped 2 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
-    2 x misc_1batterie_2
-    1 x misc_b_asthmamedication
-    1 x misc_b_ceramic_adhesive
-    1 x misc_b_disinfectingwipes
+    4 x misc_b_aspire
+    1 x misc_b_battery_1
+    1 x misc_b_gastank
     1 x misc_b_gunoil
-    1 x misc_b_lighterfluid
-    1 x misc_b_nail
-    2 x misc_b_pipeline
-    1 x misc_b_tape
-    1 x misc_copperwire
+    1 x misc_b_ionbattery
+    1 x misc_b_superglue
+    3 x misc_b_wd40
+    1 x misc_b_wirecutting
+    1 x misc_barcleaner
+    1 x misc_notebook
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
@@ -30,41 +30,42 @@
   [chrome]
     JUNK BOX                       -> (no match)
   [items ]
-    Tape                           -> misc_b_tape
-    Boxed Nails                    -> misc_b_nail
-    Copper wire                    -> misc_copperwire
-    Lighter fluid                  -> misc_b_lighterfluid
+    wo-40                          -> misc_b_wd40
+    Wire Cutter                    -> misc_b_wirecutting
+    wo-40                          -> misc_b_wd40
+    Cleanser                       -> misc_barcleaner
   [tabs  ]
+    Combustible                    -> (no match)
+    Tool                           -> (no match)
+    Combustible                    -> (no match)
+    Household                      -> (no match)
     Electric                       -> (no match)
-    Intel                          -> (no match)
-    Building                       -> (no match)
-    Building                       -> (no match)
-    Combustible                    -> (no match)
-  [chrome]
-    S L ur Go r                    -> (no match)
   [items ]
+    ASPIR'N                        -> misc_b_aspire
+  [items ]
+    Windproof Matches              -> (no match)
     Gun oil                        -> misc_b_gunoil
-    Boxed Bolts                    -> (no match)
-    Boxed Bolts                    -> (no match)
-    Size O batteryl                -> misc_1batterie_2
-    Size O batterye                -> misc_1batterie_2
+    Super Glue                     -> misc_b_superglue
+    Aspirin                        -> misc_b_aspire
+    wo-40                          -> misc_b_wd40
   [tabs  ]
     Combustible                    -> (no match)
+    Combustible                    -> (no match)
     Building                       -> (no match)
-    Building                       -> (no match)
-    Power                          -> (no match)
-    Power                          -> (no match)
-  [chrome]
-    t'                             -> (no match)
-  [items ]
-    Valve                          -> misc_b_pipeline
-    Ceramic adhesive               -> misc_b_ceramic_adhesive
-    Valve                          -> misc_b_pipeline
-    Disinfec tant wipes            -> misc_b_disinfectingwipes
-    Asthma medicine                -> misc_b_asthmamedication
-  [tabs  ]
-    Building                       -> (no match)
-    Building                       -> (no match)
-    Buil ding                      -> (no match)
     Medical Supplies               -> (no match)
-    Medicat Supplies               -> (no match)
+    Combustible                    -> (no match)
+  [items ]
+    ASPIR'N                        -> misc_b_aspire
+    Lurc•r                         -> (no match)
+  [items ]
+    Notebook                       -> misc_notebook
+    Gas can                        -> misc_b_gastank
+    Aspirin                        -> misc_b_aspire
+    Size D batteryi                -> misc_b_battery_1
+    Ion Battery                    -> misc_b_ionbattery
+  [tabs  ]
+    Intel                          -> (no match)
+    Combustible                    -> (no match)
+    Medical Supplies               -> (no match)
+    Power                          -> (no match)
+    Power                          -> (no match)

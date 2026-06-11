@@ -8,64 +8,58 @@
 # the frozen stash.shot00.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 11 item tile(s) across 3 grid row(s)
-  dropped 4 text(s) that matched no catalog item (window title, weight
+  recognized 12 item tile(s) across 4 grid row(s)
+  dropped 1 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
-    1 x misc_b_ceramic_adhesive
-    2 x misc_b_gastank
+    2 x misc_b_aspire
+    1 x misc_b_deodorant
     1 x misc_b_iodophor
-    1 x misc_b_medicalscissors
-    1 x misc_b_nail
-    1 x misc_b_ram
-    1 x misc_b_sparkplug
-    1 x misc_b_tape
-    1 x misc_b_tire_sealant
-    1 x misc_copperwire
+    1 x misc_b_moldboard
+    1 x misc_b_opticaldisc
+    1 x misc_b_pcfan
+    1 x misc_b_plier_large
+    1 x misc_b_spraycan
+    1 x misc_b_wrench
+    1 x misc_bpu
+    1 x misc_floppydisk
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
 #   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
-  [chrome]
-    JUNK BOX                       -> (no match)
   [items ]
-    Copper wire                    -> misc_copperwire
-    Win#roof Matches               -> (no match)
-    Spark Plug                     -> misc_b_sparkplug
-    Ceramic adhesive               -> misc_b_ceramic_adhesive
-    Tire Sealant                   -> misc_b_tire_sealant
+    Large Plier                    -> misc_b_plier_large
+    Moldboard                      -> misc_b_moldboard
+    Deodorant                      -> misc_b_deodorant
+    cpu Fan                        -> misc_b_pcfan
   [tabs  ]
-    Building                       -> (no match)
-    Combustible                    -> (no match)
     Tool                           -> (no match)
-    Building                       -> (no match)
     Tool                           -> (no match)
-  [chrome]
-    Box Nail                       -> (no match)
-  [items ]
-    Boxed Nails                    -> misc_b_nail
-    "0-40                          -> (no match)
-    Gas can                        -> misc_b_gastank
-    Medical s&sors                 -> misc_b_medicalscissors
-    RAM                            -> misc_b_ram
-  [tabs  ]
-    Building                       -> (no match)
-    Combustible                    -> (no match)
-    Combwtible                     -> (no match)
-    Medical Supplies               -> (no match)
+    Household                      -> (no match)
     Electric                       -> (no match)
-  [chrome]
-    1                              -> (no match)
+    Electric                       -> (no match)
   [items ]
-    Tape                           -> misc_b_tape
-    Windproof Matches              -> (no match)
+    %ndproof Matches               -> (no match)
+    CD                             -> misc_b_opticaldisc
     Iodine                         -> misc_b_iodophor
-    G •s can                       -> misc_b_gastank
-    G" can                         -> (no match)
+    Wrench                         -> misc_b_wrench
+    Floppydisk                     -> misc_floppydisk
   [tabs  ]
+    Combustible                    -> (no match)
     Intel                          -> (no match)
-    Combus tible                   -> (no match)
     Medical Supplies               -> (no match)
-    Combustible                    -> (no match)
-    Combustible                    -> (no match)
+    Tool                           -> (no match)
+    Intel                          -> (no match)
+  [items ]
+    ASPIRIN                        -> misc_b_aspire
+  [items ]
+    Aspirin                        -> misc_b_aspire
+    Spray can                      -> misc_b_spraycan
+    CPU                            -> misc_bpu
+  [tabs  ]
+    Medical Supplies               -> (no match)
+    Intel                          -> (no match)
+    Electric                       -> (no match)
+    Building                       -> (no match)
+    Electric                       -> (no match)

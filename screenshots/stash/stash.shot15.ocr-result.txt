@@ -8,16 +8,19 @@
 # the frozen stash.shot15.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 5 item tile(s) across 3 grid row(s)
-  dropped 0 text(s) that matched no catalog item (window title, weight
+  recognized 12 item tile(s) across 4 grid row(s)
+  dropped 2 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
-    1 x misc_b_insulatingtape
-    1 x misc_b_ionbattery
-    1 x misc_b_lighterfluid
-    1 x misc_b_nail
-    1 x misc_copperwire
+    2 x misc_b_aspire
+    1 x misc_b_asthmamedication
+    2 x misc_b_battery_1
+    1 x misc_b_gunoil
+    1 x misc_b_superglue
+    3 x misc_b_wd40
+    1 x misc_b_wirecutting
+    1 x misc_barcleaner
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
@@ -25,22 +28,38 @@
   [chrome]
     JUNK BOX                       -> (no match)
   [items ]
-    Ion Battery                    -> misc_b_ionbattery
-  [chrome]
-    Powe r                         -> (no match)
-  [items ]
-    Insulating Tape                -> misc_b_insulatingtape
+    Roppydisk                      -> (no match)
+    Size O batteryl                -> misc_b_battery_1
+    Asthma medicine                -> misc_b_asthmamedication
+    Size D batteryi                -> misc_b_battery_1
   [tabs  ]
-    Building                       -> (no match)
-  [chrome]
-    Box Nail                       -> (no match)
+    Intel                          -> (no match)
+    Medical Supplies               -> (no match)
+    Power                          -> (no match)
+    Medical Supplies               -> (no match)
+    Power                          -> (no match)
   [items ]
-    Boxed Nails                    -> misc_b_nail
-    Copper wire                    -> misc_copperwire
-    Lighter fluid                  -> misc_b_lighterfluid
+    WD-40                          -> misc_b_wd40
+    Wire Cutter                    -> misc_b_wirecutting
+    wo-40                          -> misc_b_wd40
+    Cleanser                       -> misc_barcleaner
   [tabs  ]
+    Combustible                    -> (no match)
+    Tool                           -> (no match)
+    Combustible                    -> (no match)
+    Household                      -> (no match)
     Electric                       -> (no match)
-    In tel                         -> (no match)
+  [items ]
+    ASPIRIN                        -> misc_b_aspire
+  [items ]
+    Windproof Matches              -> (no match)
+    Gun oil                        -> misc_b_gunoil
+    Super Glue                     -> misc_b_superglue
+    Aspirin                        -> misc_b_aspire
+    wo-40                          -> misc_b_wd40
+  [tabs  ]
+    Combustible                    -> (no match)
+    Combustible                    -> (no match)
     Building                       -> (no match)
-    Building                       -> (no match)
+    Medical Supplies               -> (no match)
     Combustible                    -> (no match)

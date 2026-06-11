@@ -1,0 +1,65 @@
+# stash.shot31 — what the OCR read in this one screenshot
+# (auto-generated; do not edit by hand — see screenshots/CLAUDE.md)
+#
+# This is ONE scroll shot of the stash grid. The grid is taller than the
+# screen, so the full contents come from merging every shot — that merged
+# result, scored against the label, lives in stash.ocr-result.txt. This file
+# just shows what the OCR pulled out of this single frame, regenerated from
+# the frozen stash.shot31.boxes.json (so it never runs the game).
+#
+## SUMMARY
+  recognized 9 item tile(s) across 3 grid row(s)
+  dropped 3 text(s) that matched no catalog item (window title, weight
+    readout, category tabs/subtitles — i.e. screen chrome, not items)
+#
+  items found in this frame:
+    1 x misc_b_disinfectingwipes
+    1 x misc_b_gastank
+    1 x misc_b_iodophor
+    1 x misc_b_ionbattery
+    1 x misc_b_opticaldisc
+    1 x misc_b_piezometer
+    1 x misc_b_ram
+    1 x misc_b_socket
+    1 x misc_bpu
+#
+## DETAIL — every text the OCR produced, row by row
+#   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
+#   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
+  [chrome]
+    JUNK BOX                       -> (no match)
+  [items ]
+    Piezometer                     -> misc_b_piezometer
+    Ion Battery                    -> misc_b_ionbattery
+    Windproof Matches              -> (no match)
+  [tabs  ]
+    Building                       -> (no match)
+    Power                          -> (no match)
+    Electric                       -> (no match)
+    Combustible                    -> (no match)
+    Electric                       -> (no match)
+  [items ]
+    CD                             -> misc_b_opticaldisc
+    Disinfectant wipes             -> misc_b_disinfectingwipes
+    Socket                         -> misc_b_socket
+    CPU                            -> misc_bpu
+    G" can                         -> (no match)
+  [tabs  ]
+    Intel                          -> (no match)
+    Medical Supplies               -> (no match)
+    Electric                       -> (no match)
+    Electric                       -> (no match)
+    Combustible                    -> (no match)
+  [chrome]
+    1                              -> (no match)
+  [items ]
+    Gas can                        -> misc_b_gastank
+    Iodine                         -> misc_b_iodophor
+    %ndproof Matches               -> (no match)
+    RAM                            -> misc_b_ram
+  [tabs  ]
+    Combustible                    -> (no match)
+    Medical Supplies               -> (no match)
+    Combustible                    -> (no match)
+    Intel                          -> (no match)
+    Electric                       -> (no match)

@@ -23,7 +23,7 @@
 #     box/stash tiles_correct rose (deterministic, so any rise is real).
 #   WITHIN NOISE otherwise.
 #   (stash is informational: its delta is reported and a drop is flagged, but it
-#   does not by itself force a revert -- its captures are known un-stitchable.)
+#   does not by itself force a revert -- name divergences keep its tally inexact.)
 #
 # Exit codes: 0 = improvement, 1 = regression/gate-fail, 2 = within noise.
 #
@@ -124,7 +124,7 @@ Write-Output ''
 if ($boxCmp.LostExact) { $gateFail += 'box lost exact-match (the box gate would fail)' }
 if ($boxCmp.Drop) { $gateFail += ('box tiles_correct dropped: {0} -> {1}' -f $base.'box'.tiles_correct, $cand.'box'.tiles_correct) }
 if ($stashCmp.Drop) {
-    # Informational: stash is un-gated (un-stitchable captures), but the drop is
+    # Informational: stash is un-gated (name-divergence misses), but the drop is
     # deterministic, so surface it loudly without forcing a revert.
     Write-Output ('  NOTE: stash tiles_correct dropped {0} -> {1} (informational, not gated)' -f $base.stash.tiles_correct, $cand.stash.tiles_correct)
 }

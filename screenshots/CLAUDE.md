@@ -9,7 +9,7 @@ screenshots/
   CLAUDE.md          # this skill
   hideout/   <UpgradeId>.webp        + <UpgradeId>.label.txt     # Facility Upgrade panels (15)
   box/       box.shotN.webp/.boxes.json + box.label.txt          # world container tablet  (3 shots)
-  stash/     stash.shotNN.webp/.boxes.json + stash.label.txt     # Johnny's-Service junk-box terminal (10 shots)
+  stash/     stash.shotNN.webp/.boxes.json + stash.label.txt     # Johnny's-Service junk-box terminal (38 shots)
 ```
 
 Three asset types, each scored **independently** by the pipeline:
@@ -18,7 +18,7 @@ Three asset types, each scored **independently** by the pipeline:
 |---|---|---|---|
 | **hideout** | Facility Upgrade panel | full pipeline (identify upgrade + read each item's `owned/needed` counter) | per-cell owned-count + identification |
 | **box** | a world container tablet (category tab strip: All / Medical / … / Tool) | `read_tiles` + `merge_capture` (row-uniqueness dedup) over the scroll shots | the merged item tally (passes exactly) |
-| **stash** | the "JOHNNY'S SERVICE" junk-box submit terminal ("only miscellaneous items can be stored here") | same as box | the item tally (captures have scroll gaps — scored, not gated) |
+| **stash** | the "JOHNNY'S SERVICE" junk-box submit terminal ("only miscellaneous items can be stored here") | same as box | the item tally (gap-free 38-shot series; name divergences keep it scored, not gated) |
 
 > Both box and stash are titled "JUNK BOX" in-game — they're different screens.
 > `box` is the physical world container; `stash` is the player's submit terminal.
@@ -106,7 +106,10 @@ frozen OCR below, not the image, and q95 preserves every item name).
 
 **Three files per shot+scan:**
 - **`<scan>.shotN.webp`** — the 3096×3312 capture frame, in scroll order
-  (`box.shot0..2`, `stash.shot00..09`).
+  (`box.shot0..2`, `stash.shot00..37`). Prefer a **row-by-row** scroll (one grid
+  row per shot, so each row is visible in ~3 consecutive frames): the redundancy
+  leaves no scroll gaps, gives hard tiles several chances to read, and lets the
+  row-uniqueness merge be validated against re-seen rows.
 - **`<scan>.shotN.boxes.json`** — the **frozen Windows.Media.Ocr output** (word
   boxes + image height) for that frame. `read_tiles`/`merge_capture` are pure and
   platform-independent, so these let the post-OCR pipeline be regression-tested
@@ -129,14 +132,16 @@ one cost: two *distinct* rows with the identical composition collapse to one and
 under-count (the desktop review step renders the rows so the user can drop a bad
 one before applying).
 
-**Status.** `box` passes exactly (`box_scan_matches_label`, 22 tiles). `stash`
-stays `#[ignore]`d (`stash_scan_matches_label`): row-uniqueness fixed the
-dropped-tile desync, but its 10 shots have real **scroll gaps** — shots 00–04
-share a row each (clean scroll) but 04→09 skip rows entirely, so some grid rows
-appear in no capture at all and can't be recovered by any merge. `stash.label.txt`
-is a **verified reference** of the contents (the contiguous 00–04 run + the
-additional types seen in the lower shots); the eval still scores its partial tile
-accuracy as an informational signal.
+**Status.** `box` passes exactly (`box_scan_matches_label`, 24 tiles). `stash`
+stays `#[ignore]`d (`stash_scan_matches_label`) — but no longer for coverage:
+the 2026-06-11 row-by-row series is **gap-free** (40 rows × 5 columns, every
+interior row in 3 consecutive frames) and `stash.label.txt` is a hand-read of
+the complete grid (200 tiles). What still blocks an exact tally is
+**recognition**: in-game labels that diverge from `data.json` names ("Windproof
+Matches"/"Matches", "Band-aids"/"Adhesive bandages", "Pet Shampoo"/"Shampoo",
+"Boxed Bolts"/"Bolts", "Boxed Nuts"/"Nuts" — fix `Item.name` in `data.json`,
+not the label) plus residual glyph misreads (battery2 → battery1). The eval
+scores its graded tile accuracy as an informational signal.
 
 **To refresh a box/stash label:** read the item names off the capture frames,
 map each to its `item_id` (next section), and write `<item_id>  <count>`. A box
@@ -158,7 +163,7 @@ shape**, not just embedded in the full panel/scan.
 - **Crop:** one whole tile per item, at full resolution. **Place crops from the
   committed geometry, not by eye:**
   - **box/stash** — from the `.boxes.json` word boxes (item-name centres). For
-    the full stash set across all 10 scroll shots, the `dump_stash_unit_tiles`
+    the full stash set across all scroll shots, the `dump_stash_unit_tiles`
     diagnostic (`box_scan.rs`, `--ignored`) runs the box-scan matcher over every
     shot and prints `(shot, item_id, name-bbox)` per tile; the cropper picks each
     item's best mid-screen occurrence and expands the bbox up for the icon. When
@@ -264,7 +269,8 @@ insert the entry alphabetically, and confirm a suspicious id with the user first
       text and the catalog item it resolved to (or "no match").
     - `box/box.ocr-result.txt`, `stash/stash.ocr-result.txt` — the **merged**
       scan: captured-vs-label, with a per-item `OK / MISSING / EXTRA` breakdown so
-      the gaps (e.g. stash's scroll gaps) are visible at a glance.
+      the misses (e.g. stash's unmatchable name divergences) are visible at a
+      glance.
   - **Live-engine — hideout + units** (`./scripts/ocr-eval.ps1` then
     `./scripts/ocr-write-results.ps1 -Json score.json`, Windows):
     - `hideout/<UpgradeId>.ocr-result.txt` — per-cell PASS/FAIL of the owned-count
