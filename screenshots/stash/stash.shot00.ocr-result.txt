@@ -22,7 +22,7 @@
     1 x misc_b_plier_large
     1 x misc_b_spraycan
     1 x misc_b_wrench
-    1 x misc_bpu
+    1 x misc_cpu
     1 x misc_floppydisk
 #
 ## DETAIL — every text the OCR produced, row by row
@@ -56,7 +56,7 @@
   [items ]
     Aspirin                        -> misc_b_aspire
     Spray can                      -> misc_b_spraycan
-    CPU                            -> misc_bpu
+    CPU                            -> misc_cpu
   [tabs  ]
     Medical Supplies               -> (no match)
     Intel                          -> (no match)

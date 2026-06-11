@@ -61,8 +61,8 @@
   EXTRA      4/3      misc_b_wirecutting
   OK         1/1      misc_b_wrench
   OK         1/1      misc_barcleaner
-  EXTRA      3/2      misc_bpu
   OK         1/1      misc_copperwire
+  EXTRA      3/2      misc_cpu
   OK         7/7      misc_floppydisk
   OK         2/2      misc_hammer
   OK         6/6      misc_notebook

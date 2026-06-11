@@ -54,8 +54,8 @@ misc_b_wd40.webp  WD-40
 misc_b_wirecutting.webp  Wire Cutter
 misc_b_wrench.webp  Wrench
 misc_barcleaner.webp  Cleanser
-misc_bpu.webp  CPU
 misc_copperwire.webp  Copper wire
+misc_cpu.webp  CPU
 misc_floppydisk.webp  Floppydisk
 misc_hammer.webp  Hammer
 misc_notebook.webp  Notebook

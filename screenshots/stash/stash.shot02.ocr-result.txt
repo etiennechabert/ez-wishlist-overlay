@@ -19,7 +19,7 @@
     2 x misc_b_pipeline
     1 x misc_b_spraycan
     1 x misc_b_tape
-    1 x misc_bpu
+    1 x misc_cpu
     1 x misc_hammer
     1 x misc_notebook
 #
@@ -30,7 +30,7 @@
     Aspirin                        -> misc_b_aspire
     co                             -> misc_b_opticaldisc
     Spray can                      -> misc_b_spraycan
-    CPU                            -> misc_bpu
+    CPU                            -> misc_cpu
   [tabs  ]
     Medical Supplies               -> (no match)
     Intel                          -> (no match)

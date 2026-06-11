@@ -172,7 +172,7 @@
           "description": "Generate periodic income using GPUs.",
           "requirements": [
             {
-              "item_id": "misc_bpu",
+              "item_id": "misc_cpu",
               "quantity": 1
             },
             {
@@ -197,7 +197,7 @@
           "cost": 200000,
           "requirements": [
             {
-              "item_id": "misc_bpu",
+              "item_id": "misc_cpu",
               "quantity": 4
             },
             {
@@ -221,7 +221,7 @@
           "description": "Unlock more slots; Increase money output.",
           "requirements": [
             {
-              "item_id": "misc_bpu",
+              "item_id": "misc_cpu",
               "quantity": 4
             },
             {
@@ -245,7 +245,7 @@
           "description": "Unlock more slots; Increase money output.",
           "requirements": [
             {
-              "item_id": "misc_bpu",
+              "item_id": "misc_cpu",
               "quantity": 6
             },
             {
@@ -1063,7 +1063,7 @@
           "description": "Higher quality",
           "requirements": [
             {
-              "item_id": "misc_bpu",
+              "item_id": "misc_cpu",
               "quantity": 5
             },
             {
@@ -2815,9 +2815,9 @@
       "rarity": "Uncommon"
     },
     {
-      "id": "misc_bpu",
+      "id": "misc_cpu",
       "name": "CPU",
-      "icon_path": "icons/misc_bpu.png",
+      "icon_path": "icons/misc_cpu.png",
       "category": "misc",
       "subcategory": "Electric",
       "weight": 0.1,

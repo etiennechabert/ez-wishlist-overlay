@@ -22,7 +22,7 @@
     1 x misc_b_sparkplug
     1 x misc_b_tape
     1 x misc_b_wd40
-    1 x misc_bpu
+    1 x misc_cpu
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
@@ -32,7 +32,7 @@
   [items ]
     Disinfectant wipes             -> misc_b_disinfectingwipes
     Socket                         -> misc_b_socket
-    CPU                            -> misc_bpu
+    CPU                            -> misc_cpu
     Gu can                         -> (no match)
   [tabs  ]
     Intel                          -> (no match)

@@ -31,7 +31,7 @@
 # Row map (top → bottom of the grid; left → right within a row):
 #  R01 plier_large    moldboard      deodorant     ram            pcfan
 #  R02 match          opticaldisc    iodophor      wrench         floppydisk
-#  R03 aspire         opticaldisc    ram           spraycan       bpu
+#  R03 aspire         opticaldisc    ram           spraycan       cpu
 #  R04 ram            ram            opticaldisc   ram            tape
 #  R05 pcfan          notebook       hammer        pipeline       pipeline
 #  R06 insulatingtape b_battery_2     insulatingtape ram           asthmamedication
@@ -61,7 +61,7 @@
 #  R30 b_battery_1    beardoil       pesticide     opticaldisc    ceramic_adhesive
 #  R31 b_battery_1    ionbattery     opticaldisc   lighterfluid   floppydisk
 #  R32 piezometer     ionbattery     ram           match          ram
-#  R33 opticaldisc    disinfectingwipes socket     bpu            gastank
+#  R33 opticaldisc    disinfectingwipes socket     cpu            gastank
 #  R34 gastank        iodophor       match         tape           ram
 #  R35 medicalscissors gastank       wd40          ceramic_adhesive sparkplug
 #  R36 match          spraycan       insulatingtape hammer        oldphone
@@ -121,8 +121,8 @@ misc_b_wd40                7
 misc_b_wirecutting         3
 misc_b_wrench              1
 misc_barcleaner            1
-misc_bpu                   2
 misc_copperwire            1
+misc_cpu                   2
 misc_floppydisk            7
 misc_hammer                2
 misc_notebook              6

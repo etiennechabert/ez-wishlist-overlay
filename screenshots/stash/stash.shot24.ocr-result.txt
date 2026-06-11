@@ -21,7 +21,7 @@
     1 x misc_b_rustedcleaner
     1 x misc_b_tire_sealant
     1 x misc_b_wd40
-    1 x misc_bpu
+    1 x misc_cpu
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
@@ -33,7 +33,7 @@
     RLBt cleaner                   -> misc_b_rustedcleaner
     wo-40                          -> misc_b_wd40
     Size O batteryl                -> misc_b_battery_1
-    CPU                            -> misc_bpu
+    CPU                            -> misc_cpu
   [tabs  ]
     Building                       -> (no match)
     Household                      -> (no match)
