@@ -307,28 +307,27 @@ mod tests {
 
     #[test]
     fn disambiguates_size_d_battery_twins() {
-        // The two "Size D battery" items, with the game's id↔name inversion:
-        // `misc_b_1battery` = "Size D battery2", `misc_1batterie_2` = "battery1".
+        // The two "Size D battery" items, near-symmetric names one digit apart.
         let mut data = fixture();
-        data.items.push(item("misc_b_1battery", "Size D battery2"));
-        data.items.push(item("misc_1batterie_2", "Size D battery1"));
+        data.items.push(item("misc_b_battery_2", "Size D battery2"));
+        data.items.push(item("misc_b_battery_1", "Size D battery1"));
 
         // A clean read of either full name resolves to its own id.
         assert_eq!(
             match_item(&data, &["Size", "D", "battery1"]).as_deref(),
-            Some("misc_1batterie_2")
+            Some("misc_b_battery_1")
         );
         assert_eq!(
             match_item(&data, &["Size", "D", "battery2"]).as_deref(),
-            Some("misc_b_1battery")
+            Some("misc_b_battery_2")
         );
         // Real stash capture: the trailing "1" OCRs as "l". l↔1 is confusable
         // (cost 0.3) but l↔2 is not (1.0), so "batteryl" lands on battery1 —
-        // the symmetric names don't re-tie it. See match_item module + the
-        // crates/scraper/src/corrections.rs NAME_CORRECTIONS note.
+        // the symmetric names don't re-tie it. See the match_item module docs
+        // + the battery-twins note in screenshots/CLAUDE.md.
         assert_eq!(
             match_item(&data, &["Size", "D", "batteryl"]).as_deref(),
-            Some("misc_1batterie_2")
+            Some("misc_b_battery_1")
         );
     }
 }

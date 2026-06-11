@@ -4,7 +4,7 @@
 //! pane (to render parent/child rows + the disable toggle on synthetic
 //! parent headers).
 //!
-//! Reconstructed from in-game screenshots — the scraper output is a flat
+//! Reconstructed from in-game screenshots — `data.json` keeps a flat
 //! module list. See `memory/hideout_hierarchy.md` for the source-of-truth
 //! mapping and rationale.
 

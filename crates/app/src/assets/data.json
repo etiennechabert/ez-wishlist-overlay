@@ -445,11 +445,11 @@
               "quantity": 2
             },
             {
-              "item_id": "misc_b_1battery",
+              "item_id": "misc_b_battery_2",
               "quantity": 2
             },
             {
-              "item_id": "misc_1batterie_2",
+              "item_id": "misc_b_battery_1",
               "quantity": 2
             },
             {
@@ -839,7 +839,7 @@
               "quantity": 3
             },
             {
-              "item_id": "misc_b_1battery",
+              "item_id": "misc_b_battery_2",
               "quantity": 5
             }
           ]
@@ -1556,11 +1556,11 @@
           "description": "Scavenger mode CD -10%",
           "requirements": [
             {
-              "item_id": "misc_1batterie_2",
+              "item_id": "misc_b_battery_1",
               "quantity": 3
             },
             {
-              "item_id": "misc_b_1battery",
+              "item_id": "misc_b_battery_2",
               "quantity": 3
             },
             {
@@ -1580,11 +1580,11 @@
           "description": "Scavenger mode CD -20%",
           "requirements": [
             {
-              "item_id": "misc_1batterie_2",
+              "item_id": "misc_b_battery_1",
               "quantity": 5
             },
             {
-              "item_id": "misc_b_1battery",
+              "item_id": "misc_b_battery_2",
               "quantity": 5
             },
             {
@@ -1604,11 +1604,11 @@
           "description": "Scavenger mode CD -30%",
           "requirements": [
             {
-              "item_id": "misc_1batterie_2",
+              "item_id": "misc_b_battery_1",
               "quantity": 8
             },
             {
-              "item_id": "misc_b_1battery",
+              "item_id": "misc_b_battery_2",
               "quantity": 8
             },
             {
@@ -1745,9 +1745,9 @@
   ],
   "items": [
     {
-      "id": "misc_1batterie_2",
+      "id": "misc_b_battery_1",
       "name": "Size D battery1",
-      "icon_path": "icons/misc_1batterie_2.png",
+      "icon_path": "icons/misc_b_battery_1.png",
       "category": "misc",
       "subcategory": "Power",
       "weight": 0.03,
@@ -1755,9 +1755,9 @@
       "rarity": "Uncommon"
     },
     {
-      "id": "misc_b_1battery",
+      "id": "misc_b_battery_2",
       "name": "Size D battery2",
-      "icon_path": "icons/misc_b_1battery.png",
+      "icon_path": "icons/misc_b_battery_2.png",
       "category": "misc",
       "subcategory": "Power",
       "weight": 0.03,

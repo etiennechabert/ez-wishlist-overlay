@@ -15,9 +15,6 @@ desktop.ini
 # Runtime user data (don't commit)
 state.json
 
-# Scraper temp dir
-.scraper-cache/
-
 # Per-clone Claude Code agent state (scheduled tasks, local settings)
 .claude/
 

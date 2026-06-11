@@ -212,8 +212,8 @@ pub enum OcrPipelineResult {
     /// Anchor found (so the screenshot IS an upgrade panel) but the
     /// strict resolver couldn't match it to any
     /// `module.name` + `upgrade.level` pair in `data.json`. Almost
-    /// always means a missing upgrade in the dataset — the scraper
-    /// hasn't picked it up yet, or this is a level we don't model.
+    /// always means a missing upgrade in the dataset — not added
+    /// yet, or this is a level we don't model.
     UnknownUpgrade {
         /// First OCR token from the panel header area that looked
         /// like a module name (e.g. `"Moreitem"`, `"Quality"`) when

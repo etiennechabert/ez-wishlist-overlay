@@ -14,9 +14,6 @@ rustflags = ["-C", "target-feature=+crt-static"]
 app = "run -p ez-wishlist-overlay --release --target x86_64-pc-windows-msvc"
 app-dev = "run -p ez-wishlist-overlay --target x86_64-pc-windows-msvc"
 
-# Refresh game data from upstream (maintainers)
-scrape = "run -p scraper --release"
-
 # Workspace-wide checks
 t = "test --workspace"
 c = "check --workspace --all-targets"

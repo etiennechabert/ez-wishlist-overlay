@@ -217,6 +217,12 @@ Recompute on demand. Cheap (max a few hundred entries). No caching.
 
 ## 5. Data Pipeline
 
+> **Retired in #162:** the `crates/scraper` pipeline described below was removed.
+> Upstream lagged seasons behind the live game and carried wrong/duplicate item
+> names, so every real fix was already hand-applied to `data.json` — which is now
+> the canonical, hand-maintained dataset (validated against `screenshots/`; see
+> `docs/DEVELOPMENT.md` → "Refreshing game data"). Kept as historical context.
+
 **Critical update on data acquisition:** ExfilZone Assistant is open source at `github.com/zelengeo/exfil-zone-assistant` under the **MIT license**. The hideout upgrade and item data live as TypeScript/JSON files in `src/lib/`, with icons in `public/images/`. **We do not scrape HTML.** We pull source files directly from the upstream repo. This is vastly more robust, immune to website redesigns, and explicitly permitted by their MIT license (with attribution).
 
 The data pipeline is a **standalone binary** (`crates/scraper`), run manually by maintainers when the upstream repo updates (typically once per wipe). It writes `data.json` + `icons/` into `crates/app/src/assets/`, which the app binary then embeds at compile time via `rust-embed`. The app does no network requests at runtime.
