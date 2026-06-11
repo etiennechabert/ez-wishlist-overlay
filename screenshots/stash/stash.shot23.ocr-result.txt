@@ -8,8 +8,8 @@
 # the frozen stash.shot23.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 13 item tile(s) across 3 grid row(s)
-  dropped 1 text(s) that matched no catalog item (window title, weight
+  recognized 14 item tile(s) across 3 grid row(s)
+  dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
@@ -25,7 +25,7 @@
     1 x misc_b_rustedcleaner
     1 x misc_b_saltcan
     1 x misc_b_tire_sealant
-    1 x misc_b_wd40
+    2 x misc_b_wd40
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
@@ -47,7 +47,7 @@
   [items ]
     Instant glue                   -> misc_b_glue_large
     Rust cleaner                   -> misc_b_rustedcleaner
-    wa-40                          -> (no match)
+    wa-40                          -> misc_b_wd40
     Size O batteryl                -> misc_b_battery_1
     CPU Fan                        -> misc_b_pcfan
   [tabs  ]
