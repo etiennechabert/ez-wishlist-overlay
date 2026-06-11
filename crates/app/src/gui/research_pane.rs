@@ -312,7 +312,10 @@ fn detail_card(
                             meta.push(r.clone());
                         }
                         if let Some(p) = item.price {
-                            meta.push(format!("{p} ₽"));
+                            // The game's own pane phrasing ("// price 4486");
+                            // no currency glyph — ₽/€ are tofu in the bundled
+                            // fonts (see hideout_pane's ●/○ note).
+                            meta.push(format!("price {p}"));
                         }
                         if let Some(w) = item.weight {
                             meta.push(format!("{w} kg"));
@@ -338,10 +341,13 @@ fn detail_card(
                             .get(p)
                             .map(|n| n.name.clone())
                             .unwrap_or_else(|| p.clone());
+                        // ●/○ (Geometric Shapes, covered by Hack) — ✓/✗ render
+                        // as tofu in the bundled fonts, same trap hideout_pane
+                        // documents for its toggle glyphs.
                         let mark = if s.research_status(p) == ResearchStatus::Developed {
-                            "✓"
+                            "●"
                         } else {
-                            "✗"
+                            "○"
                         };
                         format!("{name} {mark}")
                     })
