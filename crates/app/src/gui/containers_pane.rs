@@ -25,7 +25,7 @@ use crate::gui::items_db_pane::format_price;
 use crate::gui::{icon_cache::IconCache, theme, SaveTick};
 use crate::ocr::box_scan::ScanRow;
 use crate::ocr::{BoxCommand, BoxScanStatus, BoxScanUpdate, ScanTarget};
-use crate::state::{AppState, ContainerId, ContainerKind};
+use crate::state::{AppState, ContainerId, ContainerKind, GUNSMITH_STORAGE_ID};
 use crate::vr::capture_session::CaptureMode;
 use crossbeam_channel::Sender;
 use parking_lot::RwLock;
@@ -54,13 +54,14 @@ const DEFAULT_CONTAINER_ICON: &str = "backpack_3drt";
 /// Fixed icon for the pinned primary Stash row.
 const STASH_ICON: &str = "stash";
 
-/// Case icons offered when the container's type is `Case`. The two Collection
-/// Boxes store MISC items, and the Gunsmith → Storage terminal stores gun
-/// parts (tracked since the #175 catalog) — the other in-game boxes
-/// (mag/attachment, medical, paint) hold categories the tracker doesn't model.
-/// Generated flat-3D crate art (upstream has no images for these). Order here
-/// is the picker-grid order.
-const CASE_ICONS: &[&str] = &["box_collection", "box_collection_small", "box_gunsmith"];
+/// Case icons offered when the container's type is `Case`. Only the two
+/// Collection Boxes are listed: they're the boxes that store MISC items —
+/// whereas the other in-game boxes (mag/attachment, medical, paint) hold
+/// categories the tracker doesn't model, and the Gunsmith → Storage is the
+/// *built-in* primary container (seeded with its own `box_gunsmith` icon, not
+/// user-created). Generated flat-3D crate art (upstream has no images for
+/// these). Order here is the picker-grid order.
+const CASE_ICONS: &[&str] = &["box_collection", "box_collection_small"];
 /// Default icon for a newly-created Case container.
 const DEFAULT_CASE_ICON: &str = "box_collection";
 
@@ -330,10 +331,18 @@ pub fn ui(
     // (scannable), Shelves, and Bags (both declarative/manual). Empty
     // secondary sections are hidden; the "New container" button adds any kind.
     let sort = sort_state(ui.ctx());
+    let mut gunsmith_row: Option<Row> = None;
     let mut case_rows: Vec<Row> = Vec::new();
     let mut bag_rows: Vec<Row> = Vec::new();
     let mut shelf_rows: Vec<Row> = Vec::new();
     for row in rows {
+        // The built-in Gunsmith storage is a *primary* like the stash (the
+        // game gives every player exactly one) — pinned below it, not listed
+        // under Cases.
+        if matches!(&row.target, Target::Container(id) if id == GUNSMITH_STORAGE_ID) {
+            gunsmith_row = Some(row);
+            continue;
+        }
         match row.kind {
             ContainerKind::Case => case_rows.push(row),
             ContainerKind::Shelf => shelf_rows.push(row),
@@ -344,15 +353,19 @@ pub fn ui(
     sort_rows(&mut bag_rows, sort);
     sort_rows(&mut shelf_rows, sort);
 
-    // --- Primary: the stash. ---
+    // --- Primary: the stash + the built-in Gunsmith storage. ---
     ui.add_space(2.0);
     section_title(ui, "Primary storage");
     section_caption(
         ui,
-        "The stash — where items must be for hideout upgrades. Scannable.",
+        "The stash — where items must be for hideout upgrades — and the \
+         gunsmith's gun-parts storage (30 kg cap). Both scannable.",
     );
     column_header(ui, true);
     container_row(ui, state, icons, save_tx, &mut scan, &stash_row);
+    if let Some(row) = &gunsmith_row {
+        container_row(ui, state, icons, save_tx, &mut scan, row);
+    }
 
     // --- Secondary sections, each shown only when it has containers. Order:
     // Cases (scannable) first, then the manual kinds Shelves and Bags. ---
@@ -992,22 +1005,26 @@ fn container_row(
 
         // Actions column (secondary containers only): Edit + Delete, always
         // visible. Lives outside the toggle rect so its buttons don't fold.
+        // The built-in Gunsmith storage is a primary like the stash — fixed
+        // name/icon/cap, so no actions.
         if let Target::Container(id) = &row.target {
-            let mut a = ui.new_child(
-                egui::UiBuilder::new()
-                    .max_rect(c.actions.shrink2(egui::vec2(CELL_PAD, 4.0)))
-                    .layout(egui::Layout::left_to_right(egui::Align::Center)),
-            );
-            row_actions(
-                &mut a,
-                state,
-                save_tx,
-                id,
-                &row.name,
-                resolve_icon_key(&row.icon),
-                row.kind,
-                row.capacity_kg,
-            );
+            if id != GUNSMITH_STORAGE_ID {
+                let mut a = ui.new_child(
+                    egui::UiBuilder::new()
+                        .max_rect(c.actions.shrink2(egui::vec2(CELL_PAD, 4.0)))
+                        .layout(egui::Layout::left_to_right(egui::Align::Center)),
+                );
+                row_actions(
+                    &mut a,
+                    state,
+                    save_tx,
+                    id,
+                    &row.name,
+                    resolve_icon_key(&row.icon),
+                    row.kind,
+                    row.capacity_kg,
+                );
+            }
         }
     }
 
@@ -2067,6 +2084,23 @@ mod tests {
         h.run();
         // 2 × 12.4 kg rendered against the 30 kg cap.
         h.get_by_label("24.80 / 30 kg");
+    }
+
+    #[test]
+    fn gunsmith_storage_renders_as_primary_without_actions() {
+        let state = Arc::new(RwLock::new(AppState::new(game_data())));
+        state.write().seed_gunsmith_storage();
+        state.write().create_container("Backpack".into());
+        let mut h = harness(&state);
+        h.run();
+
+        // The built-in primary renders (pinned under Primary storage)…
+        h.get_by_label("Gunsmith storage");
+        // …with its baked-in cap…
+        h.get_by_label("0.00 / 30 kg");
+        // …but no Edit/Delete: only the user-created Backpack offers actions.
+        assert_eq!(h.get_all_by_label("Delete").count(), 1);
+        assert_eq!(h.get_all_by_label("Edit").count(), 1);
     }
 
     #[test]

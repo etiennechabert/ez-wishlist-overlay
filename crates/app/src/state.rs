@@ -17,6 +17,14 @@ pub const OVERRIDES_SCHEMA_VERSION: u32 = 1;
 
 pub type ContainerId = String;
 
+/// Fixed id of the built-in **Gunsmith storage** container. It's a *primary*
+/// like the stash — the game gives every player exactly one (Gunsmith →
+/// Storage, 30 kg cap) — so it's seeded once per profile with this well-known
+/// id ([`AppState::seed_gunsmith_storage`]) and pinned in the Containers tab's
+/// Primary section with no Edit/Delete. Minted ids are `ctr-<n>`, so this can
+/// never collide.
+pub const GUNSMITH_STORAGE_ID: &str = "gunsmith-storage";
+
 /// What kind of secondary container this is. Only [`ContainerKind::Case`]
 /// containers have an in-game contents screen, so only they support the
 /// screenshot/OCR scan; bags and shelves are entered by hand.
@@ -121,6 +129,10 @@ pub struct AppState {
     /// shelf is seeded exactly once per profile (fresh *or* pre-existing) and a
     /// later deletion doesn't bring it back.
     pub default_shelf_seeded: bool,
+    /// Set once the built-in Gunsmith storage has been created (see
+    /// [`AppState::seed_gunsmith_storage`]). Same one-shot contract as
+    /// [`Self::default_shelf_seeded`].
+    pub gunsmith_storage_seeded: bool,
     /// Modules the user has marked as unavailable (e.g. quest-locked). Their
     /// tracked upgrades stay tracked but don't contribute to `active_items`,
     /// so the wishlist hides items the user can't act on yet.
@@ -175,6 +187,7 @@ impl AppState {
             containers: Vec::new(),
             next_container_seq: 0,
             default_shelf_seeded: false,
+            gunsmith_storage_seeded: false,
             disabled_modules: HashSet::new(),
             overrides: HashMap::new(),
             research_states: HashMap::new(),
@@ -947,6 +960,29 @@ impl AppState {
         }
     }
 
+    /// Seed the built-in **Gunsmith storage** primary container exactly once
+    /// per profile (fresh *or* pre-existing — same contract as the default
+    /// Shelf). The game gives every player exactly one Gunsmith → Storage with
+    /// a 30 kg cap, so it arrives ready to scan: fixed id, `Case` kind, the
+    /// gunsmith icon, and the cap baked in. Returns whether it seeded (so the
+    /// caller can persist synchronously, before the save loop exists).
+    pub fn seed_gunsmith_storage(&mut self) -> bool {
+        if self.gunsmith_storage_seeded {
+            return false;
+        }
+        self.containers.push(Container {
+            id: GUNSMITH_STORAGE_ID.to_string(),
+            name: "Gunsmith storage".to_string(),
+            contents: HashMap::new(),
+            icon: Some("box_gunsmith".to_string()),
+            kind: ContainerKind::Case,
+            capacity_kg: Some(30.0),
+        });
+        self.gunsmith_storage_seeded = true;
+        self.bump();
+        true
+    }
+
     /// Set (or clear, with `None`) a container's weight cap in kg. No-op if
     /// the id is unknown or the value is unchanged.
     pub fn set_container_capacity(&mut self, id: &ContainerId, capacity_kg: Option<f32>) {
@@ -1349,6 +1385,10 @@ pub struct PersistedState {
     /// is created once on the next launch.
     #[serde(default)]
     pub default_shelf_seeded: bool,
+    /// Whether the built-in Gunsmith storage has been seeded — same
+    /// forward-compat path as `default_shelf_seeded`.
+    #[serde(default)]
+    pub gunsmith_storage_seeded: bool,
     /// Recorded research progress. `#[serde(default)]` so a pre-research
     /// `state.json` loads as "nothing recorded" — same path as `containers`.
     #[serde(default)]
@@ -1370,6 +1410,7 @@ impl PersistedState {
             containers: state.containers.clone(),
             next_container_seq: state.next_container_seq,
             default_shelf_seeded: state.default_shelf_seeded,
+            gunsmith_storage_seeded: state.gunsmith_storage_seeded,
             research_states: state.research_states.clone(),
             tracked_research: state.tracked_research.clone(),
         }
@@ -1449,6 +1490,7 @@ impl PersistedState {
         state.containers = self.containers;
         state.next_container_seq = self.next_container_seq;
         state.default_shelf_seeded = self.default_shelf_seeded;
+        state.gunsmith_storage_seeded = self.gunsmith_storage_seeded;
         state.bump();
 
         if warnings.is_empty() {
@@ -1783,6 +1825,30 @@ mod tests {
         // Clearing the cap sticks.
         s.set_container_capacity(&id, None);
         assert_eq!(s.containers[0].capacity_kg, None);
+    }
+
+    #[test]
+    fn gunsmith_storage_seeds_exactly_once_and_stays_deleted() {
+        let mut s = AppState::new(fixture());
+        assert!(s.seed_gunsmith_storage(), "fresh profile seeds");
+        assert!(!s.seed_gunsmith_storage(), "second call is a no-op");
+        let g = s
+            .containers
+            .iter()
+            .find(|c| c.id == GUNSMITH_STORAGE_ID)
+            .expect("seeded container present");
+        assert_eq!(g.kind, ContainerKind::Case);
+        assert_eq!(g.capacity_kg, Some(30.0));
+
+        // The flag round-trips, so a (programmatic) deletion doesn't come back
+        // on the next launch — same contract as the default Shelf.
+        s.delete_container(&GUNSMITH_STORAGE_ID.to_string());
+        let json = serde_json::to_string(&PersistedState::from_app(&s)).unwrap();
+        let back: PersistedState = serde_json::from_str(&json).unwrap();
+        let mut s2 = AppState::new(s.data.clone());
+        back.merge_into(&mut s2);
+        assert!(!s2.seed_gunsmith_storage(), "flag survives the round-trip");
+        assert!(s2.containers.iter().all(|c| c.id != GUNSMITH_STORAGE_ID));
     }
 
     #[test]
@@ -2140,6 +2206,7 @@ mod tests {
             containers: Vec::new(),
             next_container_seq: 0,
             default_shelf_seeded: false,
+            gunsmith_storage_seeded: false,
             research_states: HashMap::new(),
             tracked_research: HashSet::new(),
         };
@@ -3012,6 +3079,7 @@ mod tests {
             containers: Vec::new(),
             next_container_seq: 0,
             default_shelf_seeded: false,
+            gunsmith_storage_seeded: false,
             research_states: HashMap::new(),
             tracked_research: HashSet::new(),
         };
