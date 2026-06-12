@@ -108,12 +108,19 @@ impl CaptureCrop {
     /// FOV (`vr::fov`) it exactly outlines its crop at the correct ~2× scale, so
     /// these no longer have to be inflated to make an undersized box look big
     /// enough — the stash crop in particular was widened to 0.92 (reaching the
-    /// side menu + footer) only to enlarge the box. Each is now centered on the
-    /// gaze (center fraction (0.5, 0.5)) and sized to frame just the item grid;
-    /// the user aims so the grid fills the box, and the surrounding chrome falls
-    /// outside it. Exact fractions are content-framing estimates to confirm in a
-    /// one-time in-headset pass (the FOV `MIRROR_FOV_FUDGE` knob covers any
-    /// residual mismatch).
+    /// side menu + footer) only to enlarge the box. Each is sized to frame just
+    /// the item grid; the user aims so the grid fills the box, and the
+    /// surrounding chrome falls outside it. Exact fractions are content-framing
+    /// estimates to confirm in a one-time in-headset pass (the FOV
+    /// `MIRROR_FOV_FUDGE` knob covers any residual mismatch).
+    ///
+    /// **Vertical placement (#175):** the hideout Facility-Upgrade panel is a
+    /// wall screen at eye level, so its crop is centered on the gaze. The
+    /// box/stash/gunsmith-storage screens are terminal machines mounted *below*
+    /// eye level, so their crops sit [`Self::BOX_DOWN_FRAC`] below the gaze
+    /// axis — the guide box renders that much lower in view (and the captured
+    /// rect follows, `vr::fov::gaze_centered_crop` preserves the offset), so
+    /// the user doesn't have to crane down to frame them.
     #[allow(dead_code)] // selected by the Windows-only capture worker
     pub fn for_mode(mode: &CaptureMode) -> CaptureCrop {
         use crate::ocr::ScanTarget;
@@ -128,23 +135,33 @@ impl CaptureCrop {
                 w: 0.32,
                 h: 0.30,
             },
-            // Landscape 5-column world-container grid, centered.
+            // Landscape 5-column world-container grid, below-gaze (terminal
+            // screens aren't at eye level).
             CaptureMode::Box(ScanTarget::Container(_)) => CaptureCrop {
                 x: 0.27,
-                y: 0.36,
+                y: 0.36 + Self::BOX_DOWN_FRAC,
                 w: 0.46,
                 h: 0.28,
             },
-            // Widest: the 5-column stash submit grid, centered (was 0.92 wide,
+            // Widest: the 5-column stash submit grid, below-gaze (was 0.92 wide,
             // which captured the side menu + footer — see #141).
             CaptureMode::Box(ScanTarget::Stash) => CaptureCrop {
                 x: 0.24,
-                y: 0.36,
+                y: 0.36 + Self::BOX_DOWN_FRAC,
                 w: 0.52,
                 h: 0.28,
             },
         }
     }
+
+    /// How far below the gaze axis the box/stash capture crops sit, as a
+    /// fraction of the frame height (≈ 7° of a ~100° vertical FOV). The
+    /// container/stash/gunsmith-storage screens are machines mounted below eye
+    /// level — unlike the wall-height hideout panel — so the guide box meets
+    /// them where they are instead of forcing a head-down hold. First-pass
+    /// value; confirm in-headset and nudge if the natural resting frame still
+    /// misses the grid.
+    pub const BOX_DOWN_FRAC: f32 = 0.05;
 }
 
 /// Which controller trigger fires an OCR capture while a capture mode is armed
@@ -716,18 +733,25 @@ mod tests {
         let aspect = |c: CaptureCrop| c.w / c.h;
         assert!(aspect(hideout) < aspect(container));
         assert!(aspect(container) < aspect(stash));
-        // #141 invariant: every crop is centered on the gaze (center fraction
-        // (0.5, 0.5)). The FOV-derived guide transform is just the crop center,
-        // and the guide texture uses symmetric margins, so an off-center crop
-        // would put the box off the gaze axis. Keep them centered.
+        // #141 invariant, refined in #175: every crop is horizontally centered
+        // on the gaze. Vertically, the hideout wall panel is at eye level
+        // (centered), while the box/stash terminal screens sit below eye level
+        // — their crops carry the BOX_DOWN_FRAC downward bias, which the
+        // FOV-derived guide transform and `gaze_centered_crop` both preserve.
         for c in [hideout, container, stash] {
             assert!(
                 (c.x + c.w / 2.0 - 0.5).abs() < 1e-6,
                 "crop must be horizontally centered: {c:?}"
             );
+        }
+        assert!(
+            (hideout.y + hideout.h / 2.0 - 0.5).abs() < 1e-6,
+            "hideout crop must be vertically centered: {hideout:?}"
+        );
+        for c in [container, stash] {
             assert!(
-                (c.y + c.h / 2.0 - 0.5).abs() < 1e-6,
-                "crop must be vertically centered: {c:?}"
+                (c.y + c.h / 2.0 - (0.5 + CaptureCrop::BOX_DOWN_FRAC)).abs() < 1e-6,
+                "box crops sit BOX_DOWN_FRAC below the gaze axis: {c:?}"
             );
         }
     }
