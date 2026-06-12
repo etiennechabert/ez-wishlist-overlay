@@ -194,6 +194,7 @@ fn render_ocr_fixture_runner(ui: &mut egui::Ui, ocr_job_tx: &Sender<OcrJob>, wea
                         let job = match image::open(fixture) {
                             Ok(img) => OcrJob {
                                 image: img,
+                                extra_rounds: Vec::new(),
                                 source_path: Some(fixture.clone()),
                                 kind: crate::ocr::JobKind::UpgradePanel,
                             },

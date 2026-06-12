@@ -289,24 +289,48 @@ fn handle_box_capture(
         return;
     };
     let data = state.read().data.clone();
-    let read = match ocr::box_scan::process_box_image(&job.image, &data) {
-        Ok(r) => r,
-        Err(e) => {
-            tracing::warn!(error = %e, "box-scan OCR failed");
-            return;
+    // OCR every frame of the shot's burst independently (issue #165). One
+    // frame is the norm; extras exist only when the user raised the
+    // OCR-rounds setting. A failed round is dropped (the shot survives on
+    // the remaining rounds); when every round fails there is nothing to merge.
+    let mut reads: Vec<ocr::box_scan::BoxReadResult> = Vec::new();
+    for (round, img) in std::iter::once(&job.image)
+        .chain(job.extra_rounds.iter())
+        .enumerate()
+    {
+        match ocr::box_scan::process_box_image(img, &data) {
+            Ok(r) => reads.push(r),
+            Err(e) => {
+                tracing::warn!(error = %e, round = round + 1, "box-scan OCR failed");
+            }
         }
-    };
+    }
+    if reads.is_empty() {
+        return;
+    }
+    // Union the rounds at the row level before the cross-shot merge: rows are
+    // identified across rounds by composition (`rows_match`) and each keeps
+    // the union of its sightings' recognized tiles, so a tile read in any
+    // round counts. A single round passes through unchanged.
+    let per_round: Vec<Vec<ocr::box_scan::RoundRow>> =
+        reads.iter().map(ocr::box_scan::round_rows).collect();
+    let fused = ocr::box_scan::union_rounds(&per_round);
+    let tile_rows: Vec<Vec<ocr::box_scan::Tile>> =
+        fused.iter().map(ocr::box_scan::RoundRow::tiles).collect();
+
     let merge =
-        ocr::box_scan::merge_capture(&mut session.rows, &mut session.next_row_id, &read.tile_rows);
+        ocr::box_scan::merge_capture(&mut session.rows, &mut session.next_row_id, &tile_rows);
     session.captures += 1;
-    if read.observed_weight.is_some() {
-        session.last_weight = read.observed_weight;
+    let observed_weight = reads.iter().find_map(|r| r.observed_weight);
+    if observed_weight.is_some() {
+        session.last_weight = observed_weight;
     }
     let (tally, unrecognized) = ocr::box_scan::tally_rows(&session.rows);
     // The most recent capture in isolation, for the "this capture" half of the
     // overlay (the cumulative `tally` above mixes every shot together).
-    let (last_tally, last_unrecognized) = ocr::box_scan::tally(&read.tiles);
-    let status = if read.tile_rows.is_empty() {
+    let shot_tiles: Vec<ocr::box_scan::Tile> = tile_rows.iter().flatten().cloned().collect();
+    let (last_tally, last_unrecognized) = ocr::box_scan::tally(&shot_tiles);
+    let status = if tile_rows.is_empty() {
         ocr::BoxScanStatus::NoTiles
     } else {
         ocr::BoxScanStatus::Ok
@@ -314,7 +338,8 @@ fn handle_box_capture(
     tracing::info!(
         target = ?session.target,
         captures = session.captures,
-        rows_this_shot = read.tile_rows.len(),
+        rounds = reads.len(),
+        rows_this_shot = tile_rows.len(),
         rows_added = merge.rows_added,
         total_rows = session.rows.len(),
         ?status,
@@ -324,9 +349,11 @@ fn handle_box_capture(
     // (the capture saved a PNG to attach to a bug report). Drop a text sidecar
     // next to it so a mis-read scan is diagnosable — today only the raw PNG is
     // kept, which can't explain why a row didn't merge or a tile went unmatched.
+    // On a burst it records each round's read next to the unioned result.
     if let Some(src) = job.source_path.as_deref() {
         let dump = ocr::box_scan::format_capture_dump(
-            &read,
+            &reads,
+            &tile_rows,
             merge,
             &tally,
             unrecognized,
@@ -344,12 +371,13 @@ fn handle_box_capture(
     }
     // The current shot's recognized tile grid (normalized to the cropped frame
     // the OCR ran on), for the in-headset per-item feedback overlays (mini-grid
-    // card #138 / on-the-items markers #137). Current shot only.
+    // card #138 / on-the-items markers #137). Current shot only — round-fused,
+    // so a tile any round recovered shows ✓ (every round shares the crop).
     let (grid_w, grid_h) = {
         use image::GenericImageView as _;
         job.image.dimensions()
     };
-    let last_grid = ocr::box_scan::grid_rows(&read, grid_w as f32, grid_h as f32);
+    let last_grid = ocr::box_scan::grid_rows(&fused, grid_w as f32, grid_h as f32);
     let update = ocr::BoxScanUpdate {
         target: session.target.clone(),
         captures: session.captures,
@@ -569,10 +597,13 @@ fn spawn_ocr_worker(
                 let data = state.read().data.clone();
                 // `kind` is `UpgradePanel` here — box jobs took the early-return
                 // path above, so the upgrade pipeline ignores it.
+                // `extra_rounds` is box-scan-only plumbing — always empty on
+                // the upgrade path, so it's dropped here.
                 let ocr::OcrJob {
                     image,
                     source_path,
                     kind: _,
+                    extra_rounds: _,
                 } = job;
                 let terminal = match ocr::process_image(
                     image,

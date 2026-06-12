@@ -1306,7 +1306,7 @@ dependencies = [
 
 [[package]]
 name = "ez-wishlist-overlay"
-version = "0.5.4"
+version = "0.5.5"
 dependencies = [
  "anyhow",
  "crossbeam-channel",
