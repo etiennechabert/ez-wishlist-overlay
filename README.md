@@ -146,11 +146,13 @@ The screenshot/OCR feature works the same way: it asks SteamVR for its **composi
 
 ## Credits & data
 
-The hideout and item catalog was bootstrapped from [**ExfilZone Assistant**](https://www.exfil-zone-assistant.app/) by [pogapwnz](https://ko-fi.com/J3J41GATK0), used under the MIT license (bundled at [`LICENSES/exfil-zone-assistant-MIT.txt`](./LICENSES/exfil-zone-assistant-MIT.txt)). It's an excellent companion that covers far more than the hideout data we use — combat simulators, weapon databases, quest guides, maps, and more — so if this app is useful to you, go check theirs out too. The merchant research data is our own, hand-verified against the in-game panes.
+The hideout and item catalog was bootstrapped from [**ExfilZone Assistant**](https://www.exfil-zone-assistant.app/) by [pogapwnz](https://ko-fi.com/J3J41GATK0), used under the MIT license (bundled at [`LICENSES/exfil-zone-assistant-MIT.txt`](./LICENSES/exfil-zone-assistant-MIT.txt)), and is now hand-maintained and verified against the game itself. The merchant research data is our own, hand-verified against the in-game panes. ExfilZone Assistant is an excellent companion that covers far more than the hideout data we use — combat simulators, weapon databases, quest guides, maps, and more — so if this app is useful to you, go check theirs out too.
 
-Game content © Caveman Studio. EZ Wishlist Overlay is an unofficial, fan-made tool and isn't affiliated with or endorsed by Caveman Studio.
+## License
 
-This project is open source under the [MIT license](./LICENSE).
+The code and dataset are open source under the [MIT license](./LICENSE). That grant covers what we authored — **not the game's artwork**: the item and container icons bundled with the app ([`icons/`](./crates/app/src/assets/icons), [`container_icons/`](./crates/app/src/assets/container_icons)) and the capture fixtures under [`screenshots/`](./screenshots) are © [Caveman Studio](https://www.contractorsvr.com/) and are excluded from the MIT grant. They're reproduced here solely so an unofficial companion can show you the item you're looking for at a glance.
+
+EZ Wishlist Overlay is an unofficial, fan-made tool. It isn't affiliated with or endorsed by Caveman Studio, and any of their content will be removed promptly on request.
 
 ---
 

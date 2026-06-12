@@ -27,10 +27,10 @@ pub fn show(ctx: &egui::Context, open: &mut bool, data: &GameData, check_status:
             ui.add_space(12.0);
             ui.heading("Credits");
             ui.label(
-                "Hideout and item data are sourced from ExfilZone Assistant by pogapwnz, \
-                 used under the MIT license. ExfilZone Assistant is an excellent web companion \
-                 covering combat simulators, weapon databases, guides, and more. If you find \
-                 this app useful, check theirs too.",
+                "The hideout and item catalog was bootstrapped from ExfilZone Assistant by \
+                 pogapwnz (MIT licensed) and is now hand-maintained against the game itself. \
+                 ExfilZone Assistant is an excellent web companion covering combat simulators, \
+                 weapon databases, guides, and more. If you find this app useful, check theirs too.",
             );
             ui.horizontal(|ui| {
                 if ui.button("Open ExfilZone Assistant ↗").clicked() {
@@ -45,9 +45,12 @@ pub fn show(ctx: &egui::Context, open: &mut bool, data: &GameData, check_status:
             ui.add_space(12.0);
             ui.heading("License");
             ui.label(
-                "EZ Wishlist Overlay is open source. ExfilZone Assistant data and icons are used \
-                 under MIT — see LICENSES/exfil-zone-assistant-MIT.txt for the full text.\n\
-                 Game content © Caveman Studio.",
+                "Code and dataset are open source under the MIT license. The bundled item and \
+                 container icons are © Caveman Studio — included so this unofficial fan tool \
+                 can show items at a glance, and removed on request. ExfilZone Assistant data \
+                 is used under MIT — see LICENSES/exfil-zone-assistant-MIT.txt for the full \
+                 text.\n\
+                 Not affiliated with or endorsed by Caveman Studio.",
             );
 
             ui.add_space(12.0);
