@@ -57,6 +57,14 @@ pub struct Container {
     /// unchanged.
     #[serde(default)]
     pub kind: ContainerKind,
+    /// Optional in-game weight cap in kg — the gunsmith storage and the junk
+    /// boxes cap at 30. Display-only: the Containers KPI renders the weight as
+    /// `Σ / cap kg` and warns as Σ approaches the cap; nothing is enforced
+    /// (the game itself refuses over-cap deposits, so an over-cap tally here
+    /// means the recorded counts drifted). `None` → plain weight, no cap.
+    /// Defaults so profiles saved before this field existed load unchanged.
+    #[serde(default)]
+    pub capacity_kg: Option<f32>,
 }
 
 /// User-recorded progress of one research node. `Locked` / `Available` are
@@ -911,6 +919,7 @@ impl AppState {
             contents: HashMap::new(),
             icon: None,
             kind: ContainerKind::default(),
+            capacity_kg: None,
         });
         self.bump();
         id
@@ -933,6 +942,17 @@ impl AppState {
         if let Some(c) = self.containers.iter_mut().find(|c| &c.id == id) {
             if c.kind != kind {
                 c.kind = kind;
+                self.bump();
+            }
+        }
+    }
+
+    /// Set (or clear, with `None`) a container's weight cap in kg. No-op if
+    /// the id is unknown or the value is unchanged.
+    pub fn set_container_capacity(&mut self, id: &ContainerId, capacity_kg: Option<f32>) {
+        if let Some(c) = self.containers.iter_mut().find(|c| &c.id == id) {
+            if c.capacity_kg != capacity_kg {
+                c.capacity_kg = capacity_kg;
                 self.bump();
             }
         }
@@ -1741,6 +1761,28 @@ mod tests {
         back.merge_into(&mut s2);
         assert!(s2.tracked_upgrades.contains("workbench_lv1"));
         assert_eq!(*s2.collected.get("bolts").unwrap(), 3);
+    }
+
+    #[test]
+    fn container_capacity_persists_and_defaults_to_none() {
+        let mut s = AppState::new(fixture());
+        let id = s.create_container("Gunsmith storage".into());
+        s.set_container_capacity(&id, Some(30.0));
+
+        let json = serde_json::to_string(&PersistedState::from_app(&s)).unwrap();
+        let back: PersistedState = serde_json::from_str(&json).unwrap();
+        let mut s2 = AppState::new(s.data.clone());
+        back.merge_into(&mut s2);
+        assert_eq!(s2.containers[0].capacity_kg, Some(30.0));
+
+        // A container serialized before the field existed loads with no cap.
+        let legacy = r#"{"id":"ctr-9","name":"Old box","contents":{}}"#;
+        let old: Container = serde_json::from_str(legacy).unwrap();
+        assert_eq!(old.capacity_kg, None);
+
+        // Clearing the cap sticks.
+        s.set_container_capacity(&id, None);
+        assert_eq!(s.containers[0].capacity_kg, None);
     }
 
     #[test]
