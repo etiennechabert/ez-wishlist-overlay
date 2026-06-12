@@ -88,6 +88,7 @@ pub fn show(
                             &mut working.ocr_dismiss_seconds,
                             &mut working.ocr_auto_track,
                             &mut working.ocr_feedback_style,
+                            &mut working.ocr_rounds,
                         );
                         ui.add_space(12.0);
                         debug_section(ui, &mut working.ocr_debug, &mut working.ocr_capture_trace);
@@ -160,6 +161,7 @@ fn ocr_section(
     ocr_dismiss_seconds: &mut u32,
     ocr_auto_track: &mut bool,
     ocr_feedback_style: &mut OcrFeedbackStyle,
+    ocr_rounds: &mut u32,
 ) {
     ui.heading("Screenshot OCR");
     ui.add_space(4.0);
@@ -246,6 +248,20 @@ fn ocr_section(
              leave capture mode.)",
         );
         stepper_slider_u32(ui, ocr_dismiss_seconds, bounds::OCR_DISMISS_SECS, 1, " s");
+    });
+
+    ui.add_space(6.0);
+    ui.horizontal(|ui| {
+        ui.label("Scan rounds per shot").on_hover_text(
+            "How many frames one container/stash scan shot captures and reads \
+             (~100 ms apart), merging the reads before counting. Reading the \
+             same frame twice always gives the same answer, but each VR frame \
+             is slightly different — extra rounds recover tiles that read as \
+             nothing in a single frame (busy icons like RAM). Each extra round \
+             adds roughly half a second to a second per shot; 2–3 is the sweet \
+             spot. Hideout panel captures always use a single read.",
+        );
+        stepper_slider_u32(ui, ocr_rounds, bounds::OCR_ROUNDS, 1, "");
     });
 }
 
@@ -644,6 +660,10 @@ mod tests {
         assert!(h
             .query_by_label("Auto-extract counts from VR screenshots")
             .is_some());
+        assert!(
+            h.query_by_label("Scan rounds per shot").is_some(),
+            "the OCR-rounds stepper (issue #165) lives on the Capture tab"
+        );
         assert!(h.query_by_label("Width (m)").is_none());
         assert!(h.query_by_label("Open data folder").is_none());
     }

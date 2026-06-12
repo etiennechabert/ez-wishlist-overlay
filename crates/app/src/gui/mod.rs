@@ -9,6 +9,7 @@ mod items_db_pane;
 pub mod ocr_feedback;
 mod overrides_export;
 mod preview_pane;
+mod research_pane;
 mod settings_dialog;
 pub mod theme;
 
@@ -46,6 +47,7 @@ pub struct SaveTick {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum LeftTab {
     Hideout,
+    Research,
     Containers,
     ItemsDb,
 }
@@ -62,6 +64,8 @@ pub struct App {
     settings_dirty: bool,
     confirm_reset: bool,
     items_db: items_db_pane::ItemsDbState,
+    /// Research-tab UI state (selected node). Pane-local, not persisted.
+    research_ui: research_pane::ResearchUi,
     status_banner: Option<String>,
     vr: Arc<crate::vr::Runtime>,
     settings: Arc<RwLock<crate::settings::Settings>>,
@@ -192,6 +196,7 @@ impl App {
             settings_dirty: false,
             confirm_reset: false,
             items_db: items_db_pane::ItemsDbState::default(),
+            research_ui: research_pane::ResearchUi::default(),
             status_banner: banner,
             vr,
             settings,
@@ -429,6 +434,7 @@ impl eframe::App for App {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.selectable_value(&mut self.tab, LeftTab::Hideout, "Hideout");
+                ui.selectable_value(&mut self.tab, LeftTab::Research, "Research");
                 ui.selectable_value(&mut self.tab, LeftTab::Containers, "Containers");
                 ui.selectable_value(&mut self.tab, LeftTab::ItemsDb, "Items DB");
             });
@@ -449,6 +455,17 @@ impl eframe::App for App {
                     if outcome.settings_changed {
                         self.persist_settings();
                     }
+                }
+                LeftTab::Research => {
+                    egui::ScrollArea::vertical().show(ui, |ui| {
+                        research_pane::ui(
+                            ui,
+                            &self.state,
+                            &mut self.icons,
+                            &self.save_tx,
+                            &mut self.research_ui,
+                        );
+                    });
                 }
                 LeftTab::Containers => {
                     egui::ScrollArea::vertical().show(ui, |ui| {

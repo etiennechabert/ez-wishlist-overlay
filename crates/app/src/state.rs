@@ -5,8 +5,8 @@
 //! duration of the mutation.
 
 use crate::data::{
-    base_slots, DataIndex, GameData, ItemId, ModuleId, RecipeOverride, Requirement, UpgradeId,
-    RECIPE_SLOTS,
+    base_slots, DataIndex, GameData, ItemId, ModuleId, RecipeOverride, Requirement, ResearchNodeId,
+    UpgradeId, RECIPE_SLOTS,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -59,6 +59,33 @@ pub struct Container {
     pub kind: ContainerKind,
 }
 
+/// User-recorded progress of one research node. `Locked` / `Available` are
+/// never stored — they're derived from the parents' `Developed` state at read
+/// time ([`AppState::research_status`]); only the user-actioned stages persist.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ResearchNodeState {
+    /// Research started — samples outstanding (the game's "Need Research
+    /// Samples").
+    InProgress,
+    /// Blueprint developed; the part is purchasable and children unlock.
+    Developed,
+}
+
+/// Fully derived status of a research node, for display and gating. The
+/// string each maps to in the UI is the game's own vocabulary
+/// (`Gunsmith_StringTable` `Research_state_*`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ResearchStatus {
+    /// At least one parent isn't Developed yet ("Unknown Blueprint").
+    Locked,
+    /// Every parent developed, nothing recorded ("Ready For Research").
+    Available,
+    /// Recorded as started ("Need Research Samples").
+    InProgress,
+    /// Recorded as developed ("Developed").
+    Developed,
+}
+
 pub struct AppState {
     pub data: Arc<GameData>,
     pub index: Arc<DataIndex>,
@@ -93,6 +120,16 @@ pub struct AppState {
     /// User-supplied recipe corrections, keyed by upgrade id. Present entries
     /// fully replace the bundled recipe; absence falls through to `data.json`.
     pub overrides: HashMap<UpgradeId, RecipeOverride>,
+    /// Recorded research progress per node (absent = not started). Locked is
+    /// derived from parents at read time, never stored.
+    pub research_states: HashMap<ResearchNodeId, ResearchNodeState>,
+    /// Research nodes whose samples feed the overlay wishlist. Tracking is
+    /// overlay-only, same stance as `tracked_upgrades` — nothing else gates on
+    /// it. Unlike hideout upgrades a *locked* tracked node still contributes:
+    /// samples are lootable long before the node itself unlocks (deep spine
+    /// nodes even require parts unlocked by earlier nodes), and collecting
+    /// ahead is the point of tracking. Developed nodes contribute nothing.
+    pub tracked_research: HashSet<ResearchNodeId>,
     /// Bumped on every mutation. The VR thread reads this to decide whether
     /// to re-render the overlay texture.
     pub version: u64,
@@ -132,6 +169,8 @@ impl AppState {
             default_shelf_seeded: false,
             disabled_modules: HashSet::new(),
             overrides: HashMap::new(),
+            research_states: HashMap::new(),
+            tracked_research: HashSet::new(),
             version: 0,
             load_warning: None,
         }
@@ -511,6 +550,141 @@ impl AppState {
         }
     }
 
+    /// True when every parent of the node is recorded Developed (roots have no
+    /// parents, so they're always unlocked). Unknown ids read as locked — the
+    /// UI never offers actions on a node the dataset doesn't know.
+    pub fn is_research_unlocked(&self, id: &ResearchNodeId) -> bool {
+        let Some(node) = self.index.research_nodes_by_id.get(id) else {
+            return false;
+        };
+        node.parents.iter().all(|p| {
+            matches!(
+                self.research_states.get(p),
+                Some(ResearchNodeState::Developed)
+            )
+        })
+    }
+
+    /// Derived display/gating status: the recorded state when present, else
+    /// Locked/Available from the parents. A recorded state wins even if the
+    /// parents say locked — the user's explicit record reflects the game (e.g.
+    /// state restored from an older session), and second-guessing it would
+    /// fight them.
+    pub fn research_status(&self, id: &ResearchNodeId) -> ResearchStatus {
+        match self.research_states.get(id) {
+            Some(ResearchNodeState::Developed) => ResearchStatus::Developed,
+            Some(ResearchNodeState::InProgress) => ResearchStatus::InProgress,
+            None => {
+                if self.is_research_unlocked(id) {
+                    ResearchStatus::Available
+                } else {
+                    ResearchStatus::Locked
+                }
+            }
+        }
+    }
+
+    /// Track/untrack a research node on the overlay wishlist. Mirrors
+    /// [`Self::set_tracked_upgrade`] — overlay-only, no gating side effects.
+    pub fn set_tracked_research(&mut self, id: &ResearchNodeId, on: bool) {
+        if on {
+            self.tracked_research.insert(id.clone());
+        } else {
+            self.tracked_research.remove(id);
+        }
+        self.bump();
+    }
+
+    /// Record a node's research progress (`None` = back to not-started).
+    ///
+    /// Recording **Developed** mirrors [`Self::set_completed_upgrade`]'s
+    /// natural progression: the node leaves the tracked set (nothing left to
+    /// collect for it) and every child that just became fully unlocked is
+    /// pulled onto the wishlist — unless the user already recorded or tracked
+    /// it themselves (manual choices stay untouched). Un-developing does not
+    /// untrack the children it once added: the user may have collected for
+    /// them meanwhile, and a stray tracked node is cheaper than a vanished one.
+    pub fn set_research_state(&mut self, id: &ResearchNodeId, state: Option<ResearchNodeState>) {
+        match state {
+            Some(s) => {
+                self.research_states.insert(id.clone(), s);
+            }
+            None => {
+                self.research_states.remove(id);
+            }
+        }
+        if matches!(state, Some(ResearchNodeState::Developed)) {
+            self.tracked_research.remove(id);
+            let children: Vec<ResearchNodeId> = self
+                .data
+                .research
+                .iter()
+                .flat_map(|c| &c.nodes)
+                .filter(|n| n.parents.iter().any(|p| p == id))
+                .map(|n| n.id.clone())
+                .collect();
+            for child in children {
+                if self.is_research_unlocked(&child)
+                    && !self.research_states.contains_key(&child)
+                    && !self.tracked_research.contains(&child)
+                {
+                    self.tracked_research.insert(child);
+                }
+            }
+        }
+        self.bump();
+    }
+
+    /// True when the inventory covers every sample of the node's requirement
+    /// list — the gate for the "consume samples" completion path. Mirrors
+    /// [`Self::can_consume_materials`]; empty sample lists return `false`.
+    pub fn can_consume_research_samples(&self, id: &ResearchNodeId) -> bool {
+        let Some(node) = self.index.research_nodes_by_id.get(id) else {
+            return false;
+        };
+        if node.samples.is_empty() {
+            return false;
+        }
+        node.samples
+            .iter()
+            .all(|r| self.owned_total(&r.item_id) >= r.quantity)
+    }
+
+    /// Mark a node Developed, optionally burning its samples from the
+    /// inventory first — submitting samples in-game consumes them, so
+    /// `consume = true` keeps the app's counts in lockstep (stash first, then
+    /// containers, exactly like [`Self::complete_upgrade`]). `consume = false`
+    /// is the "already submitted them ages ago" path.
+    pub fn complete_research(&mut self, id: &ResearchNodeId, consume: bool) {
+        if consume {
+            let samples = self
+                .index
+                .research_nodes_by_id
+                .get(id)
+                .map(|n| n.samples.clone())
+                .unwrap_or_default();
+            for req in samples {
+                self.consume_from_inventory(&req.item_id, req.quantity);
+            }
+        }
+        self.set_research_state(id, Some(ResearchNodeState::Developed));
+    }
+
+    /// Collected-vs-needed rollup over a node's samples, per-item capped —
+    /// same shape and caveats as [`Self::upgrade_progress`].
+    pub fn research_progress(&self, id: &ResearchNodeId) -> UpgradeProgress {
+        let mut collected = 0;
+        let mut needed = 0;
+        if let Some(node) = self.index.research_nodes_by_id.get(id) {
+            for req in &node.samples {
+                let have = self.owned_total(&req.item_id);
+                collected += have.min(req.quantity);
+                needed += req.quantity;
+            }
+        }
+        UpgradeProgress { collected, needed }
+    }
+
     /// Collected-vs-needed rollup for one upgrade's *effective* recipe
     /// (post-override, non-empty slots). Per item we cap the contribution at
     /// that item's required quantity — over-collecting bolts because three
@@ -821,6 +995,8 @@ impl AppState {
         // recreated container can never reuse a just-cleared id.
         self.containers.clear();
         self.disabled_modules.clear();
+        self.research_states.clear();
+        self.tracked_research.clear();
         self.bump();
     }
 
@@ -868,6 +1044,31 @@ impl AppState {
                 if pinned {
                     entry.2 += req.quantity;
                 }
+            }
+        }
+
+        // Tracked research nodes contribute their sample lists. Developed
+        // nodes are spent (mirroring `tracked − completed` above); locked ones
+        // still count — samples are lootable long before the node unlocks,
+        // and collecting ahead is what tracking a research node is *for*.
+        // Research has no pin concept, so the pinned demand stays untouched.
+        for id in &self.tracked_research {
+            if matches!(
+                self.research_states.get(id),
+                Some(ResearchNodeState::Developed)
+            ) {
+                continue;
+            }
+            let Some(node) = self.index.research_nodes_by_id.get(id) else {
+                continue;
+            };
+            let label = format!("Research: {}", node.name);
+            for req in &node.samples {
+                let entry = totals
+                    .entry(req.item_id.clone())
+                    .or_insert_with(|| (0, Vec::new(), 0));
+                entry.0 += req.quantity;
+                entry.1.push(label.clone());
             }
         }
 
@@ -1128,6 +1329,12 @@ pub struct PersistedState {
     /// is created once on the next launch.
     #[serde(default)]
     pub default_shelf_seeded: bool,
+    /// Recorded research progress. `#[serde(default)]` so a pre-research
+    /// `state.json` loads as "nothing recorded" — same path as `containers`.
+    #[serde(default)]
+    pub research_states: HashMap<ResearchNodeId, ResearchNodeState>,
+    #[serde(default)]
+    pub tracked_research: HashSet<ResearchNodeId>,
 }
 
 impl PersistedState {
@@ -1143,6 +1350,8 @@ impl PersistedState {
             containers: state.containers.clone(),
             next_container_seq: state.next_container_seq,
             default_shelf_seeded: state.default_shelf_seeded,
+            research_states: state.research_states.clone(),
+            tracked_research: state.tracked_research.clone(),
         }
     }
 
@@ -1179,9 +1388,28 @@ impl PersistedState {
             ));
         }
 
+        // Research mirrors the upgrade treatment: warn about dropped tracked
+        // nodes (the user chose those), prune recorded states silently (a
+        // vanished node's state is meaningless, losing it costs nothing).
+        let research_index = &state.index.research_nodes_by_id;
+        let (kept_tracked_research, dropped_research) =
+            filter_known(self.tracked_research, |id| research_index.contains_key(id));
+        if dropped_research > 0 {
+            warnings.push(format!(
+                "Dropped {dropped_research} tracked research node(s) no longer present in data."
+            ));
+        }
+        let kept_research_states: HashMap<ResearchNodeId, ResearchNodeState> = self
+            .research_states
+            .into_iter()
+            .filter(|(id, _)| research_index.contains_key(id))
+            .collect();
+
         state.tracked_upgrades = kept_upgrades;
         state.completed_upgrades = kept_done_upgrades;
         state.pinned_upgrades = kept_pinned_upgrades;
+        state.tracked_research = kept_tracked_research;
+        state.research_states = kept_research_states;
         // Drop disabled-module entries that no longer match any module — keeps
         // the set tidy across data-version bumps that rename modules.
         let known_modules: HashSet<&ModuleId> = state.data.modules.iter().map(|m| &m.id).collect();
@@ -1870,6 +2098,8 @@ mod tests {
             containers: Vec::new(),
             next_container_seq: 0,
             default_shelf_seeded: false,
+            research_states: HashMap::new(),
+            tracked_research: HashSet::new(),
         };
         let warn = persisted.merge_into(&mut s).expect("should warn");
         assert!(warn.contains("Game data updated"));
@@ -2740,6 +2970,8 @@ mod tests {
             containers: Vec::new(),
             next_container_seq: 0,
             default_shelf_seeded: false,
+            research_states: HashMap::new(),
+            tracked_research: HashSet::new(),
         };
         // Pruning an orphaned pin is silent — only dropped *tracked* upgrades warn.
         let warn = persisted.merge_into(&mut s);
@@ -2758,5 +2990,213 @@ mod tests {
         s.set_pinned_upgrade(&"workbench_lv1".to_string(), true);
         s.reset_all();
         assert!(s.pinned_upgrades.is_empty());
+    }
+
+    /// Research fixture: a three-node chain `r1 → r2 → r3` plus `r4` with two
+    /// parents (`r2`, `r3`) — the smallest shape exercising the DAG gating
+    /// (Basic's `c4→a7` / `b3→a8` merges).
+    fn research_fixture() -> Arc<GameData> {
+        use crate::data::{ResearchCategory, ResearchNode};
+        fn ritem(id: &str, name: &str) -> Item {
+            Item {
+                id: id.into(),
+                name: name.into(),
+                icon_path: format!("icons/{id}.png"),
+                category: Some("gunsmith".into()),
+                subcategory: None,
+                weight: None,
+                price: None,
+                rarity: None,
+            }
+        }
+        fn node(
+            id: &str,
+            parents: &[&str],
+            unlocks: &str,
+            samples: &[(&str, u32)],
+        ) -> ResearchNode {
+            ResearchNode {
+                id: id.into(),
+                name: id.to_uppercase(),
+                parents: parents.iter().map(|p| p.to_string()).collect(),
+                unlocks_item_id: unlocks.into(),
+                samples: samples
+                    .iter()
+                    .map(|&(i, q)| Requirement {
+                        item_id: i.into(),
+                        quantity: q,
+                    })
+                    .collect(),
+            }
+        }
+        Arc::new(GameData {
+            data_version: "test".into(),
+            scraped_at: "now".into(),
+            source_repo: "test".into(),
+            source_commit: "deadbeef".into(),
+            modules: Vec::new(),
+            items: vec![
+                ritem("part_a", "Part A"),
+                ritem("part_b", "Part B"),
+                ritem("part_c", "Part C"),
+                ritem("part_d", "Part D"),
+                ritem("oil", "Oil"),
+                ritem("tape", "Tape"),
+            ],
+            research: vec![ResearchCategory {
+                id: "basic".into(),
+                name: "Basic Research".into(),
+                merchant: "Neumann".into(),
+                nodes: vec![
+                    node("r1", &[], "part_a", &[("oil", 2)]),
+                    node("r2", &["r1"], "part_b", &[("tape", 3), ("oil", 1)]),
+                    node("r3", &["r1"], "part_c", &[("tape", 1)]),
+                    node("r4", &["r2", "r3"], "part_d", &[("oil", 4)]),
+                ],
+            }],
+        })
+    }
+
+    #[test]
+    fn research_status_derives_locked_and_available_from_parents() {
+        let mut s = AppState::new(research_fixture());
+        let (r1, r2) = ("r1".to_string(), "r2".to_string());
+        assert_eq!(s.research_status(&r1), ResearchStatus::Available);
+        assert_eq!(s.research_status(&r2), ResearchStatus::Locked);
+
+        s.set_research_state(&r1, Some(ResearchNodeState::InProgress));
+        assert_eq!(s.research_status(&r1), ResearchStatus::InProgress);
+        assert_eq!(
+            s.research_status(&r2),
+            ResearchStatus::Locked,
+            "in-progress parent doesn't unlock the child"
+        );
+
+        s.set_research_state(&r1, Some(ResearchNodeState::Developed));
+        assert_eq!(s.research_status(&r1), ResearchStatus::Developed);
+        assert_eq!(s.research_status(&r2), ResearchStatus::Available);
+
+        assert_eq!(
+            s.research_status(&"ghost".to_string()),
+            ResearchStatus::Locked,
+            "unknown ids read as locked"
+        );
+    }
+
+    #[test]
+    fn developing_auto_tracks_only_fully_unlocked_children() {
+        let mut s = AppState::new(research_fixture());
+        let (r1, r2, r3, r4) = (
+            "r1".to_string(),
+            "r2".to_string(),
+            "r3".to_string(),
+            "r4".to_string(),
+        );
+        s.set_tracked_research(&r1, true);
+
+        s.set_research_state(&r1, Some(ResearchNodeState::Developed));
+        assert!(
+            !s.tracked_research.contains(&r1),
+            "developing removes the node from the wishlist"
+        );
+        assert!(
+            s.tracked_research.contains(&r2) && s.tracked_research.contains(&r3),
+            "both children unlocked by r1 get auto-tracked"
+        );
+        assert!(
+            !s.tracked_research.contains(&r4),
+            "r4 still has an undeveloped parent (r3) — not tracked yet"
+        );
+
+        s.set_research_state(&r2, Some(ResearchNodeState::Developed));
+        assert!(
+            !s.tracked_research.contains(&r4),
+            "r4 still gated by r3 after r2 develops"
+        );
+        s.set_research_state(&r3, Some(ResearchNodeState::Developed));
+        assert!(
+            s.tracked_research.contains(&r4),
+            "last parent developing pulls r4 onto the wishlist"
+        );
+    }
+
+    #[test]
+    fn developing_leaves_existing_user_choices_alone() {
+        let mut s = AppState::new(research_fixture());
+        let (r1, r2, r3) = ("r1".to_string(), "r2".to_string(), "r3".to_string());
+        // r2 already recorded by the user (skipped ahead), r3 untouched.
+        s.set_research_state(&r2, Some(ResearchNodeState::Developed));
+        s.set_research_state(&r1, Some(ResearchNodeState::Developed));
+        assert!(
+            !s.tracked_research.contains(&r2),
+            "a child with its own recorded state is not re-tracked"
+        );
+        assert!(s.tracked_research.contains(&r3));
+    }
+
+    #[test]
+    fn active_items_includes_tracked_research_until_developed() {
+        let mut s = AppState::new(research_fixture());
+        let r2 = "r2".to_string();
+        s.set_tracked_research(&r2, true);
+
+        let items = s.active_items();
+        let tape = items.iter().find(|i| i.item_id == "tape").expect("tape");
+        assert_eq!(tape.needed, 3);
+        assert_eq!(tape.sources, vec!["Research: R2".to_string()]);
+        assert!(
+            items.iter().any(|i| i.item_id == "oil"),
+            "locked-but-tracked nodes still contribute (samples are lootable early)"
+        );
+
+        s.set_research_state(&r2, Some(ResearchNodeState::Developed));
+        assert!(
+            s.active_items().is_empty(),
+            "developing untracks the node, so nothing contributes"
+        );
+    }
+
+    #[test]
+    fn complete_research_consuming_drains_inventory() {
+        let mut s = AppState::new(research_fixture());
+        let r1 = "r1".to_string();
+        s.set_collected(&"oil".to_string(), 3);
+        assert!(s.can_consume_research_samples(&r1));
+        s.complete_research(&r1, true);
+        assert_eq!(*s.collected.get("oil").unwrap(), 1, "r1 burned oil×2");
+        assert_eq!(s.research_status(&r1), ResearchStatus::Developed);
+
+        // Skip path leaves the inventory untouched.
+        let r3 = "r3".to_string();
+        s.set_collected(&"tape".to_string(), 5);
+        s.complete_research(&r3, false);
+        assert_eq!(*s.collected.get("tape").unwrap(), 5);
+    }
+
+    #[test]
+    fn research_persists_and_prunes_unknown_ids() {
+        let mut s = AppState::new(research_fixture());
+        s.set_research_state(&"r1".to_string(), Some(ResearchNodeState::Developed));
+        s.set_tracked_research(&"r4".to_string(), true);
+        let persisted = PersistedState::from_app(&s);
+
+        // Round-trip into a fresh state over the same data: everything kept.
+        let mut fresh = AppState::new(research_fixture());
+        let warn = persisted.merge_into(&mut fresh);
+        assert!(warn.is_none());
+        assert_eq!(
+            fresh.research_status(&"r1".to_string()),
+            ResearchStatus::Developed
+        );
+        assert!(fresh.tracked_research.contains("r4"));
+
+        // Merging into a dataset without those nodes prunes: tracked warns,
+        // recorded states drop silently.
+        let persisted = PersistedState::from_app(&s);
+        let mut other = AppState::new(fixture());
+        let warn = persisted.merge_into(&mut other).expect("should warn");
+        assert!(warn.contains("tracked research node"));
+        assert!(other.tracked_research.is_empty());
+        assert!(other.research_states.is_empty());
     }
 }
