@@ -1035,7 +1035,7 @@ pub fn format_capture_dump(
 }
 
 /// OCR one box-screen screenshot into a [`BoxReadResult`]. Windows-only — runs
-/// Windows.Media.Ocr, then hands the word boxes to the platform-independent
+/// the OCR engine, then hands the word boxes to the platform-independent
 /// [`read_tiles`].
 #[cfg(target_os = "windows")]
 pub fn process_box_image(
@@ -1061,7 +1061,7 @@ pub fn process_box_image(
     Ok(read_tiles(&boxes, img_h as f32, data))
 }
 
-/// Non-Windows stub: Windows.Media.Ocr is unavailable, so there's nothing to
+/// Non-Windows stub: the OCR engine is Windows-only, so there's nothing to
 /// read. Mirrors [`crate::ocr::pipeline::process_image`]'s stub.
 #[cfg(not(target_os = "windows"))]
 pub fn process_box_image(
@@ -1141,12 +1141,14 @@ pub(crate) mod tests {
     // Native-capture regression fixtures (`screenshots/box/`, `screenshots/stash/`).
     //
     // Real box-screen captures keep getting flushed from the debug dir, so we
-    // freeze each one's Windows.Media.Ocr output (the word boxes) to JSON next
-    // to its PNG. `read_tiles` + `merge_capture` are pure and platform-independent,
-    // so these fixtures let us regression-test the whole post-OCR pipeline on every
-    // target (incl. Linux CI) without re-running the Windows-only, slightly
-    // nondeterministic engine. The PNGs are the ground truth; the `.boxes.json`
-    // are regenerated from them by `regen_box_fixtures` (Windows, --ignored).
+    // freeze each one's OCR-engine output (the word boxes; PP-OCRv4 since
+    // #181) to JSON next to its PNG. `read_tiles` + `merge_capture` are pure
+    // and platform-independent, so these fixtures let us regression-test the
+    // whole post-OCR pipeline on every target (incl. Linux CI) without
+    // re-running the Windows-only engine. The PNGs are the ground truth; the
+    // `.boxes.json` are regenerated from them by `regen_box_fixtures`
+    // (Windows, --ignored) — required after ANY engine change, or the replay
+    // silently keeps scoring the old engine.
     //
     // Expected results live in `<scan>.label.txt` (`<item_id>  <count>` lines).
     // The `box` scan passes. The `stash` scan stays `#[ignore]`d: its 38-shot

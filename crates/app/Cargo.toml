@@ -1,6 +1,6 @@
 [package]
 name = "ez-wishlist-overlay"
-version = "0.6.2"
+version = "0.6.3"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
@@ -93,6 +93,21 @@ windows = { version = "0.58", features = [
     "Storage",
     "Storage_Streams",
 ] }
+# ONNX Runtime bindings for the PP-OCRv4 engine (crates/app/src/ocr/engine_ppocr.rs,
+# issue #181) — det/rec models are embedded from src/assets/ocr/. CPU execution
+# provider only (no GPU/NPU requirement); rc.10 is the last release supporting
+# our rust-version 1.85.
+#
+# `load-dynamic` instead of the default static link: pyke's prebuilt static
+# libs are /MD while our `.cargo/config.toml` builds the app `+crt-static`
+# (no-VCRedist promise) — the CRT mismatch leaves ~65 unresolved externals.
+# Instead the app embeds Microsoft's official onnxruntime.dll (MIT, same
+# 1.24.2 the pyke binaries repackage) and extracts it to the app data dir at
+# first engine init, keeping the portable single-exe story intact.
+# `=` pin: plain semver `2.0.0-rc.10` happily resolves to rc.12+, which needs
+# rustc 1.88 (> our 1.85 floor) and whose minimal load-dynamic bindings don't
+# compile.
+ort = { version = "=2.0.0-rc.10", default-features = false, features = ["load-dynamic", "std"] }
 
 # Headless GUI tests for the egui panes — widget interaction (click a button,
 # assert the resulting state change) and theme-readability contrast checks.
@@ -105,6 +120,10 @@ egui_kittest = "0.30"
 
 [features]
 default = []
+# A/B fallback: build with the legacy Windows.Media.Ocr engine instead of the
+# PP-OCR ONNX engine (issue #181). Off by default; remove once the PP-OCR
+# migration has soaked in the field.
+ocr-winrt = []
 
 # Convenience for `cargo wix` invoked locally without extra flags. The wxs
 # uses <UIRef Id='WixUI_InstallDir'/>, which lives in WixUIExtension.
