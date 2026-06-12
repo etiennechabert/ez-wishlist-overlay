@@ -158,10 +158,7 @@ pub fn recognize_image(img: &DynamicImage) -> Result<Vec<OcrWord>> {
             det_input,
         ))
         .context("det input tensor")?;
-        let outputs = eng
-            .det
-            .run(ort::inputs!["x" => input])
-            .context("det run")?;
+        let outputs = eng.det.run(ort::inputs!["x" => input]).context("det run")?;
         let (shape, data) = outputs[0]
             .try_extract_tensor::<f32>()
             .context("det output")?;
@@ -186,7 +183,13 @@ pub fn recognize_image(img: &DynamicImage) -> Result<Vec<OcrWord>> {
         let Some(line) = recognize_line(&mut eng, &crop)? else {
             continue;
         };
-        words.extend(split_words(&line, x0 as f32, y0 as f32, (x1 - x0) as f32, (y1 - y0) as f32));
+        words.extend(split_words(
+            &line,
+            x0 as f32,
+            y0 as f32,
+            (x1 - x0) as f32,
+            (y1 - y0) as f32,
+        ));
     }
 
     // Reading order: top-to-bottom, left-to-right — matches the order the
@@ -394,15 +397,10 @@ fn recognize_line(eng: &mut Engine, crop: &RgbImage) -> Result<Option<RecLine>> 
         chw[2 * n + i] = r as f32 / 127.5 - 1.0;
     }
 
-    let input = ort::value::Tensor::from_array((
-        [1usize, 3, REC_H as usize, padded_w as usize],
-        chw,
-    ))
-    .context("rec input tensor")?;
-    let outputs = eng
-        .rec
-        .run(ort::inputs!["x" => input])
-        .context("rec run")?;
+    let input =
+        ort::value::Tensor::from_array(([1usize, 3, REC_H as usize, padded_w as usize], chw))
+            .context("rec input tensor")?;
+    let outputs = eng.rec.run(ort::inputs!["x" => input]).context("rec run")?;
     let (shape, data) = outputs[0]
         .try_extract_tensor::<f32>()
         .context("rec output")?;
