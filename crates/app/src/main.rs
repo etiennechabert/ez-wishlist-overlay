@@ -174,8 +174,8 @@ fn main() -> Result<()> {
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title("EZ Wishlist Overlay")
-            .with_inner_size([1200.0, 800.0])
-            .with_min_inner_size([800.0, 600.0])
+            .with_inner_size(gui::DEFAULT_INNER_SIZE)
+            .with_min_inner_size(gui::MIN_INNER_SIZE)
             .with_icon(load_window_icon()),
         persist_window: true,
         ..Default::default()
