@@ -6,9 +6,9 @@
 
 <p align="center">
   A free desktop + SteamVR companion for <strong>Contractors Showdown: ExfilZone</strong>.<br>
-  Pick the hideout upgrades you're working toward, and it builds one combined<br>
-  shopping list of every item you still need — on your monitor <em>and</em> floating in VR.<br>
-  Peek at an upgrade panel in-game, tap a key, and it reads your progress straight off the screen.
+  Pick the hideout upgrades and research blueprints you're working toward, and it builds one<br>
+  combined shopping list of every item you still need — on your monitor <em>and</em> floating in VR.<br>
+  Peek at an upgrade panel or storage screen in-game and it reads your progress straight off the screen.
 </p>
 
 <p align="center">
@@ -28,14 +28,14 @@
 
 ## Why you'd want it
 
-ExfilZone's hideout upgrades each ask for a pile of specific barter items. When you're saving for more than a couple at once, it's hard to remember *what* to pick up and *how many* — so you either over-loot junk or extract without the one thing you needed.
+ExfilZone's hideout upgrades each ask for a pile of specific barter items — and the gunsmith's research tree wants raid-found gun parts and tools on top. When you're saving for more than a couple of goals at once, it's hard to remember *what* to pick up and *how many* — so you either over-loot junk or extract without the one thing you needed.
 
 EZ Wishlist Overlay keeps that list for you:
 
-- **Pick your goals** — check off the hideout upgrades you're chasing.
+- **Pick your goals** — check off the hideout upgrades and research blueprints you're chasing.
 - **Get one combined list** — every required item, de-duplicated and summed across all of them, with a `have / need` count.
 - **Check it anywhere** — on your desktop while planning, or floating above you in VR while you loot.
-- **Stop counting by hand** — open an upgrade panel in-game, press a key, and the app reads your owned counts off the screen and fills them in.
+- **Stop counting by hand** — point the app at an upgrade panel or a storage screen in-game and it reads the counts off the screen and fills them in.
 
 ---
 
@@ -49,21 +49,29 @@ The **Hideout** tab lists every facility module, grouped the way the in-game Fac
   <img src="docs/images/desktop-hideout.png" alt="Hideout tab" width="820">
 </p>
 
+### 🔬 Track merchant research
+
+Neumann's **RESEARCH** pad gates weapon-attachment blueprints behind a tree of research nodes, each demanding a handful of sample items — gun parts and tools, every one **found in raid**. The **Research** tab mirrors that tree, using the game's own state labels (*Unknown Blueprint*, *Ready For Research*, *Need Research Samples*, *Developed*) so it reads like the in-game pad. Click a node to see what it unlocks and which samples it needs with live `have / need` counts, and tick **Track samples on wishlist** to fold them into the same combined list as your hideout goals — worth doing early, since deeper nodes reuse parts unlocked higher up the tree. Marking a node *Developed* lines up its newly unlocked children automatically.
+
+<p align="center">
+  <img src="docs/images/desktop-research.png" alt="Research tab" width="820">
+</p>
+
 ### 🧾 One combined wishlist
 
-The preview pane on the right is the heart of it: every item across all the upgrades you're tracking, summed together, shown as `collected / needed` with a progress bar and the list of upgrades asking for it. Nudge counts up and down with the `+ / −` buttons, or type an exact number to seed it from what's already in your stash. Pinned upgrades push their items to the front here and in the headset, and a **Sort** switch can reorder this desktop list by what's most remaining or most valuable — the VR overlay keeps its own steady order so it never reshuffles mid-raid.
+The preview pane on the right is the heart of it: every item across all the upgrades and research nodes you're tracking, summed together, shown as `collected / needed` with a progress bar and the list of goals asking for it. Nudge counts up and down with the `+ / −` buttons, or type an exact number to seed it from what's already in your stash. Pinned upgrades push their items to the front here and in the headset, and a **Sort** switch can reorder this desktop list by what's most remaining or most valuable — the VR overlay keeps its own steady order so it never reshuffles mid-raid.
 
 ### 🗃️ Track items across your containers
 
 Your barter items aren't all in one place — some sit in your main stash, others in item cases, on hideout shelves, or in a backpack. The **Containers** tab lets you model that. Your **stash** is pinned at the top as primary storage, and below it you can add secondary containers grouped by type — **Cases**, **Shelves**, and **Bags** — each with a name and an icon. Every container's contents count toward your owned totals exactly like the stash, so stashing three bolts in a case and four in your stash still flips an upgrade that needs seven to *ready*.
 
-For containers that have an in-game contents screen — the **Cases** — you don't have to type it all in. Hit **Scan from screen**, open the case in-game, and just **scroll slowly**: it captures automatically as new rows come into view and merges the overlapping shots into one list (or press **SPACE** to grab a shot by hand). A centered window shows the running tally live with an **Auto-capture** toggle, and **Finish & review** opens a before/after diff (new, changed, and removed items) — alongside the rows it actually read, so you can drop any that look wrong — before you commit. Applying a scan **replaces** that container's contents with what was read — the review step spells that out up front.
+For storage that has an in-game contents screen — your **stash** and the **Cases** — you don't have to type it all in. Hit **Scan from screen**, open the matching screen in-game, and just **scroll slowly**: it captures automatically as new rows come into view and merges the overlapping shots into one list (or press **SPACE** to grab a shot by hand). A centered window shows the running tally live with an **Auto-capture** toggle, and **Finish & review** opens a before/after diff (new, changed, and removed items) — alongside the rows it actually read, so you can drop any that look wrong — before you commit. Applying a scan **replaces** that container's contents with what was read — the review step spells that out up front.
 
 <!-- TODO: add docs/images/desktop-containers.png — a real-data capture of the Containers tab showing the Primary storage / Cases / Shelves / Bags sections — then reference it here like the other feature sections. -->
 
 ### 📦 Items database & stash value
 
-The **Items DB** tab is a sortable, filterable catalog of the barter items hideout upgrades ask for. Because the *quantity* column is the same count the rest of the app tracks, sorting by **Total Value** turns it into a quick "what's my stash actually worth" view. Flip on **tracked only** to narrow it to items you currently need.
+The **Items DB** tab is a sortable, filterable catalog of every item the hideout upgrades and research nodes ask for — barter goods and gun parts alike. Because the *quantity* column is the same count the rest of the app tracks, sorting by **Total Value** turns it into a quick "what's my stash actually worth" view. A **Container** picker scopes the list to one storage location, **Tracked only** narrows it to items you currently need, and **Redundant only** flips it around: items you own more of than your upcoming upgrades can use — your sell pile.
 
 <p align="center">
   <img src="docs/images/desktop-items-db.png" alt="Items DB tab" width="820">
@@ -85,6 +93,8 @@ Point a controller at an item in the overlay and pull the trigger to bump its co
 
 This is the time-saver. Open an upgrade's **Facility Upgrade** panel in-game, and with the desktop window focused press **SPACE**. The app captures what SteamVR is showing, recognizes which upgrade panel it is, reads the owned-count for every required item, and writes those numbers straight into your wishlist — no manual counting. A card pops up in the headset showing exactly what changed. By default it also auto-tracks that upgrade and marks the lower levels done.
 
+You don't even need to reach for the keyboard: hit **Scan from screen** in the top bar before putting the headset on, and a capture frame appears in-headset — line it up over an upgrade panel and **pull the trigger** to scan, as many panels as you like, entirely from inside VR.
+
 <p align="center">
   <img src="docs/images/ocr-feedback.jpg" alt="In-headset OCR feedback card on the Facility Upgrade panel" width="760">
 </p>
@@ -93,7 +103,7 @@ This is the time-saver. Open an upgrade's **Facility Upgrade** panel in-game, an
 
 ### ⚙️ Tune it to your setup
 
-A **Settings** dialog covers the things worth adjusting: Dark / Light / System theme, the VR overlay's size and how far up you have to look before it appears, the OCR options (capture eye, how long the feedback card lingers, auto-track on/off), and an "open data folder" shortcut. Sensible defaults mean you can ignore all of it if you'd rather.
+A **Settings** dialog covers the things worth adjusting: Dark / Light / System theme with two colorblind-friendly accent palettes (Okabe-Ito and IBM), the VR overlay's size, grid shape, item cap, and how far up you have to look before it appears, and the capture options — which eye and which controller's trigger, the in-headset capture guide box, the feedback card's style (card, mini-grid, or off) and how long it lingers, auto-track on/off, and a debug-artifacts toggle for bug reports. Plus "open data folder" shortcuts. Sensible defaults mean you can ignore all of it if you'd rather.
 
 <p align="center">
   <img src="docs/images/settings.png" alt="Settings dialog" width="380">
@@ -102,7 +112,7 @@ A **Settings** dialog covers the things worth adjusting: Dark / Light / System t
 ### …and a few niceties
 
 - **Works offline.** All game data is baked into the app — no servers, no accounts. The only network call is an optional once-per-launch update check, which you can turn off.
-- **Tells you when there's an update.** A quiet banner appears when a newer release is out, with a download link; dismiss it and it won't nag until the *next* version.
+- **Tells you when there's an update — and installs it.** A quiet banner appears when a newer release is out; on installed (MSI) builds, **Update now** downloads, verifies, and applies it in place, while portable builds get a download link. Dismiss it and it won't nag until the *next* version.
 - **Help fix the data.** If an upgrade's recipe is wrong, edit it locally and hit **Export corrections** to get a ready-to-paste GitHub issue so the fix can ship to everyone.
 
 ---
@@ -136,7 +146,7 @@ The screenshot/OCR feature works the same way: it asks SteamVR for its **composi
 
 ## Credits & data
 
-Hideout and item data come from [**ExfilZone Assistant**](https://www.exfil-zone-assistant.app/) by [pogapwnz](https://ko-fi.com/J3J41GATK0), used under the MIT license (bundled at [`LICENSES/exfil-zone-assistant-MIT.txt`](./LICENSES/exfil-zone-assistant-MIT.txt)). It's an excellent companion that covers far more than the hideout data we use — combat simulators, weapon databases, quest guides, maps, and more — so if this app is useful to you, go check theirs out too.
+The hideout and item catalog was bootstrapped from [**ExfilZone Assistant**](https://www.exfil-zone-assistant.app/) by [pogapwnz](https://ko-fi.com/J3J41GATK0), used under the MIT license (bundled at [`LICENSES/exfil-zone-assistant-MIT.txt`](./LICENSES/exfil-zone-assistant-MIT.txt)). It's an excellent companion that covers far more than the hideout data we use — combat simulators, weapon databases, quest guides, maps, and more — so if this app is useful to you, go check theirs out too. The merchant research data is our own, hand-verified against the in-game panes.
 
 Game content © Caveman Studio. EZ Wishlist Overlay is an unofficial, fan-made tool and isn't affiliated with or endorsed by Caveman Studio.
 
