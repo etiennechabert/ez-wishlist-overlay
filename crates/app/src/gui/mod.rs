@@ -27,6 +27,16 @@ use std::time::Instant;
 
 pub use icon_cache::IconCache;
 
+/// Desktop window size requested on a fresh launch, and what
+/// [`window_geometry_rescue`] snaps a corrupt restored geometry back to.
+/// Single source for `main.rs`'s `ViewportBuilder` and the startup guard.
+pub const DEFAULT_INNER_SIZE: egui::Vec2 = egui::vec2(1200.0, 800.0);
+
+/// Smallest inner size the user can reach by resizing (the
+/// `with_min_inner_size` bound in `main.rs`). A restored window meaningfully
+/// below this can only come from corrupt persisted geometry.
+pub const MIN_INNER_SIZE: egui::Vec2 = egui::vec2(800.0, 600.0);
+
 /// Cross-thread message: "user changed state at this version, persist soon".
 #[derive(Clone, Copy, Debug)]
 pub struct SaveTick {
@@ -122,11 +132,11 @@ pub struct App {
     /// updates into it each frame.
     box_scan: Option<containers_pane::BoxScanUi>,
     /// One-shot guard flag: has the startup window-geometry sanity check run?
-    /// `eframe`'s `persist_window` can restore an unusable geometry (e.g. a
-    /// window sized across two monitors, saved while maximized on a
-    /// multi-monitor rig) that comes up blank on some GPU/driver combos and
-    /// reads as "the app won't start". Checked once on the first frame that
-    /// has viewport info; see [`App::guard_window_geometry`].
+    /// `eframe`'s `persist_window` can restore an unusable geometry — a
+    /// window sized across two monitors that comes up blank, or a ~64-pt
+    /// sliver in the top-left corner left behind by a save that happened
+    /// while the window was minimized. Checked once on the first frame that
+    /// has viewport info; see [`window_geometry_rescue`].
     window_geometry_checked: bool,
 }
 
@@ -223,14 +233,10 @@ impl App {
         }
     }
 
-    /// One-shot startup guard against an unusable restored window geometry.
-    /// `eframe`'s `persist_window` faithfully restores whatever size/position
-    /// was saved last — including a window sized across *two* monitors (saved
-    /// while maximized on a multi-monitor rig). On some GPU/driver combos such
-    /// a window comes up blank, so the app looks like it "won't start" when in
-    /// fact only the desktop window is unusable. If the restored window is
-    /// larger than the monitor it's on (i.e. it spans beyond one screen), snap
-    /// it back to a sane default near the top-left so it's visible again.
+    /// One-shot startup guard against an unusable restored window geometry —
+    /// `eframe`'s `persist_window` faithfully restores whatever was saved
+    /// last, including corrupt shapes. See [`window_geometry_rescue`] for the
+    /// failure modes and the rescue decision.
     ///
     /// Returns `true` once it had viewport info to evaluate (so the caller
     /// stops re-checking); `false` on the first frame(s) before eframe has
@@ -243,28 +249,64 @@ impl App {
         let (Some(outer), Some(monitor)) = (outer, monitor) else {
             return false;
         };
-        // Slop covers a normal maximized window, whose borders sit a few px
-        // past each monitor edge — that must not trip the guard.
-        const SLOP: f32 = 16.0;
-        let spans_beyond_monitor =
-            outer.width() > monitor.x + SLOP || outer.height() > monitor.y + SLOP;
-        if spans_beyond_monitor {
-            let size = egui::vec2(
-                1200.0_f32.min(monitor.x - 80.0),
-                800.0_f32.min(monitor.y - 80.0),
-            );
+        if let Some((size, pos)) = window_geometry_rescue(outer, monitor) {
             tracing::warn!(
                 restored_w = outer.width(),
                 restored_h = outer.height(),
                 monitor_w = monitor.x,
                 monitor_h = monitor.y,
-                "restored window spans beyond the current monitor; resetting to a visible default"
+                "restored window geometry is unusable (spans monitors or below minimum size); \
+                 resetting to a visible default"
             );
             ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(size));
-            ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(egui::pos2(40.0, 40.0)));
+            ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(pos));
         }
         true
     }
+}
+
+/// Decide whether a restored window geometry needs rescuing and to what
+/// (inner size, outer position), or `None` when it is usable. Pure so the
+/// decision can be unit-tested; [`App::guard_window_geometry`] applies it.
+///
+/// Two corruption modes, both shapes a user cannot reach by resizing:
+/// - **Spans beyond the monitor** — saved while stretched across two monitors;
+///   on some GPU/driver combos such a window comes up blank.
+/// - **Far below the minimum size** — saved while the window was *minimized*:
+///   Windows parks minimized windows at (-32000,-32000) with a near-zero
+///   rect, eframe persists that as-is (it has no minimized check), and the
+///   next launch clamps it back on-screen as a ~64-pt sliver flush at the
+///   monitor's top-left corner. The `with_min_inner_size` bound doesn't
+///   prevent this: Windows enforces the minimum only for interactive
+///   resizes, not at window creation.
+///
+/// Position-only oddities (a normal-sized window parked at (0,0)) are left
+/// alone — snap layouts legitimately produce those.
+fn window_geometry_rescue(
+    outer: egui::Rect,
+    monitor: egui::Vec2,
+) -> Option<(egui::Vec2, egui::Pos2)> {
+    // Slop covers a normal maximized window, whose borders sit a few px
+    // past each monitor edge — that must not trip the guard.
+    const SLOP: f32 = 16.0;
+    let spans_beyond_monitor =
+        outer.width() > monitor.x + SLOP || outer.height() > monitor.y + SLOP;
+    // Half the enforced minimum, not the minimum itself: these rects are in
+    // current egui points, which shrink when the user zooms in (Ctrl+'+'),
+    // while the OS-enforced minimum is fixed at creation. Halving keeps a
+    // zoomed-in window sitting at the legitimate minimum from tripping the
+    // guard (safe up to 2× zoom) while still catching the corrupt restore,
+    // whose sliver is ~64 pt.
+    let below_min_size =
+        outer.width() < MIN_INNER_SIZE.x * 0.5 || outer.height() < MIN_INNER_SIZE.y * 0.5;
+    if !(spans_beyond_monitor || below_min_size) {
+        return None;
+    }
+    let size = egui::vec2(
+        DEFAULT_INNER_SIZE.x.min(monitor.x - 80.0),
+        DEFAULT_INNER_SIZE.y.min(monitor.y - 80.0),
+    );
+    Some((size, egui::pos2(40.0, 40.0)))
 }
 
 impl eframe::App for App {
@@ -1022,5 +1064,80 @@ impl App {
                     }
                 });
             });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 2560×1440 at 125% scale, in egui points.
+    const MONITOR: egui::Vec2 = egui::vec2(2048.0, 1152.0);
+
+    fn outer(x: f32, y: f32, w: f32, h: f32) -> egui::Rect {
+        egui::Rect::from_min_size(egui::pos2(x, y), egui::vec2(w, h))
+    }
+
+    fn rescued_default() -> Option<(egui::Vec2, egui::Pos2)> {
+        Some((DEFAULT_INNER_SIZE, egui::pos2(40.0, 40.0)))
+    }
+
+    #[test]
+    fn normal_geometry_is_left_alone() {
+        let got = window_geometry_rescue(outer(300.0, 200.0, 1200.0, 800.0), MONITOR);
+        assert_eq!(got, None);
+    }
+
+    #[test]
+    fn maximized_overhang_is_left_alone() {
+        // Maximized windows overhang each monitor edge by a few px of border;
+        // that must stay inside the spans-beyond slop.
+        let got = window_geometry_rescue(
+            outer(-8.0, -8.0, MONITOR.x + 16.0, MONITOR.y + 16.0),
+            MONITOR,
+        );
+        assert_eq!(got, None);
+    }
+
+    #[test]
+    fn corner_parked_window_is_left_alone() {
+        // Position alone is never treated as corrupt — snap layouts (and a
+        // prior rescue's clamp fossil) legitimately park windows at (0,0).
+        let got = window_geometry_rescue(outer(0.0, 0.0, 1722.0, 905.0), MONITOR);
+        assert_eq!(got, None);
+    }
+
+    #[test]
+    fn min_size_window_under_zoom_is_left_alone() {
+        // A window at the legitimate 800×600 minimum reads ~533×400 points
+        // when the user zooms in 1.5× — the half-minimum threshold must not
+        // mistake it for the corrupt sliver.
+        let got = window_geometry_rescue(outer(100.0, 100.0, 533.0, 400.0), MONITOR);
+        assert_eq!(got, None);
+    }
+
+    #[test]
+    fn two_monitor_span_is_rescued() {
+        let got = window_geometry_rescue(outer(0.0, 0.0, 2.0 * MONITOR.x, MONITOR.y), MONITOR);
+        assert_eq!(got, rescued_default());
+    }
+
+    #[test]
+    fn minimized_save_sliver_is_rescued() {
+        // The shape a saved-while-minimized session restores to: egui-winit
+        // floors the persisted size at 64×64 points and clamps the off-screen
+        // (-32000,-32000) position to the monitor's top-left corner.
+        let got = window_geometry_rescue(outer(0.0, 0.0, 80.0, 110.0), MONITOR);
+        assert_eq!(got, rescued_default());
+    }
+
+    #[test]
+    fn rescue_size_fits_small_monitors() {
+        let small = egui::vec2(1024.0, 768.0);
+        let got = window_geometry_rescue(outer(0.0, 0.0, 64.0, 64.0), small);
+        assert_eq!(
+            got,
+            Some((egui::vec2(944.0, 688.0), egui::pos2(40.0, 40.0)))
+        );
     }
 }
