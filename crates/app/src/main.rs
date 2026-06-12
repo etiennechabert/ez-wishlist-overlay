@@ -120,6 +120,16 @@ fn main() -> Result<()> {
         tracing::info!("seeded built-in default Shelf");
     }
 
+    // Seed the built-in Gunsmith storage the same way — a *primary* container
+    // like the stash (the game gives every player exactly one, capped at
+    // 30 kg), pinned in the Containers tab and ready to scan.
+    if app_state.seed_gunsmith_storage() {
+        if let Err(e) = persist::save(&paths, &app_state) {
+            tracing::warn!(error = %e, "failed to persist seeded Gunsmith storage");
+        }
+        tracing::info!("seeded built-in Gunsmith storage");
+    }
+
     let shared_state = Arc::new(RwLock::new(app_state));
     let (save_tx, save_rx) = crossbeam_channel::unbounded::<gui::SaveTick>();
     let _save_handle = save_loop::spawn(shared_state.clone(), paths.clone(), save_rx);
