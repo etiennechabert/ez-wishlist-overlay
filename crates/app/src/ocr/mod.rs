@@ -83,6 +83,13 @@ pub struct OcrJob {
     /// skips a PNG encode (~3.7 s) and a decode (~1 s) when
     /// `ocr_debug` is off.
     pub image: image::DynamicImage,
+    /// Additional burst-round frames of the *same shot* (issue #165),
+    /// grabbed ~100 ms after [`image`](Self::image), identically cropped.
+    /// Non-empty only for box-scan jobs when the user raised the OCR-rounds
+    /// setting; the worker OCRs each round independently and unions the
+    /// reads at the row level before merging the shot into the scan.
+    /// Always empty for upgrade-panel jobs.
+    pub extra_rounds: Vec<image::DynamicImage>,
     /// Where the source PNG was saved on disk. `Some(path)` when
     /// `ocr_debug` is on (the user wants the screenshot retained
     /// for GitHub bug reports); `None` in the fast path — there is
