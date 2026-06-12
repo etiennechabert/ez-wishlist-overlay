@@ -36,6 +36,7 @@ EZ Wishlist Overlay keeps that list for you:
 - **Get one combined list** — every required item, de-duplicated and summed across all of them, with a `have / need` count.
 - **Check it anywhere** — on your desktop while planning, or floating above you in VR while you loot.
 - **Stop counting by hand** — point the app at an upgrade panel or a storage screen in-game and it reads the counts off the screen and fills them in.
+- **Keep the gun-parts storage under its cap** — scan the gunsmith's 30 kg storage and see exactly what's inside, what it weighs, and how close you are to the limit.
 
 ---
 
@@ -67,7 +68,11 @@ Your barter items aren't all in one place — some sit in your main stash, other
 
 For storage that has an in-game contents screen — your **stash** and the **Cases** — you don't have to type it all in. Hit **Scan from screen**, open the matching screen in-game, and just **scroll slowly**: it captures automatically as new rows come into view and merges the overlapping shots into one list (or press **SPACE** to grab a shot by hand). A centered window shows the running tally live with an **Auto-capture** toggle, and **Finish & review** opens a before/after diff (new, changed, and removed items) — alongside the rows it actually read, so you can drop any that look wrong — before you commit. Applying a scan **replaces** that container's contents with what was read — the review step spells that out up front.
 
-<!-- TODO: add docs/images/desktop-containers.png — a real-data capture of the Containers tab showing the Primary storage / Cases / Shelves / Bags sections — then reference it here like the other feature sections. -->
+Containers can also carry a **weight cap**. The gunsmith's **Storage** terminal — where your raid-found gun parts pile up — is the reason this exists: it holds **30 kg**, can't be sorted, and the in-game screen never totals what's inside. Create a Case with the *Gunsmith storage* icon, set *Max weight* to 30, scan the screen, and the table answers everything at a glance: what's in there, what it's worth, and `27.74 / 30 kg` against the cap — turning **amber** as you close in on it and **red** if your recorded counts ever drift past it. The catalog knows the real weight of nearly every gun part (and every barter item), so the sum is the game's own math. The junk-box Collection Cases cap at 30 kg too — the same field works for them.
+
+<p align="center">
+  <img src="docs/images/desktop-containers.png" alt="Containers tab — the gunsmith storage at 27.74 / 30 kg against its weight cap" width="820">
+</p>
 
 ### 📦 Items database & stash value
 
