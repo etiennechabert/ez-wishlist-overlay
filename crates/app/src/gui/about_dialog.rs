@@ -5,7 +5,6 @@ use crate::updater::CheckStatus;
 
 pub fn show(ctx: &egui::Context, open: &mut bool, data: &GameData, check_status: &CheckStatus) {
     let version = env!("CARGO_PKG_VERSION");
-    let commit_short: String = data.source_commit.chars().take(7).collect();
 
     let mut close_now = false;
     egui::Window::new("About EZ Wishlist Overlay")
@@ -16,10 +15,7 @@ pub fn show(ctx: &egui::Context, open: &mut bool, data: &GameData, check_status:
         .show(ctx, |ui| {
             ui.heading(format!("EZ Wishlist Overlay v{version}"));
             release_status(ui, check_status);
-            ui.label(format!(
-                "Data version: {} (synced from upstream {})",
-                data.data_version, commit_short
-            ));
+            ui.label(format!("Data version: {}", data.data_version));
             ui.add_space(8.0);
             ui.label("A free, open-source companion for Contractors Showdown: ExfilZone.");
             ui.label("Tracks hideout upgrades across desktop and VR.");

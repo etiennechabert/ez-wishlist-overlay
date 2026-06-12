@@ -22,9 +22,15 @@ Paks are **pak v11, UNENCRYPTED** (no AES key); file data is **Oodle**-compresse
 - **pakchunk1** — hideout/"Warfare" data:
   - `…/Warfare/FunctionalArea/FunctionalAreaUpgradeDataTable` (+ `_S2`…`_S5`) — **upgrade recipes** (items + counts + cost), per season
   - `FunctionalAreaUpgradeAreaInfo` / `…Struct` — module→area hierarchy + row schema
-  - `…/Warfare/ItemInfoWeight/WarfareItemInfo` — item weights/values
-  - `…/Warfare/ValuableItem/ValuableItem_B_<X>` — 194 item blueprints (== app `misc_b_<x>`)
+  - `…/Warfare/ValuableItem/ValuableItem_B_<X>` — ~160 item blueprints (== app `misc_b_<x>`);
+    each carries the item **weight** + its **icon ref** (see parsing below)
   - `…/Warfare/WFStringTable/WFItemsStringTable` — **item tag → display name**
+  - `…/Warfare/UI/ItemIcons/{MiscIcons,Food_Icons,Backpack_icons,box}/` — per-item
+    **icon textures** (BC7/DXT 128px); `…/Warfare/UI/TextureAtlas/128x/**` — PaperSprite
+    sheets for items without a standalone texture (S4 batch, shop pages)
+  - ⚠️ `…/Warfare/ItemInfoWeight/WarfareItemInfo` is the **UI widget**, not a stats
+    table. **Sell prices are NOT in the paks** — each blueprint's `SellInfo` maps a
+    GUID the **Nakama backend** resolves at runtime; `data.json` prices stay curated.
 - **pakchunk0** — `…/Localization/Game/{en,…}/Game.locres` (UI strings; note the
   misc-item names are NOT here — they're in `WFItemsStringTable`).
 
@@ -46,6 +52,15 @@ Paks are **pak v11, UNENCRYPTED** (no AES key); file data is **Oodle**-compresse
 - **Item bridge:** recipe tag `valuable.x.y` → key `valuable.x.y_name` in
   `WFItemsStringTable` → display name → app item by normalized name.
   App `misc_b_<x>` == game blueprint `ValuableItem_B_<X>`.
+- **Blueprint weight (2026-06-12 re-derivation):** in the `.uexp` tail, the weight
+  is the f32 in `[0.005,60]` followed by 4 zero bytes and a `0x35/0x36` marker
+  byte (after the legacy-name FString + import-pair soup). 141/150 app weights
+  byte-confirmed; 9 oddball blueprints are ambiguous — their curated values kept.
+- **Blueprint icon:** the `.uasset` name table names the icon (`Icon_valuable_*` →
+  `ItemIcons` texture, else a `TextureAtlas/128x` PaperSprite — rect = the four
+  consecutive integer-valued f64s `BakedSourceUV`+`Dimension` in the sprite `.uexp`).
+  All 150 misc icons + 11 backpacks + both junk boxes were re-extracted this way
+  (tooling: `C:\Users\etien\fontx` getpak/tex2png + `gamedata/export_icons.py`).
 
 ### Gotchas
 - Recipes are **seasonal** (`_S2`…`_S5`); `data.json` currently tracks ~**S5**.

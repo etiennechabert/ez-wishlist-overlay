@@ -1,8 +1,8 @@
 {
-  "data_version": "2.0.4+6b0b855",
-  "scraped_at": "2026-05-24T23:47:27.999507Z",
-  "source_repo": "https://github.com/zelengeo/exfil-zone-assistant",
-  "source_commit": "6b0b855985aca75ce0a87a478c355cc2afe2c76f",
+  "data_version": "S5 game files (paks 2026-06-03)",
+  "scraped_at": "2026-06-12T00:00:00Z",
+  "source_repo": "Contractors Showdown game files, Steam app 2719160 (catalog originally bootstrapped from github.com/zelengeo/exfil-zone-assistant; prices remain curated - the game resolves sell prices server-side)",
+  "source_commit": "pakchunk1-Windows.pak 2026-06-03",
   "modules": [
     {
       "id": "Bookcase",
@@ -2099,7 +2099,7 @@
     },
     {
       "id": "misc_b_antiquebook",
-      "name": "Antique book",
+      "name": "Antiquarian Book",
       "icon_path": "icons/misc_b_antiquebook.png",
       "category": "misc",
       "subcategory": "Intel",
@@ -3079,7 +3079,7 @@
     },
     {
       "id": "misc_badge",
-      "name": "Sheriff's Badge",
+      "name": "Badge",
       "icon_path": "icons/misc_badge.png",
       "category": "misc",
       "subcategory": "HighValue",
@@ -3159,7 +3159,7 @@
     },
     {
       "id": "misc_camera",
-      "name": "Vintage Camera",
+      "name": "Camera",
       "icon_path": "icons/misc_camera.png",
       "category": "misc",
       "subcategory": "HighValue",
@@ -3459,7 +3459,7 @@
     },
     {
       "id": "misc_radio",
-      "name": "Portable Radio",
+      "name": "Radio",
       "icon_path": "icons/misc_radio.png",
       "category": "misc",
       "subcategory": "Electric",
@@ -3469,7 +3469,7 @@
     },
     {
       "id": "misc_remote",
-      "name": "Remote Control",
+      "name": "Remote",
       "icon_path": "icons/misc_remote.png",
       "category": "misc",
       "subcategory": "Electric",
