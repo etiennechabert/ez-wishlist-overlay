@@ -202,6 +202,8 @@ pub struct Item {
 pub struct DataIndex {
     pub items_by_id: HashMap<ItemId, Item>,
     pub upgrades_by_id: HashMap<UpgradeId, UpgradeRef>,
+    /// Research nodes across every category, keyed by the game task id.
+    pub research_nodes_by_id: HashMap<ResearchNodeId, ResearchNode>,
 }
 
 #[derive(Clone)]
@@ -234,9 +236,17 @@ impl DataIndex {
             }
         }
 
+        let research_nodes_by_id = data
+            .research
+            .iter()
+            .flat_map(|c| &c.nodes)
+            .map(|n| (n.id.clone(), n.clone()))
+            .collect();
+
         Self {
             items_by_id,
             upgrades_by_id,
+            research_nodes_by_id,
         }
     }
 }
