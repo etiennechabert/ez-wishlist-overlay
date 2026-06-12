@@ -24,10 +24,7 @@
 #   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
   [tabs  ]
     ALL                            -> (no match)
-    Building                       -> (no match)
-    Combustible                    -> (no match)
-    Electric                       -> (no match)
-    Household                      -> (no match)
+    Building Combustible Electric Household -> (no match)
     Intel                          -> (no match)
     Tool                           -> (no match)
   [items ]
@@ -35,10 +32,6 @@
     Cleaner                        -> misc_barcleaner
     Cleaner                        -> misc_barcleaner
     Hard Drive                     -> misc_b_harddrive
-  [chrome]
-    Item Deposite                  -> (no match)
-  [chrome]
-    Submitted items transfen       -> (no match)
   [items ]
     Hard Drive                     -> misc_b_harddrive
     Hard Drive                     -> misc_b_harddrive
@@ -50,6 +43,4 @@
     Climbing rope                  -> misc_blimbingrope
     Gas pipe pliers                -> misc_b_gaspipewrench
   [chrome]
-    29.46                          -> (no match)
-    /                              -> (no match)
-    30                             -> (no match)
+    29.46 /30                      -> (no match)

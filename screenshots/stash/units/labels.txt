@@ -4,16 +4,17 @@
 # Crops placed from dump_stash_unit_tiles geometry over the 2026-06-11
 # row-by-row 38-shot series; each row appears in ~3 frames, so every item has
 # several candidate occurrences and the committed crop is one the engine was
-# verified to READ (the geometric "best" pick OCR'd as empty for busy diagonal
-# icons — tape/socket/superglue/…), preferring row-2/3 sightings so the JUNK
-# BOX header bar never cuts the icon. RAM and Flash light only read from
-# header-occluded top-row tiles, so they keep a clean UNCUT mid-screen crop
-# and are #hard instead (uncut fixtures beat ugly gated crops).
-# misc_b_battery_1 is pinned to a frame-verified yellow battery1 tile (a
-# battery2 misread can otherwise supply its crop); it stays #hard — the battery
-# digit OCRs as l/i/e, the tracked twin-pack limit. misc_b_plier_large is the
-# one unavoidably cut crop (the item only exists in the grid's first row,
-# visible in shot00 alone). Gated set is stable over a 5-run union.
+# verified to READ, preferring row-2/3 sightings so the JUNK BOX header bar
+# never cuts the icon. misc_b_plier_large is the one unavoidably cut crop (the
+# item only exists in the grid's first row, visible in shot00 alone).
+# Ledger re-baselined for the PP-OCR engine (#181): the WinRT-era hard set
+# RAM / Flash light (busy-diagonal-icon suppression) reads stably now. The
+# PP-OCR engine's own stable confusions take their place in the hard set:
+# I→l on stylised labels ("Iodine"→"lodine", "Ion"→"lon"), the CD disc icon
+# reading as ring junk, and BeardOil's bottle print folding into the name.
+# battery_1 stays #hard — its digit flips between "battery1"/"batteryl"
+# run-to-run (threaded ONNX reductions aren't bit-deterministic and this tile
+# sits on the threshold; the twin-pack digit remains the tracked limit).
 #
 # Units are CUMULATIVE per-item coverage, not a snapshot of the current stash:
 # when a refresh drops an item from the container, its tile from the earlier
@@ -24,19 +25,19 @@ misc_b_aspire.webp  Aspirin
 misc_b_asthmamedication.webp  Asthma medicine
 #hard  misc_b_battery_1.webp  Size D battery1
 misc_b_battery_2.webp  Size D battery2
-misc_b_beardoil.webp  BeardOil
+#hard  misc_b_beardoil.webp  BeardOil
 misc_b_ceramic_adhesive.webp  Ceramic adhesive
 misc_b_deodorant.webp  Deodorant
 misc_b_disinfectingwipes.webp  Disinfectant wipes
-#hard  misc_b_flashlight.webp  Flash light
+misc_b_flashlight.webp  Flash light
 misc_b_gastank.webp  Gas can
 misc_b_gastank_large.webp  Large gas can
 misc_b_glue_large.webp  Instant glue
 misc_b_gunoil.webp  Gun oil
 misc_b_harddrive.webp  Hard Drive
 misc_b_insulatingtape.webp  Insulating Tape
-misc_b_iodophor.webp  Iodine
-misc_b_ionbattery.webp  Ion Battery
+#hard  misc_b_iodophor.webp  Iodine
+#hard  misc_b_ionbattery.webp  Ion Battery
 misc_b_lighter.webp  Lighter
 misc_b_lighterfluid.webp  Lighter fluid
 misc_b_medicalscissors.webp  Medical scissors
@@ -44,13 +45,13 @@ misc_b_moldboard.webp  Moldboard
 misc_b_nail.webp  Boxed Nails
 misc_b_newphone.webp  NewPhone
 misc_b_oldphone.webp  OldPhone
-misc_b_opticaldisc.webp  CD
+#hard  misc_b_opticaldisc.webp  CD
 misc_b_pcfan.webp  CPU Fan
 misc_b_pesticide.webp  Pesticide
 misc_b_piezometer.webp  Piezometer
 misc_b_pipeline.webp  Valve
 misc_b_plier_large.webp  Large Plier
-#hard  misc_b_ram.webp  RAM
+misc_b_ram.webp  RAM
 misc_b_rat_poison.webp  Rat Poison
 misc_b_recorder.webp  Recorder
 misc_b_rustedcleaner.webp  Rust cleaner

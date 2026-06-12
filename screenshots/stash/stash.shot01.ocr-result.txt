@@ -8,7 +8,7 @@
 # the frozen stash.shot01.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 12 item tile(s) across 4 grid row(s)
+  recognized 16 item tile(s) across 4 grid row(s)
   dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
@@ -16,8 +16,8 @@
     2 x misc_b_aspire
     1 x misc_b_iodophor
     1 x misc_b_match
-    1 x misc_b_opticaldisc
-    2 x misc_b_ram
+    3 x misc_b_opticaldisc
+    4 x misc_b_ram
     1 x misc_b_spraycan
     1 x misc_b_tape
     1 x misc_b_wrench
@@ -27,10 +27,12 @@
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
 #   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
+  [chrome]
+    KDUA                           -> (no match)
   [items ]
     Windproof Matches              -> misc_b_match
-    co                             -> misc_b_opticaldisc
-    Iodine                         -> misc_b_iodophor
+    CO                             -> misc_b_opticaldisc
+    lodine                         -> misc_b_iodophor
     Wrench                         -> misc_b_wrench
     Floppydisk                     -> misc_floppydisk
   [tabs  ]
@@ -43,6 +45,7 @@
     ASPIRIN                        -> misc_b_aspire
   [items ]
     Aspirin                        -> misc_b_aspire
+    CO                             -> misc_b_opticaldisc
     RAM                            -> misc_b_ram
     Spray can                      -> misc_b_spraycan
     CPU                            -> misc_cpu
@@ -53,6 +56,9 @@
     Building                       -> (no match)
     Electric                       -> (no match)
   [items ]
+    RAM                            -> misc_b_ram
+    RAM                            -> misc_b_ram
+    CD                             -> misc_b_opticaldisc
     RAM                            -> misc_b_ram
     Tape                           -> misc_b_tape
   [tabs  ]

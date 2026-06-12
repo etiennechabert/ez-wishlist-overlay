@@ -8,18 +8,15 @@
 # the frozen stash.shot21.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 9 item tile(s) across 2 grid row(s)
+  recognized 5 item tile(s) across 1 grid row(s)
   dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
-    2 x misc_b_battery_1
     1 x misc_b_beardoil
     1 x misc_b_flashlight
     1 x misc_b_gastank
     1 x misc_b_glue_large
-    1 x misc_b_ionbattery
-    1 x misc_b_newphone
     1 x misc_wastechip
 #
 ## DETAIL — every text the OCR produced, row by row
@@ -27,24 +24,19 @@
 #   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
   [chrome]
     JUNK BOX                       -> (no match)
-  [items ]
-    NewPhone                       -> misc_b_newphone
-    Ion Battery                    -> misc_b_ionbattery
-    Size D batteryl                -> misc_b_battery_1
-    Size O batteryl                -> misc_b_battery_1
-  [tabs  ]
-    Electric                       -> (no match)
-    Electric                       -> (no match)
-    Power                          -> (no match)
-    Power                          -> (no match)
-    Power                          -> (no match)
   [chrome]
-    1                              -> (no match)
+    NewPhone Electric              -> (no match)
+    Electric RAM                   -> (no match)
+    lon Power Battery              -> (no match)
+    Size Power D batteryl          -> (no match)
+    Size Power D batteryl          -> (no match)
+  [chrome]
+    GAS                            -> (no match)
   [items ]
-    BeardOi1                       -> misc_b_beardoil
-    Rash light                     -> misc_b_flashlight
+    BeardOil                       -> misc_b_beardoil
+    Flash light                    -> misc_b_flashlight
     Gas can                        -> misc_b_gastank
-    Intant glue                    -> misc_b_glue_large
+    Instant glue                   -> misc_b_glue_large
     wastechip                      -> misc_wastechip
   [tabs  ]
     Household                      -> (no match)
@@ -52,3 +44,11 @@
     Combustible                    -> (no match)
     Building                       -> (no match)
     Electric                       -> (no match)
+  [chrome]
+    PACK VARIETY                   -> (no match)
+  [chrome]
+    Household Beardoil             -> (no match)
+    Lighter Combustible fluid      -> (no match)
+    Combustible WD-40              -> (no match)
+    Moldboard Tool                 -> (no match)
+    Medical Band-aids Supplies     -> (no match)

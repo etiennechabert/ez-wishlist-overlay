@@ -8,24 +8,15 @@
 # the frozen stash.shot34.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 14 item tile(s) across 3 grid row(s)
-  dropped 1 text(s) that matched no catalog item (window title, weight
+  recognized 5 item tile(s) across 1 grid row(s)
+  dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
-    1 x misc_b_asthmamedication
-    1 x misc_b_battery_2
-    1 x misc_b_ceramic_adhesive
-    1 x misc_b_gastank
     1 x misc_b_insulatingtape
-    1 x misc_b_iodophor
     1 x misc_b_match
-    1 x misc_b_medicalscissors
-    1 x misc_b_moldboard
-    1 x misc_b_sparkplug
+    1 x misc_b_oldphone
     1 x misc_b_spraycan
-    1 x misc_b_wd40
-    1 x misc_b_wirecutting
     1 x misc_hammer
 #
 ## DETAIL — every text the OCR produced, row by row
@@ -33,39 +24,29 @@
 #   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
   [chrome]
     JUNK BOX                       -> (no match)
-  [items ]
-    Medical scissors               -> misc_b_medicalscissors
-    Gas Cen                        -> misc_b_gastank
-    wo-40                          -> misc_b_wd40
-    Ceramic adhesive               -> misc_b_ceramic_adhesive
-    Spark Plug                     -> misc_b_sparkplug
-  [tabs  ]
-    Medical Supplies               -> (no match)
-    Combustible                    -> (no match)
-    Combustible                    -> (no match)
-    Building                       -> (no match)
-    Tool                           -> (no match)
+  [chrome]
+    Medical Medical Supplies scissors -> (no match)
+    Combustible Gas can            -> (no match)
+    Combustible WD-40              -> (no match)
+    Ceramic Building adhesive      -> (no match)
+    Spark Tool Plug                -> (no match)
   [items ]
     Windproof Matches              -> misc_b_match
     Spray can                      -> misc_b_spraycan
     Insulating Tape                -> misc_b_insulatingtape
     Hammer                         -> misc_hammer
-    01 dPh•ne                      -> (no match)
+    OldPhone                       -> misc_b_oldphone
   [tabs  ]
     Combustible                    -> (no match)
     Building                       -> (no match)
     Building                       -> (no match)
     Tool                           -> (no match)
     Electric                       -> (no match)
-  [items ]
-    Size D battery2                -> misc_b_battery_2
-    Asthma medicine                -> misc_b_asthmamedication
-    Iodine                         -> misc_b_iodophor
-    Wire Cutter                    -> misc_b_wirecutting
-    Moldboard                      -> misc_b_moldboard
-  [tabs  ]
-    Power                          -> (no match)
-    Medical Supplies               -> (no match)
-    Medical Supplies               -> (no match)
-    Tool                           -> (no match)
-    Toot                           -> (no match)
+  [chrome]
+    SiLurGor                       -> (no match)
+  [chrome]
+    Size Power D battery?          -> (no match)
+    Medical Asthma medicine Supplies -> (no match)
+    Medical lodine Supplies        -> (no match)
+    Wire Tool Cutter               -> (no match)
+    Moldboard Tool                 -> (no match)

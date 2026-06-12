@@ -8,43 +8,34 @@
 # the frozen stash.shot22.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 13 item tile(s) across 3 grid row(s)
-  dropped 2 text(s) that matched no catalog item (window title, weight
+  recognized 5 item tile(s) across 1 grid row(s)
+  dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
     1 x misc_b_bandaid
-    1 x misc_b_battery_1
-    2 x misc_b_beardoil
-    1 x misc_b_flashlight
-    1 x misc_b_gastank
-    2 x misc_b_glue_large
+    1 x misc_b_beardoil
     1 x misc_b_lighterfluid
     1 x misc_b_moldboard
-    1 x misc_b_rustedcleaner
-    2 x misc_b_wd40
+    1 x misc_b_wd40
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
 #   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
   [chrome]
     JUNK BOX                       -> (no match)
+  [chrome]
+    Household Beardoil             -> (no match)
+    Flash Electric light           -> (no match)
+    Combustible Gas can            -> (no match)
+    Instant Building glue          -> (no match)
+    wastechip Electric             -> (no match)
+  [chrome]
+    VARIETY PACK                   -> (no match)
   [items ]
-    BeardOi1                       -> misc_b_beardoil
-    Rash light                     -> misc_b_flashlight
-    Gas can                        -> misc_b_gastank
-    Irwtant glue                   -> misc_b_glue_large
-    wutechip                       -> (no match)
-  [tabs  ]
-    Household                      -> (no match)
-    Electric                       -> (no match)
-    Combustible                    -> (no match)
-    Building                       -> (no match)
-    Electric                       -> (no match)
-  [items ]
-    Be.rdOi1                       -> misc_b_beardoil
+    Beardoil                       -> misc_b_beardoil
     Lighter fluid                  -> misc_b_lighterfluid
-    wo-40                          -> misc_b_wd40
+    WD-40                          -> misc_b_wd40
     Moldboard                      -> misc_b_moldboard
     Band-aids                      -> misc_b_bandaid
   [tabs  ]
@@ -54,16 +45,12 @@
     Tool                           -> (no match)
     Medical Supplies               -> (no match)
   [chrome]
-    SiurG•r                        -> (no match)
-  [items ]
-    Instant glue                   -> misc_b_glue_large
-    Rust cl uner                   -> misc_b_rustedcleaner
-    wo-40                          -> misc_b_wd40
-    Size O batteryl                -> misc_b_battery_1
-    CPUF.n                         -> (no match)
-  [tabs  ]
-    Building                       -> (no match)
-    Household                      -> (no match)
-    Combustible                    -> (no match)
-    Power                          -> (no match)
-    Electric                       -> (no match)
+    iLurGor                        -> (no match)
+  [chrome]
+    海TED                           -> (no match)
+  [chrome]
+    Instant Building glue          -> (no match)
+    Rust Household cleaner         -> (no match)
+    Combustible WD-40              -> (no match)
+    Size Power D batteryl          -> (no match)
+    Electric CPUFan                -> (no match)

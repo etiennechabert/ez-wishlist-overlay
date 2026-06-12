@@ -8,43 +8,38 @@
 # the frozen stash.shot25.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 14 item tile(s) across 3 grid row(s)
+  recognized 5 item tile(s) across 1 grid row(s)
   dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
-    2 x misc_b_ceramic_adhesive
+    1 x misc_b_ceramic_adhesive
     1 x misc_b_deodorant
-    2 x misc_b_gastank_large
-    1 x misc_b_oldphone
-    1 x misc_b_opticaldisc
     1 x misc_b_pcfan
-    2 x misc_b_rat_poison
-    1 x misc_b_saltcan
-    1 x misc_b_tire_sealant
-    1 x misc_b_wirecutting
-    1 x misc_screwdriver
+    1 x misc_b_ram
+    1 x misc_b_rat_poison
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
 #   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
-  [items ]
-    Tire Sealant                   -> misc_b_tire_sealant
-    Salt can                       -> misc_b_saltcan
-    co                             -> misc_b_opticaldisc
-    Large gas can                  -> misc_b_gastank_large
-    Rat Poison                     -> misc_b_rat_poison
-  [tabs  ]
-    Tool                           -> (no match)
-    Household                      -> (no match)
-    Intel                          -> (no match)
-    Combustible                    -> (no match)
-    Household                      -> (no match)
+  [chrome]
+    JUNK BUX                       -> (no match)
+  [chrome]
+    Tire Tool Sealant              -> (no match)
+    Household Salt can             -> (no match)
+    Intel CD                       -> (no match)
+    Combustible Large gas can      -> (no match)
+    Household Rat Poison           -> (no match)
+  [chrome]
+    TOSH                           -> (no match)
+  [chrome]
+    REAMTIGHT 956                  -> (no match)
   [items ]
     Rat Poison                     -> misc_b_rat_poison
     Deodorant                      -> misc_b_deodorant
     Ceramic adhesive               -> misc_b_ceramic_adhesive
-    CPU Fan                        -> misc_b_pcfan
+    RAM                            -> misc_b_ram
+    CPUFan                         -> misc_b_pcfan
   [tabs  ]
     Household                      -> (no match)
     Household                      -> (no match)
@@ -52,16 +47,12 @@
     Electric                       -> (no match)
     Electric                       -> (no match)
   [chrome]
-    —j                             -> (no match)
-  [items ]
-    Wire Cutter                    -> misc_b_wirecutting
-    Ceramic adhesive               -> misc_b_ceramic_adhesive
-    Screwdriver                    -> misc_screwdriver
-    Large gas can                  -> misc_b_gastank_large
-    OldPhone                       -> misc_b_oldphone
-  [tabs  ]
-    Tool                           -> (no match)
-    Building                       -> (no match)
-    Tool                           -> (no match)
-    Combustible                    -> (no match)
-    Electric                       -> (no match)
+    TOSH                           -> (no match)
+  [chrome]
+    REAMTIGHT 956                  -> (no match)
+  [chrome]
+    Wire Tool Cutter               -> (no match)
+    Ceramic Building adhesive      -> (no match)
+    Screwdriver Tool               -> (no match)
+    Combustible Large gas can      -> (no match)
+    OldPhone Electric              -> (no match)

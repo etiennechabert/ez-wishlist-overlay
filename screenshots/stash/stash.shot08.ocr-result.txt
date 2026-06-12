@@ -8,40 +8,35 @@
 # the frozen stash.shot08.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 10 item tile(s) across 3 grid row(s)
+  recognized 5 item tile(s) across 1 grid row(s)
   dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
     1 x misc_b_beardoil
-    3 x misc_b_ionbattery
-    1 x misc_b_nut
+    1 x misc_b_ionbattery
     1 x misc_b_superglue
-    1 x misc_b_tape
     2 x misc_floppydisk
-    1 x misc_notebook
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
 #   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
   [chrome]
     JUNK BOX                       -> (no match)
-  [items ]
-    Tape                           -> misc_b_tape
-    Ion Battery                    -> misc_b_ionbattery
-    Notebook                       -> misc_notebook
-  [tabs  ]
-    Intel                          -> (no match)
-    Electric                       -> (no match)
-    Power                          -> (no match)
-    Electric                       -> (no match)
-    Intel                          -> (no match)
+  [chrome]
+    Intel Tape                     -> (no match)
+    Electric RAM                   -> (no match)
+    lon Power Battery              -> (no match)
+    Electric RAM                   -> (no match)
+    Notebook Intel                 -> (no match)
+  [chrome]
+    ANIFE                          -> (no match)
   [items ]
     Super Glue                     -> misc_b_superglue
-    BeardOil                       -> misc_b_beardoil
+    Beardoil                       -> misc_b_beardoil
     Floppydisk                     -> misc_floppydisk
     Floppydisk                     -> misc_floppydisk
-    Ion Battery                    -> misc_b_ionbattery
+    lon Battery                    -> misc_b_ionbattery
   [tabs  ]
     Building                       -> (no match)
     Household                      -> (no match)
@@ -49,10 +44,10 @@
     Intel                          -> (no match)
     Power                          -> (no match)
   [chrome]
-    yws                            -> (no match)
-  [items ]
-    Ion Battery                    -> misc_b_ionbattery
-    Boxed Nuts                     -> misc_b_nut
-  [tabs  ]
-    Power                          -> (no match)
-    Building                       -> (no match)
+    ESSENTIAL NUTS                 -> (no match)
+  [chrome]
+    lon Power Battery              -> (no match)
+    Medical lodine Supplies        -> (no match)
+    Electric RAM                   -> (no match)
+    Electric CPU Fan               -> (no match)
+    Boxed Building Nuts            -> (no match)

@@ -8,21 +8,15 @@
 # the frozen stash.shot36.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 13 item tile(s) across 3 grid row(s)
+  recognized 5 item tile(s) across 1 grid row(s)
   dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
-    1 x misc_b_asthmamedication
-    2 x misc_b_battery_1
-    1 x misc_b_beardoil
     1 x misc_b_flashlight
-    2 x misc_b_insulatingtape
-    1 x misc_b_iodophor
     1 x misc_b_lighter
-    1 x misc_b_lighterfluid
     1 x misc_b_opticaldisc
-    1 x misc_b_wirecutting
+    1 x misc_b_ram
     1 x misc_notebook
 #
 ## DETAIL — every text the OCR produced, row by row
@@ -30,21 +24,17 @@
 #   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
   [chrome]
     JUNK BOX                       -> (no match)
+  [chrome]
+    Size Power D battery?          -> (no match)
+    Asthma Medical Supplies medicine -> (no match)
+    Medical lodine Supplies        -> (no match)
+    Wire Tool Cutter               -> (no match)
+    Moldboard Tool                 -> (no match)
   [items ]
-    Size O batterye                -> misc_b_battery_1
-    Asthma medicine                -> misc_b_asthmamedication
-    Iodine                         -> misc_b_iodophor
-    Wire Cutter                    -> misc_b_wirecutting
-  [tabs  ]
-    Power                          -> (no match)
-    Medical Supplies               -> (no match)
-    Medical Supplies               -> (no match)
-    Tool                           -> (no match)
-    Toot                           -> (no match)
-  [items ]
+    RAM                            -> misc_b_ram
     Lighter                        -> misc_b_lighter
     Flash light                    -> misc_b_flashlight
-    co                             -> misc_b_opticaldisc
+    CD                             -> misc_b_opticaldisc
     Notebook                       -> misc_notebook
   [tabs  ]
     Electric                       -> (no match)
@@ -53,16 +43,10 @@
     Intel                          -> (no match)
     Intel                          -> (no match)
   [chrome]
-    Si L u r G or                  -> (no match)
-  [items ]
-    Size O batterye                -> misc_b_battery_1
-    Iruulating Tape                -> misc_b_insulatingtape
-    Imul•ting Tape                 -> misc_b_insulatingtape
-    BeardOi1                       -> misc_b_beardoil
-    Lighter fluid                  -> misc_b_lighterfluid
-  [tabs  ]
-    Power                          -> (no match)
-    Building                       -> (no match)
-    Building                       -> (no match)
-    Household                      -> (no match)
-    Combustible                    -> (no match)
+    SiLurGor                       -> (no match)
+  [chrome]
+    Size Power D battery?          -> (no match)
+    Insulating Building Tape       -> (no match)
+    Insulating Building Tape       -> (no match)
+    Household Beardoil             -> (no match)
+    Combustible Lighter fluid      -> (no match)

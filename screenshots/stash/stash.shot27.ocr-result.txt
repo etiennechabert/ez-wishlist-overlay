@@ -8,65 +8,48 @@
 # the frozen stash.shot27.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 15 item tile(s) across 3 grid row(s)
+  recognized 5 item tile(s) across 1 grid row(s)
   dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
-    1 x misc_b_battery_1
-    1 x misc_b_beardoil
-    2 x misc_b_ceramic_adhesive
     1 x misc_b_flashlight
-    1 x misc_b_gastank_large
     1 x misc_b_ionbattery
-    1 x misc_b_oldphone
-    1 x misc_b_opticaldisc
-    1 x misc_b_pesticide
     2 x misc_b_shampoo
     1 x misc_b_sparkplug
-    1 x misc_b_wirecutting
-    1 x misc_screwdriver
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
 #   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
   [chrome]
     JUNK BOX                       -> (no match)
+  [chrome]
+    Wire Tool Cutter               -> (no match)
+    Ceramic Building adhesive      -> (no match)
+    Screwdriver Tool               -> (no match)
+    Large Combustible gas can      -> (no match)
+    OLdPhone Electric              -> (no match)
   [items ]
-    Wire Cutter                    -> misc_b_wirecutting
-    Ceramic adhesive               -> misc_b_ceramic_adhesive
-    Screwdriver                    -> misc_screwdriver
-    Large gas can                  -> misc_b_gastank_large
-    OldPhone                       -> misc_b_oldphone
+    lon Battery                    -> misc_b_ionbattery
+    Spark Plug                     -> misc_b_sparkplug
+    Pet Shampoo                    -> misc_b_shampoo
+    Pet Shampoo                    -> misc_b_shampoo
+    Flash light                    -> misc_b_flashlight
   [tabs  ]
+    Power                          -> (no match)
     Tool                           -> (no match)
-    Building                       -> (no match)
-    Tool                           -> (no match)
-    Combustible                    -> (no match)
+    Household                      -> (no match)
+    Household                      -> (no match)
     Electric                       -> (no match)
   [chrome]
-    4                              -> (no match)
-  [items ]
-    Ion Battery                    -> misc_b_ionbattery
-    Spark Plug                     -> misc_b_sparkplug
-    Pet Sh.mpoo                    -> misc_b_shampoo
-    Pet Shampoo                    -> misc_b_shampoo
-    Fluh light                     -> misc_b_flashlight
-  [tabs  ]
-    Power                          -> (no match)
-    Tool                           -> (no match)
-    Household                      -> (no match)
-    Household                      -> (no match)
-    Electric                       -> (no match)
-  [items ]
-    Size D batteryl                -> misc_b_battery_1
-    BeardOil                       -> misc_b_beardoil
-    Pesticide                      -> misc_b_pesticide
-    co                             -> misc_b_opticaldisc
-    Ceramic adhesive               -> misc_b_ceramic_adhesive
-  [tabs  ]
-    Power                          -> (no match)
-    Household                      -> (no match)
-    Household                      -> (no match)
-    Intel                          -> (no match)
-    Building                       -> (no match)
+    iLurGor                        -> (no match)
+    TOSH                           -> (no match)
+  [chrome]
+    RNIFE                          -> (no match)
+    REAMTIGHT 756                  -> (no match)
+  [chrome]
+    Size Power D battery1          -> (no match)
+    Household Beardoil             -> (no match)
+    Household Pesticide            -> (no match)
+    Intet CD                       -> (no match)
+    Ceramic Building adhesive      -> (no match)

@@ -8,20 +8,14 @@
 # the frozen stash.shot10.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 11 item tile(s) across 3 grid row(s)
-  dropped 2 text(s) that matched no catalog item (window title, weight
+  recognized 5 item tile(s) across 1 grid row(s)
+  dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
-    1 x misc_b_battery_1
-    1 x misc_b_iodophor
-    1 x misc_b_ionbattery
     1 x misc_b_medicalscissors
-    1 x misc_b_newphone
-    1 x misc_b_nut
-    1 x misc_b_pcfan
     1 x misc_b_screw
-    1 x misc_notebook
+    1 x misc_floppydisk
     2 x misc_screwdriver
 #
 ## DETAIL — every text the OCR produced, row by row
@@ -29,24 +23,19 @@
 #   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
   [chrome]
     JUNK BOX                       -> (no match)
-  [items ]
-    Ion Battery                    -> misc_b_ionbattery
-    Iodine                         -> misc_b_iodophor
-    CPU Fan                        -> misc_b_pcfan
-    Boxed Nuts                     -> misc_b_nut
-  [tabs  ]
-    Power                          -> (no match)
-    Medical Supplies               -> (no match)
-    Electric                       -> (no match)
-    Electric                       -> (no match)
-    Building                       -> (no match)
   [chrome]
-    CEBOL                          -> (no match)
+    lon Power Battery              -> (no match)
+    Medical lodine Supplies        -> (no match)
+    Electric RAM                   -> (no match)
+    Electric CPU Fan               -> (no match)
+    Boxed Building Nuts            -> (no match)
+  [chrome]
+    NICEBOLTS                      -> (no match)
   [items ]
     Boxed Bolts                    -> misc_b_screw
-    ScrewdrWer                     -> misc_screwdriver
     Screwdriver                    -> misc_screwdriver
-    Ftoppy&k                       -> (no match)
+    Screwdriver                    -> misc_screwdriver
+    Floppydisk                     -> misc_floppydisk
     Medical scissors               -> misc_b_medicalscissors
   [tabs  ]
     Building                       -> (no match)
@@ -55,15 +44,11 @@
     Intel                          -> (no match)
     Medical Supplies               -> (no match)
   [chrome]
-    SiLurG o r                     -> (no match)
-  [items ]
-    Band-ai±                       -> (no match)
-    Size O batterye                -> misc_b_battery_1
-    Notebook                       -> misc_notebook
-    NewPhone                       -> misc_b_newphone
-  [tabs  ]
-    Medical Supplies               -> (no match)
-    Power                          -> (no match)
-    Intel                          -> (no match)
-    Electric                       -> (no match)
-    Electric                       -> (no match)
+    VARIETY PACK                   -> (no match)
+    SiLurGor                       -> (no match)
+  [chrome]
+    Medical Band-aids Supplies     -> (no match)
+    Size Power D battery?          -> (no match)
+    Notebook Intet                 -> (no match)
+    Electric RAM                   -> (no match)
+    NewPhone Electric              -> (no match)

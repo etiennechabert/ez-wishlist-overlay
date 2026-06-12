@@ -8,21 +8,14 @@
 # the frozen stash.shot07.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 13 item tile(s) across 3 grid row(s)
+  recognized 5 item tile(s) across 1 grid row(s)
   dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
-    1 x misc_b_beardoil
-    1 x misc_b_gunoil
-    2 x misc_b_ionbattery
-    1 x misc_b_lighterfluid
-    1 x misc_b_nail
-    1 x misc_b_screw
-    1 x misc_b_superglue
+    1 x misc_b_ionbattery
+    2 x misc_b_ram
     1 x misc_b_tape
-    1 x misc_copperwire
-    2 x misc_floppydisk
     1 x misc_notebook
 #
 ## DETAIL — every text the OCR produced, row by row
@@ -30,37 +23,27 @@
 #   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
   [chrome]
     JUNK BOX                       -> (no match)
-  [items ]
-    Boxed Botts                    -> misc_b_screw
-    Gun oil                        -> misc_b_gunoil
-    Lighter fluid                  -> misc_b_lighterfluid
-    Copper wire                    -> misc_copperwire
-    Boxed Nails                    -> misc_b_nail
-  [tabs  ]
-    Building                       -> (no match)
-    Combustible                    -> (no match)
-    Combustible                    -> (no match)
-    Building                       -> (no match)
-    Building                       -> (no match)
+  [chrome]
+    Boxed Building Bolts           -> (no match)
+    Combustible Gun oil            -> (no match)
+    Combustible Lighter fluid      -> (no match)
+    Copper Building wire           -> (no match)
+    Boxed Building Nails           -> (no match)
   [items ]
     Tape                           -> misc_b_tape
-    Ion Battery                    -> misc_b_ionbattery
+    RAM                            -> misc_b_ram
+    lon Battery                    -> misc_b_ionbattery
+    RAM                            -> misc_b_ram
     Notebook                       -> misc_notebook
   [tabs  ]
-    In tel                         -> (no match)
+    Intel                          -> (no match)
     Electric                       -> (no match)
     Power                          -> (no match)
     Electric                       -> (no match)
     Intel                          -> (no match)
-  [items ]
-    Super Glue                     -> misc_b_superglue
-    BeardOil                       -> misc_b_beardoil
-    Floppydisk                     -> misc_floppydisk
-    Floppydisk                     -> misc_floppydisk
-    Ion Battery                    -> misc_b_ionbattery
-  [tabs  ]
-    Building                       -> (no match)
-    Household                      -> (no match)
-    Intel                          -> (no match)
-    Intel                          -> (no match)
-    Power                          -> (no match)
+  [chrome]
+    Super Building Glue            -> (no match)
+    Household Beardoil             -> (no match)
+    Floppydisk Intet               -> (no match)
+    Floppydisk Intel               -> (no match)
+    lon Power Battery              -> (no match)

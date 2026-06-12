@@ -8,65 +8,46 @@
 # the frozen stash.shot33.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 13 item tile(s) across 3 grid row(s)
-  dropped 1 text(s) that matched no catalog item (window title, weight
+  recognized 5 item tile(s) across 1 grid row(s)
+  dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
     1 x misc_b_ceramic_adhesive
     1 x misc_b_gastank
-    1 x misc_b_insulatingtape
-    1 x misc_b_iodophor
-    2 x misc_b_match
     1 x misc_b_medicalscissors
-    1 x misc_b_oldphone
     1 x misc_b_sparkplug
-    1 x misc_b_spraycan
-    1 x misc_b_tape
     1 x misc_b_wd40
-    1 x misc_hammer
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
 #   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
   [chrome]
     JUNK BOX                       -> (no match)
-  [items ]
-    G" can                         -> (no match)
-    Iodine                         -> misc_b_iodophor
-    Windproof Matches              -> misc_b_match
-    Tape                           -> misc_b_tape
-  [tabs  ]
-    Combustible                    -> (no match)
-    Medical Supplies               -> (no match)
-    Combustible                    -> (no match)
-    Intel                          -> (no match)
-    Electric                       -> (no match)
   [chrome]
-    1                              -> (no match)
+    Combustible Gas can            -> (no match)
+    Medical lodine Supplies        -> (no match)
+    Windproof Combustible Matches  -> (no match)
+    Intel Tape                     -> (no match)
+    Electric RAM                   -> (no match)
   [chrome]
-    MOG                            -> (no match)
+    AS                             -> (no match)
+    REAMTIGHT 956 TOSH             -> (no match)
   [items ]
     Medical scissors               -> misc_b_medicalscissors
     Gas can                        -> misc_b_gastank
-    wo-40                          -> misc_b_wd40
+    WD-40                          -> misc_b_wd40
     Ceramic adhesive               -> misc_b_ceramic_adhesive
-    Sp•rkPlug                      -> misc_b_sparkplug
+    Spark Plug                     -> misc_b_sparkplug
   [tabs  ]
     Medical Supplies               -> (no match)
     Combustible                    -> (no match)
     Combustible                    -> (no match)
     Building                       -> (no match)
     Tool                           -> (no match)
-  [items ]
-    Windproof Matches              -> misc_b_match
-    Spray can                      -> misc_b_spraycan
-    Insulating Tape                -> misc_b_insulatingtape
-    Hammer                         -> misc_hammer
-    OldPhone                       -> misc_b_oldphone
-  [tabs  ]
-    Combustible                    -> (no match)
-    Buil ding                      -> (no match)
-    Building                       -> (no match)
-    Tool                           -> (no match)
-    Electric                       -> (no match)
+  [chrome]
+    Windproof Combustible Matches  -> (no match)
+    Spray Building can             -> (no match)
+    Insulating Building Tape       -> (no match)
+    Hammer Tool                    -> (no match)
+    OldPhone Electric              -> (no match)

@@ -8,20 +8,15 @@
 # the frozen stash.shot29.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 12 item tile(s) across 3 grid row(s)
+  recognized 5 item tile(s) across 1 grid row(s)
   dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
-    2 x misc_b_battery_1
-    1 x misc_b_beardoil
-    1 x misc_b_ceramic_adhesive
-    2 x misc_b_ionbattery
+    1 x misc_b_battery_1
+    1 x misc_b_ionbattery
     1 x misc_b_lighterfluid
-    1 x misc_b_match
     1 x misc_b_opticaldisc
-    1 x misc_b_pesticide
-    1 x misc_b_piezometer
     1 x misc_floppydisk
 #
 ## DETAIL — every text the OCR produced, row by row
@@ -29,21 +24,18 @@
 #   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
   [chrome]
     JUNK BOX                       -> (no match)
+  [chrome]
+    Size Power D batteryl          -> (no match)
+    Household BeardOil             -> (no match)
+    Household Pesticide            -> (no match)
+    Intel CD                       -> (no match)
+    Ceramic Building adhesive      -> (no match)
+  [chrome]
+    LurGor                         -> (no match)
   [items ]
-    Size O batteryl                -> misc_b_battery_1
-    BeardOi1                       -> misc_b_beardoil
-    Pesticide                      -> misc_b_pesticide
-    Ceramic adhesive               -> misc_b_ceramic_adhesive
-  [tabs  ]
-    Power                          -> (no match)
-    Household                      -> (no match)
-    Household                      -> (no match)
-    Intel                          -> (no match)
-    Building                       -> (no match)
-  [items ]
-    Size O batteryl                -> misc_b_battery_1
-    Ion Battery                    -> misc_b_ionbattery
-    co                             -> misc_b_opticaldisc
+    Size D battery1                -> misc_b_battery_1
+    lon Battery                    -> misc_b_ionbattery
+    CD                             -> misc_b_opticaldisc
     Lighter fluid                  -> misc_b_lighterfluid
     Floppydisk                     -> misc_floppydisk
   [tabs  ]
@@ -52,13 +44,9 @@
     Intel                          -> (no match)
     Combustible                    -> (no match)
     Intel                          -> (no match)
-  [items ]
-    Piezometer                     -> misc_b_piezometer
-    Ion Battery                    -> misc_b_ionbattery
-    Windproof Matches              -> misc_b_match
-  [tabs  ]
-    Building                       -> (no match)
-    Power                          -> (no match)
-    Electric                       -> (no match)
-    Combustible                    -> (no match)
-    Electric                       -> (no match)
+  [chrome]
+    Piezometer Building            -> (no match)
+    lon Power Battery              -> (no match)
+    Electric RAM                   -> (no match)
+    Windproof Combustible Matches  -> (no match)
+    Electric RAM                   -> (no match)
