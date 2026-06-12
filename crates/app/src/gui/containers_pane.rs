@@ -25,7 +25,7 @@ use crate::gui::items_db_pane::format_price;
 use crate::gui::{icon_cache::IconCache, theme, SaveTick};
 use crate::ocr::box_scan::ScanRow;
 use crate::ocr::{BoxCommand, BoxScanStatus, BoxScanUpdate, ScanTarget};
-use crate::state::{AppState, ContainerId, ContainerKind};
+use crate::state::{AppState, ContainerId, ContainerKind, GUNSMITH_STORAGE_ID};
 use crate::vr::capture_session::CaptureMode;
 use crossbeam_channel::Sender;
 use parking_lot::RwLock;
@@ -55,10 +55,12 @@ const DEFAULT_CONTAINER_ICON: &str = "backpack_3drt";
 const STASH_ICON: &str = "stash";
 
 /// Case icons offered when the container's type is `Case`. Only the two
-/// Collection Boxes are listed: they're the boxes that store MISC items — what
-/// this tracker cares about — whereas the other in-game boxes (mag/attachment,
-/// medical, paint) hold specific non-misc categories. Generated flat-3D crate
-/// art (upstream has no images for these). Order here is the picker-grid order.
+/// Collection Boxes are listed: they're the boxes that store MISC items —
+/// whereas the other in-game boxes (mag/attachment, medical, paint) hold
+/// categories the tracker doesn't model, and the Gunsmith → Storage is the
+/// *built-in* primary container (seeded with its own `box_gunsmith` icon, not
+/// user-created). Generated flat-3D crate art (upstream has no images for
+/// these). Order here is the picker-grid order.
 const CASE_ICONS: &[&str] = &["box_collection", "box_collection_small"];
 /// Default icon for a newly-created Case container.
 const DEFAULT_CASE_ICON: &str = "box_collection";
@@ -90,9 +92,10 @@ fn icon_set_for(kind: ContainerKind) -> &'static [&'static str] {
 /// the user can tell them apart. Case names match the in-game boxes.
 fn icon_label(key: &str) -> &'static str {
     match key {
-        // Cases (the two MISC-storing Collection Boxes).
+        // Cases (the two MISC-storing Collection Boxes + the gun-parts storage).
         "box_collection" => "Collection",
         "box_collection_small" => "Collection small",
+        "box_gunsmith" => "Gunsmith storage",
         // Shelf.
         "shelf_basic" => "Shelf",
         // Bags.
@@ -208,6 +211,10 @@ struct Row {
     item_count: usize,
     weight: f32,
     value: u64,
+    /// The container's in-game weight cap, if the user set one (the gunsmith
+    /// storage / junk boxes cap at 30 kg). Renders the weight cell as
+    /// `Σ / cap kg` with a warning color near and over the cap.
+    capacity_kg: Option<f32>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -296,6 +303,7 @@ pub fn ui(
             item_count: sc,
             weight: sw,
             value: sv,
+            capacity_kg: None,
         };
         let rows: Vec<Row> = s
             .containers
@@ -311,6 +319,7 @@ pub fn ui(
                     item_count: count,
                     weight,
                     value,
+                    capacity_kg: c.capacity_kg,
                 }
             })
             .collect();
@@ -322,10 +331,18 @@ pub fn ui(
     // (scannable), Shelves, and Bags (both declarative/manual). Empty
     // secondary sections are hidden; the "New container" button adds any kind.
     let sort = sort_state(ui.ctx());
+    let mut gunsmith_row: Option<Row> = None;
     let mut case_rows: Vec<Row> = Vec::new();
     let mut bag_rows: Vec<Row> = Vec::new();
     let mut shelf_rows: Vec<Row> = Vec::new();
     for row in rows {
+        // The built-in Gunsmith storage is a *primary* like the stash (the
+        // game gives every player exactly one) — pinned below it, not listed
+        // under Cases.
+        if matches!(&row.target, Target::Container(id) if id == GUNSMITH_STORAGE_ID) {
+            gunsmith_row = Some(row);
+            continue;
+        }
         match row.kind {
             ContainerKind::Case => case_rows.push(row),
             ContainerKind::Shelf => shelf_rows.push(row),
@@ -336,15 +353,19 @@ pub fn ui(
     sort_rows(&mut bag_rows, sort);
     sort_rows(&mut shelf_rows, sort);
 
-    // --- Primary: the stash. ---
+    // --- Primary: the stash + the built-in Gunsmith storage. ---
     ui.add_space(2.0);
     section_title(ui, "Primary storage");
     section_caption(
         ui,
-        "The stash — where items must be for hideout upgrades. Scannable.",
+        "The stash — where items must be for hideout upgrades — and the \
+         gunsmith's gun-parts storage (30 kg cap). Both scannable.",
     );
     column_header(ui, true);
     container_row(ui, state, icons, save_tx, &mut scan, &stash_row);
+    if let Some(row) = &gunsmith_row {
+        container_row(ui, state, icons, save_tx, &mut scan, row);
+    }
 
     // --- Secondary sections, each shown only when it has containers. Order:
     // Cases (scannable) first, then the manual kinds Shelves and Bags. ---
@@ -406,6 +427,8 @@ const NEW_FOCUS_KEY: &str = "ctr-new-focus";
 const NEW_EDIT_KEY: &str = "ctr-new-edit-id";
 /// Chosen [`ContainerKind`] in the create/edit modal.
 const NEW_KIND_KEY: &str = "ctr-new-kind";
+/// Weight cap (kg) in the create/edit modal; `0.0` means "no cap".
+const NEW_CAP_KEY: &str = "ctr-new-cap";
 
 /// Open the modal in *create* mode: blank name, default icon, focus the field.
 fn open_new_container_modal(ctx: &egui::Context) {
@@ -418,18 +441,20 @@ fn open_new_container_modal(ctx: &egui::Context) {
             DEFAULT_CONTAINER_ICON.to_string(),
         );
         d.insert_temp(egui::Id::new(NEW_KIND_KEY), ContainerKind::default());
+        d.insert_temp(egui::Id::new(NEW_CAP_KEY), 0.0f32);
         d.insert_temp(egui::Id::new(NEW_FOCUS_KEY), true);
     });
 }
 
-/// Open the modal in *edit* mode: pre-fill the given container's name, icon, and
-/// kind; Save writes back to it.
+/// Open the modal in *edit* mode: pre-fill the given container's name, icon,
+/// kind, and weight cap; Save writes back to it.
 fn open_edit_container_modal(
     ctx: &egui::Context,
     id: &ContainerId,
     name: &str,
     icon: &str,
     kind: ContainerKind,
+    capacity_kg: Option<f32>,
 ) {
     ctx.data_mut(|d| {
         d.insert_temp(egui::Id::new(NEW_OPEN_KEY), true);
@@ -437,6 +462,7 @@ fn open_edit_container_modal(
         d.insert_temp(egui::Id::new(NEW_NAME_KEY), name.to_string());
         d.insert_temp(egui::Id::new(NEW_ICON_KEY), icon.to_string());
         d.insert_temp(egui::Id::new(NEW_KIND_KEY), kind);
+        d.insert_temp(egui::Id::new(NEW_CAP_KEY), capacity_kg.unwrap_or(0.0));
         d.insert_temp(egui::Id::new(NEW_FOCUS_KEY), true);
     });
 }
@@ -448,6 +474,7 @@ fn close_new_container_modal(ctx: &egui::Context) {
         d.remove::<String>(egui::Id::new(NEW_NAME_KEY));
         d.remove::<String>(egui::Id::new(NEW_ICON_KEY));
         d.remove::<ContainerKind>(egui::Id::new(NEW_KIND_KEY));
+        d.remove::<f32>(egui::Id::new(NEW_CAP_KEY));
     });
 }
 
@@ -478,6 +505,9 @@ fn new_container_modal(
     let mut kind = ctx
         .data(|d| d.get_temp::<ContainerKind>(egui::Id::new(NEW_KIND_KEY)))
         .unwrap_or_default();
+    let mut cap_kg = ctx
+        .data(|d| d.get_temp::<f32>(egui::Id::new(NEW_CAP_KEY)))
+        .unwrap_or(0.0);
     let want_focus = ctx
         .data(|d| d.get_temp::<bool>(egui::Id::new(NEW_FOCUS_KEY)))
         .unwrap_or(false);
@@ -530,6 +560,22 @@ fn new_container_modal(
                     .on_hover_text("A shelf — manual entry, its own category");
                 ui.selectable_value(&mut kind, ContainerKind::Bag, "Bag")
                     .on_hover_text("A backpack or pouch — contents entered by hand");
+            });
+
+            ui.add_space(10.0);
+            ui.horizontal(|ui| {
+                ui.label("Max weight:");
+                ui.add(
+                    egui::DragValue::new(&mut cap_kg)
+                        .range(0.0..=999.0)
+                        .speed(0.5)
+                        .suffix(" kg"),
+                )
+                .on_hover_text(
+                    "The in-game weight cap, shown next to the container's total \
+                     weight (the gunsmith storage and junk boxes cap at 30 kg). \
+                     0 = no cap",
+                );
             });
 
             // Icon set follows the (possibly just-changed) type. If the current
@@ -585,10 +631,12 @@ fn new_container_modal(
         d.insert_temp(egui::Id::new(NEW_NAME_KEY), name.clone());
         d.insert_temp(egui::Id::new(NEW_ICON_KEY), chosen_icon.clone());
         d.insert_temp(egui::Id::new(NEW_KIND_KEY), kind);
+        d.insert_temp(egui::Id::new(NEW_CAP_KEY), cap_kg);
     });
 
     if do_create && !name.trim().is_empty() {
         let trimmed = name.trim().to_string();
+        let capacity = (cap_kg > 0.0).then_some(cap_kg);
         match &edit_id {
             Some(id) => {
                 // Edit mode: write back to the existing container.
@@ -596,12 +644,14 @@ fn new_container_modal(
                 w.rename_container(id, trimmed);
                 w.set_container_icon(id, Some(chosen_icon));
                 w.set_container_kind(id, kind);
+                w.set_container_capacity(id, capacity);
             }
             None => {
                 let id = state.write().create_container(trimmed);
                 let mut w = state.write();
                 w.set_container_icon(&id, Some(chosen_icon));
                 w.set_container_kind(&id, kind);
+                w.set_container_capacity(&id, capacity);
             }
         }
         notify(state, save_tx);
@@ -726,6 +776,51 @@ fn put_right(
 }
 
 /// Left-aligned, clipped, truncating text in `rect` (with cell padding).
+/// Weight-cell text + optional warning color. Without a cap it's the plain
+/// `Σ kg`; with one it reads `Σ / cap kg`, amber from 90% of the cap and red
+/// once over it (over-cap can only mean the recorded counts drifted — the
+/// game itself refuses deposits past the cap).
+fn weight_cell(
+    visuals: &egui::Visuals,
+    weight: f32,
+    capacity_kg: Option<f32>,
+) -> (String, Option<egui::Color32>) {
+    match capacity_kg {
+        None => (format!("{weight:.2} kg"), None),
+        Some(cap) => {
+            let color = if weight > cap {
+                Some(visuals.error_fg_color)
+            } else if weight >= 0.9 * cap {
+                Some(visuals.warn_fg_color)
+            } else {
+                None
+            };
+            (format!("{weight:.2} / {cap:.0} kg"), color)
+        }
+    }
+}
+
+/// [`put_right`] with an optional text color (used by the cap-aware weight
+/// cell; `None` renders like the plain variant).
+fn put_right_colored(
+    ui: &mut egui::Ui,
+    rect: egui::Rect,
+    text: &str,
+    color: Option<egui::Color32>,
+) -> egui::Response {
+    let mut t = egui::RichText::new(text);
+    if let Some(c) = color {
+        t = t.color(c).strong();
+    }
+    let inner = rect.shrink2(egui::vec2(CELL_PAD, 0.0));
+    let mut child = ui.new_child(
+        egui::UiBuilder::new()
+            .max_rect(inner)
+            .layout(egui::Layout::right_to_left(egui::Align::Center)),
+    );
+    child.add(egui::Label::new(t).selectable(false))
+}
+
 fn put_left(ui: &mut egui::Ui, rect: egui::Rect, text: egui::RichText) {
     let inner = rect.shrink2(egui::vec2(CELL_PAD, 0.0));
     let mut c = ui.new_child(
@@ -890,7 +985,16 @@ fn container_row(
         }
         put_left(ui, c.name, egui::RichText::new(&row.name).strong());
         put_right(ui, c.items, &row.item_count.to_string(), false, false);
-        put_right(ui, c.weight, &format!("{:.2} kg", row.weight), false, false);
+        let (weight_text, weight_color) = weight_cell(ui.visuals(), row.weight, row.capacity_kg);
+        let weight_resp = put_right_colored(ui, c.weight, &weight_text, weight_color);
+        if let Some(cap) = row.capacity_kg {
+            if row.weight > cap {
+                weight_resp.on_hover_text(
+                    "Over the cap — the game refuses over-cap deposits, so the recorded \
+                     counts have drifted; rescan or correct the contents",
+                );
+            }
+        }
         put_right(
             ui,
             c.value,
@@ -901,21 +1005,26 @@ fn container_row(
 
         // Actions column (secondary containers only): Edit + Delete, always
         // visible. Lives outside the toggle rect so its buttons don't fold.
+        // The built-in Gunsmith storage is a primary like the stash — fixed
+        // name/icon/cap, so no actions.
         if let Target::Container(id) = &row.target {
-            let mut a = ui.new_child(
-                egui::UiBuilder::new()
-                    .max_rect(c.actions.shrink2(egui::vec2(CELL_PAD, 4.0)))
-                    .layout(egui::Layout::left_to_right(egui::Align::Center)),
-            );
-            row_actions(
-                &mut a,
-                state,
-                save_tx,
-                id,
-                &row.name,
-                resolve_icon_key(&row.icon),
-                row.kind,
-            );
+            if id != GUNSMITH_STORAGE_ID {
+                let mut a = ui.new_child(
+                    egui::UiBuilder::new()
+                        .max_rect(c.actions.shrink2(egui::vec2(CELL_PAD, 4.0)))
+                        .layout(egui::Layout::left_to_right(egui::Align::Center)),
+                );
+                row_actions(
+                    &mut a,
+                    state,
+                    save_tx,
+                    id,
+                    &row.name,
+                    resolve_icon_key(&row.icon),
+                    row.kind,
+                    row.capacity_kg,
+                );
+            }
         }
     }
 
@@ -933,6 +1042,7 @@ fn container_row(
 /// Edit + Delete buttons for a secondary container, shown in the row's actions
 /// column. Delete uses a two-step inline confirm so a stray click can't wipe
 /// contents; Edit reopens the create modal in edit mode.
+#[allow(clippy::too_many_arguments)]
 fn row_actions(
     ui: &mut egui::Ui,
     state: &Arc<RwLock<AppState>>,
@@ -941,13 +1051,14 @@ fn row_actions(
     name: &str,
     icon_key: &str,
     kind: ContainerKind,
+    capacity_kg: Option<f32>,
 ) {
     if ui
         .button("Edit")
-        .on_hover_text("Rename, change the icon, or switch type")
+        .on_hover_text("Rename, change the icon, switch type, or set a weight cap")
         .clicked()
     {
-        open_edit_container_modal(ui.ctx(), id, name, icon_key, kind);
+        open_edit_container_modal(ui.ctx(), id, name, icon_key, kind, capacity_kg);
     }
     if pending_delete(ui.ctx()).as_deref() == Some(id.as_str()) {
         if ui
@@ -1917,6 +2028,79 @@ mod tests {
                     &mut box_scan,
                 )
             })
+    }
+
+    /// Like [`game_data`] but with one weighted catalog item, so the KPI
+    /// weight column has something to sum.
+    fn game_data_with_part() -> Arc<GameData> {
+        Arc::new(GameData {
+            data_version: "test".into(),
+            scraped_at: "now".into(),
+            source_repo: "test".into(),
+            source_commit: "deadbeef".into(),
+            modules: Vec::new(),
+            items: vec![crate::data::Item {
+                id: "part_barrel".into(),
+                name: "AR-15 5.56x45mm 368mm barrel".into(),
+                icon_path: String::new(),
+                category: Some("gunsmith".into()),
+                subcategory: Some("Barrel".into()),
+                weight: Some(12.4),
+                price: None,
+                rarity: None,
+            }],
+            research: Vec::new(),
+        })
+    }
+
+    #[test]
+    fn weight_cell_formats_cap_and_warns() {
+        let v = egui::Visuals::dark();
+        // No cap: plain weight, default color.
+        assert_eq!(weight_cell(&v, 12.345, None), ("12.35 kg".into(), None));
+        // Under 90% of the cap: cap shown, no warning color.
+        let (t, c) = weight_cell(&v, 10.0, Some(30.0));
+        assert_eq!(t, "10.00 / 30 kg");
+        assert!(c.is_none(), "under 90% must not warn");
+        // From 90% of the cap: amber.
+        let (_, c) = weight_cell(&v, 27.0, Some(30.0));
+        assert_eq!(c, Some(v.warn_fg_color));
+        // Over the cap: red (counts drifted — the game refuses over-cap deposits).
+        let (_, c) = weight_cell(&v, 30.5, Some(30.0));
+        assert_eq!(c, Some(v.error_fg_color));
+    }
+
+    #[test]
+    fn capacity_renders_in_the_weight_column() {
+        let state = Arc::new(RwLock::new(AppState::new(game_data_with_part())));
+        let id = state.write().create_container("Gunsmith storage".into());
+        {
+            let mut w = state.write();
+            w.set_container_kind(&id, ContainerKind::Case);
+            w.set_container_capacity(&id, Some(30.0));
+            w.set_container_item(&id, &"part_barrel".to_string(), 2);
+        }
+        let mut h = harness(&state);
+        h.run();
+        // 2 × 12.4 kg rendered against the 30 kg cap.
+        h.get_by_label("24.80 / 30 kg");
+    }
+
+    #[test]
+    fn gunsmith_storage_renders_as_primary_without_actions() {
+        let state = Arc::new(RwLock::new(AppState::new(game_data())));
+        state.write().seed_gunsmith_storage();
+        state.write().create_container("Backpack".into());
+        let mut h = harness(&state);
+        h.run();
+
+        // The built-in primary renders (pinned under Primary storage)…
+        h.get_by_label("Gunsmith storage");
+        // …with its baked-in cap…
+        h.get_by_label("0.00 / 30 kg");
+        // …but no Edit/Delete: only the user-created Backpack offers actions.
+        assert_eq!(h.get_all_by_label("Delete").count(), 1);
+        assert_eq!(h.get_all_by_label("Edit").count(), 1);
     }
 
     #[test]

@@ -36,6 +36,7 @@ EZ Wishlist Overlay keeps that list for you:
 - **Get one combined list** — every required item, de-duplicated and summed across all of them, with a `have / need` count.
 - **Check it anywhere** — on your desktop while planning, or floating above you in VR while you loot.
 - **Stop counting by hand** — point the app at an upgrade panel or a storage screen in-game and it reads the counts off the screen and fills them in.
+- **Keep the gun-parts storage under its cap** — scan the gunsmith's 30 kg storage and see exactly what's inside, what it weighs, and how close you are to the limit.
 
 ---
 
@@ -63,11 +64,15 @@ The preview pane on the right is the heart of it: every item across all the upgr
 
 ### 🗃️ Track items across your containers
 
-Your barter items aren't all in one place — some sit in your main stash, others in item cases, on hideout shelves, or in a backpack. The **Containers** tab lets you model that. Your **stash** is pinned at the top as primary storage, and below it you can add secondary containers grouped by type — **Cases**, **Shelves**, and **Bags** — each with a name and an icon. Every container's contents count toward your owned totals exactly like the stash, so stashing three bolts in a case and four in your stash still flips an upgrade that needs seven to *ready*.
+Your barter items aren't all in one place — some sit in your main stash, others in item cases, on hideout shelves, or in a backpack. The **Containers** tab lets you model that. Your **stash** and the gunsmith's **gun-parts storage** are pinned at the top as primary storage — the game gives you exactly one of each — and below them you can add secondary containers grouped by type — **Cases**, **Shelves**, and **Bags** — each with a name and an icon. Every container's contents count toward your owned totals exactly like the stash, so stashing three bolts in a case and four in your stash still flips an upgrade that needs seven to *ready*.
 
 For storage that has an in-game contents screen — your **stash** and the **Cases** — you don't have to type it all in. Hit **Scan from screen**, open the matching screen in-game, and just **scroll slowly**: it captures automatically as new rows come into view and merges the overlapping shots into one list (or press **SPACE** to grab a shot by hand). A centered window shows the running tally live with an **Auto-capture** toggle, and **Finish & review** opens a before/after diff (new, changed, and removed items) — alongside the rows it actually read, so you can drop any that look wrong — before you commit. Applying a scan **replaces** that container's contents with what was read — the review step spells that out up front.
 
-<!-- TODO: add docs/images/desktop-containers.png — a real-data capture of the Containers tab showing the Primary storage / Cases / Shelves / Bags sections — then reference it here like the other feature sections. -->
+Containers can also carry a **weight cap**, and the built-in **Gunsmith storage** is the reason: the gunsmith's Storage terminal — where your raid-found gun parts pile up — holds **30 kg**, can't be sorted, and the in-game screen never totals what's inside. It ships pinned under Primary storage with the cap already set: scan its screen and the table answers everything at a glance — what's in there, what it's worth, and `27.74 / 30 kg` against the cap, turning **amber** as you close in on it and **red** if your recorded counts ever drift past it. The catalog knows the real weight of nearly every gun part (and every barter item), so the sum is the game's own math. Your own Cases can carry a cap too via *Max weight* in the create/edit dialog — the junk-box Collection Cases also hold 30 kg.
+
+<p align="center">
+  <img src="docs/images/desktop-containers.png" alt="Containers tab — the gunsmith storage at 27.74 / 30 kg against its weight cap" width="820">
+</p>
 
 ### 📦 Items database & stash value
 
