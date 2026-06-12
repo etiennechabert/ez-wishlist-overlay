@@ -11,6 +11,7 @@ screenshots/
   box/       box.shotN.webp/.boxes.json + box.label.txt          # world container tablet  (3 shots)
   stash/     stash.shotNN.webp/.boxes.json + stash.label.txt     # Johnny's-Service junk-box terminal (38 shots)
   research/  tree.shotN.webp + <node>.webp + research.label.txt  # Neumann's RESEARCH tree (19 nodes; not OCR-gated yet)
+  gunsmith/  gunsmith.shotN.webp                                 # Neumann's Gunsmith → Storage gun-parts container (4 shots; capture-only, #175)
 ```
 
 Three asset types, each scored **independently** by the pipeline:
@@ -181,6 +182,28 @@ mode is a candidate later phase).
 These captures are the box-scan **gaze-crop** debug WebPs (`~1424×927`), not
 full 3096×3312 mirror frames — fine for ground truth + icon cutouts; recapture
 full frames only if an OCR gate ever needs them.
+
+## gunsmith/ — Neumann's Gunsmith → Storage (gun-parts container; capture-only)
+
+The gunsmith's own stash (in-game path **Gunsmith → Storage**): a weight-capped
+(30 KG) container of gun parts with no sorting and no content overview — the
+next container-scan target (epic #175, where Gun Parts get catalog entries with
+value + weight). `gunsmith.shot0..3.webp` is a 4-shot scroll series captured
+2026-06-12; the weight strip reads `29.37 / 30 KG`, and the box-scan engine
+already parses it (`observed_weight`) on these frames — every item tile drops
+as "no item matched" only because the parts aren't in the catalog yet.
+
+**Capture-only for now** — deliberately none of the usual sidecars:
+
+- no `gunsmith.label.txt`: most parts have no `item_id` to reference (the
+  `gunsmith` category holds only #168's 38 research items); the label lands
+  with the epic's catalog PR.
+- no `.boxes.json` / `.ocr-result.txt`: `regen_box_fixtures` and the result
+  writers only know box/stash.
+- Like `research/`, these are the **gaze-crop debug WebPs** (~1610×927), not
+  full 3096×3312 mirror frames, and the scroll coverage is NOT validated
+  row-by-row. When the OCR gate lands, recapture full frames row-by-row (the
+  stash #163 convention) instead of promoting these.
 
 ## units/ — per-item isolated-OCR fixtures
 
