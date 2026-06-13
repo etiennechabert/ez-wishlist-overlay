@@ -8,27 +8,41 @@
 # the frozen stash.shot30.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 5 item tile(s) across 1 grid row(s)
+  recognized 15 item tile(s) across 3 grid row(s)
   dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
-    1 x misc_b_ionbattery
+    1 x misc_b_battery_1
+    1 x misc_b_disinfectingwipes
+    1 x misc_b_gastank
+    2 x misc_b_ionbattery
+    1 x misc_b_lighterfluid
     1 x misc_b_match
+    2 x misc_b_opticaldisc
     1 x misc_b_piezometer
     2 x misc_b_ram
+    1 x misc_b_socket
+    1 x misc_cpu
+    1 x misc_floppydisk
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
 #   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
   [chrome]
     JUNKBOX                        -> (no match)
-  [chrome]
-    Size Power D batteryl          -> (no match)
-    lon Power Battery              -> (no match)
-    Intel CD                       -> (no match)
-    Combustible Lighter fluid      -> (no match)
-    Floppydisk Intel               -> (no match)
+  [items ]
+    Size D batteryl                -> misc_b_battery_1
+    lon Battery                    -> misc_b_ionbattery
+    CD                             -> misc_b_opticaldisc
+    Lighter fluid                  -> misc_b_lighterfluid
+    Floppydisk                     -> misc_floppydisk
+  [tabs  ]
+    Power                          -> (no match)
+    Power                          -> (no match)
+    Intel                          -> (no match)
+    Combustible                    -> (no match)
+    Intel                          -> (no match)
   [items ]
     Piezometer                     -> misc_b_piezometer
     lon Battery                    -> misc_b_ionbattery
@@ -41,9 +55,15 @@
     Electric                       -> (no match)
     Combustible                    -> (no match)
     Electric                       -> (no match)
-  [chrome]
-    Intel CD                       -> (no match)
-    Disinfectant Medical Supplies wipes -> (no match)
-    Electric Socket                -> (no match)
-    Electric CPU                   -> (no match)
-    Combustible Gas can            -> (no match)
+  [items ]
+    CD                             -> misc_b_opticaldisc
+    Disinfectant wipes             -> misc_b_disinfectingwipes
+    Socket                         -> misc_b_socket
+    CPU                            -> misc_cpu
+    Gas can                        -> misc_b_gastank
+  [tabs  ]
+    Intel                          -> (no match)
+    Medical Supplies               -> (no match)
+    Electric                       -> (no match)
+    Electric                       -> (no match)
+    Combustible                    -> (no match)

@@ -8,28 +8,44 @@
 # the frozen stash.shot35.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 5 item tile(s) across 1 grid row(s)
+  recognized 15 item tile(s) across 3 grid row(s)
   dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
     1 x misc_b_asthmamedication
     1 x misc_b_battery_1
+    1 x misc_b_flashlight
+    1 x misc_b_insulatingtape
     1 x misc_b_iodophor
+    1 x misc_b_lighter
+    1 x misc_b_match
     1 x misc_b_moldboard
+    1 x misc_b_oldphone
+    1 x misc_b_opticaldisc
+    1 x misc_b_ram
+    1 x misc_b_spraycan
     1 x misc_b_wirecutting
+    1 x misc_hammer
+    1 x misc_notebook
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
 #   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
   [chrome]
     JUNK BOX                       -> (no match)
-  [chrome]
-    Windproof Combustible Matches  -> (no match)
-    Spray Building can             -> (no match)
-    Insulating Building Tape       -> (no match)
-    Hammer Tool                    -> (no match)
-    OldPhone Electric              -> (no match)
+  [items ]
+    Windproof Matches              -> misc_b_match
+    Spray can                      -> misc_b_spraycan
+    Insulating Tape                -> misc_b_insulatingtape
+    Hammer                         -> misc_hammer
+    OldPhone                       -> misc_b_oldphone
+  [tabs  ]
+    Combustible                    -> (no match)
+    Building                       -> (no match)
+    Building                       -> (no match)
+    Tool                           -> (no match)
+    Electric                       -> (no match)
   [chrome]
     SiLurGor                       -> (no match)
   [items ]
@@ -44,9 +60,15 @@
     Medical Supplies               -> (no match)
     Tool                           -> (no match)
     Tool                           -> (no match)
-  [chrome]
-    Electric RAM                   -> (no match)
-    Combustible Lighter            -> (no match)
-    Flash Electric light           -> (no match)
-    Intel CD                       -> (no match)
-    Notebook Intel                 -> (no match)
+  [items ]
+    RAM                            -> misc_b_ram
+    Lighter                        -> misc_b_lighter
+    Flash light                    -> misc_b_flashlight
+    CD                             -> misc_b_opticaldisc
+    Notebook                       -> misc_notebook
+  [tabs  ]
+    Electric                       -> (no match)
+    Combustible                    -> (no match)
+    Electric                       -> (no match)
+    Intel                          -> (no match)
+    Intel                          -> (no match)

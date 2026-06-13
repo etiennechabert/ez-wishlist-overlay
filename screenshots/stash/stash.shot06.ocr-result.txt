@@ -8,28 +8,41 @@
 # the frozen stash.shot06.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 6 item tile(s) across 2 grid row(s)
+  recognized 16 item tile(s) across 4 grid row(s)
   dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
+    2 x misc_b_battery_1
+    1 x misc_b_ceramic_adhesive
+    1 x misc_b_disinfectingwipes
     1 x misc_b_gunoil
+    1 x misc_b_ionbattery
     1 x misc_b_lighterfluid
     2 x misc_b_nail
-    1 x misc_b_screw
+    2 x misc_b_ram
+    2 x misc_b_screw
+    1 x misc_b_tape
     1 x misc_copperwire
+    1 x misc_notebook
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
 #   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
   [chrome]
     JUNK BOX                       -> (no match)
-  [chrome]
-    Disinfectant Medical Supplies wipes -> (no match)
-    Ceramic Building adhesive      -> (no match)
-    Size Power D battery?          -> (no match)
-    Size Power D batteryl          -> (no match)
-    Boxed Building Bolts           -> (no match)
+  [items ]
+    Disinfectant wipes             -> misc_b_disinfectingwipes
+    Ceramic adhesive               -> misc_b_ceramic_adhesive
+    Size D battery?                -> misc_b_battery_1
+    Size D batteryl                -> misc_b_battery_1
+    Boxed Bolts                    -> misc_b_screw
+  [tabs  ]
+    Medical Supplies               -> (no match)
+    Building                       -> (no match)
+    Power                          -> (no match)
+    Power                          -> (no match)
+    Building                       -> (no match)
   [chrome]
     NICEBOLTS                      -> (no match)
   [items ]
@@ -46,9 +59,15 @@
     Combustible                    -> (no match)
     Building                       -> (no match)
     Building                       -> (no match)
-  [chrome]
-    Intel Tape                     -> (no match)
-    Electric RAM                   -> (no match)
-    lon Power Battery              -> (no match)
-    Electric RAM                   -> (no match)
-    Notebook Intel                 -> (no match)
+  [items ]
+    Tape                           -> misc_b_tape
+    RAM                            -> misc_b_ram
+    lon Battery                    -> misc_b_ionbattery
+    RAM                            -> misc_b_ram
+    Notebook                       -> misc_notebook
+  [tabs  ]
+    Intel                          -> (no match)
+    Electric                       -> (no match)
+    Power                          -> (no match)
+    Electric                       -> (no match)
+    Intel                          -> (no match)

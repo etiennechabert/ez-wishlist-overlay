@@ -8,15 +8,21 @@
 # the frozen stash.shot31.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 5 item tile(s) across 1 grid row(s)
+  recognized 15 item tile(s) across 3 grid row(s)
   dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
     1 x misc_b_disinfectingwipes
-    1 x misc_b_gastank
+    2 x misc_b_gastank
+    1 x misc_b_iodophor
+    1 x misc_b_ionbattery
+    2 x misc_b_match
     1 x misc_b_opticaldisc
+    1 x misc_b_piezometer
+    3 x misc_b_ram
     1 x misc_b_socket
+    1 x misc_b_tape
     1 x misc_cpu
 #
 ## DETAIL — every text the OCR produced, row by row
@@ -24,12 +30,18 @@
 #   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
   [chrome]
     JUNK BOX                       -> (no match)
-  [chrome]
-    Piezometer Building            -> (no match)
-    lon Power Battery              -> (no match)
-    Electric RAM                   -> (no match)
-    Windproof Combustible Matches  -> (no match)
-    Electric RAM                   -> (no match)
+  [items ]
+    Piezometer                     -> misc_b_piezometer
+    lon Battery                    -> misc_b_ionbattery
+    RAM                            -> misc_b_ram
+    Windproof Matches              -> misc_b_match
+    RAM                            -> misc_b_ram
+  [tabs  ]
+    Building                       -> (no match)
+    Power                          -> (no match)
+    Electric                       -> (no match)
+    Combustible                    -> (no match)
+    Electric                       -> (no match)
   [items ]
     CD                             -> misc_b_opticaldisc
     Disinfectant wipes             -> misc_b_disinfectingwipes
@@ -42,9 +54,15 @@
     Electric                       -> (no match)
     Electric                       -> (no match)
     Combustible                    -> (no match)
-  [chrome]
-    Combustible Gas can            -> (no match)
-    Medical lodine Supplies        -> (no match)
-    Windproof Combustible Matches  -> (no match)
-    Intel Tape                     -> (no match)
-    Electric RAM                   -> (no match)
+  [items ]
+    Gas can                        -> misc_b_gastank
+    lodine                         -> misc_b_iodophor
+    Windproof Matches              -> misc_b_match
+    Tape                           -> misc_b_tape
+    RAM                            -> misc_b_ram
+  [tabs  ]
+    Combustible                    -> (no match)
+    Medical Supplies               -> (no match)
+    Combustible                    -> (no match)
+    Intel                          -> (no match)
+    Electric                       -> (no match)

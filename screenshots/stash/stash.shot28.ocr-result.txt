@@ -8,28 +8,40 @@
 # the frozen stash.shot28.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 5 item tile(s) across 1 grid row(s)
+  recognized 15 item tile(s) across 3 grid row(s)
   dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
-    1 x misc_b_battery_1
+    2 x misc_b_battery_1
     1 x misc_b_beardoil
     1 x misc_b_ceramic_adhesive
-    1 x misc_b_opticaldisc
+    1 x misc_b_flashlight
+    2 x misc_b_ionbattery
+    1 x misc_b_lighterfluid
+    2 x misc_b_opticaldisc
     1 x misc_b_pesticide
+    2 x misc_b_shampoo
+    1 x misc_b_sparkplug
+    1 x misc_floppydisk
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
 #   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
   [chrome]
     JUNK BOX                       -> (no match)
-  [chrome]
-    lon Power Battery              -> (no match)
-    Spark Tool Plug                -> (no match)
-    Pet Household Shampoo          -> (no match)
-    Pet Household Shampoo          -> (no match)
-    Flash Electric light           -> (no match)
+  [items ]
+    lon Battery                    -> misc_b_ionbattery
+    Spark Plug                     -> misc_b_sparkplug
+    Pet Shampoo                    -> misc_b_shampoo
+    Pet Shampoo                    -> misc_b_shampoo
+    Flash light                    -> misc_b_flashlight
+  [tabs  ]
+    Power                          -> (no match)
+    Tool                           -> (no match)
+    Household                      -> (no match)
+    Household                      -> (no match)
+    Electric                       -> (no match)
   [chrome]
     TOSH                           -> (no match)
   [chrome]
@@ -48,9 +60,15 @@
     Building                       -> (no match)
   [chrome]
     LurGor                         -> (no match)
-  [chrome]
-    Size Power D battery1          -> (no match)
-    lon Power Battery              -> (no match)
-    Intet CD                       -> (no match)
-    Combustible Lighter fluid      -> (no match)
-    Floppydisk Intel               -> (no match)
+  [items ]
+    Size D battery1                -> misc_b_battery_1
+    lon Battery                    -> misc_b_ionbattery
+    CD                             -> misc_b_opticaldisc
+    Lighter fluid                  -> misc_b_lighterfluid
+    Floppydisk                     -> misc_floppydisk
+  [tabs  ]
+    Power                          -> (no match)
+    Power                          -> (no match)
+    Intet                          -> (no match)
+    Combustible                    -> (no match)
+    Intel                          -> (no match)

@@ -8,15 +8,23 @@
 # the frozen stash.shot21.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 5 item tile(s) across 1 grid row(s)
+  recognized 15 item tile(s) across 3 grid row(s)
   dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
-    1 x misc_b_beardoil
+    1 x misc_b_bandaid
+    2 x misc_b_battery_1
+    2 x misc_b_beardoil
     1 x misc_b_flashlight
     1 x misc_b_gastank
     1 x misc_b_glue_large
+    1 x misc_b_ionbattery
+    1 x misc_b_lighterfluid
+    1 x misc_b_moldboard
+    1 x misc_b_newphone
+    1 x misc_b_ram
+    1 x misc_b_wd40
     1 x misc_wastechip
 #
 ## DETAIL — every text the OCR produced, row by row
@@ -24,12 +32,18 @@
 #   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
   [chrome]
     JUNK BOX                       -> (no match)
-  [chrome]
-    NewPhone Electric              -> (no match)
-    Electric RAM                   -> (no match)
-    lon Power Battery              -> (no match)
-    Size Power D batteryl          -> (no match)
-    Size Power D batteryl          -> (no match)
+  [items ]
+    NewPhone                       -> misc_b_newphone
+    RAM                            -> misc_b_ram
+    lon Battery                    -> misc_b_ionbattery
+    Size D batteryl                -> misc_b_battery_1
+    Size D batteryl                -> misc_b_battery_1
+  [tabs  ]
+    Electric                       -> (no match)
+    Electric                       -> (no match)
+    Power                          -> (no match)
+    Power                          -> (no match)
+    Power                          -> (no match)
   [chrome]
     GAS                            -> (no match)
   [items ]
@@ -45,10 +59,18 @@
     Building                       -> (no match)
     Electric                       -> (no match)
   [chrome]
-    PACK VARIETY                   -> (no match)
+    VARIETY                        -> (no match)
   [chrome]
-    Household Beardoil             -> (no match)
-    Lighter Combustible fluid      -> (no match)
-    Combustible WD-40              -> (no match)
-    Moldboard Tool                 -> (no match)
-    Medical Band-aids Supplies     -> (no match)
+    PACK                           -> (no match)
+  [items ]
+    Beardoil                       -> misc_b_beardoil
+    Lighter fluid                  -> misc_b_lighterfluid
+    WD-40                          -> misc_b_wd40
+    Moldboard                      -> misc_b_moldboard
+    Band-aids                      -> misc_b_bandaid
+  [tabs  ]
+    Household                      -> (no match)
+    Combustible                    -> (no match)
+    Combustible                    -> (no match)
+    Tool                           -> (no match)
+    Medical Supplies               -> (no match)

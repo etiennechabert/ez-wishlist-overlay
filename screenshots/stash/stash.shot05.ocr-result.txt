@@ -8,31 +8,44 @@
 # the frozen stash.shot05.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 6 item tile(s) across 2 grid row(s)
+  recognized 16 item tile(s) across 4 grid row(s)
   dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
-    1 x misc_b_battery_1
+    1 x misc_b_asthmamedication
+    2 x misc_b_battery_1
     1 x misc_b_battery_2
     1 x misc_b_ceramic_adhesive
     1 x misc_b_disinfectingwipes
-    1 x misc_b_nail
-    1 x misc_b_screw
+    1 x misc_b_gunoil
+    2 x misc_b_insulatingtape
+    1 x misc_b_lighterfluid
+    2 x misc_b_nail
+    1 x misc_b_ram
+    2 x misc_b_screw
+    1 x misc_copperwire
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
 #   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
+  [items ]
+    Insulating Tape                -> misc_b_insulatingtape
+    Size D battery?                -> misc_b_battery_1
+    Insulating Tape                -> misc_b_insulatingtape
+    RAM                            -> misc_b_ram
+    Asthma medicine                -> misc_b_asthmamedication
+  [tabs  ]
+    Building                       -> (no match)
+    Power                          -> (no match)
+    Building                       -> (no match)
+    Electric                       -> (no match)
+    Medical Supplies               -> (no match)
   [chrome]
-    Insulating Building Tape       -> (no match)
-    Size D Power battery?          -> (no match)
-    Insulating Building Tape       -> (no match)
-    Electric RAM                   -> (no match)
-    Asthma Medical Supplies medicine -> (no match)
-  [chrome]
-    TOSH                           -> (no match)
     SiLurGor                       -> (no match)
     NICEBOLTS                      -> (no match)
+  [chrome]
+    TOSH                           -> (no match)
   [chrome]
     REAMTIGHT 956                  -> (no match)
   [items ]
@@ -51,9 +64,15 @@
     NICEBOLTS                      -> (no match)
   [items ]
     Box Nails                      -> misc_b_nail
-  [chrome]
-    Boxed Building Bolts           -> (no match)
-    Combustible Gun oil            -> (no match)
-    Combustible Lighter fluid      -> (no match)
-    Copper Building wire           -> (no match)
-    Boxed Building Nails           -> (no match)
+  [items ]
+    Boxed Bolts                    -> misc_b_screw
+    Gun oil                        -> misc_b_gunoil
+    Lighter fluid                  -> misc_b_lighterfluid
+    Copper wire                    -> misc_copperwire
+    Boxed Nails                    -> misc_b_nail
+  [tabs  ]
+    Building                       -> (no match)
+    Combustible                    -> (no match)
+    Combustible                    -> (no match)
+    Building                       -> (no match)
+    Building                       -> (no match)

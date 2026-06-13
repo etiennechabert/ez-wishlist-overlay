@@ -8,27 +8,41 @@
 # the frozen stash.shot04.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 5 item tile(s) across 1 grid row(s)
+  recognized 15 item tile(s) across 3 grid row(s)
   dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
     1 x misc_b_asthmamedication
+    2 x misc_b_battery_1
     1 x misc_b_battery_2
+    1 x misc_b_ceramic_adhesive
+    1 x misc_b_disinfectingwipes
     2 x misc_b_insulatingtape
+    1 x misc_b_pcfan
+    2 x misc_b_pipeline
     1 x misc_b_ram
+    1 x misc_b_screw
+    1 x misc_hammer
+    1 x misc_notebook
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
 #   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
   [chrome]
     JUNK BOX                       -> (no match)
-  [chrome]
-    Electric CPU Fan               -> (no match)
-    Notebook Intel                 -> (no match)
-    Hammer Tool                    -> (no match)
-    Building Valve                 -> (no match)
-    Building Valve                 -> (no match)
+  [items ]
+    CPU Fan                        -> misc_b_pcfan
+    Notebook                       -> misc_notebook
+    Hammer                         -> misc_hammer
+    Valve                          -> misc_b_pipeline
+    Valve                          -> misc_b_pipeline
+  [tabs  ]
+    Electric                       -> (no match)
+    Intel                          -> (no match)
+    Tool                           -> (no match)
+    Building                       -> (no match)
+    Building                       -> (no match)
   [chrome]
     SiLurGor                       -> (no match)
   [items ]
@@ -44,15 +58,22 @@
     Electric                       -> (no match)
     Medical Supplies               -> (no match)
   [chrome]
-    TOSH                           -> (no match)
     SiLurGor                       -> (no match)
     iLurGor                        -> (no match)
     NICEBOLTS                      -> (no match)
   [chrome]
-    EAMTIGHT                       -> (no match)
+    TOSH                           -> (no match)
   [chrome]
-    Disinfectant Medical Supplies wipes -> (no match)
-    Ceramic Building adhesive      -> (no match)
-    Size Power D battery?          -> (no match)
-    Size Power D batteryl          -> (no match)
-    Boxed Building Bolts           -> (no match)
+    EAMTIGHT                       -> (no match)
+  [items ]
+    Disinfectant wipes             -> misc_b_disinfectingwipes
+    Ceramic adhesive               -> misc_b_ceramic_adhesive
+    Size D battery?                -> misc_b_battery_1
+    Size D batteryl                -> misc_b_battery_1
+    Boxed Bolts                    -> misc_b_screw
+  [tabs  ]
+    Medical Supplies               -> (no match)
+    Building                       -> (no match)
+    Power                          -> (no match)
+    Power                          -> (no match)
+    Building                       -> (no match)

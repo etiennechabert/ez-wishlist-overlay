@@ -8,30 +8,45 @@
 # the frozen stash.shot14.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 6 item tile(s) across 2 grid row(s)
-  dropped 4 text(s) that matched no catalog item (window title, weight
+  recognized 15 item tile(s) across 3 grid row(s)
+  dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
     1 x misc_b_asthmamedication
     1 x misc_b_bandaid
     2 x misc_b_battery_1
-    1 x misc_floppydisk
-    1 x misc_householdleaner
+    1 x misc_b_ceramic_adhesive
+    1 x misc_b_deodorant
+    1 x misc_b_ram
+    1 x misc_b_rustedcleaner
+    1 x misc_b_tape
+    2 x misc_b_wd40
+    1 x misc_b_wirecutting
+    1 x misc_facialcleaner
+    2 x misc_floppydisk
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
 #   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
   [chrome]
     JUNK BOX                       -> (no match)
+  [items ]
+    Ceramic adhesive               -> misc_b_ceramic_adhesive
+    Deodorant                      -> misc_b_deodorant
+    Tape                           -> misc_b_tape
+    Floppydisk                     -> misc_floppydisk
+    Rust cleaner                   -> misc_b_rustedcleaner
+  [tabs  ]
+    Building                       -> (no match)
+    Household                      -> (no match)
+    Intel                          -> (no match)
+    Intel                          -> (no match)
+    Household                      -> (no match)
   [chrome]
-    Ceramic Building adhesive      -> (no match)
-    Household Deodorant            -> (no match)
-    Intel Tape                     -> (no match)
-    Floppydisk Intel               -> (no match)
-    Rust Household cleaner         -> (no match)
+    VARIETY                        -> (no match)
   [chrome]
-    PACK VARIETY                   -> (no match)
+    PACK                           -> (no match)
   [items ]
     Floppydisk                     -> misc_floppydisk
     Band-aids                      -> misc_b_bandaid
@@ -45,8 +60,14 @@
     Medical Supplies               -> (no match)
     Power                          -> (no match)
   [items ]
-    Combustible Wo-40              -> (no match)
-    Wire Tool Cutter               -> (no match)
-    Combustible Wo-40              -> (no match)
-    Household Cleanser             -> misc_householdleaner
-    Electric RAM                   -> (no match)
+    Wo-40                          -> misc_b_wd40
+    Wire Cutter                    -> misc_b_wirecutting
+    Wo-40                          -> misc_b_wd40
+    Cleanser                       -> misc_facialcleaner
+    RAM                            -> misc_b_ram
+  [tabs  ]
+    Combustible                    -> (no match)
+    Tool                           -> (no match)
+    Combustible                    -> (no match)
+    Household                      -> (no match)
+    Electric                       -> (no match)

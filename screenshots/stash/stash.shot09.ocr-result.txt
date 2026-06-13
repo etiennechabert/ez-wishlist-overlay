@@ -8,28 +8,40 @@
 # the frozen stash.shot09.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 5 item tile(s) across 1 grid row(s)
+  recognized 15 item tile(s) across 3 grid row(s)
   dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
+    1 x misc_b_beardoil
     1 x misc_b_iodophor
-    1 x misc_b_ionbattery
+    2 x misc_b_ionbattery
+    1 x misc_b_medicalscissors
     1 x misc_b_nut
     1 x misc_b_pcfan
     1 x misc_b_ram
+    1 x misc_b_screw
+    1 x misc_b_superglue
+    3 x misc_floppydisk
+    2 x misc_screwdriver
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
 #   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
   [chrome]
     JUNK BOX                       -> (no match)
-  [chrome]
-    Super Building Glue            -> (no match)
-    Household BeardOil             -> (no match)
-    Floppydisk Intel               -> (no match)
-    Floppydisk Intel               -> (no match)
-    lon Power Battery              -> (no match)
+  [items ]
+    Super Glue                     -> misc_b_superglue
+    BeardOil                       -> misc_b_beardoil
+    Floppydisk                     -> misc_floppydisk
+    Floppydisk                     -> misc_floppydisk
+    lon Battery                    -> misc_b_ionbattery
+  [tabs  ]
+    Building                       -> (no match)
+    Household                      -> (no match)
+    Intel                          -> (no match)
+    Intel                          -> (no match)
+    Power                          -> (no match)
   [chrome]
     ESSENTIAL NUTS                 -> (no match)
   [items ]
@@ -46,9 +58,15 @@
     Building                       -> (no match)
   [chrome]
     NICEBOLTS                      -> (no match)
-  [chrome]
-    Boxed Building Bolts           -> (no match)
-    Screwdriver Tool               -> (no match)
-    Screwdriver Tool               -> (no match)
-    Floppydisk Intel               -> (no match)
-    Medical Medical Supplies scissors -> (no match)
+  [items ]
+    Boxed Bolts                    -> misc_b_screw
+    Screwdriver                    -> misc_screwdriver
+    Screwdriver                    -> misc_screwdriver
+    Floppydisk                     -> misc_floppydisk
+    Medical scissors               -> misc_b_medicalscissors
+  [tabs  ]
+    Building                       -> (no match)
+    Tool                           -> (no match)
+    Tool                           -> (no match)
+    Intel                          -> (no match)
+    Medical Supplies               -> (no match)

@@ -8,14 +8,23 @@
 # the frozen stash.shot10.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 5 item tile(s) across 1 grid row(s)
+  recognized 15 item tile(s) across 3 grid row(s)
   dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
+    1 x misc_b_bandaid
+    1 x misc_b_battery_1
+    1 x misc_b_iodophor
+    1 x misc_b_ionbattery
     1 x misc_b_medicalscissors
+    1 x misc_b_newphone
+    1 x misc_b_nut
+    1 x misc_b_pcfan
+    2 x misc_b_ram
     1 x misc_b_screw
     1 x misc_floppydisk
+    1 x misc_notebook
     2 x misc_screwdriver
 #
 ## DETAIL — every text the OCR produced, row by row
@@ -23,12 +32,18 @@
 #   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
   [chrome]
     JUNK BOX                       -> (no match)
-  [chrome]
-    lon Power Battery              -> (no match)
-    Medical lodine Supplies        -> (no match)
-    Electric RAM                   -> (no match)
-    Electric CPU Fan               -> (no match)
-    Boxed Building Nuts            -> (no match)
+  [items ]
+    lon Battery                    -> misc_b_ionbattery
+    lodine                         -> misc_b_iodophor
+    RAM                            -> misc_b_ram
+    CPU Fan                        -> misc_b_pcfan
+    Boxed Nuts                     -> misc_b_nut
+  [tabs  ]
+    Power                          -> (no match)
+    Medical Supplies               -> (no match)
+    Electric                       -> (no match)
+    Electric                       -> (no match)
+    Building                       -> (no match)
   [chrome]
     NICEBOLTS                      -> (no match)
   [items ]
@@ -44,11 +59,19 @@
     Intel                          -> (no match)
     Medical Supplies               -> (no match)
   [chrome]
-    VARIETY PACK                   -> (no match)
-    SiLurGor                       -> (no match)
+    VARIETY                        -> (no match)
   [chrome]
-    Medical Band-aids Supplies     -> (no match)
-    Size Power D battery?          -> (no match)
-    Notebook Intet                 -> (no match)
-    Electric RAM                   -> (no match)
-    NewPhone Electric              -> (no match)
+    PACK                           -> (no match)
+    SiLurGor                       -> (no match)
+  [items ]
+    Band-aids                      -> misc_b_bandaid
+    Size D battery?                -> misc_b_battery_1
+    Notebook                       -> misc_notebook
+    RAM                            -> misc_b_ram
+    NewPhone                       -> misc_b_newphone
+  [tabs  ]
+    Medical Supplies               -> (no match)
+    Power                          -> (no match)
+    Intet                          -> (no match)
+    Electric                       -> (no match)
+    Electric                       -> (no match)

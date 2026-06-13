@@ -8,17 +8,23 @@
 # the frozen stash.shot16.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 8 item tile(s) across 4 grid row(s)
-  dropped 5 text(s) that matched no catalog item (window title, weight
+  recognized 17 item tile(s) across 5 grid row(s)
+  dropped 1 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
-    3 x misc_b_aspire
+    4 x misc_b_aspire
+    1 x misc_b_battery_1
+    1 x misc_b_gastank
     1 x misc_b_gunoil
+    1 x misc_b_ionbattery
     1 x misc_b_match
+    1 x misc_b_ram
     1 x misc_b_superglue
-    1 x misc_b_wd40
-    1 x misc_householdleaner
+    3 x misc_b_wd40
+    1 x misc_b_wirecutting
+    1 x misc_facialcleaner
+    1 x misc_notebook
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
@@ -26,11 +32,17 @@
   [chrome]
     JUNK BOX                       -> (no match)
   [items ]
-    Combustible WD-40              -> (no match)
-    Wire Tool Cutter               -> (no match)
-    Combustible WD-40              -> (no match)
-    Household Cleanser             -> misc_householdleaner
-    Electric RAM                   -> (no match)
+    WD-40                          -> misc_b_wd40
+    Wire Cutter                    -> misc_b_wirecutting
+    WD-40                          -> misc_b_wd40
+    Cleanser                       -> misc_facialcleaner
+    RAM                            -> misc_b_ram
+  [tabs  ]
+    Combustible                    -> (no match)
+    Tool                           -> (no match)
+    Combustible                    -> (no match)
+    Household                      -> (no match)
+    Electric                       -> (no match)
   [items ]
     ASPIRIN                        -> misc_b_aspire
   [items ]
@@ -50,9 +62,15 @@
     iLurGor                        -> (no match)
   [chrome]
     AS                             -> (no match)
-  [chrome]
-    Notebook Intet                 -> (no match)
-    Combustible Gas can            -> (no match)
-    Medical Aspirin Supplies       -> (no match)
-    Size Power D battery1          -> (no match)
-    lon Power Battery              -> (no match)
+  [items ]
+    Notebook                       -> misc_notebook
+    Gas can                        -> misc_b_gastank
+    Aspirin                        -> misc_b_aspire
+    Size D battery1                -> misc_b_battery_1
+    lon Battery                    -> misc_b_ionbattery
+  [tabs  ]
+    Intet                          -> (no match)
+    Combustible                    -> (no match)
+    Medical Supplies               -> (no match)
+    Power                          -> (no match)
+    Power                          -> (no match)

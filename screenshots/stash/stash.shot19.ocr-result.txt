@@ -8,37 +8,66 @@
 # the frozen stash.shot19.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 1 item tile(s) across 1 grid row(s)
+  recognized 16 item tile(s) across 4 grid row(s)
   dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
-    1 x misc_b_aspire
+    2 x misc_b_aspire
+    1 x misc_b_asthmamedication
+    3 x misc_b_battery_1
+    1 x misc_b_beardoil
+    1 x misc_b_flashlight
+    1 x misc_b_gunoil
+    1 x misc_b_iodophor
+    2 x misc_b_ionbattery
+    1 x misc_b_newphone
+    1 x misc_b_pcfan
+    1 x misc_b_ram
+    1 x misc_b_wd40
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
 #   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
   [chrome]
     JUNK BOX                       -> (no match)
-  [chrome]
-    Household Beardoil             -> (no match)
-    Medical lodine Suppies         -> (no match)
-    Combustible Gun oil            -> (no match)
-    Size Power D batteryl          -> (no match)
-    Flashlight Electric            -> (no match)
+  [items ]
+    Beardoil                       -> misc_b_beardoil
+    lodine                         -> misc_b_iodophor
+    Gun oil                        -> misc_b_gunoil
+    Size D batteryl                -> misc_b_battery_1
+    Flashlight                     -> misc_b_flashlight
+  [tabs  ]
+    Household                      -> (no match)
+    Medical Suppies                -> (no match)
+    Combustible                    -> (no match)
+    Power                          -> (no match)
+    Electric                       -> (no match)
   [items ]
     ASPIRIN                        -> misc_b_aspire
-  [chrome]
-    Combustible WD-40              -> (no match)
-    Asthma Medical Supplies medicine -> (no match)
-    lon Power Battery              -> (no match)
-    Medical Aspirin Supplies       -> (no match)
-    Electric CPU Fan               -> (no match)
+  [items ]
+    WD-40                          -> misc_b_wd40
+    Asthma medicine                -> misc_b_asthmamedication
+    lon Battery                    -> misc_b_ionbattery
+    Aspirin                        -> misc_b_aspire
+    CPU Fan                        -> misc_b_pcfan
+  [tabs  ]
+    Combustible                    -> (no match)
+    Medical Supplies               -> (no match)
+    Power                          -> (no match)
+    Medical Supplies               -> (no match)
+    Electric                       -> (no match)
   [chrome]
     iLurGor                        -> (no match)
-  [chrome]
-    NewPhone Electric              -> (no match)
-    Electric RAM                   -> (no match)
-    lon Power Battery              -> (no match)
-    Size Power battery1            -> (no match)
-    Size Power Dbatteryl           -> (no match)
+  [items ]
+    NewPhone                       -> misc_b_newphone
+    RAM                            -> misc_b_ram
+    lon Battery                    -> misc_b_ionbattery
+    Size battery1                  -> misc_b_battery_1
+    Size Dbatteryl                 -> misc_b_battery_1
+  [tabs  ]
+    Electric                       -> (no match)
+    Electric                       -> (no match)
+    Power                          -> (no match)
+    Power                          -> (no match)
+    Power                          -> (no match)

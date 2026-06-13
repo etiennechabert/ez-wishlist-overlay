@@ -8,30 +8,48 @@
 # the frozen stash.shot24.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 5 item tile(s) across 1 grid row(s)
+  recognized 15 item tile(s) across 3 grid row(s)
   dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
+    1 x misc_b_battery_1
+    1 x misc_b_ceramic_adhesive
+    1 x misc_b_deodorant
     1 x misc_b_gastank_large
+    1 x misc_b_glue_large
     1 x misc_b_opticaldisc
-    1 x misc_b_rat_poison
+    2 x misc_b_pcfan
+    1 x misc_b_ram
+    2 x misc_b_rat_poison
+    1 x misc_b_rustedcleaner
     1 x misc_b_saltcan
     1 x misc_b_tire_sealant
+    1 x misc_b_wd40
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
 #   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
   [chrome]
     JUNK BOX                       -> (no match)
+  [items ]
+    Instant glue                   -> misc_b_glue_large
+    Rust cleaner                   -> misc_b_rustedcleaner
+    WD-40                          -> misc_b_wd40
+    Size Dbatteryl                 -> misc_b_battery_1
+    CPUFan                         -> misc_b_pcfan
+  [tabs  ]
+    Building                       -> (no match)
+    Household                      -> (no match)
+    Combustible                    -> (no match)
+    Power                          -> (no match)
+    Electric                       -> (no match)
   [chrome]
-    Instant Building glue          -> (no match)
-    Rust Household cleaner         -> (no match)
-    Combustible WD-40              -> (no match)
-    Size Power Dbatteryl           -> (no match)
-    Electric CPUFan                -> (no match)
+    MARGARINE'                     -> (no match)
   [chrome]
-    MARGARINE' MLIGLIEN SEA.SALT SALT -> (no match)
+    SEA.SALT                       -> (no match)
+  [chrome]
+    MLIGLIEN SALT                  -> (no match)
   [items ]
     Tire Sealant                   -> misc_b_tire_sealant
     Salt can                       -> misc_b_saltcan
@@ -48,9 +66,15 @@
     TOSH                           -> (no match)
   [chrome]
     REAMTIGHT                      -> (no match)
-  [chrome]
-    Household Rat Poison           -> (no match)
-    Household Deodorant            -> (no match)
-    Ceramic Building adhesive      -> (no match)
-    Electric RAM                   -> (no match)
-    Electric CPU Fan               -> (no match)
+  [items ]
+    Rat Poison                     -> misc_b_rat_poison
+    Deodorant                      -> misc_b_deodorant
+    Ceramic adhesive               -> misc_b_ceramic_adhesive
+    RAM                            -> misc_b_ram
+    CPU Fan                        -> misc_b_pcfan
+  [tabs  ]
+    Household                      -> (no match)
+    Household                      -> (no match)
+    Building                       -> (no match)
+    Electric                       -> (no match)
+    Electric                       -> (no match)

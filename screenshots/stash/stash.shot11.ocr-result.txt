@@ -8,30 +8,45 @@
 # the frozen stash.shot11.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 5 item tile(s) across 1 grid row(s)
+  recognized 15 item tile(s) across 3 grid row(s)
   dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
     1 x misc_b_bandaid
     1 x misc_b_battery_1
+    1 x misc_b_ceramic_adhesive
+    1 x misc_b_gastank_large
+    1 x misc_b_medicalscissors
     1 x misc_b_newphone
+    2 x misc_b_pcfan
     1 x misc_b_ram
-    1 x misc_notebook
+    1 x misc_b_screw
+    1 x misc_floppydisk
+    2 x misc_notebook
+    2 x misc_screwdriver
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
 #   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
   [chrome]
     JUNK BOX                       -> (no match)
+  [items ]
+    Boxed Bolts                    -> misc_b_screw
+    Screwdriver                    -> misc_screwdriver
+    Screwdriver                    -> misc_screwdriver
+    Floppydisk                     -> misc_floppydisk
+    Medical scissors               -> misc_b_medicalscissors
+  [tabs  ]
+    Building                       -> (no match)
+    Tool                           -> (no match)
+    Tool                           -> (no match)
+    Intel                          -> (no match)
+    Medical Supplies               -> (no match)
   [chrome]
-    Boxed Building Bolts           -> (no match)
-    Screwdriver Tool               -> (no match)
-    Screwdriver Tool               -> (no match)
-    Floppydisk Intel               -> (no match)
-    Medical Medical Supplies scissors -> (no match)
+    VARIETY                        -> (no match)
   [chrome]
-    PACK VARIETY                   -> (no match)
+    PACK                           -> (no match)
     SiLurGor                       -> (no match)
   [items ]
     Band-aids                      -> misc_b_bandaid
@@ -49,9 +64,15 @@
     TOSH                           -> (no match)
   [chrome]
     REAMTIGHT 956                  -> (no match)
-  [chrome]
-    Notebook Intel                 -> (no match)
-    Electric CPU Fan               -> (no match)
-    Electric CPU Fan               -> (no match)
-    Large Combustible gas can      -> (no match)
-    Ceramic Building adhesive      -> (no match)
+  [items ]
+    Notebook                       -> misc_notebook
+    CPU Fan                        -> misc_b_pcfan
+    CPU Fan                        -> misc_b_pcfan
+    Large gas can                  -> misc_b_gastank_large
+    Ceramic adhesive               -> misc_b_ceramic_adhesive
+  [tabs  ]
+    Intel                          -> (no match)
+    Electric                       -> (no match)
+    Electric                       -> (no match)
+    Combustible                    -> (no match)
+    Building                       -> (no match)

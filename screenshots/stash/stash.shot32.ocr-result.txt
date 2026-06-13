@@ -8,28 +8,42 @@
 # the frozen stash.shot32.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 5 item tile(s) across 1 grid row(s)
+  recognized 15 item tile(s) across 3 grid row(s)
   dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
-    1 x misc_b_gastank
+    1 x misc_b_ceramic_adhesive
+    1 x misc_b_disinfectingwipes
+    3 x misc_b_gastank
     1 x misc_b_iodophor
     1 x misc_b_match
+    1 x misc_b_medicalscissors
+    1 x misc_b_opticaldisc
     1 x misc_b_ram
+    1 x misc_b_socket
+    1 x misc_b_sparkplug
     1 x misc_b_tape
+    1 x misc_b_wd40
+    1 x misc_cpu
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
 #   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
   [chrome]
     JUNK BOX                       -> (no match)
-  [chrome]
-    Intel CD                       -> (no match)
-    Disinfectant Medical Supplies wipes -> (no match)
-    Electric Socket                -> (no match)
-    Electric CPU                   -> (no match)
-    Combustible Gas can            -> (no match)
+  [items ]
+    CD                             -> misc_b_opticaldisc
+    Disinfectant wipes             -> misc_b_disinfectingwipes
+    Socket                         -> misc_b_socket
+    CPU                            -> misc_cpu
+    Gas can                        -> misc_b_gastank
+  [tabs  ]
+    Intel                          -> (no match)
+    Medical Supplies               -> (no match)
+    Electric                       -> (no match)
+    Electric                       -> (no match)
+    Combustible                    -> (no match)
   [chrome]
     GAS                            -> (no match)
   [items ]
@@ -48,9 +62,15 @@
     TOSH                           -> (no match)
   [chrome]
     REAMTIGHT 956                  -> (no match)
-  [chrome]
-    Medical Medical Supplies scissors -> (no match)
-    Combustible Gas can            -> (no match)
-    Combustible Wo-40              -> (no match)
-    Ceramic Building adhesive      -> (no match)
-    Spark Tool Plug                -> (no match)
+  [items ]
+    Medical scissors               -> misc_b_medicalscissors
+    Gas can                        -> misc_b_gastank
+    Wo-40                          -> misc_b_wd40
+    Ceramic adhesive               -> misc_b_ceramic_adhesive
+    Spark Plug                     -> misc_b_sparkplug
+  [tabs  ]
+    Medical Supplies               -> (no match)
+    Combustible                    -> (no match)
+    Combustible                    -> (no match)
+    Building                       -> (no match)
+    Tool                           -> (no match)
