@@ -8,7 +8,7 @@
 # the frozen stash.shot06.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 16 item tile(s) across 4 grid row(s)
+  recognized 15 item tile(s) across 3 grid row(s)
   dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
@@ -19,7 +19,7 @@
     1 x misc_b_gunoil
     1 x misc_b_ionbattery
     1 x misc_b_lighterfluid
-    2 x misc_b_nail
+    1 x misc_b_nail
     2 x misc_b_ram
     2 x misc_b_screw
     1 x misc_b_tape
@@ -45,8 +45,8 @@
     Building                       -> (no match)
   [chrome]
     NICEBOLTS                      -> (no match)
-  [items ]
-    Box Nails                      -> misc_b_nail
+  [chrome]
+    Box Nails                      -> (no match)
   [items ]
     Boxed Bolts                    -> misc_b_screw
     Gun oil                        -> misc_b_gunoil
