@@ -5,10 +5,12 @@ These are the live images shown in the main [README](../../README.md). To refres
 | File | Shows | Format |
 | ---- | ----- | ------ |
 | `desktop-hideout.png` | Desktop **Hideout** tab + the aggregated *Active items* wishlist. | PNG (crisp UI text) |
+| `desktop-research.png` | Desktop **Research** tab — the merchant research tree with sample tracking. | PNG |
+| `desktop-containers.png` | Desktop **Containers** tab — the gunsmith storage against its 30 kg weight cap. | PNG |
 | `desktop-items-db.png` | Desktop **Items DB** tab, sorted by Total Value (the "stash worth" view). | PNG |
 | `settings.png` | The **Settings** dialog. | PNG |
 | `vr-overlay.jpg` | In-headset: the wishlist overlay grid floating in the world. | JPG (photographic) |
-| `ocr-feedback.jpg` | In-headset: the OCR feedback card ("OCR Bitcoin Mine · Lv 2") over the Facility Upgrade panel — captures the whole SPACE-to-read flow in one shot. | JPG |
+| `ocr-feedback.jpg` | In-headset: the OCR feedback card ("OCR Bitcoin Mine · Lv 2") over the Facility Upgrade panel — captures the read-off-the-screen flow in one shot. | JPG |
 
 Notes:
 - **Desktop UI shots → PNG** (sharp text), **VR/in-game shots → JPG** (small files for photographic content). Keep that split when refreshing.
