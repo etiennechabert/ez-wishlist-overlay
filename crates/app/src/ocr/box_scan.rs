@@ -464,16 +464,30 @@ fn cluster_rows<'a>(boxes: &[&'a LabelBox], slope: f32, tol: f32) -> Vec<Vec<&'a
     rows
 }
 
+/// De-sheared vertical gap (as a fraction of median box height) above which
+/// [`split_subrows`] starts a new sub-row. See that function for why `0.6`.
+const SUBROW_GAP_FRAC: f32 = 0.6;
+
 /// Split one generous grid-row *block* into sub-rows at de-sheared vertical gaps
-/// wider than ~one text height. A box tile stacks the item **name** over its
-/// **category subtitle** (~2 text heights apart), so this separates the two; the
-/// subtitle sub-row is then dropped while the name survives. A block with a single
-/// sub-row (the names-only tablet layout, or a lone chrome line) returns unsplit.
+/// wider than [`SUBROW_GAP_FRAC`]·med_h. A box tile stacks the item **name** over
+/// its **category subtitle** (~1.3 text heights apart), so this separates the two;
+/// the subtitle sub-row is then dropped while the name survives. A block with a
+/// single sub-row (the names-only tablet layout, or a lone chrome line) returns
+/// unsplit.
+///
+/// The threshold sits between the **within-row** consecutive de-sheared gap
+/// (adjacent tiles across one row — a few px, even with an imperfect slope) and
+/// the **name↔category** gap (~30 px). The original `1.1·med_h` landed right on
+/// the name↔category gap once the PP-OCR engine's unclip inflated `med_h` (#181),
+/// so under a steeper VR viewing angle the name and its subtitle merged into one
+/// unmatchable "Name Category Name" row that got dropped — losing whole grid rows
+/// from a scan (#182). `0.6` clears the within-row gap with margin while still
+/// splitting the name from its subtitle.
 #[allow(dead_code)]
 fn split_subrows<'a>(block: &[&'a LabelBox], slope: f32, med_h: f32) -> Vec<Vec<&'a LabelBox>> {
     let mut sorted = block.to_vec();
     sorted.sort_by(|a, b| deshear(a, slope).total_cmp(&deshear(b, slope)));
-    let gap = (med_h * 1.1).max(1.0);
+    let gap = (med_h * SUBROW_GAP_FRAC).max(1.0);
 
     let mut subs: Vec<Vec<&LabelBox>> = Vec::new();
     let mut cur: Vec<&LabelBox> = Vec::new();
@@ -1035,7 +1049,7 @@ pub fn format_capture_dump(
 }
 
 /// OCR one box-screen screenshot into a [`BoxReadResult`]. Windows-only — runs
-/// Windows.Media.Ocr, then hands the word boxes to the platform-independent
+/// the OCR engine, then hands the word boxes to the platform-independent
 /// [`read_tiles`].
 #[cfg(target_os = "windows")]
 pub fn process_box_image(
@@ -1061,7 +1075,7 @@ pub fn process_box_image(
     Ok(read_tiles(&boxes, img_h as f32, data))
 }
 
-/// Non-Windows stub: Windows.Media.Ocr is unavailable, so there's nothing to
+/// Non-Windows stub: the OCR engine is Windows-only, so there's nothing to
 /// read. Mirrors [`crate::ocr::pipeline::process_image`]'s stub.
 #[cfg(not(target_os = "windows"))]
 pub fn process_box_image(
@@ -1141,12 +1155,14 @@ pub(crate) mod tests {
     // Native-capture regression fixtures (`screenshots/box/`, `screenshots/stash/`).
     //
     // Real box-screen captures keep getting flushed from the debug dir, so we
-    // freeze each one's Windows.Media.Ocr output (the word boxes) to JSON next
-    // to its PNG. `read_tiles` + `merge_capture` are pure and platform-independent,
-    // so these fixtures let us regression-test the whole post-OCR pipeline on every
-    // target (incl. Linux CI) without re-running the Windows-only, slightly
-    // nondeterministic engine. The PNGs are the ground truth; the `.boxes.json`
-    // are regenerated from them by `regen_box_fixtures` (Windows, --ignored).
+    // freeze each one's OCR-engine output (the word boxes; PP-OCRv4 since
+    // #181) to JSON next to its PNG. `read_tiles` + `merge_capture` are pure
+    // and platform-independent, so these fixtures let us regression-test the
+    // whole post-OCR pipeline on every target (incl. Linux CI) without
+    // re-running the Windows-only engine. The PNGs are the ground truth; the
+    // `.boxes.json` are regenerated from them by `regen_box_fixtures`
+    // (Windows, --ignored) — required after ANY engine change, or the replay
+    // silently keeps scoring the old engine.
     //
     // Expected results live in `<scan>.label.txt` (`<item_id>  <count>` lines).
     // The `box` scan passes. The `stash` scan stays `#[ignore]`d: its 38-shot
@@ -2263,6 +2279,48 @@ pub(crate) mod tests {
                 None,
                 Some("gunpowder".to_string())
             ]
+        );
+    }
+
+    /// Regression guard for #182: a tilted item-name row and its category
+    /// subtitle, ~one text-height apart, must split into **two** sub-rows. The
+    /// PP-OCR engine's unclip inflates box heights (here `med_h = 24`), so the
+    /// old `1.1·med_h` (26.4) split threshold exceeded the ~24 px name↔category
+    /// gap and a slight shear merged them into one dropped "Name Category Name"
+    /// row — losing whole grid rows from a live scan.
+    #[test]
+    fn split_subrows_separates_tilted_name_from_category() {
+        let slope = -0.02;
+        let med_h = 24.0;
+        // Two bands 24 px apart (de-sheared ry ≈ 112 / 136), each tilted by
+        // `slope` across a full-width 5-tile row, boxes 24 px tall.
+        let band = |ry: f32| -> Vec<LabelBox> {
+            (0..5)
+                .map(|i| {
+                    let x = 100.0 + i as f32 * 200.0;
+                    let cx = x + 20.0;
+                    LabelBox {
+                        text: "x".into(),
+                        x,
+                        y: (ry + slope * cx) - 12.0, // cy = ry + slope*cx  ⇒  deshear = ry
+                        w: 40.0,
+                        h: 24.0,
+                    }
+                })
+                .collect()
+        };
+        let names = band(112.0);
+        let cats = band(136.0);
+        let refs: Vec<&LabelBox> = names.iter().chain(cats.iter()).collect();
+        let subs = split_subrows(&refs, slope, med_h);
+        assert_eq!(
+            subs.len(),
+            2,
+            "name and category subtitle must be separate sub-rows, not merged"
+        );
+        assert!(
+            subs.iter().all(|s| s.len() == 5),
+            "each sub-row keeps its 5 tiles"
         );
     }
 

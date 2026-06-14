@@ -5,10 +5,11 @@
 # and emits a KEEP / REVERT / NOISE verdict the `ocr-tune` loop acts on.
 #
 # The assets have different noise profiles, so they're compared differently:
-#   - hideout: the live Windows.Media.Ocr read jitters ~+/-2 cells run-to-run
-#     (see `owned_count_accuracy_floor_on_native_pngs`), so `eval_report_json`
-#     captures a min/median/max band over `OCR_EVAL_RUNS` runs and we only count
-#     a move that clears the band.
+#   - hideout: the live engine read can jitter run-to-run (the WinRT engine
+#     wobbled ~+/-2 cells; PP-OCRv4 (#181) is deterministic in practice, which
+#     collapses the band to a point), so `eval_report_json` captures a
+#     min/median/max band over `OCR_EVAL_RUNS` runs and we only count a move
+#     that clears the band.
 #   - box / stash: deterministic (scored from the frozen `.boxes.json`), so ANY
 #     change in tile accuracy is real, not noise.
 #

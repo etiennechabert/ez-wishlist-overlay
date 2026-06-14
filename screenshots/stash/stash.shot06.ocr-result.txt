@@ -8,19 +8,19 @@
 # the frozen stash.shot06.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 13 item tile(s) across 3 grid row(s)
+  recognized 16 item tile(s) across 4 grid row(s)
   dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
-    1 x misc_b_battery_1
-    1 x misc_b_battery_2
+    2 x misc_b_battery_1
     1 x misc_b_ceramic_adhesive
     1 x misc_b_disinfectingwipes
     1 x misc_b_gunoil
     1 x misc_b_ionbattery
     1 x misc_b_lighterfluid
-    1 x misc_b_nail
+    2 x misc_b_nail
+    2 x misc_b_ram
     2 x misc_b_screw
     1 x misc_b_tape
     1 x misc_copperwire
@@ -29,12 +29,14 @@
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
 #   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
+  [chrome]
+    JUNK BOX                       -> (no match)
   [items ]
     Disinfectant wipes             -> misc_b_disinfectingwipes
     Ceramic adhesive               -> misc_b_ceramic_adhesive
-    Size O battery2                -> misc_b_battery_2
-    Size O batteryl                -> misc_b_battery_1
-    Boxed Botts                    -> misc_b_screw
+    Size D battery?                -> misc_b_battery_1
+    Size D batteryl                -> misc_b_battery_1
+    Boxed Bolts                    -> misc_b_screw
   [tabs  ]
     Medical Supplies               -> (no match)
     Building                       -> (no match)
@@ -42,9 +44,9 @@
     Power                          -> (no match)
     Building                       -> (no match)
   [chrome]
-    BOL                            -> (no match)
-  [chrome]
-    Box Nail                       -> (no match)
+    NICEBOLTS                      -> (no match)
+  [items ]
+    Box Nails                      -> misc_b_nail
   [items ]
     Boxed Bolts                    -> misc_b_screw
     Gun oil                        -> misc_b_gunoil
@@ -59,7 +61,9 @@
     Building                       -> (no match)
   [items ]
     Tape                           -> misc_b_tape
-    Ion Battery                    -> misc_b_ionbattery
+    RAM                            -> misc_b_ram
+    lon Battery                    -> misc_b_ionbattery
+    RAM                            -> misc_b_ram
     Notebook                       -> misc_notebook
   [tabs  ]
     Intel                          -> (no match)

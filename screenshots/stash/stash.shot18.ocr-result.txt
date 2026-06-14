@@ -18,11 +18,11 @@
     2 x misc_b_battery_1
     1 x misc_b_beardoil
     1 x misc_b_flashlight
+    1 x misc_b_gastank
     1 x misc_b_gunoil
     1 x misc_b_iodophor
     2 x misc_b_ionbattery
-    1 x misc_b_wd40
-    1 x misc_cpu
+    1 x misc_b_pcfan
     1 x misc_notebook
 #
 ## DETAIL — every text the OCR produced, row by row
@@ -32,22 +32,24 @@
     JUNK BOX                       -> (no match)
   [items ]
     Notebook                       -> misc_notebook
-    G" can                         -> (no match)
+    Gas can                        -> misc_b_gastank
     Aspirin                        -> misc_b_aspire
-    Size D batteryi                -> misc_b_battery_1
-    Ion Battery                    -> misc_b_ionbattery
+    Size D batteryl                -> misc_b_battery_1
+    lon Battery                    -> misc_b_ionbattery
   [tabs  ]
     Intel                          -> (no match)
     Combustible                    -> (no match)
     Medical Supplies               -> (no match)
     Power                          -> (no match)
     Power                          -> (no match)
+  [chrome]
+    iLurGor                        -> (no match)
   [items ]
-    Be.rdOi1                       -> misc_b_beardoil
-    Iodine                         -> misc_b_iodophor
+    BeardOil                       -> misc_b_beardoil
+    lodine                         -> misc_b_iodophor
     Gun oil                        -> misc_b_gunoil
-    Size O batteryl                -> misc_b_battery_1
-    Fluh light                     -> misc_b_flashlight
+    Size D batteryl                -> misc_b_battery_1
+    Flash light                    -> misc_b_flashlight
   [tabs  ]
     Household                      -> (no match)
     Medical Supplies               -> (no match)
@@ -55,13 +57,13 @@
     Power                          -> (no match)
     Electric                       -> (no match)
   [items ]
-    ASPIR'N                        -> misc_b_aspire
+    ASPIRIN                        -> misc_b_aspire
   [items ]
-    WD-40                          -> misc_b_wd40
+    Wb-40                          -> (no match)
     Asthma medicine                -> misc_b_asthmamedication
-    Ion Battery                    -> misc_b_ionbattery
+    lon Battery                    -> misc_b_ionbattery
     Aspirin                        -> misc_b_aspire
-    CPU                            -> misc_cpu
+    CPU Fan                        -> misc_b_pcfan
   [tabs  ]
     Combustible                    -> (no match)
     Medical Supplies               -> (no match)

@@ -37,36 +37,40 @@
     Ceramic adhesive               -> misc_b_ceramic_adhesive
     Screwdriver                    -> misc_screwdriver
     Large gas can                  -> misc_b_gastank_large
-    OldPhone                       -> misc_b_oldphone
+    OLdPhone                       -> misc_b_oldphone
   [tabs  ]
     Tool                           -> (no match)
     Building                       -> (no match)
     Tool                           -> (no match)
     Combustible                    -> (no match)
     Electric                       -> (no match)
-  [chrome]
-    4                              -> (no match)
   [items ]
-    Ion Battery                    -> misc_b_ionbattery
+    lon Battery                    -> misc_b_ionbattery
     Spark Plug                     -> misc_b_sparkplug
-    Pet Sh.mpoo                    -> misc_b_shampoo
     Pet Shampoo                    -> misc_b_shampoo
-    Fluh light                     -> misc_b_flashlight
+    Pet Shampoo                    -> misc_b_shampoo
+    Flash light                    -> misc_b_flashlight
   [tabs  ]
     Power                          -> (no match)
     Tool                           -> (no match)
     Household                      -> (no match)
     Household                      -> (no match)
     Electric                       -> (no match)
+  [chrome]
+    iLurGor                        -> (no match)
+    TOSH                           -> (no match)
+  [chrome]
+    RNIFE                          -> (no match)
+    REAMTIGHT 756                  -> (no match)
   [items ]
-    Size D batteryl                -> misc_b_battery_1
-    BeardOil                       -> misc_b_beardoil
+    Size D battery1                -> misc_b_battery_1
+    Beardoil                       -> misc_b_beardoil
     Pesticide                      -> misc_b_pesticide
-    co                             -> misc_b_opticaldisc
+    CD                             -> misc_b_opticaldisc
     Ceramic adhesive               -> misc_b_ceramic_adhesive
   [tabs  ]
     Power                          -> (no match)
     Household                      -> (no match)
     Household                      -> (no match)
-    Intel                          -> (no match)
+    Intet                          -> (no match)
     Building                       -> (no match)

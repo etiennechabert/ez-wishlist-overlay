@@ -8,19 +8,20 @@
 # the frozen stash.shot05.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 15 item tile(s) across 3 grid row(s)
+  recognized 16 item tile(s) across 4 grid row(s)
   dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
     1 x misc_b_asthmamedication
-    3 x misc_b_battery_1
+    2 x misc_b_battery_1
+    1 x misc_b_battery_2
     1 x misc_b_ceramic_adhesive
     1 x misc_b_disinfectingwipes
     1 x misc_b_gunoil
     2 x misc_b_insulatingtape
     1 x misc_b_lighterfluid
-    1 x misc_b_nail
+    2 x misc_b_nail
     1 x misc_b_ram
     2 x misc_b_screw
     1 x misc_copperwire
@@ -30,7 +31,7 @@
 #   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
   [items ]
     Insulating Tape                -> misc_b_insulatingtape
-    Size O batterye                -> misc_b_battery_1
+    Size D battery?                -> misc_b_battery_1
     Insulating Tape                -> misc_b_insulatingtape
     RAM                            -> misc_b_ram
     Asthma medicine                -> misc_b_asthmamedication
@@ -41,12 +42,17 @@
     Electric                       -> (no match)
     Medical Supplies               -> (no match)
   [chrome]
-    Si L u r G or                  -> (no match)
+    SiLurGor                       -> (no match)
+    NICEBOLTS                      -> (no match)
+  [chrome]
+    TOSH                           -> (no match)
+  [chrome]
+    REAMTIGHT 956                  -> (no match)
   [items ]
     Disinfectant wipes             -> misc_b_disinfectingwipes
     Ceramic adhesive               -> misc_b_ceramic_adhesive
-    Size O batterye                -> misc_b_battery_1
-    Size O batteryl                -> misc_b_battery_1
+    Size D battery2                -> misc_b_battery_2
+    Size D batteryl                -> misc_b_battery_1
     Boxed Bolts                    -> misc_b_screw
   [tabs  ]
     Medical Supplies               -> (no match)
@@ -55,9 +61,11 @@
     Power                          -> (no match)
     Building                       -> (no match)
   [chrome]
-    Box Nail                       -> (no match)
+    NICEBOLTS                      -> (no match)
   [items ]
-    Boxed Bol ts                   -> misc_b_screw
+    Box Nails                      -> misc_b_nail
+  [items ]
+    Boxed Bolts                    -> misc_b_screw
     Gun oil                        -> misc_b_gunoil
     Lighter fluid                  -> misc_b_lighterfluid
     Copper wire                    -> misc_copperwire

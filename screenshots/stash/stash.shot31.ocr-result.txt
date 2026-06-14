@@ -8,20 +8,21 @@
 # the frozen stash.shot31.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 11 item tile(s) across 3 grid row(s)
-  dropped 1 text(s) that matched no catalog item (window title, weight
+  recognized 15 item tile(s) across 3 grid row(s)
+  dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
     1 x misc_b_disinfectingwipes
-    1 x misc_b_gastank
+    2 x misc_b_gastank
     1 x misc_b_iodophor
     1 x misc_b_ionbattery
     2 x misc_b_match
     1 x misc_b_opticaldisc
     1 x misc_b_piezometer
-    1 x misc_b_ram
+    3 x misc_b_ram
     1 x misc_b_socket
+    1 x misc_b_tape
     1 x misc_cpu
 #
 ## DETAIL — every text the OCR produced, row by row
@@ -31,8 +32,10 @@
     JUNK BOX                       -> (no match)
   [items ]
     Piezometer                     -> misc_b_piezometer
-    Ion Battery                    -> misc_b_ionbattery
+    lon Battery                    -> misc_b_ionbattery
+    RAM                            -> misc_b_ram
     Windproof Matches              -> misc_b_match
+    RAM                            -> misc_b_ram
   [tabs  ]
     Building                       -> (no match)
     Power                          -> (no match)
@@ -44,19 +47,18 @@
     Disinfectant wipes             -> misc_b_disinfectingwipes
     Socket                         -> misc_b_socket
     CPU                            -> misc_cpu
-    G" can                         -> (no match)
+    Gas can                        -> misc_b_gastank
   [tabs  ]
     Intel                          -> (no match)
     Medical Supplies               -> (no match)
     Electric                       -> (no match)
     Electric                       -> (no match)
     Combustible                    -> (no match)
-  [chrome]
-    1                              -> (no match)
   [items ]
     Gas can                        -> misc_b_gastank
-    Iodine                         -> misc_b_iodophor
-    %ndproof Matches               -> misc_b_match
+    lodine                         -> misc_b_iodophor
+    Windproof Matches              -> misc_b_match
+    Tape                           -> misc_b_tape
     RAM                            -> misc_b_ram
   [tabs  ]
     Combustible                    -> (no match)

@@ -8,17 +8,18 @@
 # the frozen stash.shot28.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 13 item tile(s) across 3 grid row(s)
-  dropped 1 text(s) that matched no catalog item (window title, weight
+  recognized 15 item tile(s) across 3 grid row(s)
+  dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
     2 x misc_b_battery_1
     1 x misc_b_beardoil
     1 x misc_b_ceramic_adhesive
+    1 x misc_b_flashlight
     2 x misc_b_ionbattery
     1 x misc_b_lighterfluid
-    1 x misc_b_opticaldisc
+    2 x misc_b_opticaldisc
     1 x misc_b_pesticide
     2 x misc_b_shampoo
     1 x misc_b_sparkplug
@@ -30,11 +31,11 @@
   [chrome]
     JUNK BOX                       -> (no match)
   [items ]
-    Ion Battery                    -> misc_b_ionbattery
+    lon Battery                    -> misc_b_ionbattery
     Spark Plug                     -> misc_b_sparkplug
     Pet Shampoo                    -> misc_b_shampoo
     Pet Shampoo                    -> misc_b_shampoo
-    Fluh tight                     -> (no match)
+    Flash light                    -> misc_b_flashlight
   [tabs  ]
     Power                          -> (no match)
     Tool                           -> (no match)
@@ -42,11 +43,14 @@
     Household                      -> (no match)
     Electric                       -> (no match)
   [chrome]
-    Lurer                          -> (no match)
+    TOSH                           -> (no match)
+  [chrome]
+    REAMTIGHT                      -> (no match)
   [items ]
-    Size D batteryl                -> misc_b_battery_1
-    BeardOil                       -> misc_b_beardoil
-    Pes ticide                     -> misc_b_pesticide
+    Size D battery1                -> misc_b_battery_1
+    Beardoil                       -> misc_b_beardoil
+    Pesticide                      -> misc_b_pesticide
+    CD                             -> misc_b_opticaldisc
     Ceramic adhesive               -> misc_b_ceramic_adhesive
   [tabs  ]
     Power                          -> (no match)
@@ -54,15 +58,17 @@
     Household                      -> (no match)
     Intel                          -> (no match)
     Building                       -> (no match)
+  [chrome]
+    LurGor                         -> (no match)
   [items ]
-    Size D batteryl                -> misc_b_battery_1
-    Ion Battery                    -> misc_b_ionbattery
+    Size D battery1                -> misc_b_battery_1
+    lon Battery                    -> misc_b_ionbattery
     CD                             -> misc_b_opticaldisc
     Lighter fluid                  -> misc_b_lighterfluid
     Floppydisk                     -> misc_floppydisk
   [tabs  ]
     Power                          -> (no match)
     Power                          -> (no match)
-    Intel                          -> (no match)
+    Intet                          -> (no match)
     Combustible                    -> (no match)
     Intel                          -> (no match)

@@ -8,7 +8,7 @@
 # the frozen stash.shot07.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 13 item tile(s) across 3 grid row(s)
+  recognized 15 item tile(s) across 3 grid row(s)
   dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
@@ -18,6 +18,7 @@
     2 x misc_b_ionbattery
     1 x misc_b_lighterfluid
     1 x misc_b_nail
+    2 x misc_b_ram
     1 x misc_b_screw
     1 x misc_b_superglue
     1 x misc_b_tape
@@ -31,7 +32,7 @@
   [chrome]
     JUNK BOX                       -> (no match)
   [items ]
-    Boxed Botts                    -> misc_b_screw
+    Boxed Bolts                    -> misc_b_screw
     Gun oil                        -> misc_b_gunoil
     Lighter fluid                  -> misc_b_lighterfluid
     Copper wire                    -> misc_copperwire
@@ -44,23 +45,25 @@
     Building                       -> (no match)
   [items ]
     Tape                           -> misc_b_tape
-    Ion Battery                    -> misc_b_ionbattery
+    RAM                            -> misc_b_ram
+    lon Battery                    -> misc_b_ionbattery
+    RAM                            -> misc_b_ram
     Notebook                       -> misc_notebook
   [tabs  ]
-    In tel                         -> (no match)
+    Intel                          -> (no match)
     Electric                       -> (no match)
     Power                          -> (no match)
     Electric                       -> (no match)
     Intel                          -> (no match)
   [items ]
     Super Glue                     -> misc_b_superglue
-    BeardOil                       -> misc_b_beardoil
+    Beardoil                       -> misc_b_beardoil
     Floppydisk                     -> misc_floppydisk
     Floppydisk                     -> misc_floppydisk
-    Ion Battery                    -> misc_b_ionbattery
+    lon Battery                    -> misc_b_ionbattery
   [tabs  ]
     Building                       -> (no match)
     Household                      -> (no match)
-    Intel                          -> (no match)
+    Intet                          -> (no match)
     Intel                          -> (no match)
     Power                          -> (no match)

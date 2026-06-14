@@ -8,8 +8,8 @@
 # the frozen stash.shot13.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 14 item tile(s) across 3 grid row(s)
-  dropped 1 text(s) that matched no catalog item (window title, weight
+  recognized 15 item tile(s) across 3 grid row(s)
+  dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
@@ -22,7 +22,7 @@
     2 x misc_b_pcfan
     1 x misc_b_rustedcleaner
     1 x misc_b_tape
-    1 x misc_floppydisk
+    2 x misc_floppydisk
     1 x misc_notebook
 #
 ## DETAIL — every text the OCR produced, row by row
@@ -33,21 +33,26 @@
   [items ]
     Notebook                       -> misc_notebook
     CPU Fan                        -> misc_b_pcfan
-    CPU Fan                        -> misc_b_pcfan
+    CPUFan                         -> misc_b_pcfan
     Large gas can                  -> misc_b_gastank_large
-    Ceramic •dhuive                -> misc_b_ceramic_adhesive
+    Ceramic adhesive               -> misc_b_ceramic_adhesive
   [tabs  ]
     Intel                          -> (no match)
-    El ectric                      -> (no match)
+    Electric                       -> (no match)
     Electric                       -> (no match)
     Combustible                    -> (no match)
     Building                       -> (no match)
+  [chrome]
+    TOSH                           -> (no match)
+    ATED                           -> (no match)
+  [chrome]
+    PEAMTIGHT 256                  -> (no match)
   [items ]
     Ceramic adhesive               -> misc_b_ceramic_adhesive
     Deodorant                      -> misc_b_deodorant
     Tape                           -> misc_b_tape
-    Floppyük                       -> (no match)
-    Rust cl •aner                  -> misc_b_rustedcleaner
+    Floppydisk                     -> misc_floppydisk
+    Rust cleaner                   -> misc_b_rustedcleaner
   [tabs  ]
     Building                       -> (no match)
     Household                      -> (no match)
@@ -55,13 +60,17 @@
     Intel                          -> (no match)
     Household                      -> (no match)
   [chrome]
-    sacx                           -> (no match)
+    VARIETY                        -> (no match)
+  [chrome]
+    PACK                           -> (no match)
+  [chrome]
+    G                              -> (no match)
   [items ]
     Floppydisk                     -> misc_floppydisk
     Band-aids                      -> misc_b_bandaid
-    Size O batteryl                -> misc_b_battery_1
+    Size D battery1                -> misc_b_battery_1
     Asthma medicine                -> misc_b_asthmamedication
-    Size O batteryi                -> misc_b_battery_1
+    Size D battery1                -> misc_b_battery_1
   [tabs  ]
     Intel                          -> (no match)
     Medical Supplies               -> (no match)

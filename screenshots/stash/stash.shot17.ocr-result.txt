@@ -8,8 +8,8 @@
 # the frozen stash.shot17.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 15 item tile(s) across 4 grid row(s)
-  dropped 2 text(s) that matched no catalog item (window title, weight
+  recognized 16 item tile(s) across 4 grid row(s)
+  dropped 1 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
@@ -18,7 +18,7 @@
     1 x misc_b_beardoil
     1 x misc_b_flashlight
     1 x misc_b_gastank
-    1 x misc_b_gunoil
+    2 x misc_b_gunoil
     1 x misc_b_iodophor
     1 x misc_b_ionbattery
     1 x misc_b_match
@@ -32,11 +32,11 @@
   [chrome]
     JUNK BOX                       -> (no match)
   [items ]
-    Windproof Match"               -> misc_b_match
-    Gun on                         -> (no match)
+    Windproof Matches              -> misc_b_match
+    Gun oil                        -> misc_b_gunoil
     Super Glue                     -> misc_b_superglue
     Aspirin                        -> misc_b_aspire
-    wo-40                          -> misc_b_wd40
+    WD-40                          -> misc_b_wd40
   [tabs  ]
     Combustible                    -> (no match)
     Combustible                    -> (no match)
@@ -44,25 +44,27 @@
     Medical Supplies               -> (no match)
     Combustible                    -> (no match)
   [items ]
-    ASPIR'N                        -> misc_b_aspire
-    LurG•r                         -> (no match)
+    ASPIRIN                        -> misc_b_aspire
+    iLurGor                        -> (no match)
   [items ]
     Notebook                       -> misc_notebook
     Gas can                        -> misc_b_gastank
     Aspirin                        -> misc_b_aspire
-    Size O bat teryl               -> misc_b_battery_1
-    Ion Battery                    -> misc_b_ionbattery
+    Size D batteryl                -> misc_b_battery_1
+    lon Battery                    -> misc_b_ionbattery
   [tabs  ]
     Intel                          -> (no match)
     Combustible                    -> (no match)
     Medical Supplies               -> (no match)
     Power                          -> (no match)
     Power                          -> (no match)
+  [chrome]
+    LurGor                         -> (no match)
   [items ]
-    Be.rdOi1                       -> misc_b_beardoil
-    Iodine                         -> misc_b_iodophor
-    Gun oil                        -> misc_b_gunoil
-    Size O bat teryl               -> misc_b_battery_1
+    BeardOil                       -> misc_b_beardoil
+    lodine                         -> misc_b_iodophor
+    Gun oit                        -> misc_b_gunoil
+    Size D batteryl                -> misc_b_battery_1
     Flash light                    -> misc_b_flashlight
   [tabs  ]
     Household                      -> (no match)
