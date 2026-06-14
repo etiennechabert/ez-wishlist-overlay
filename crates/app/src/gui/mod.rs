@@ -430,6 +430,32 @@ impl eframe::App for App {
                 });
         }
 
+        // Research detail card, docked as a ctx-level bottom panel so it stays
+        // visible at any window height while the tree scrolls above it. Hosted
+        // here (not nested inside the tab's Ui) because a ctx-level panel sizes
+        // reliably; resizable so the user can trade tree height for card height.
+        let show_research_footer =
+            self.tab == LeftTab::Research && !self.state.read().data.research.is_empty();
+        if show_research_footer {
+            egui::TopBottomPanel::bottom("research-detail")
+                .resizable(true)
+                // Tall enough that the fullest cards (5 samples + the
+                // Track/Pin/Focus + Developed buttons) show without scrolling;
+                // resizable so the user can trade it back for tree height.
+                .default_height(300.0)
+                .min_height(72.0)
+                .max_height(560.0)
+                .show(ctx, |ui| {
+                    research_pane::detail_footer(
+                        ui,
+                        &self.state,
+                        &mut self.icons,
+                        &self.save_tx,
+                        &mut self.research_ui,
+                    );
+                });
+        }
+
         // Left main panel: tab strip + content.
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.horizontal(|ui| {
@@ -457,15 +483,11 @@ impl eframe::App for App {
                     }
                 }
                 LeftTab::Research => {
-                    egui::ScrollArea::vertical().show(ui, |ui| {
-                        research_pane::ui(
-                            ui,
-                            &self.state,
-                            &mut self.icons,
-                            &self.save_tx,
-                            &mut self.research_ui,
-                        );
-                    });
+                    // Just the header + scrolling tree here; the detail card is
+                    // the ctx-level bottom panel docked above (see
+                    // `show_research_footer`). No outer ScrollArea — the pane's
+                    // own tree scroll area fills the space above the footer.
+                    research_pane::ui(ui, &self.state, &mut self.research_ui);
                 }
                 LeftTab::Containers => {
                     egui::ScrollArea::vertical().show(ui, |ui| {

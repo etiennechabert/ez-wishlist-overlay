@@ -649,13 +649,13 @@ impl AppState {
 
     /// Record a node's research progress (`None` = back to not-started).
     ///
-    /// Recording **Developed** mirrors [`Self::set_completed_upgrade`]'s
-    /// natural progression: the node leaves the tracked set (nothing left to
-    /// collect for it) and every child that just became fully unlocked is
-    /// pulled onto the wishlist — unless the user already recorded or tracked
-    /// it themselves (manual choices stay untouched). Un-developing does not
-    /// untrack the children it once added: the user may have collected for
-    /// them meanwhile, and a stray tracked node is cheaper than a vanished one.
+    /// Recording **Developed** drops the node from the tracked set — there's
+    /// nothing left to collect for it. It deliberately does NOT auto-track the
+    /// blueprints it unlocks: pulling things onto the wishlist behind the user's
+    /// back was confusing, so what to pursue next is always an explicit choice
+    /// (the Track checkbox or [`Self::focus_research`]). The node's pin is left
+    /// in place but inert — [`Self::active_items`] only honors a pin while the
+    /// node is tracked-and-not-developed, mirroring [`Self::set_pinned_upgrade`].
     pub fn set_research_state(&mut self, id: &ResearchNodeId, state: Option<ResearchNodeState>) {
         match state {
             Some(s) => {
@@ -667,22 +667,45 @@ impl AppState {
         }
         if matches!(state, Some(ResearchNodeState::Developed)) {
             self.tracked_research.remove(id);
-            let children: Vec<ResearchNodeId> = self
-                .data
-                .research
-                .iter()
-                .flat_map(|c| &c.nodes)
-                .filter(|n| n.parents.iter().any(|p| p == id))
-                .map(|n| n.id.clone())
-                .collect();
-            for child in children {
-                if self.is_research_unlocked(&child)
-                    && !self.research_states.contains_key(&child)
-                    && !self.tracked_research.contains(&child)
-                {
-                    self.tracked_research.insert(child);
-                }
+        }
+        self.bump();
+    }
+
+    /// "Focus" a target blueprint: track **and** pin it plus every prerequisite
+    /// still standing between the user and it, so the whole route's samples lead
+    /// the overlay. Walks the parent DAG transitively (the data layer guarantees
+    /// acyclicity, but a `seen` set guards regardless) and stops at any branch
+    /// already **Developed** — a developed node is done, and its own parents are
+    /// necessarily developed too, so there's nothing left to collect up that
+    /// line. A focus whose every node is already developed is a no-op.
+    pub fn focus_research(&mut self, id: &ResearchNodeId) {
+        let mut to_focus: Vec<ResearchNodeId> = Vec::new();
+        let mut seen: HashSet<ResearchNodeId> = HashSet::new();
+        let mut stack = vec![id.clone()];
+        while let Some(cur) = stack.pop() {
+            if !seen.insert(cur.clone()) {
+                continue;
             }
+            if matches!(
+                self.research_states.get(&cur),
+                Some(ResearchNodeState::Developed)
+            ) {
+                continue;
+            }
+            let Some(node) = self.index.research_nodes_by_id.get(&cur) else {
+                continue;
+            };
+            for parent in &node.parents {
+                stack.push(parent.clone());
+            }
+            to_focus.push(cur);
+        }
+        if to_focus.is_empty() {
+            return;
+        }
+        for nid in to_focus {
+            self.tracked_research.insert(nid.clone());
+            self.pinned_research.insert(nid);
         }
         self.bump();
     }
@@ -3247,14 +3270,9 @@ mod tests {
     }
 
     #[test]
-    fn developing_auto_tracks_only_fully_unlocked_children() {
+    fn developing_untracks_only_itself_no_cascade() {
         let mut s = AppState::new(research_fixture());
-        let (r1, r2, r3, r4) = (
-            "r1".to_string(),
-            "r2".to_string(),
-            "r3".to_string(),
-            "r4".to_string(),
-        );
+        let (r1, r2, r3) = ("r1".to_string(), "r2".to_string(), "r3".to_string());
         s.set_tracked_research(&r1, true);
 
         s.set_research_state(&r1, Some(ResearchNodeState::Developed));
@@ -3262,39 +3280,48 @@ mod tests {
             !s.tracked_research.contains(&r1),
             "developing removes the node from the wishlist"
         );
+        // The children it unlocked become Available, but are NOT auto-tracked —
+        // pulling things onto the wishlist behind the user's back was confusing,
+        // so pursuing them is now an explicit choice (Track / focus_research).
+        assert_eq!(s.research_status(&r2), ResearchStatus::Available);
+        assert_eq!(s.research_status(&r3), ResearchStatus::Available);
         assert!(
-            s.tracked_research.contains(&r2) && s.tracked_research.contains(&r3),
-            "both children unlocked by r1 get auto-tracked"
-        );
-        assert!(
-            !s.tracked_research.contains(&r4),
-            "r4 still has an undeveloped parent (r3) — not tracked yet"
-        );
-
-        s.set_research_state(&r2, Some(ResearchNodeState::Developed));
-        assert!(
-            !s.tracked_research.contains(&r4),
-            "r4 still gated by r3 after r2 develops"
-        );
-        s.set_research_state(&r3, Some(ResearchNodeState::Developed));
-        assert!(
-            s.tracked_research.contains(&r4),
-            "last parent developing pulls r4 onto the wishlist"
+            !s.tracked_research.contains(&r2) && !s.tracked_research.contains(&r3),
+            "developing must not auto-track the newly-unlocked children"
         );
     }
 
     #[test]
-    fn developing_leaves_existing_user_choices_alone() {
+    fn focus_research_tracks_and_pins_the_prerequisite_chain() {
         let mut s = AppState::new(research_fixture());
-        let (r1, r2, r3) = ("r1".to_string(), "r2".to_string(), "r3".to_string());
-        // r2 already recorded by the user (skipped ahead), r3 untouched.
-        s.set_research_state(&r2, Some(ResearchNodeState::Developed));
-        s.set_research_state(&r1, Some(ResearchNodeState::Developed));
-        assert!(
-            !s.tracked_research.contains(&r2),
-            "a child with its own recorded state is not re-tracked"
+        let (r1, r2, r3, r4) = (
+            "r1".to_string(),
+            "r2".to_string(),
+            "r3".to_string(),
+            "r4".to_string(),
         );
-        assert!(s.tracked_research.contains(&r3));
+        // r4 depends on r2 + r3, which both depend on r1 — the whole DAG.
+        s.focus_research(&r4);
+        for id in [&r1, &r2, &r3, &r4] {
+            assert!(s.tracked_research.contains(id), "{id} tracked by focus");
+            assert!(s.is_research_pinned(id), "{id} pinned by focus");
+        }
+        // Every focused sample is flagged pinned in the overlay aggregation.
+        assert!(s
+            .active_items()
+            .iter()
+            .all(|i| i.pinned || i.collected >= i.needed));
+
+        // Developed prerequisites are pruned from a later focus: develop r1, then
+        // focusing r2 should track+pin r2 only (r1 is done, nothing to collect).
+        let mut s2 = AppState::new(research_fixture());
+        s2.set_research_state(&r1, Some(ResearchNodeState::Developed));
+        s2.focus_research(&r2);
+        assert!(s2.tracked_research.contains(&r2) && s2.is_research_pinned(&r2));
+        assert!(
+            !s2.tracked_research.contains(&r1),
+            "a developed prerequisite is not re-tracked by focus"
+        );
     }
 
     #[test]

@@ -104,13 +104,20 @@ fn research_legend(ui: &mut egui::Ui) {
     });
 }
 
-pub fn ui(
-    ui: &mut egui::Ui,
-    state: &Arc<RwLock<AppState>>,
-    icons: &mut IconCache,
-    save_tx: &Sender<SaveTick>,
-    ui_state: &mut ResearchUi,
-) {
+/// The tree view: title + legend, then the (tall) blueprint tree in a vertical
+/// scroll area. The selected node's detail card is rendered separately by
+/// [`detail_footer`], which the app docks as a bottom panel so it stays visible
+/// at any window height — see the call site in `gui::App::update`. Splitting the
+/// two is deliberate: a `TopBottomPanel` nested via `show_inside` here sized its
+/// content unreliably, whereas a ctx-level panel at the app layer does not.
+pub fn ui(ui: &mut egui::Ui, state: &Arc<RwLock<AppState>>, ui_state: &mut ResearchUi) {
+    let data = state.read().data.clone();
+    if data.research.is_empty() {
+        ui.add_space(4.0);
+        ui.label(egui::RichText::new("No research data in this build.").weak());
+        return;
+    }
+
     ui.add_space(4.0);
     ui.label(
         egui::RichText::new("Research")
@@ -127,40 +134,51 @@ pub fn ui(
         )
         .weak(),
     );
-    ui.add_space(8.0);
-
-    let data = state.read().data.clone();
-    if data.research.is_empty() {
-        ui.label(egui::RichText::new("No research data in this build.").weak());
-        return;
-    }
-
     research_legend(ui);
-    ui.add_space(8.0);
+    ui.add_space(6.0);
 
-    // Drop a selection that no longer resolves (data-version change).
+    egui::ScrollArea::vertical()
+        .auto_shrink([false, false])
+        .show(ui, |ui| {
+            for category in &data.research {
+                ui.label(
+                    egui::RichText::new(format!("{} — {}", category.name, category.merchant))
+                        .strong()
+                        .size(18.0),
+                );
+                ui.add_space(4.0);
+                tree_canvas(ui, state, category, ui_state);
+                ui.add_space(8.0);
+            }
+        });
+}
+
+/// The selected node's detail card. Rendered by the app into a docked, resizable
+/// bottom panel so it's always reachable, regardless of how tall the tree is or
+/// how short the window gets. Drops a selection that no longer resolves (a data
+/// update can retire a node id) before drawing.
+pub fn detail_footer(
+    ui: &mut egui::Ui,
+    state: &Arc<RwLock<AppState>>,
+    icons: &mut IconCache,
+    save_tx: &Sender<SaveTick>,
+    ui_state: &mut ResearchUi,
+) {
     if let Some(sel) = &ui_state.selected {
         if !state.read().index.research_nodes_by_id.contains_key(sel) {
             ui_state.selected = None;
         }
     }
-
-    for category in &data.research {
-        ui.label(
-            egui::RichText::new(format!("{} — {}", category.name, category.merchant))
-                .strong()
-                .size(18.0),
-        );
-        ui.add_space(4.0);
-        tree_canvas(ui, state, category, ui_state);
-        ui.add_space(8.0);
-    }
-
-    if let Some(selected) = ui_state.selected.clone() {
-        detail_card(ui, state, icons, save_tx, &selected);
-    } else {
-        ui.label(egui::RichText::new("Select a node to see its samples.").weak());
-    }
+    egui::ScrollArea::vertical()
+        .auto_shrink([false, false])
+        .show(ui, |ui| {
+            if let Some(selected) = ui_state.selected.clone() {
+                detail_card(ui, state, icons, save_tx, &selected);
+            } else {
+                ui.add_space(4.0);
+                ui.label(egui::RichText::new("Select a node to see its samples.").weak());
+            }
+        });
 }
 
 /// Longest-parent-chain depth per node. The data layer guarantees acyclicity
@@ -299,15 +317,33 @@ fn tree_canvas(
                     )
                 };
                 let selected = ui_state.selected.as_deref() == Some(node.id.as_str());
-                let name_color = if status == ResearchStatus::Locked {
-                    ui.visuals().weak_text_color()
-                } else {
-                    ui.visuals().strong_text_color()
-                };
-                let text = egui::RichText::new(format!("{}\n{}", node.name, status_label(status)))
-                    .size(11.5)
-                    .color(name_color);
-                let mut button = egui::Button::new(text).fill(chip_fill(status, tracked, dark));
+                // Two-tone label: the blueprint NAME always in the strong text
+                // color so even locked ("Unknown Blueprint", gray fill) chips
+                // stay legible — the previous all-weak text was unreadable on the
+                // dark fill. The status line stays in the weak color as a quiet
+                // subtitle. The concatenated text ("name\nstatus") is unchanged,
+                // so accessibility labels (and the kittest queries) still match.
+                let mut job = egui::text::LayoutJob::default();
+                job.wrap.max_width = CHIP.x - 10.0;
+                job.append(
+                    &node.name,
+                    0.0,
+                    egui::TextFormat {
+                        font_id: egui::FontId::proportional(11.5),
+                        color: ui.visuals().strong_text_color(),
+                        ..Default::default()
+                    },
+                );
+                job.append(
+                    &format!("\n{}", status_label(status)),
+                    0.0,
+                    egui::TextFormat {
+                        font_id: egui::FontId::proportional(11.5),
+                        color: ui.visuals().weak_text_color(),
+                        ..Default::default()
+                    },
+                );
+                let mut button = egui::Button::new(job).fill(chip_fill(status, tracked, dark));
                 if selected {
                     button = button.stroke(egui::Stroke::new(2.0, theme::selected_outline(dark)));
                 }
@@ -484,6 +520,25 @@ fn detail_card(
                              highlighted with a purple accent.",
                         )
                         .on_disabled_hover_text("Track this node first, then you can pin it.");
+                    // Focus: one click to grind toward a blueprint deeper in the
+                    // tree — tracks + pins it and every prerequisite still needed
+                    // to reach it. Only meaningful for nodes that *have* gates;
+                    // a root is covered by Track + Pin alone.
+                    if !node.parents.is_empty() {
+                        ui.separator();
+                        if ui
+                            .button("Focus this blueprint")
+                            .on_hover_text(
+                                "Track and pin this blueprint and every prerequisite still \
+                                 needed to reach it, so the whole route's samples lead the \
+                                 overlay.",
+                            )
+                            .clicked()
+                        {
+                            state.write().focus_research(node_id);
+                            notify(state, save_tx);
+                        }
+                    }
                 });
                 if tracked != orig_tracked {
                     state.write().set_tracked_research(node_id, tracked);
@@ -623,7 +678,10 @@ mod tests {
             .with_size(egui::vec2(1200.0, 900.0))
             .build_ui(move |ui| {
                 theme::set_scheme(ColorScheme::OkabeIto);
-                super::ui(ui, &ui_state, &mut icons, &save_tx, &mut pane);
+                // The app renders these in two panels (tree + docked card); the
+                // harness just stacks them in one Ui so both are queryable.
+                super::ui(ui, &ui_state, &mut pane);
+                super::detail_footer(ui, &ui_state, &mut icons, &save_tx, &mut pane);
             })
     }
 
@@ -651,7 +709,7 @@ mod tests {
     }
 
     #[test]
-    fn develop_unlocks_and_autotracks_the_child() {
+    fn develop_unlocks_child_without_auto_tracking_it() {
         let state = fixture();
         let mut h = harness(&state);
         h.run();
@@ -668,10 +726,32 @@ mod tests {
                 .research_status(&"task.research.a1".to_string()),
             ResearchStatus::Developed
         );
-        // The child chip now reads available, and the develop cascade put it
-        // on the wishlist.
+        // The child chip now reads available, but is NOT auto-tracked — pursuing
+        // it is an explicit choice (Track / Focus), not a silent side effect.
         let _ = h.get_by_label("Child Node\nReady For Research");
-        assert!(state.read().tracked_research.contains("task.research.a2"));
+        assert!(!state.read().tracked_research.contains("task.research.a2"));
+    }
+
+    #[test]
+    fn focus_button_tracks_and_pins_the_whole_chain() {
+        let state = fixture();
+        let mut h = harness(&state);
+        h.run();
+
+        // Focus the child (which has a parent): both it and its prerequisite
+        // root get tracked AND pinned in one click.
+        h.get_by_label("Child Node\nUnknown Blueprint").click();
+        h.run();
+        h.get_by_label("Focus this blueprint").click();
+        h.run();
+        let s = state.read();
+        for id in ["task.research.a1", "task.research.a2"] {
+            assert!(s.tracked_research.contains(id), "{id} tracked by focus");
+            assert!(
+                s.is_research_pinned(&id.to_string()),
+                "{id} pinned by focus"
+            );
+        }
     }
 
     #[test]
