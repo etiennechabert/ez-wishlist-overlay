@@ -220,8 +220,10 @@ fn match_gunsmith(data: &GameData, label: &str) -> Option<ItemId> {
         let Some(alias) = item.scan_alias.as_deref() else {
             continue;
         };
-        let alias_glued: String =
-            normalize(alias).chars().filter(|c| !c.is_whitespace()).collect();
+        let alias_glued: String = normalize(alias)
+            .chars()
+            .filter(|c| !c.is_whitespace())
+            .collect();
         if alias_glued.is_empty() {
             continue;
         }
@@ -334,23 +336,67 @@ mod tests {
     fn gun_fixture() -> GameData {
         let mut data = fixture(); // keep the misc items, to prove scoping
         data.items.extend([
-            gitem("gunsmith_20rail_sight_cobra", "Cobra 20mm reflex sight", Some("Cobra")),
-            gitem("gunsmith_ar15_pistolgrip_m16a1", "AR-15 M16A1 pistolgrip", Some("M16A1")),
-            gitem("gunsmith_ar15_lowerreceiver_m16", "M16 5.56x45mm assault rifle", Some("M16")),
-            gitem("gunsmith_g3_stock_polygreen", "G3 polymer Green stock", Some("G3 Green Stock")),
-            gitem("gunsmith_ak74u_mount_b18", "AKS74U B18 mount", Some("AKS74U B18")),
+            gitem(
+                "gunsmith_20rail_sight_cobra",
+                "Cobra 20mm reflex sight",
+                Some("Cobra"),
+            ),
+            gitem(
+                "gunsmith_ar15_pistolgrip_m16a1",
+                "AR-15 M16A1 pistolgrip",
+                Some("M16A1"),
+            ),
+            gitem(
+                "gunsmith_ar15_lowerreceiver_m16",
+                "M16 5.56x45mm assault rifle",
+                Some("M16"),
+            ),
+            gitem(
+                "gunsmith_g3_stock_polygreen",
+                "G3 polymer Green stock",
+                Some("G3 Green Stock"),
+            ),
+            gitem(
+                "gunsmith_ak74u_mount_b18",
+                "AKS74U B18 mount",
+                Some("AKS74U B18"),
+            ),
             gitem("gunsmith_ak_mount_rsr", "AK74N/AKMN RSR mount", Some("RSR")),
-            gitem("gunsmith_ump_clip_25", "UMP45 .45acp 25rnd magazine", Some("UMP45 25rd")),
+            gitem(
+                "gunsmith_ump_clip_25",
+                "UMP45 .45acp 25rnd magazine",
+                Some("UMP45 25rd"),
+            ),
             // The AR308 family — three parts with three distinct short names; the
             // bare/acronym ones are NOT a subsequence of the full name, but the
             // alias resolves them exactly.
-            gitem("gunsmith_ar10_upperreceiver_ar308", "AR-10 AR308 7.62x51mm upper receiver", Some("AR308 Upper")),
-            gitem("gunsmith_ar10_muzzle_ar308", "AR-10 AR308 7.62x51mm compensator", Some("AR308")),
-            gitem("gunsmith_ar10_lowerreceiver_ar308", "AR-308 7.62x51mm Design marksman rifle", Some("AR-308 DMR")),
+            gitem(
+                "gunsmith_ar10_upperreceiver_ar308",
+                "AR-10 AR308 7.62x51mm upper receiver",
+                Some("AR308 Upper"),
+            ),
+            gitem(
+                "gunsmith_ar10_muzzle_ar308",
+                "AR-10 AR308 7.62x51mm compensator",
+                Some("AR308"),
+            ),
+            gitem(
+                "gunsmith_ar10_lowerreceiver_ar308",
+                "AR-308 7.62x51mm Design marksman rifle",
+                Some("AR-308 DMR"),
+            ),
             // Two parts the game shows the SAME short name for ("AR-15 DD") — an
             // inherent collision that must resolve to nothing.
-            gitem("gunsmith_arstock_stock_dd", "AR-15 DD stock", Some("AR-15 DD")),
-            gitem("gunsmith_ar15_handguard_dd", "AR-15 DD handguard", Some("AR-15 DD")),
+            gitem(
+                "gunsmith_arstock_stock_dd",
+                "AR-15 DD stock",
+                Some("AR-15 DD"),
+            ),
+            gitem(
+                "gunsmith_ar15_handguard_dd",
+                "AR-15 DD handguard",
+                Some("AR-15 DD"),
+            ),
         ]);
         data
     }

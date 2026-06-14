@@ -664,7 +664,12 @@ fn dedup_icon_labels(rows: &mut [RowReport], med_h: f32) {
 /// only for a Gunsmith → Storage scan, so misc box/stash tiles never resolve to
 /// a gun part (issue #183). Forwarded straight to [`match_item`].
 #[allow(dead_code)]
-pub fn read_tiles(boxes: &[LabelBox], img_h: f32, data: &GameData, gunsmith: bool) -> BoxReadResult {
+pub fn read_tiles(
+    boxes: &[LabelBox],
+    img_h: f32,
+    data: &GameData,
+    gunsmith: bool,
+) -> BoxReadResult {
     let observed_weight = extract_weight(boxes, img_h).map(|(v, _)| v);
 
     let refs: Vec<&LabelBox> = boxes.iter().collect();
@@ -1942,14 +1947,20 @@ pub(crate) mod tests {
     #[ignore = "authoring aid — print the gunsmith scan's resolved tally"]
     fn dump_gunsmith_scan() {
         let data = crate::assets::load_game_data().expect("embedded data.json");
-        let names: HashMap<&str, &str> =
-            data.items.iter().map(|i| (i.id.as_str(), i.name.as_str())).collect();
+        let names: HashMap<&str, &str> = data
+            .items
+            .iter()
+            .map(|i| (i.id.as_str(), i.name.as_str()))
+            .collect();
         let tally = run_box_scan("gunsmith", &scan_shots("gunsmith"));
         let mut rows: Vec<_> = tally.iter().collect();
         rows.sort_by_key(|(id, _)| id.to_string());
         println!("<<<GUNSMITH_TALLY {} distinct>>>", rows.len());
         for (id, n) in rows {
-            println!("{id}\t{n}\t{}", names.get(id.as_str()).copied().unwrap_or("?"));
+            println!(
+                "{id}\t{n}\t{}",
+                names.get(id.as_str()).copied().unwrap_or("?")
+            );
         }
         println!("<<<END_GUNSMITH_TALLY>>>");
     }
