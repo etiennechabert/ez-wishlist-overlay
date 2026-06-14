@@ -32,16 +32,9 @@ pub fn show(
             let dark = ui.visuals().dark_mode;
             let weak = ui.visuals().weak_text_color();
 
-            ui.horizontal(|ui| {
-                if ui.button("Capture VR screenshot").clicked() {
-                    vr.request_screenshot();
-                }
-                ui.label(
-                    egui::RichText::new("Or press Space when this window is focused")
-                        .small()
-                        .color(weak),
-                );
-            });
+            if ui.button("Capture VR screenshot").clicked() {
+                vr.request_screenshot();
+            }
 
             // Debug-build helper: push a checked-in fixture PNG through
             // the OCR worker so the feedback overlay can be exercised

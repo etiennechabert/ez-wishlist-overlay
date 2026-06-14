@@ -7,6 +7,7 @@ use crate::gui::{icon_cache::IconCache, theme, SaveTick};
 use crate::hierarchy::{category_virtual_id, module_category};
 use crate::settings::{HideoutView, Settings};
 use crate::state::{AppState, RecipeKnowledge, UpgradeProgressRow};
+use crate::vr::capture_session::CaptureMode;
 use crossbeam_channel::Sender;
 use parking_lot::RwLock;
 use std::sync::Arc;
@@ -122,12 +123,13 @@ pub fn ui(
     settings: &Arc<RwLock<Settings>>,
     icons: &mut IconCache,
     save_tx: &Sender<SaveTick>,
+    vr: &Arc<crate::vr::Runtime>,
 ) -> HideoutOutcome {
     let data = state.read().data.clone();
     let mut outcome = HideoutOutcome::default();
 
     presets_row(ui, state, save_tx);
-    outcome.settings_changed |= view_toggle_row(ui, settings);
+    outcome.settings_changed |= view_toggle_row(ui, settings, vr);
     legend_row(ui);
     ui.separator();
 
@@ -191,11 +193,18 @@ pub fn editor_footer(
     editable_recipe_panel(ui, state, save_tx, icons, &module.name, upgrade);
 }
 
-/// Segmented "By module" / "By progress" toggle. Returns `true` when the
-/// choice changed this frame so the caller can persist it. Uses
+/// Segmented "By module" / "By progress" toggle, with the hideout **scan
+/// control** right-aligned on the same row. Folding the scan button onto this
+/// row reclaims the near-empty line it would otherwise own and keeps the scan
+/// affordance at the top of the pane next to the view controls. Returns `true`
+/// when the view choice changed this frame so the caller can persist it. Uses
 /// `selectable_value` — the same widget as the tab strip and the theme/eye
 /// pickers — so it reads as native alongside the preset buttons above it.
-fn view_toggle_row(ui: &mut egui::Ui, settings: &Arc<RwLock<Settings>>) -> bool {
+fn view_toggle_row(
+    ui: &mut egui::Ui,
+    settings: &Arc<RwLock<Settings>>,
+    vr: &Arc<crate::vr::Runtime>,
+) -> bool {
     let before = settings.read().hideout_view;
     let mut view = before;
     ui.horizontal(|ui| {
@@ -210,12 +219,79 @@ fn view_toggle_row(ui: &mut egui::Ui, settings: &Arc<RwLock<Settings>>) -> bool 
                  level, ready-to-claim and near-complete floated to the top. \
                  Independent of what's tracked.",
             );
+        // Scan control hugs the right edge, filling the row's otherwise-empty
+        // space.
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            scan_controls(ui, settings, vr);
+        });
     });
     if view != before {
         settings.write().hideout_view = view;
         true
     } else {
         false
+    }
+}
+
+/// The hideout **scan mode** control (issue #136), moved out of the global
+/// header down to the hideout view — the only thing it captures is hideout
+/// progress (owned counts read off in-game upgrade panels), so it belongs here,
+/// mirroring the per-container scan control on the Containers tab. While armed
+/// the wishlist overlay hides and an in-headset guide box appears; aim it at a
+/// panel and **pull the controller trigger** to read it. The controller trigger
+/// is the only capture method (the old desktop SPACE hotkey was removed). A loud
+/// "● Scanning…" indicator + a Stop button replace the button while active, so
+/// it can't be silently left armed into a raid. Gated on OCR being enabled; the
+/// mode lives on the VR runtime and never persists, so it always starts off on
+/// launch.
+///
+/// Adds itself to the caller's layout ([`view_toggle_row`] places it inside a
+/// `right_to_left` block); for the scanning state that means the Stop button is
+/// added *before* its status label so the pair still reads "● Scanning… Stop"
+/// left-to-right.
+fn scan_controls(
+    ui: &mut egui::Ui,
+    settings: &Arc<RwLock<Settings>>,
+    vr: &Arc<crate::vr::Runtime>,
+) {
+    let mode = vr.capture_mode();
+    if mode == CaptureMode::Hideout {
+        if ui
+            .button("Stop")
+            .on_hover_text("Stop hideout scanning and bring the wishlist overlay back.")
+            .clicked()
+        {
+            vr.exit_capture_mode();
+            tracing::info!("hideout scan stopped from hideout pane");
+        }
+        ui.label(
+            egui::RichText::new("● Scanning hideout — pull trigger over a panel")
+                .strong()
+                .color(egui::Color32::from_rgb(220, 99, 89)),
+        );
+        return;
+    }
+    // A container scan owns the single capture mode while it runs; don't let the
+    // hideout button silently hijack it (mirrors the container UI's "busy
+    // elsewhere" guard).
+    let ocr_enabled = settings.read().ocr_enabled;
+    let box_active = matches!(mode, CaptureMode::Box(_));
+    let btn = egui::Button::new("Scan from screen");
+    let resp = ui.add_enabled(ocr_enabled && !box_active, btn);
+    let tooltip = if !ocr_enabled {
+        "Enable \"Auto-extract counts from VR screenshots\" in Settings to \
+         use hideout scanning."
+    } else if box_active {
+        "Finish the active container scan first."
+    } else {
+        "Arm hideout scanning: the wishlist overlay hides and a guide box \
+         appears in the headset. Aim it at an upgrade panel and pull the \
+         controller trigger to read its owned counts. Always starts off on \
+         launch."
+    };
+    if resp.on_hover_text(tooltip).clicked() {
+        vr.set_capture_mode(CaptureMode::Hideout);
+        tracing::info!("hideout scan started from hideout pane");
     }
 }
 
@@ -1983,11 +2059,15 @@ mod tests {
         let ui_settings = Arc::clone(settings);
         let (save_tx, _save_rx) = crossbeam_channel::unbounded::<SaveTick>();
         let mut icons = IconCache::new();
+        // The pane now hosts the hideout scan control, so it takes a VR runtime.
+        // None of these tests arm a scan, so a worker-less runtime is enough to
+        // satisfy the signature (it reports `CaptureMode::Off`).
+        let vr = Arc::new(crate::vr::Runtime::disconnected_for_test());
         Harness::builder()
             .with_size(egui::vec2(1400.0, 1000.0))
             .build_ui(move |ui| {
                 theme::set_scheme(ColorScheme::OkabeIto);
-                let _ = super::ui(ui, &ui_state, &ui_settings, &mut icons, &save_tx);
+                let _ = super::ui(ui, &ui_state, &ui_settings, &mut icons, &save_tx, &vr);
                 // The app renders the editor in a docked bottom panel; the
                 // harness stacks it under the pane so it's queryable when open.
                 super::editor_footer(ui, &ui_state, &save_tx, &mut icons);

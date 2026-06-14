@@ -167,27 +167,14 @@ fn ocr_section(
     ui.add_space(4.0);
     ui.checkbox(ocr_enabled, "Auto-extract counts from VR screenshots")
         .on_hover_text(
-            "When you press the screenshot hotkey on the Facility Upgrade \
-             panel, the captured image is OCR'd and the owned counts for \
-             every required item land in your wishlist. A head-locked \
-             feedback card pops up in the headset showing each change. \
-             Disable to keep the screenshot trigger but skip the OCR pass.",
+            "Powers screen scanning. Arm it with \"Scan from screen\" on the \
+             Hideout tab (or a container's scan button), aim the in-headset \
+             guide box at a Facility Upgrade panel or a container screen, and \
+             pull the controller trigger: the captured image is OCR'd and the \
+             owned counts for every required item land in your wishlist. A \
+             head-locked feedback card pops up in the headset showing each \
+             change. Turn this off to disable scanning.",
         );
-    // Inline hotkey hint — the SPACE binding is invisible otherwise
-    // (nothing in the UI labels it), and a user can spend a long time
-    // figuring out *how* to trigger a capture if the desktop window
-    // isn't focused. Mention focus explicitly: the hotkey is gated on
-    // `ctx.wants_keyboard_input()` so a focused text field anywhere
-    // in the app silently consumes it.
-    let weak = ui.visuals().weak_text_color();
-    ui.label(
-        egui::RichText::new(
-            "Hotkey: press SPACE in this desktop window to capture. \
-             The window must be focused (no text input active).",
-        )
-        .small()
-        .color(weak),
-    );
 
     ui.add_space(6.0);
     ui.checkbox(ocr_auto_track, "Auto-track the OCR'd upgrade")
