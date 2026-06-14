@@ -104,18 +104,32 @@ fn research_legend(ui: &mut egui::Ui) {
     });
 }
 
-/// The tree view: title + legend, then the (tall) blueprint tree in a vertical
-/// scroll area. The selected node's detail card is rendered separately by
-/// [`detail_footer`], which the app docks as a bottom panel so it stays visible
-/// at any window height — see the call site in `gui::App::update`. Splitting the
-/// two is deliberate: a `TopBottomPanel` nested via `show_inside` here sized its
-/// content unreliably, whereas a ctx-level panel at the app layer does not.
-pub fn ui(ui: &mut egui::Ui, state: &Arc<RwLock<AppState>>, ui_state: &mut ResearchUi) {
+/// Renders the Research tab: title + legend, the selected node's detail card
+/// kept visible directly under them, then the blueprint tree scrolling in the
+/// remaining space. The card is pinned at the top (not the bottom): egui's
+/// bottom-docking primitives all mis-sized this card — its nested scroll/frame
+/// content measured to a single line and collapsed — so a fixed top card +
+/// scrolling tree is the layout that reliably keeps the card visible at any
+/// window height, which is the point.
+pub fn ui(
+    ui: &mut egui::Ui,
+    state: &Arc<RwLock<AppState>>,
+    icons: &mut IconCache,
+    save_tx: &Sender<SaveTick>,
+    ui_state: &mut ResearchUi,
+) {
     let data = state.read().data.clone();
     if data.research.is_empty() {
         ui.add_space(4.0);
         ui.label(egui::RichText::new("No research data in this build.").weak());
         return;
+    }
+
+    // Drop a selection that no longer resolves (data-version change).
+    if let Some(sel) = &ui_state.selected {
+        if !state.read().index.research_nodes_by_id.contains_key(sel) {
+            ui_state.selected = None;
+        }
     }
 
     ui.add_space(4.0);
@@ -137,7 +151,19 @@ pub fn ui(ui: &mut egui::Ui, state: &Arc<RwLock<AppState>>, ui_state: &mut Resea
     research_legend(ui);
     ui.add_space(6.0);
 
+    // The selected node's card, kept visible under the header.
+    if let Some(selected) = ui_state.selected.clone() {
+        detail_card(ui, state, icons, save_tx, &selected);
+    } else {
+        ui.label(egui::RichText::new("Select a node below to see its samples.").weak());
+    }
+    ui.add_space(6.0);
+    ui.separator();
+    ui.add_space(4.0);
+
+    // The tree scrolls in whatever height is left.
     egui::ScrollArea::vertical()
+        .id_salt("research-tree-scroll")
         .auto_shrink([false, false])
         .show(ui, |ui| {
             for category in &data.research {
@@ -149,34 +175,6 @@ pub fn ui(ui: &mut egui::Ui, state: &Arc<RwLock<AppState>>, ui_state: &mut Resea
                 ui.add_space(4.0);
                 tree_canvas(ui, state, category, ui_state);
                 ui.add_space(8.0);
-            }
-        });
-}
-
-/// The selected node's detail card. Rendered by the app into a docked, resizable
-/// bottom panel so it's always reachable, regardless of how tall the tree is or
-/// how short the window gets. Drops a selection that no longer resolves (a data
-/// update can retire a node id) before drawing.
-pub fn detail_footer(
-    ui: &mut egui::Ui,
-    state: &Arc<RwLock<AppState>>,
-    icons: &mut IconCache,
-    save_tx: &Sender<SaveTick>,
-    ui_state: &mut ResearchUi,
-) {
-    if let Some(sel) = &ui_state.selected {
-        if !state.read().index.research_nodes_by_id.contains_key(sel) {
-            ui_state.selected = None;
-        }
-    }
-    egui::ScrollArea::vertical()
-        .auto_shrink([false, false])
-        .show(ui, |ui| {
-            if let Some(selected) = ui_state.selected.clone() {
-                detail_card(ui, state, icons, save_tx, &selected);
-            } else {
-                ui.add_space(4.0);
-                ui.label(egui::RichText::new("Select a node to see its samples.").weak());
             }
         });
 }
@@ -678,10 +676,7 @@ mod tests {
             .with_size(egui::vec2(1200.0, 900.0))
             .build_ui(move |ui| {
                 theme::set_scheme(ColorScheme::OkabeIto);
-                // The app renders these in two panels (tree + docked card); the
-                // harness just stacks them in one Ui so both are queryable.
-                super::ui(ui, &ui_state, &mut pane);
-                super::detail_footer(ui, &ui_state, &mut icons, &save_tx, &mut pane);
+                super::ui(ui, &ui_state, &mut icons, &save_tx, &mut pane);
             })
     }
 
