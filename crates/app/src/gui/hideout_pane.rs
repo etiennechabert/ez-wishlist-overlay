@@ -131,24 +131,9 @@ pub fn ui(
     legend_row(ui);
     ui.separator();
 
-    // The recipe editor renders in BOTH views off the ctx-memory selection
-    // (keyed SELECTED_ID, layout-independent), so "Edit" works identically from
-    // a grid cell or a progress-list row. It's pinned here ABOVE the scrolling
-    // grid so it stays visible while editing even on a short window — the old
-    // placement (after the grid, inside the outer scroll) pushed it off-screen.
-    // Pinned at the top, not the bottom: egui won't reliably bottom-dock a panel
-    // with this much nested content (see research_pane), and top keeps it on
-    // screen all the same.
-    if let Some(sel) = selected(ui.ctx()) {
-        if let Some((module, upgrade)) = find_upgrade(&data.modules, &sel) {
-            editable_recipe_panel(ui, state, save_tx, icons, &module.name, upgrade);
-            ui.add_space(6.0);
-            ui.separator();
-        }
-    }
-
-    // Grid / progress list scrolls in the remaining height below the pinned
-    // controls (and editor, when open).
+    // Grid / progress list scrolls in the height left above the docked recipe
+    // editor (rendered by the app as a ctx-level bottom panel — see
+    // `editor_footer` — so it stays pinned to the window bottom while editing).
     egui::ScrollArea::vertical()
         .id_salt("hideout-scroll")
         .auto_shrink([false, false])
@@ -177,6 +162,33 @@ pub fn ui(
     upgrade_completion_modal(ui, state, save_tx, icons, &data.modules);
 
     outcome
+}
+
+/// Whether a recipe is open in the editor — the app uses this to decide whether
+/// to dock the [`editor_footer`] bottom panel this frame.
+pub fn editor_is_open(ctx: &egui::Context) -> bool {
+    selected(ctx).is_some()
+}
+
+/// The recipe editor, rendered by the app into a docked bottom panel so it stays
+/// pinned to the window bottom while editing (the grid scrolls above it). Reads
+/// the ctx-memory selection (set by any "Edit" button) and finds its upgrade.
+pub fn editor_footer(
+    ui: &mut egui::Ui,
+    state: &Arc<RwLock<AppState>>,
+    save_tx: &Sender<SaveTick>,
+    icons: &mut IconCache,
+) {
+    let data = state.read().data.clone();
+    let Some(sel) = selected(ui.ctx()) else {
+        return;
+    };
+    let Some((module, upgrade)) = find_upgrade(&data.modules, &sel) else {
+        return;
+    };
+    // Rendered directly (no scroll area) so the docked bottom panel auto-sizes
+    // to the editor — a scroll area inside an auto-sizing panel collapses it.
+    editable_recipe_panel(ui, state, save_tx, icons, &module.name, upgrade);
 }
 
 /// Segmented "By module" / "By progress" toggle. Returns `true` when the
@@ -1976,6 +1988,9 @@ mod tests {
             .build_ui(move |ui| {
                 theme::set_scheme(ColorScheme::OkabeIto);
                 let _ = super::ui(ui, &ui_state, &ui_settings, &mut icons, &save_tx);
+                // The app renders the editor in a docked bottom panel; the
+                // harness stacks it under the pane so it's queryable when open.
+                super::editor_footer(ui, &ui_state, &save_tx, &mut icons);
             })
     }
 

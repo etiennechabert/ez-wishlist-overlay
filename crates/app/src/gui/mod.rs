@@ -430,6 +430,21 @@ impl eframe::App for App {
                 });
         }
 
+        // Hideout recipe editor, docked to the window bottom (same ctx-level
+        // primitive as the right preview panel) so it stays pinned while the
+        // grid/list above scrolls. Not resizable — fixed height, no drag handle.
+        // (The research detail card can't be docked this way: egui collapses its
+        // flowed content in a bottom panel, so it's pinned at the top of its tab
+        // instead — see research_pane::ui.)
+        if self.tab == LeftTab::Hideout && hideout_pane::editor_is_open(ctx) {
+            egui::TopBottomPanel::bottom("hideout-recipe-editor-fixed")
+                .resizable(false)
+                .default_height(340.0)
+                .show(ctx, |ui| {
+                    hideout_pane::editor_footer(ui, &self.state, &self.save_tx, &mut self.icons);
+                });
+        }
+
         // Left main panel: tab strip + content.
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.horizontal(|ui| {
