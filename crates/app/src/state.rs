@@ -1024,6 +1024,27 @@ impl AppState {
         if self.gunsmith_storage_seeded {
             return false;
         }
+        // Defensive: a build that re-seeded before the `gunsmith_storage_seeded`
+        // flag was reliably persisted could leave a container with the fixed id
+        // already present (the bug that produced triple `gunsmith-storage` rows
+        // — empty header totals, mismatched 30 kg cap). Adopt it instead of
+        // pushing a duplicate: just mark seeded and backfill the cap. Paired
+        // with [`Self::dedup_containers`], which heals profiles that already
+        // accumulated the duplicates.
+        if let Some(existing) = self
+            .containers
+            .iter_mut()
+            .find(|c| c.id == GUNSMITH_STORAGE_ID)
+        {
+            if existing.capacity_kg.is_none() {
+                existing.capacity_kg = Some(30.0);
+            }
+            self.gunsmith_storage_seeded = true;
+            self.bump();
+            // The flag flip + cap backfill are a real change worth persisting,
+            // so report it like a fresh seed even though we didn't push.
+            return true;
+        }
         self.containers.push(Container {
             id: GUNSMITH_STORAGE_ID.to_string(),
             name: "Gunsmith storage".to_string(),
@@ -1035,6 +1056,46 @@ impl AppState {
         self.gunsmith_storage_seeded = true;
         self.bump();
         true
+    }
+
+    /// Collapse any containers that share an id into a single entry, preserving
+    /// first-seen order. Older builds could accumulate duplicate
+    /// `gunsmith-storage` rows (the fixed-id primary re-seeded before its
+    /// seeded flag was reliably persisted): the Containers header then read one
+    /// duplicate's (empty) totals while the item list read another's contents,
+    /// and the Items DB listed the same container three times. The first
+    /// occurrence keeps its name/icon/kind; later duplicates' `contents` are
+    /// summed in and the first non-`None` `capacity_kg` wins. Returns the
+    /// number of duplicate rows removed (0 = nothing to do); bumps when any
+    /// were merged.
+    pub fn dedup_containers(&mut self) -> usize {
+        let mut index: HashMap<ContainerId, usize> = HashMap::new();
+        let mut deduped: Vec<Container> = Vec::with_capacity(self.containers.len());
+        let mut removed = 0usize;
+        for c in std::mem::take(&mut self.containers) {
+            match index.get(&c.id) {
+                Some(&keeper_idx) => {
+                    let keeper: &mut Container = &mut deduped[keeper_idx];
+                    for (item, qty) in c.contents {
+                        let slot = keeper.contents.entry(item).or_insert(0);
+                        *slot = slot.saturating_add(qty);
+                    }
+                    if keeper.capacity_kg.is_none() {
+                        keeper.capacity_kg = c.capacity_kg;
+                    }
+                    removed += 1;
+                }
+                None => {
+                    index.insert(c.id.clone(), deduped.len());
+                    deduped.push(c);
+                }
+            }
+        }
+        self.containers = deduped;
+        if removed > 0 {
+            self.bump();
+        }
+        removed
     }
 
     /// Set (or clear, with `None`) a container's weight cap in kg. No-op if
@@ -1925,6 +1986,90 @@ mod tests {
         back.merge_into(&mut s2);
         assert!(!s2.seed_gunsmith_storage(), "flag survives the round-trip");
         assert!(s2.containers.iter().all(|c| c.id != GUNSMITH_STORAGE_ID));
+    }
+
+    #[test]
+    fn seed_gunsmith_storage_adopts_existing_without_duplicating() {
+        // A pre-existing fixed-id container with the seeded flag still unset
+        // (the historical re-seed window) must be adopted, not duplicated.
+        let mut s = AppState::new(fixture());
+        s.containers.push(Container {
+            id: GUNSMITH_STORAGE_ID.to_string(),
+            name: "Gunsmith storage".to_string(),
+            contents: HashMap::from([("bolts".to_string(), 3)]),
+            icon: Some("box_gunsmith".to_string()),
+            kind: ContainerKind::Case,
+            capacity_kg: None,
+        });
+        assert!(!s.gunsmith_storage_seeded);
+
+        assert!(
+            s.seed_gunsmith_storage(),
+            "adopting reports a change to persist"
+        );
+        let gs: Vec<_> = s
+            .containers
+            .iter()
+            .filter(|c| c.id == GUNSMITH_STORAGE_ID)
+            .collect();
+        assert_eq!(gs.len(), 1, "no duplicate created");
+        assert_eq!(gs[0].capacity_kg, Some(30.0), "cap backfilled");
+        assert_eq!(gs[0].contents.get("bolts"), Some(&3), "contents preserved");
+        assert!(s.gunsmith_storage_seeded, "flag set");
+        assert!(!s.seed_gunsmith_storage(), "now a no-op");
+    }
+
+    #[test]
+    fn dedup_containers_merges_duplicate_ids() {
+        // Reproduce the triple `gunsmith-storage` profile: one full row, two
+        // empty, only the last carrying the 30 kg cap.
+        let mut s = AppState::new(fixture());
+        s.containers = vec![
+            Container {
+                id: GUNSMITH_STORAGE_ID.to_string(),
+                name: "Gunsmith storage".to_string(),
+                contents: HashMap::from([("bolts".to_string(), 5), ("screws".to_string(), 2)]),
+                icon: Some("box_gunsmith".to_string()),
+                kind: ContainerKind::Case,
+                capacity_kg: None,
+            },
+            Container {
+                id: GUNSMITH_STORAGE_ID.to_string(),
+                name: "Gunsmith storage".to_string(),
+                contents: HashMap::from([("bolts".to_string(), 1)]),
+                icon: Some("box_gunsmith".to_string()),
+                kind: ContainerKind::Case,
+                capacity_kg: None,
+            },
+            Container {
+                id: GUNSMITH_STORAGE_ID.to_string(),
+                name: "Gunsmith storage".to_string(),
+                contents: HashMap::new(),
+                icon: Some("box_gunsmith".to_string()),
+                kind: ContainerKind::Case,
+                capacity_kg: Some(30.0),
+            },
+        ];
+
+        assert_eq!(s.dedup_containers(), 2, "two duplicates removed");
+        assert_eq!(s.containers.len(), 1);
+        let g = &s.containers[0];
+        assert_eq!(g.capacity_kg, Some(30.0), "first non-None cap wins");
+        assert_eq!(g.contents.get("bolts"), Some(&6), "quantities summed");
+        assert_eq!(g.contents.get("screws"), Some(&2));
+        // Idempotent: a clean list is a no-op.
+        assert_eq!(s.dedup_containers(), 0);
+    }
+
+    #[test]
+    fn dedup_containers_keeps_distinct_ids_untouched() {
+        let mut s = AppState::new(fixture());
+        let a = s.create_container("A".into());
+        let b = s.create_container("B".into());
+        assert_eq!(s.dedup_containers(), 0);
+        assert_eq!(s.containers.len(), 2);
+        assert!(s.containers.iter().any(|c| c.id == a));
+        assert!(s.containers.iter().any(|c| c.id == b));
     }
 
     #[test]
