@@ -77,7 +77,11 @@ Point a controller at an item in the overlay and pull the trigger to bump its co
 The **Hideout** tab lists every facility module, grouped the way the in-game Facility Upgrade screen groups them (Kitchen, Medical, Storage Zone, Lounge…), with a cell per upgrade level. Tick **Track** on the levels you're saving for, or **Done** on ones you've finished. One-click **presets** — a community *Starter* set and a *Natural progression* set, each with a "how many you already have" counter — track a whole recommended batch at once, and *Untrack all* clears your tracking in one go. Flip to the **By progress** view for a ranked to-do list: upgrades you can claim right now rise to the top, ones you're only an item or two short of sit right below, and you can **Pin** the goals you care about most to keep them first.
 
 <p align="center">
-  <img src="docs/images/desktop-hideout.png" alt="Hideout tab" width="820">
+  <img src="docs/images/desktop-hideout.png" alt="Hideout tab — the per-level grid view" width="820">
+</p>
+
+<p align="center">
+  <img src="docs/images/desktop-hideout-by-progress.png" alt="Hideout tab — the By progress ranked to-do list" width="820">
 </p>
 
 ### 🔬 Track merchant research

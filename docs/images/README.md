@@ -4,7 +4,8 @@ These are the live images shown in the main [README](../../README.md). To refres
 
 | File | Shows | Format |
 | ---- | ----- | ------ |
-| `desktop-hideout.png` | Desktop **Hideout** tab + the aggregated *Active items* wishlist. | PNG (crisp UI text) |
+| `desktop-hideout.png` | Desktop **Hideout** tab (per-level grid) + the aggregated *Active items* wishlist. | PNG (crisp UI text) |
+| `desktop-hideout-by-progress.png` | Desktop **Hideout** tab in the **By progress** view — the ranked next-level to-do list. | PNG |
 | `desktop-research.png` | Desktop **Research** tab — the merchant research tree with sample tracking. | PNG |
 | `desktop-containers.png` | Desktop **Containers** tab — the gunsmith storage against its 30 kg weight cap. | PNG |
 | `desktop-items-db.png` | Desktop **Items DB** tab, sorted by Total Value (the "stash worth" view). | PNG |
