@@ -52,7 +52,7 @@ The **Hideout** tab lists every facility module, grouped the way the in-game Fac
 
 ### 🔬 Track merchant research
 
-Neumann's **RESEARCH** pad gates weapon-attachment blueprints behind a tree of research nodes, each demanding a handful of sample items — gun parts and tools, every one **found in raid**. The **Research** tab mirrors that tree, using the game's own state labels (*Unknown Blueprint*, *Ready For Research*, *Need Research Samples*, *Developed*) so it reads like the in-game pad. Click a node to see what it unlocks and which samples it needs with live `have / need` counts, and tick **Track samples on wishlist** to fold them into the same combined list as your hideout goals — worth doing early, since deeper nodes reuse parts unlocked higher up the tree. Marking a node *Developed* lines up its newly unlocked children automatically.
+Neumann's **RESEARCH** pad gates weapon-attachment blueprints behind a tree of research nodes, each demanding a handful of sample items — gun parts and tools, every one **found in raid**. The **Research** tab mirrors that tree, using the game's own state labels (*Unknown Blueprint*, *Ready For Research*, *Developed*) so it reads like the in-game pad. Click a node to see what it unlocks and which samples it needs with live `have / need` counts, then use the same **Track → Pin → Done** controls as the hideout: **Track samples** folds them into your combined wishlist — worth doing early, since deeper nodes reuse parts unlocked higher up the tree — **Pin** pushes a tracked node's samples to the front of the overlay, and marking it **Developed** (keeping or consuming the samples) lines up its newly unlocked children automatically.
 
 <p align="center">
   <img src="docs/images/desktop-research.png" alt="Research tab" width="820">
@@ -60,7 +60,7 @@ Neumann's **RESEARCH** pad gates weapon-attachment blueprints behind a tree of r
 
 ### 🧾 One combined wishlist
 
-The preview pane on the right is the heart of it: every item across all the upgrades and research nodes you're tracking, summed together, shown as `collected / needed` with a progress bar and the list of goals asking for it. Nudge counts up and down with the `+ / −` buttons, or type an exact number to seed it from what's already in your stash. Pinned upgrades push their items to the front here and in the headset, and a **Sort** switch can reorder this desktop list by what's most remaining or most valuable — the VR overlay keeps its own steady order so it never reshuffles mid-raid.
+The preview pane on the right is the heart of it: every item across all the upgrades and research nodes you're tracking, summed together, shown as `collected / needed` with a progress bar and the list of goals asking for it. Nudge counts up and down with the `+ / −` buttons, or type an exact number to seed it from what's already in your stash. Pinned upgrades and research nodes push their items to the front here and in the headset, and a **Sort** switch can reorder this desktop list by what's most remaining or most valuable — the VR overlay keeps its own steady order so it never reshuffles mid-raid.
 
 ### 🗃️ Track items across your containers
 

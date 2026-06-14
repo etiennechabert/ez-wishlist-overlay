@@ -150,6 +150,15 @@ pub struct AppState {
     /// nodes even require parts unlocked by earlier nodes), and collecting
     /// ahead is the point of tracking. Developed nodes contribute nothing.
     pub tracked_research: HashSet<ResearchNodeId>,
+    /// Research nodes the user has pinned to prioritize — the research-tab
+    /// counterpart of [`Self::pinned_upgrades`]. Pinned-and-tracked nodes push
+    /// their samples to the front of the overlay with the highlight accent.
+    /// Same advisory contract as the upgrade set: filtered at read time to
+    /// tracked-and-not-developed wherever it affects order (see
+    /// [`Self::active_items`]), so a pin on a node later untracked or developed
+    /// sits inert without any hot path having to clear it. Only `reset_all` +
+    /// `PersistedState::merge_into` touch it besides `set_pinned_research`.
+    pub pinned_research: HashSet<ResearchNodeId>,
     /// Bumped on every mutation. The VR thread reads this to decide whether
     /// to re-render the overlay texture.
     pub version: u64,
@@ -192,6 +201,7 @@ impl AppState {
             overrides: HashMap::new(),
             research_states: HashMap::new(),
             tracked_research: HashSet::new(),
+            pinned_research: HashSet::new(),
             version: 0,
             load_warning: None,
         }
@@ -614,6 +624,27 @@ impl AppState {
             self.tracked_research.remove(id);
         }
         self.bump();
+    }
+
+    /// Pin or unpin a research node to prioritize its samples. Mirrors
+    /// [`Self::set_pinned_upgrade`]: the pin only bites while the node is also
+    /// tracked-and-not-developed (resolved in [`Self::active_items`]), and the
+    /// `bump()` is load-bearing — pinning reorders the overlay, whose cached
+    /// click hit-table only rebuilds when `version` changes. Bumps only on a
+    /// real change so a redundant toggle doesn't force a re-render.
+    pub fn set_pinned_research(&mut self, id: &ResearchNodeId, on: bool) {
+        let changed = if on {
+            self.pinned_research.insert(id.clone())
+        } else {
+            self.pinned_research.remove(id)
+        };
+        if changed {
+            self.bump();
+        }
+    }
+
+    pub fn is_research_pinned(&self, id: &ResearchNodeId) -> bool {
+        self.pinned_research.contains(id)
     }
 
     /// Record a node's research progress (`None` = back to not-started).
@@ -1053,6 +1084,9 @@ impl AppState {
         self.disabled_modules.clear();
         self.research_states.clear();
         self.tracked_research.clear();
+        // Clear research pins for the same reason as `pinned_upgrades` above —
+        // a zombie pin would otherwise silently re-attach on re-track.
+        self.pinned_research.clear();
         self.bump();
     }
 
@@ -1107,7 +1141,10 @@ impl AppState {
         // nodes are spent (mirroring `tracked − completed` above); locked ones
         // still count — samples are lootable long before the node unlocks,
         // and collecting ahead is what tracking a research node is *for*.
-        // Research has no pin concept, so the pinned demand stays untouched.
+        // A pinned-and-tracked node feeds the same pinned-demand accumulator as
+        // upgrades, so its samples float to the front of the overlay with the
+        // highlight accent. A pin on an untracked/developed node never enters
+        // this loop, so it stays inert without anything having to clear it.
         for id in &self.tracked_research {
             if matches!(
                 self.research_states.get(id),
@@ -1118,6 +1155,7 @@ impl AppState {
             let Some(node) = self.index.research_nodes_by_id.get(id) else {
                 continue;
             };
+            let pinned = self.pinned_research.contains(id);
             let label = format!("Research: {}", node.name);
             for req in &node.samples {
                 let entry = totals
@@ -1125,6 +1163,9 @@ impl AppState {
                     .or_insert_with(|| (0, Vec::new(), 0));
                 entry.0 += req.quantity;
                 entry.1.push(label.clone());
+                if pinned {
+                    entry.2 += req.quantity;
+                }
             }
         }
 
@@ -1395,6 +1436,11 @@ pub struct PersistedState {
     pub research_states: HashMap<ResearchNodeId, ResearchNodeState>,
     #[serde(default)]
     pub tracked_research: HashSet<ResearchNodeId>,
+    /// Pinned research nodes (priority ordering). `#[serde(default)]` so a
+    /// `state.json` predating research pins loads as an empty set — same
+    /// forward-compat path as `pinned_upgrades`, no schema bump.
+    #[serde(default)]
+    pub pinned_research: HashSet<ResearchNodeId>,
 }
 
 impl PersistedState {
@@ -1413,6 +1459,7 @@ impl PersistedState {
             gunsmith_storage_seeded: state.gunsmith_storage_seeded,
             research_states: state.research_states.clone(),
             tracked_research: state.tracked_research.clone(),
+            pinned_research: state.pinned_research.clone(),
         }
     }
 
@@ -1465,12 +1512,16 @@ impl PersistedState {
             .into_iter()
             .filter(|(id, _)| research_index.contains_key(id))
             .collect();
+        // Research pins prune silently, exactly like `pinned_upgrades`.
+        let (kept_pinned_research, _) =
+            filter_known(self.pinned_research, |id| research_index.contains_key(id));
 
         state.tracked_upgrades = kept_upgrades;
         state.completed_upgrades = kept_done_upgrades;
         state.pinned_upgrades = kept_pinned_upgrades;
         state.tracked_research = kept_tracked_research;
         state.research_states = kept_research_states;
+        state.pinned_research = kept_pinned_research;
         // Drop disabled-module entries that no longer match any module — keeps
         // the set tidy across data-version bumps that rename modules.
         let known_modules: HashSet<&ModuleId> = state.data.modules.iter().map(|m| &m.id).collect();
@@ -2209,6 +2260,7 @@ mod tests {
             gunsmith_storage_seeded: false,
             research_states: HashMap::new(),
             tracked_research: HashSet::new(),
+            pinned_research: HashSet::new(),
         };
         let warn = persisted.merge_into(&mut s).expect("should warn");
         assert!(warn.contains("Game data updated"));
@@ -3082,6 +3134,7 @@ mod tests {
             gunsmith_storage_seeded: false,
             research_states: HashMap::new(),
             tracked_research: HashSet::new(),
+            pinned_research: HashSet::new(),
         };
         // Pruning an orphaned pin is silent — only dropped *tracked* upgrades warn.
         let warn = persisted.merge_into(&mut s);
@@ -3288,6 +3341,7 @@ mod tests {
         let mut s = AppState::new(research_fixture());
         s.set_research_state(&"r1".to_string(), Some(ResearchNodeState::Developed));
         s.set_tracked_research(&"r4".to_string(), true);
+        s.set_pinned_research(&"r4".to_string(), true);
         let persisted = PersistedState::from_app(&s);
 
         // Round-trip into a fresh state over the same data: everything kept.
@@ -3299,14 +3353,72 @@ mod tests {
             ResearchStatus::Developed
         );
         assert!(fresh.tracked_research.contains("r4"));
+        assert!(
+            fresh.is_research_pinned(&"r4".to_string()),
+            "pin survives a round-trip"
+        );
 
         // Merging into a dataset without those nodes prunes: tracked warns,
-        // recorded states drop silently.
+        // recorded states + pins drop silently.
         let persisted = PersistedState::from_app(&s);
         let mut other = AppState::new(fixture());
         let warn = persisted.merge_into(&mut other).expect("should warn");
         assert!(warn.contains("tracked research node"));
         assert!(other.tracked_research.is_empty());
         assert!(other.research_states.is_empty());
+        assert!(
+            other.pinned_research.is_empty(),
+            "orphaned pin pruned silently"
+        );
+    }
+
+    #[test]
+    fn research_pin_drives_active_items_priority() {
+        let mut s = AppState::new(research_fixture());
+        let r2 = "r2".to_string();
+        s.set_tracked_research(&r2, true);
+
+        // Tracked-but-unpinned: samples present, but not flagged pinned.
+        let tape = |s: &AppState| {
+            s.active_items()
+                .into_iter()
+                .find(|i| i.item_id == "tape")
+                .expect("tape")
+        };
+        assert!(!tape(&s).pinned, "tracking alone does not pin");
+
+        // Pinning flags every sample the node still needs.
+        s.set_pinned_research(&r2, true);
+        assert!(tape(&s).pinned, "pinning a tracked node lights its samples");
+
+        // The pin is inert without tracking — untracking clears the flag even
+        // though the pin set still records r2 (mirrors `pinned_upgrades`).
+        s.set_tracked_research(&r2, false);
+        assert!(
+            s.is_research_pinned(&r2),
+            "untracking leaves the pin recorded (re-applies on re-track)"
+        );
+        assert!(
+            s.active_items().is_empty(),
+            "but an untracked node contributes nothing, pinned or not"
+        );
+
+        // Re-tracking re-applies the still-recorded pin without a fresh toggle.
+        s.set_tracked_research(&r2, true);
+        assert!(tape(&s).pinned, "re-tracking revives the recorded pin");
+
+        // Developing spends the node: no samples, so nothing to prioritize.
+        s.set_research_state(&r2, Some(ResearchNodeState::Developed));
+        assert!(s.active_items().is_empty());
+    }
+
+    #[test]
+    fn reset_all_clears_research_pins() {
+        let mut s = AppState::new(research_fixture());
+        s.set_tracked_research(&"r1".to_string(), true);
+        s.set_pinned_research(&"r1".to_string(), true);
+        s.reset_all();
+        assert!(s.pinned_research.is_empty());
+        assert!(s.tracked_research.is_empty());
     }
 }
