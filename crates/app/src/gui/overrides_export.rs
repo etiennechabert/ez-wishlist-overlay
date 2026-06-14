@@ -236,6 +236,7 @@ mod tests {
                 weight: None,
                 price: None,
                 rarity: None,
+                scan_alias: None,
             }],
         })
     }

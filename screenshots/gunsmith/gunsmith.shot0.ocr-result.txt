@@ -1,0 +1,62 @@
+# gunsmith.shot0 — what the OCR read in this one screenshot
+# (auto-generated; do not edit by hand — see screenshots/CLAUDE.md)
+#
+# This is ONE scroll shot of the gunsmith grid. The grid is taller than the
+# screen, so the full contents come from merging every shot — that merged
+# result, scored against the label, lives in gunsmith.ocr-result.txt. This file
+# just shows what the OCR pulled out of this single frame, regenerated from
+# the frozen gunsmith.shot0.boxes.json (so it never runs the game).
+#
+## SUMMARY
+  recognized 5 item tile(s) across 3 grid row(s)
+  dropped 9 text(s) that matched no catalog item (window title, weight
+    readout, category tabs/subtitles — i.e. screen chrome, not items)
+#
+  items found in this frame:
+    1 x gunsmith_ak_mount_rsr
+    1 x gunsmith_ar10_barrel_508
+    1 x gunsmith_ar10_lowerreceiver_ar308
+    1 x gunsmith_mp5_upperreceiver_mp5a4
+    1 x gunsmith_ump_clip_25
+#
+## DETAIL — every text the OCR produced, row by row
+#   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
+#   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
+  [chrome]
+    AUTO MOOE                      -> (no match)
+    O SETTINGS                     -> (no match)
+  [tabs  ]
+    ALL                            -> (no match)
+  [chrome]
+    AKS74U                         -> (no match)
+    U.Uh•r                         -> (no match)
+    Ga Grun Stock                  -> (no match)
+    AR30e upper                    -> (no match)
+    e Mod.3FUE                     -> (no match)
+  [items ]
+    RSR                            -> gunsmith_ak_mount_rsr
+    AR-308 OUR                     -> gunsmith_ar10_lowerreceiver_ar308
+    B upper                        -> (no match)
+    CÅkaoe                         -> (no match)
+    St. rmGrutf                    -> (no match)
+  [items ]
+    AR-iO 508mm                    -> gunsmith_ar10_barrel_508
+    SKS cover                      -> (no match)
+    Elev.ting                      -> (no match)
+    M4 f.ctory                     -> (no match)
+  [chrome]
+    AR-15 mmm Sight                -> (no match)
+    usue                           -> (no match)
+    VAR-IS "4 scope Mount          -> (no match)
+    fké4i8AE upper                 -> (no match)
+  [items ]
+    sixse-MG                       -> (no match)
+    UPSA4                          -> (no match)
+    MPSA4 upper                    -> gunsmith_mp5_upperreceiver_mp5a4
+    UUP4S 2Srd                     -> gunsmith_ump_clip_25
+    factory                        -> (no match)
+  [chrome]
+    BACK                           -> (no match)
+    WITHDRAW                       -> (no match)
+    SELL                           -> (no match)
+    26.93130 KG                    -> (no match)

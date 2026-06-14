@@ -196,6 +196,19 @@ pub struct Item {
     /// Upstream rarity tier, e.g. `"Rare"`, `"Ultimate"`.
     #[serde(default)]
     pub rarity: Option<String>,
+    /// The exact short label this item shows on the **Gunsmith → Storage** grid,
+    /// when it differs from [`Item::name`] in a way the structural gun-part
+    /// matcher can't bridge on its own. The misc box/stash tiles show the full
+    /// `name`, but the gunsmith storage shows a hand-authored short name
+    /// (`"AR308"` for `"AR-10 AR308 7.62x51mm compensator"`, `"AR-308DMR"` for
+    /// the `"…Design marksman rifle"` lower). It is *real in-game text*, not a
+    /// synonym shim: [`crate::ocr::match_item`] matches a storage tile against
+    /// this alias before falling back to structural token matching, so the few
+    /// parts whose short name is an acronym/abbreviation (DMR, `Nrd` mags) or
+    /// collides with another part's leading token resolve to the right id.
+    /// Only set where needed; most gunsmith parts resolve structurally.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scan_alias: Option<String>,
 }
 
 /// Lookup tables built once from a `GameData`.

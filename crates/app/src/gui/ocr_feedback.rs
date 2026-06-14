@@ -466,6 +466,7 @@ mod tests {
             weight,
             price: None,
             rarity: None,
+            scan_alias: None,
         }
     }
 

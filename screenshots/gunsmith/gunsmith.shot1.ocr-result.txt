@@ -1,0 +1,56 @@
+# gunsmith.shot1 — what the OCR read in this one screenshot
+# (auto-generated; do not edit by hand — see screenshots/CLAUDE.md)
+#
+# This is ONE scroll shot of the gunsmith grid. The grid is taller than the
+# screen, so the full contents come from merging every shot — that merged
+# result, scored against the label, lives in gunsmith.ocr-result.txt. This file
+# just shows what the OCR pulled out of this single frame, regenerated from
+# the frozen gunsmith.shot1.boxes.json (so it never runs the game).
+#
+## SUMMARY
+  recognized 2 item tile(s) across 2 grid row(s)
+  dropped 3 text(s) that matched no catalog item (window title, weight
+    readout, category tabs/subtitles — i.e. screen chrome, not items)
+#
+  items found in this frame:
+    1 x gunsmith_20rail_sight_t1highlever
+    1 x gunsmith_ar15_handguard_4inchris
+#
+## DETAIL — every text the OCR produced, row by row
+#   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
+#   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
+  [chrome]
+    AUTO MODE                      -> (no match)
+    O SETTINGS                     -> (no match)
+    SAVE TO PRESET                 -> (no match)
+  [tabs  ]
+    ALL                            -> (no match)
+  [chrome]
+    s1x88-MG                       -> (no match)
+    UPSA4                          -> (no match)
+    MPS" upper                     -> (no match)
+    UMP'S esrd                     -> (no match)
+  [items ]
+    AR-IS OO                       -> (no match)
+    AR-IS 4in RIS                  -> gunsmith_ar15_handguard_4inchris
+  [items ]
+    lÅk-1S usue                    -> (no match)
+    auc 42rd                       -> (no match)
+    Elevating                      -> gunsmith_20rail_sight_t1highlever
+  [chrome]
+    .4                             -> (no match)
+  [chrome]
+    mue upper                      -> (no match)
+    'ÅkJGsoemmSi:ht                -> (no match)
+    Polymer                        -> (no match)
+  [chrome]
+    "4 factory                     -> (no match)
+    -15 USGIAe                     -> (no match)
+    MIS                            -> (no match)
+    M4 factory                     -> (no match)
+    20                             -> (no match)
+  [chrome]
+    BACK                           -> (no match)
+    WITHDRAW                       -> (no match)
+    SELL                           -> (no match)
+    2B.S3130KG                     -> (no match)

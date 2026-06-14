@@ -1,0 +1,27 @@
+# gunsmith — Neumann's Gunsmith → Storage gun-part container, ground truth.
+# Captured 2026-06-14 (weight strip 26.93 / 30 KG). 4-shot gaze-crop scroll
+# series (issue #175 PR 4). Unlike box/stash this is NOT a row-by-row gap-free
+# capture: the shots overlap with gaps, so the row-uniqueness merge yields a
+# PARTIAL, dedup-sensitive tally — not the storage's full contents. This file is
+# the golden snapshot of the parts the gun-part short-name matcher (issue #183)
+# resolves from these frozen captures; the gate (`gunsmith_storage_scan_resolves_parts`)
+# asserts a FLOOR of distinct parts + spot-checks, not this exact tally, because
+# the dedup count shifts when the matcher changes. A full-frame row-by-row
+# recapture (the stash #163 convention) would let it gate an exact/graded tally;
+# until then ambiguous short labels (M4 factory, MP5A4) and not-yet-aliased
+# abbreviations stay unrecognized by design.
+#
+# <item_id>  <count>
+gunsmith_20rail_foregrip_pk1b25u  1
+gunsmith_20rail_sight_cobra  1
+gunsmith_20rail_sight_ocp7  2
+gunsmith_20rail_sight_srs  1
+gunsmith_20rail_sight_t1highlever  3
+gunsmith_ak_mount_rsr  2
+gunsmith_ar10_barrel_508  1
+gunsmith_ar10_clip_10  1
+gunsmith_ar10_lowerreceiver_ar308  1
+gunsmith_ar15_handguard_4inchris  2
+gunsmith_ar15_muzzle_usgia2  1
+gunsmith_mp5_upperreceiver_mp5a4  1
+gunsmith_ump_clip_25  1

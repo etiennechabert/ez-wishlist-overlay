@@ -1,0 +1,62 @@
+# gunsmith.shot2 — what the OCR read in this one screenshot
+# (auto-generated; do not edit by hand — see screenshots/CLAUDE.md)
+#
+# This is ONE scroll shot of the gunsmith grid. The grid is taller than the
+# screen, so the full contents come from merging every shot — that merged
+# result, scored against the label, lives in gunsmith.ocr-result.txt. This file
+# just shows what the OCR pulled out of this single frame, regenerated from
+# the frozen gunsmith.shot2.boxes.json (so it never runs the game).
+#
+## SUMMARY
+  recognized 7 item tile(s) across 4 grid row(s)
+  dropped 9 text(s) that matched no catalog item (window title, weight
+    readout, category tabs/subtitles — i.e. screen chrome, not items)
+#
+  items found in this frame:
+    1 x gunsmith_20rail_foregrip_pk1b25u
+    1 x gunsmith_20rail_sight_cobra
+    1 x gunsmith_20rail_sight_ocp7
+    1 x gunsmith_20rail_sight_srs
+    1 x gunsmith_20rail_sight_t1highlever
+    1 x gunsmith_ak_mount_rsr
+    1 x gunsmith_ar15_muzzle_usgia2
+#
+## DETAIL — every text the OCR produced, row by row
+#   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
+#   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
+  [chrome]
+    AUTO MODE                      -> (no match)
+    O SETTINGS                     -> (no match)
+    SAVE TO PRESET                 -> (no match)
+  [chrome]
+    f.ct.ry                        -> (no match)
+    MI SAE                         -> (no match)
+    AR-IS USG'A2                   -> (no match)
+    juts                           -> (no match)
+    MA f .etary                    -> (no match)
+    aord                           -> (no match)
+  [items ]
+    R-rs Soemm Sight               -> (no match)
+    AR-IS USGIA2                   -> gunsmith_ar15_muzzle_usgia2
+  [items ]
+    Savior                         -> gunsmith_20rail_sight_srs
+    PEQ-ISL„                       -> (no match)
+    Bev.ting                       -> (no match)
+    El ev•ting                     -> (no match)
+    3 PRS Bl.                      -> (no match)
+  [items ]
+    CPEQ.15L„                      -> (no match)
+    PÅR.i5 4in ms                  -> (no match)
+    PK-1B2SU                       -> gunsmith_20rail_foregrip_pk1b25u
+    Epi-sbS                        -> (no match)
+    Elevating                      -> gunsmith_20rail_sight_t1highlever
+  [items ]
+    OCP-7                          -> gunsmith_20rail_sight_ocp7
+    RSR                            -> gunsmith_ak_mount_rsr
+    CP-7                           -> (no match)
+    Cobra                          -> gunsmith_20rail_sight_cobra
+  [chrome]
+    BACK                           -> (no match)
+    WITHDRAW                       -> (no match)
+    SELL                           -> (no match)
+    26.93130 KG                    -> (no match)

@@ -1,0 +1,54 @@
+# gunsmith.shot3 — what the OCR read in this one screenshot
+# (auto-generated; do not edit by hand — see screenshots/CLAUDE.md)
+#
+# This is ONE scroll shot of the gunsmith grid. The grid is taller than the
+# screen, so the full contents come from merging every shot — that merged
+# result, scored against the label, lives in gunsmith.ocr-result.txt. This file
+# just shows what the OCR pulled out of this single frame, regenerated from
+# the frozen gunsmith.shot3.boxes.json (so it never runs the game).
+#
+## SUMMARY
+  recognized 4 item tile(s) across 3 grid row(s)
+  dropped 8 text(s) that matched no catalog item (window title, weight
+    readout, category tabs/subtitles — i.e. screen chrome, not items)
+#
+  items found in this frame:
+    1 x gunsmith_20rail_sight_ocp7
+    1 x gunsmith_20rail_sight_t1highlever
+    1 x gunsmith_ar10_clip_10
+    1 x gunsmith_ar15_handguard_4inchris
+#
+## DETAIL — every text the OCR produced, row by row
+#   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
+#   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
+  [chrome]
+    0                              -> (no match)
+  [chrome]
+    AUTO MOOE                      -> (no match)
+    0 SETTINGS                     -> (no match)
+    SAVE TO PRESET                 -> (no match)
+  [tabs  ]
+    ALL                            -> (no match)
+  [items ]
+    'EQ-ISL„                       -> (no match)
+    AR-IS 4in RIS                  -> gunsmith_ar15_handguard_4inchris
+    '6k.1B2su                      -> (no match)
+    Elevating                      -> gunsmith_20rail_sight_t1highlever
+  [items ]
+    ocp-7                          -> gunsmith_20rail_sight_ocp7
+    obr•                           -> (no match)
+  [items ]
+    r Front                        -> (no match)
+    Rur                            -> (no match)
+    AR-IO lord                     -> gunsmith_ar10_clip_10
+    pi-0-1 Cover                   -> (no match)
+    6p20-sbB                       -> (no match)
+    SO                             -> (no match)
+  [chrome]
+    6p1-,bS                        -> (no match)
+    toucane                        -> (no match)
+    obru                           -> (no match)
+  [chrome]
+    WITHDRAW                       -> (no match)
+    SELL                           -> (no match)
+    26.93 130 KG                   -> (no match)

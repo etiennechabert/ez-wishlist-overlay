@@ -2913,7 +2913,8 @@
       "icon_path": "icons/gunsmith_ar10_clip_10.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.14
+      "weight": 0.14,
+      "scan_alias": "AR-10 10rd"
     },
     {
       "id": "gunsmith_ar10_clip_20",
@@ -2927,7 +2928,8 @@
       "name": "AR-308 7.62x51mm Design marksman rifle",
       "icon_path": "icons/gunsmith_ar10_lowerreceiver_ar308.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "AR-308DMR"
     },
     {
       "id": "gunsmith_ar10_muzzle_ar308",
@@ -2935,7 +2937,8 @@
       "icon_path": "icons/gunsmith_ar10_muzzle_ar308.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.06
+      "weight": 0.06,
+      "scan_alias": "AR308"
     },
     {
       "id": "gunsmith_ar10_muzzle_m14vortex",
@@ -3139,7 +3142,8 @@
       "subcategory": "Handguard",
       "weight": 0.28,
       "price": 3966,
-      "rarity": "Unusual"
+      "rarity": "Unusual",
+      "scan_alias": "AR-15 4in RIS"
     },
     {
       "id": "gunsmith_ar15_handguard_dd",
@@ -6448,7 +6452,8 @@
       "icon_path": "icons/gunsmith_ump_clip_25.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.17
+      "weight": 0.17,
+      "scan_alias": "UMP45 25rd"
     },
     {
       "id": "gunsmith_ump_lowerreceiver_ump45",
