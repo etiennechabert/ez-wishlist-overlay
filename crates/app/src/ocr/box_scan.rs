@@ -1955,12 +1955,13 @@ pub(crate) mod tests {
     }
 
     /// Floor of distinct gun parts the gunsmith-storage scan must resolve. The
-    /// frozen 2026-06-14 captures resolve 21; before the issue-#183 matcher they
-    /// resolved **0** (every tile dropped as "no item matched"). A floor (not an
-    /// exact tally) because the row-uniqueness merge's dedup count shifts when
-    /// the matcher changes — what's gated is "the gun-part matcher keeps
-    /// resolving real parts", with the spot-checks below pinning specific tiles.
-    const GUNSMITH_GATE_MIN_DISTINCT: usize = 19;
+    /// frozen 2026-06-14 captures (PP-OCRv4, #181) resolve **41**; before the
+    /// issue-#183 matcher they resolved **0** (every tile dropped as "no item
+    /// matched"). A floor (not an exact tally) because the row-uniqueness merge's
+    /// dedup count shifts when the matcher / engine changes — what's gated is
+    /// "the gun-part matcher keeps resolving real parts", with the spot-checks
+    /// below pinning specific tiles.
+    const GUNSMITH_GATE_MIN_DISTINCT: usize = 38;
 
     /// `gunsmith` scan — Neumann's Gunsmith → Storage (issue #175 PR 4 / #183).
     ///
@@ -1969,10 +1970,9 @@ pub(crate) mod tests {
     /// ([`crate::ocr::match_item`] with `gunsmith = true`), which matches each
     /// tile against the part's `scan_alias` (the storage short name from the
     /// game's `GunSmithItemAdv` table). This gate runs everywhere off the frozen
-    /// `.boxes.json` and asserts the scan resolves a floor of distinct parts —
-    /// all genuinely in the `gunsmith` catalog — plus spot-checked tiles that
-    /// exercise heavy OCR noise (`AR-308 OUR` → the rifle, `AR-IO lord` → the
-    /// 10rd mag, `auc 42rd` → the AUG mag). Short names the game shares across
+    /// `.boxes.json` (PP-OCRv4) and asserts the scan resolves a floor of distinct
+    /// parts — all genuinely in the `gunsmith` catalog — plus a spread of
+    /// spot-checked tiles across part classes. Short names the game shares across
     /// parts stay unrecognized by design, so this is a floor, not an exact match
     /// (see `gunsmith.label.txt`).
     #[test]
@@ -2003,16 +2003,20 @@ pub(crate) mod tests {
             );
         }
         // Spot-checks: specific tiles that must keep resolving via their alias,
-        // including heavily OCR-garbled reads (see gunsmith.shotN.ocr-result.txt).
+        // spread across part classes and the alias edge cases (the AR308 family's
+        // three distinct short names, an acronym, a magazine round-count).
         for id in [
-            "gunsmith_20rail_sight_cobra",        // alias "Cobra" (clean)
-            "gunsmith_ak_mount_rsr",              // alias "RSR"
-            "gunsmith_ar10_barrel_508",           // alias "AR-10 508mm" (OCR "AR-iO 508mm")
-            "gunsmith_ar10_lowerreceiver_ar308",  // alias "AR-308 DMR" (OCR "AR-308 OUR")
-            "gunsmith_ar10_clip_10",              // alias "AR-10 10rd" (OCR "AR-IO lord")
-            "gunsmith_ump_clip_25",               // alias "UMP45 25rd" (OCR "UUP4S 2Srd")
-            "gunsmith_ar15_handguard_4inchris",   // alias "AR-15 4in RIS"
-            "gunsmith_sks_upperreceiver_dustcover", // alias "SKS Cover"
+            "gunsmith_20rail_sight_cobra",          // sight, alias "Cobra"
+            "gunsmith_ak_mount_rsr",                // mount, alias "RSR"
+            "gunsmith_ar10_barrel_508",             // barrel, alias "AR-10 508mm"
+            "gunsmith_ar10_muzzle_ar308",           // AR308 family: compensator = "AR308"
+            "gunsmith_ar10_upperreceiver_ar308",    // AR308 family: upper = "AR308 Upper"
+            "gunsmith_ar10_lowerreceiver_ar308",    // AR308 family: rifle = "AR-308 DMR"
+            "gunsmith_ar10_clip_10",                // magazine, alias "AR-10 10rd"
+            "gunsmith_ump_clip_25",                 // magazine, alias "UMP45 25rd"
+            "gunsmith_ar15_handguard_4inchris",     // handguard, alias "AR-15 4in RIS"
+            "gunsmith_g3_stock_polygreen",          // stock, alias "G3 Green Stock"
+            "gunsmith_sks_upperreceiver_dustcover", // upper, alias "SKS Cover"
         ] {
             assert!(
                 tally.contains_key(id),

@@ -6,30 +6,50 @@
 # gunsmith.label.txt. Per-shot reads are in the sibling gunsmith.shotN.ocr-result.txt.
 #
 ## SUMMARY
-  captured 26/26 label tile(s)  (0 missing, 0 extra)
+  captured 60/60 label tile(s)  (0 missing, 0 extra)
   exact match: YES — the scan reads the label exactly
   note: a 4-shot gaze-crop scroll series (issue #175 PR 4): the gun-part short-name matcher (issue #183) resolves each tile against the part's scan_alias (the storage short name, from the game's GunSmithItemAdv table); short names the game shares across parts (e.g. 'AR-15 DD') stay unrecognized by design. The shots overlap with gaps so the merge is partial — a golden snapshot, not a full tally; a full-frame row-by-row recapture would gate it exactly
 #
 ## PER ITEM   (read = scan count, label = ground truth)
 # status  read/label  item_id
+  OK         1/1      gunsmith_20rail_foregrip_afg
   OK         1/1      gunsmith_20rail_foregrip_pk1b25u
-  OK         1/1      gunsmith_20rail_sight_cobra
+  OK         1/1      gunsmith_20rail_foregrip_pvg_bk
+  OK         1/1      gunsmith_20rail_foregrip_stormgruff
+  OK         1/1      gunsmith_20rail_foregrip_tds_sd
+  OK         1/1      gunsmith_20rail_frontsight_vectorfs
+  OK         1/1      gunsmith_20rail_rearsight_vectorrs
+  OK         3/3      gunsmith_20rail_sight_cobra
   OK         2/2      gunsmith_20rail_sight_ocp7
   OK         1/1      gunsmith_20rail_sight_srs
-  OK         2/2      gunsmith_20rail_sight_t1highlever
+  OK         5/5      gunsmith_20rail_sight_t1highlever
   OK         1/1      gunsmith_20rail_sight_toucan2
-  OK         1/1      gunsmith_ak74u_lowerreceiver_aks74un
+  OK         1/1      gunsmith_20rail_sight_walther
+  OK         1/1      gunsmith_ak74u_mount_b18
+  OK         1/1      gunsmith_ak_handguard_6p20sb9
+  OK         1/1      gunsmith_ak_lowerreceiver_akmn
   OK         2/2      gunsmith_ak_mount_rsr
   OK         1/1      gunsmith_ar10_barrel_508
   OK         1/1      gunsmith_ar10_clip_10
   OK         1/1      gunsmith_ar10_lowerreceiver_ar308
-  OK         1/1      gunsmith_ar10_upperreceiver_ar308
-  OK         1/1      gunsmith_ar15_handguard_4inchris
+  OK         1/1      gunsmith_ar10_muzzle_ar308
+  OK         2/2      gunsmith_ar10_upperreceiver_ar308
+  OK         1/1      gunsmith_ar15_barrel_368mmsight
+  OK         1/1      gunsmith_ar15_barrel_508mmsight
+  OK         2/2      gunsmith_ar15_handguard_4inchris
+  OK         1/1      gunsmith_ar15_handguard_m16poly
+  OK         3/3      gunsmith_ar15_lowerreceiver_m16
   OK         1/1      gunsmith_ar15_mount_handlescoperail
-  OK         1/1      gunsmith_ar15_muzzle_usgia2
-  OK         3/3      gunsmith_ar15_pistolgrip_m4factory
-  OK         1/1      gunsmith_aug_clip_42
+  OK         3/3      gunsmith_ar15_muzzle_usgia2
+  OK         1/1      gunsmith_ar15_pistolgrip_m16a1
+  OK         4/4      gunsmith_ar15_pistolgrip_m4factory
+  OK         2/2      gunsmith_ar15_upperreceiver_m16a2
+  OK         2/2      gunsmith_arbuffer_stock_m16a2
+  OK         1/1      gunsmith_g3_handguard_bt
+  OK         1/1      gunsmith_g3_pistolgrip_prsblack
+  OK         1/1      gunsmith_g3_stock_polygreen
+  OK         1/1      gunsmith_hk416_upperreceiver_hk416a5
+  OK         1/1      gunsmith_mp5_lowerreceiver_mp5a4
   OK         1/1      gunsmith_mp5_upperreceiver_mp5a4
-  OK         1/1      gunsmith_mp9_upperreceiver_mp9
   OK         1/1      gunsmith_sks_upperreceiver_dustcover
   OK         1/1      gunsmith_ump_clip_25

@@ -207,11 +207,11 @@ the `crate::ocr::match_item` module docs. Misc box/stash matching is untouched
 (`gunsmith = false`).
 
 **Gate — `gunsmith_storage_scan_resolves_parts`** (cross-platform, off the
-frozen `.boxes.json`): the scan must resolve a **floor** of distinct parts (was
-**0** before #183), every one genuinely in the `gunsmith` catalog, plus
-spot-checked tiles — including heavily OCR-garbled reads the alias still recovers
-(`AR-308 OUR` → the rifle, `AR-IO lord` → the 10rd mag). It's a floor, not an
-exact tally:
+frozen `.boxes.json`, PP-OCRv4 since #181): the scan resolves **41 distinct
+parts** (floor 38; was **0** before #183 — and only ~21 on the old Windows
+engine, so #182's PP-OCR migration is what unlocked clean gun-part reads), every
+one genuinely in the `gunsmith` catalog, plus spot-checked tiles across part
+classes. It's a floor, not an exact tally:
 
 - **This is a gappy gaze-crop series, NOT row-by-row.** The 4 shots overlap with
   scroll gaps (~1424×927 debug crops, not full 3096×3312 mirror frames), so the

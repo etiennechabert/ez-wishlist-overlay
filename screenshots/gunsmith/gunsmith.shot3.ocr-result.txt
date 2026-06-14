@@ -8,15 +8,22 @@
 # the frozen gunsmith.shot3.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 6 item tile(s) across 4 grid row(s)
-  dropped 9 text(s) that matched no catalog item (window title, weight
+  recognized 15 item tile(s) across 4 grid row(s)
+  dropped 4 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
+    1 x gunsmith_20rail_foregrip_afg
     1 x gunsmith_20rail_foregrip_pk1b25u
-    1 x gunsmith_20rail_sight_ocp7
+    1 x gunsmith_20rail_foregrip_tds_sd
+    1 x gunsmith_20rail_frontsight_vectorfs
+    1 x gunsmith_20rail_rearsight_vectorrs
+    2 x gunsmith_20rail_sight_cobra
+    2 x gunsmith_20rail_sight_ocp7
     1 x gunsmith_20rail_sight_t1highlever
     1 x gunsmith_20rail_sight_toucan2
+    1 x gunsmith_ak_handguard_6p20sb9
+    1 x gunsmith_ak_mount_rsr
     1 x gunsmith_ar10_clip_10
     1 x gunsmith_ar15_handguard_4inchris
 #
@@ -24,33 +31,37 @@
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
 #   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
   [chrome]
-    0                              -> (no match)
-  [chrome]
-    AUTO MOOE                      -> (no match)
-    0 SETTINGS                     -> (no match)
-    SAVE TO PRESET                 -> (no match)
+    AUTO MODE                      -> (no match)
+    2,580,850                      -> (no match)
+    SETTINGS                       -> (no match)
+    SAVETO PRESET                  -> (no match)
   [tabs  ]
     ALL                            -> (no match)
   [items ]
-    'EQ-ISL„                       -> (no match)
-    AR-IS 4in RIS                  -> gunsmith_ar15_handguard_4inchris
-    '6k.1B2su                      -> gunsmith_20rail_foregrip_pk1b25u
-    Elevating                      -> gunsmith_20rail_sight_t1highlever
+    PEQ-15Laser                    -> (no match)
+    AR-154in RIS                   -> gunsmith_ar15_handguard_4inchris
+    PK-1B25U                       -> gunsmith_20rail_foregrip_pk1b25u
+    6p1-sb5                        -> (no match)
+    T1 Elevating                   -> gunsmith_20rail_sight_t1highlever
   [items ]
-    ocp-7                          -> gunsmith_20rail_sight_ocp7
-    obr•                           -> (no match)
+    OCP-7                          -> gunsmith_20rail_sight_ocp7
+    RSR                            -> gunsmith_ak_mount_rsr
+    OCP-7                          -> gunsmith_20rail_sight_ocp7
+    Cobra                          -> gunsmith_20rail_sight_cobra
+    AFG                            -> gunsmith_20rail_foregrip_afg
   [items ]
-    r Front                        -> (no match)
-    Rur                            -> (no match)
-    AR-IO lord                     -> gunsmith_ar10_clip_10
-    pi-0-1 Cover                   -> (no match)
-    6p20-sbB                       -> (no match)
-    SO                             -> (no match)
+    Vector Front                   -> gunsmith_20rail_frontsight_vectorfs
+    Vector Rear                    -> gunsmith_20rail_rearsight_vectorrs
+    AR-1010rd                      -> gunsmith_ar10_clip_10
+    6p1-0-1Cover                   -> (no match)
+    6p20-sb9                       -> gunsmith_ak_handguard_6p20sb9
+    TOS SO                         -> gunsmith_20rail_foregrip_tds_sd
   [items ]
-    6p1-,bS                        -> (no match)
-    toucane                        -> gunsmith_20rail_sight_toucan2
-    obru                           -> (no match)
+    6p1-sb5                        -> (no match)
+    toucan2                        -> gunsmith_20rail_sight_toucan2
+    Cobra                          -> gunsmith_20rail_sight_cobra
   [chrome]
+    RACK                           -> (no match)
     WITHDRAW                       -> (no match)
     SELL                           -> (no match)
-    26.93 130 KG                   -> (no match)
+    26.93 / 30 KG                  -> (no match)

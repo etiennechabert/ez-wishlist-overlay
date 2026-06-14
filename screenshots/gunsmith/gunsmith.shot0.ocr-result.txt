@@ -8,18 +8,31 @@
 # the frozen gunsmith.shot0.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 10 item tile(s) across 5 grid row(s)
-  dropped 13 text(s) that matched no catalog item (window title, weight
+  recognized 25 item tile(s) across 5 grid row(s)
+  dropped 2 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
-    1 x gunsmith_ak74u_lowerreceiver_aks74un
+    1 x gunsmith_20rail_foregrip_stormgruff
+    1 x gunsmith_20rail_sight_cobra
+    1 x gunsmith_20rail_sight_t1highlever
+    1 x gunsmith_20rail_sight_walther
+    1 x gunsmith_ak74u_mount_b18
+    1 x gunsmith_ak_lowerreceiver_akmn
     1 x gunsmith_ak_mount_rsr
     1 x gunsmith_ar10_barrel_508
     1 x gunsmith_ar10_lowerreceiver_ar308
-    1 x gunsmith_ar10_upperreceiver_ar308
+    1 x gunsmith_ar10_muzzle_ar308
+    2 x gunsmith_ar10_upperreceiver_ar308
+    1 x gunsmith_ar15_barrel_368mmsight
     1 x gunsmith_ar15_mount_handlescoperail
-    1 x gunsmith_ar15_pistolgrip_m4factory
+    1 x gunsmith_ar15_muzzle_usgia2
+    1 x gunsmith_ar15_pistolgrip_m16a1
+    2 x gunsmith_ar15_pistolgrip_m4factory
+    1 x gunsmith_ar15_upperreceiver_m16a2
+    1 x gunsmith_g3_stock_polygreen
+    1 x gunsmith_hk416_upperreceiver_hk416a5
+    1 x gunsmith_mp5_lowerreceiver_mp5a4
     1 x gunsmith_mp5_upperreceiver_mp5a4
     1 x gunsmith_sks_upperreceiver_dustcover
     1 x gunsmith_ump_clip_25
@@ -28,40 +41,46 @@
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
 #   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
   [chrome]
-    AUTO MOOE                      -> (no match)
-    O SETTINGS                     -> (no match)
+    AUTO MODE                      -> (no match)
+    2,580,850                      -> (no match)
+    SETTINGS                       -> (no match)
+    SAVE TO PRESET                 -> (no match)
   [tabs  ]
     ALL                            -> (no match)
   [items ]
-    AKS74U                         -> gunsmith_ak74u_lowerreceiver_aks74un
-    U.Uh•r                         -> (no match)
-    Ga Grun Stock                  -> (no match)
-    AR30e upper                    -> gunsmith_ar10_upperreceiver_ar308
-    e Mod.3FUE                     -> (no match)
+    AKS74UB18                      -> gunsmith_ak74u_mount_b18
+    Cobra                          -> gunsmith_20rail_sight_cobra
+    Walther                        -> gunsmith_20rail_sight_walther
+    G3 Green Stock                 -> gunsmith_g3_stock_polygreen
+    AR308Upper                     -> gunsmith_ar10_upperreceiver_ar308
+    GF Mod.3FDE                    -> (no match)
   [items ]
     RSR                            -> gunsmith_ak_mount_rsr
-    AR-308 OUR                     -> gunsmith_ar10_lowerreceiver_ar308
-    B upper                        -> (no match)
-    CÅkaoe                         -> (no match)
-    St. rmGrutf                    -> (no match)
+    AR-308DMR                      -> gunsmith_ar10_lowerreceiver_ar308
+    AR308 Upper                    -> gunsmith_ar10_upperreceiver_ar308
+    M16A1                          -> gunsmith_ar15_pistolgrip_m16a1
+    AR308                          -> gunsmith_ar10_muzzle_ar308
+    StormGruff                     -> gunsmith_20rail_foregrip_stormgruff
   [items ]
-    AR-iO 508mm                    -> gunsmith_ar10_barrel_508
-    SKS cover                      -> gunsmith_sks_upperreceiver_dustcover
-    Elev.ting                      -> (no match)
-    M4 f.ctory                     -> gunsmith_ar15_pistolgrip_m4factory
+    AR-10508mm                     -> gunsmith_ar10_barrel_508
+    SKS Cover                      -> gunsmith_sks_upperreceiver_dustcover
+    T1 Elevating                   -> gunsmith_20rail_sight_t1highlever
+    M4 factory                     -> gunsmith_ar15_pistolgrip_m4factory
   [items ]
-    AR-15 mmm Sight                -> (no match)
-    usue                           -> (no match)
-    VAR-IS "4 scope Mount          -> gunsmith_ar15_mount_handlescoperail
-    fké4i8AE upper                 -> (no match)
+    AR-15 368mm Sight              -> gunsmith_ar15_barrel_368mmsight
+    M16A2 Upper                    -> gunsmith_ar15_upperreceiver_m16a2
+    AR-15USGIA2                    -> gunsmith_ar15_muzzle_usgia2
+    AR-15 M4 Scope Mount           -> gunsmith_ar15_mount_handlescoperail
+    RC416A5 Upper                  -> gunsmith_hk416_upperreceiver_hk416a5
   [items ]
-    sixse-MG                       -> (no match)
-    UPSA4                          -> (no match)
-    MPSA4 upper                    -> gunsmith_mp5_upperreceiver_mp5a4
-    UUP4S 2Srd                     -> gunsmith_ump_clip_25
-    factory                        -> (no match)
+    Slx68-MG                       -> (no match)
+    MP5A4                          -> gunsmith_mp5_lowerreceiver_mp5a4
+    MPSA4Upper                     -> gunsmith_mp5_upperreceiver_mp5a4
+    UMP4525rd                      -> gunsmith_ump_clip_25
+    AKMN                           -> gunsmith_ak_lowerreceiver_akmn
+    M4factory                      -> gunsmith_ar15_pistolgrip_m4factory
   [chrome]
     BACK                           -> (no match)
     WITHDRAW                       -> (no match)
     SELL                           -> (no match)
-    26.93130 KG                    -> (no match)
+    26.93 / 30 KG                  -> (no match)

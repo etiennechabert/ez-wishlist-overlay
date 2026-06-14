@@ -8,55 +8,73 @@
 # the frozen gunsmith.shot2.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 8 item tile(s) across 5 grid row(s)
-  dropped 14 text(s) that matched no catalog item (window title, weight
+  recognized 23 item tile(s) across 5 grid row(s)
+  dropped 4 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
+    1 x gunsmith_20rail_foregrip_afg
     1 x gunsmith_20rail_foregrip_pk1b25u
     1 x gunsmith_20rail_sight_cobra
-    1 x gunsmith_20rail_sight_ocp7
+    2 x gunsmith_20rail_sight_ocp7
     1 x gunsmith_20rail_sight_srs
-    1 x gunsmith_20rail_sight_t1highlever
+    3 x gunsmith_20rail_sight_t1highlever
     1 x gunsmith_ak_mount_rsr
+    1 x gunsmith_ar15_barrel_508mmsight
+    1 x gunsmith_ar15_handguard_4inchris
+    1 x gunsmith_ar15_handguard_m16poly
+    1 x gunsmith_ar15_lowerreceiver_m16
     2 x gunsmith_ar15_muzzle_usgia2
+    2 x gunsmith_ar15_pistolgrip_m4factory
+    1 x gunsmith_ar15_upperreceiver_m16a2
+    2 x gunsmith_arbuffer_stock_m16a2
+    1 x gunsmith_g3_handguard_bt
+    1 x gunsmith_g3_pistolgrip_prsblack
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
 #   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
   [chrome]
     AUTO MODE                      -> (no match)
-    O SETTINGS                     -> (no match)
+    2,580,850                      -> (no match)
+    SETTINGS                       -> (no match)
     SAVE TO PRESET                 -> (no match)
+  [tabs  ]
+    ALL                            -> (no match)
   [items ]
-    f.ct.ry                        -> (no match)
-    MI SAE                         -> (no match)
-    AR-IS USG'A2                   -> gunsmith_ar15_muzzle_usgia2
-    juts                           -> (no match)
-    MA f .etary                    -> (no match)
-    aord                           -> (no match)
+    M4 factory                     -> gunsmith_ar15_pistolgrip_m4factory
+    M16A2                          -> gunsmith_arbuffer_stock_m16a2
+    AR-15USGIA2                    -> gunsmith_ar15_muzzle_usgia2
+    M16                            -> gunsmith_ar15_lowerreceiver_m16
+    M16A2                          -> gunsmith_arbuffer_stock_m16a2
+    M4factory                      -> gunsmith_ar15_pistolgrip_m4factory
+    612030rd                       -> (no match)
   [items ]
-    R-rs Soemm Sight               -> (no match)
-    AR-IS USGIA2                   -> gunsmith_ar15_muzzle_usgia2
+    M16A2Upper                     -> gunsmith_ar15_upperreceiver_m16a2
+    M16Polymer                     -> gunsmith_ar15_handguard_m16poly
+    AR-15508mm Sight               -> gunsmith_ar15_barrel_508mmsight
+    AR-15USGIA2                    -> gunsmith_ar15_muzzle_usgia2
   [items ]
+    G3BD                           -> gunsmith_g3_handguard_bt
     Savior                         -> gunsmith_20rail_sight_srs
-    PEQ-ISL„                       -> (no match)
-    Bev.ting                       -> (no match)
-    El ev•ting                     -> (no match)
-    3 PRS Bl.                      -> (no match)
+    PEQ-15Laser                    -> (no match)
+    T1 Elevating                   -> gunsmith_20rail_sight_t1highlever
+    T1 Elevating                   -> gunsmith_20rail_sight_t1highlever
+    G3PRS Black                    -> gunsmith_g3_pistolgrip_prsblack
   [items ]
-    CPEQ.15L„                      -> (no match)
-    PÅR.i5 4in ms                  -> (no match)
-    PK-1B2SU                       -> gunsmith_20rail_foregrip_pk1b25u
-    Epi-sbS                        -> (no match)
-    Elevating                      -> gunsmith_20rail_sight_t1highlever
+    PEQ-15Laser                    -> (no match)
+    AR-154in RIS                   -> gunsmith_ar15_handguard_4inchris
+    PK-1B25U                       -> gunsmith_20rail_foregrip_pk1b25u
+    6p1-sb5                        -> (no match)
+    T1Elevating                    -> gunsmith_20rail_sight_t1highlever
   [items ]
     OCP-7                          -> gunsmith_20rail_sight_ocp7
     RSR                            -> gunsmith_ak_mount_rsr
-    CP-7                           -> (no match)
+    OCP-7                          -> gunsmith_20rail_sight_ocp7
     Cobra                          -> gunsmith_20rail_sight_cobra
+    AFG                            -> gunsmith_20rail_foregrip_afg
   [chrome]
     BACK                           -> (no match)
     WITHDRAW                       -> (no match)
     SELL                           -> (no match)
-    26.93130 KG                    -> (no match)
+    26.93 / 30 KG                  -> (no match)
