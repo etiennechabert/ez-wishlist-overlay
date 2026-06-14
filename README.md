@@ -100,6 +100,8 @@ This is the time-saver. Open an upgrade's **Facility Upgrade** panel in-game, an
 
 You don't even need to reach for the keyboard: hit **Scan from screen** in the top bar before putting the headset on, and a capture frame appears in-headset — line it up over an upgrade panel and **pull the trigger** to scan, as many panels as you like, entirely from inside VR.
 
+The same screen-reading covers **three** in-game screens, not just upgrades: the **Facility Upgrade** panel above (it reads the owned-count per required item); your **container contents** screens — main stash and item cases (the "box" scan); and the gunsmith's **gun-parts storage**. The two container screens scroll, so those scans capture row-by-row and merge the shots into a contents list — see **Track items across your containers** above — while an upgrade panel reads in a single shot.
+
 <p align="center">
   <img src="docs/images/ocr-feedback.jpg" alt="In-headset OCR feedback card on the Facility Upgrade panel" width="760">
 </p>
