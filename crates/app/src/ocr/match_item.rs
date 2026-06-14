@@ -18,29 +18,24 @@
 //!
 //! One container breaks the "label == `Item.name`" rule: the **Gunsmith →
 //! Storage** grid shows a hand-authored *short* name (`"Cobra"`, `"M16A1"`,
-//! `"AR308 Upper"`) while the catalog carries the full descriptive
+//! `"AR-308 DMR"`) while the catalog carries the full descriptive
 //! `WFItemsStringTable` name (`"Cobra 20mm reflex sight"`, `"AR-15 M16A1
-//! pistolgrip"`, `"AR-10 AR308 7.62x51mm upper receiver"`). The short name is
-//! a different real in-game string with no clean pak source (older `WF_*`
-//! blueprints inline it, the newer AdvanceGun blueprints resolve it via
-//! string-table indirection that needs a forbidden `.usmap`), so we *match*
-//! against the catalog name structurally rather than re-sourcing 600+ strings:
+//! pistolgrip"`, `"AR-308 7.62x51mm Design marksman rifle"`). The short name is
+//! a *different real in-game string*, and it IS in the paks — the gun-part
+//! data table **`GunSmithItemAdv`** carries one per `gunsmith.*` tag. Those are
+//! extracted offline into each gun-part's [`Item::scan_alias`] (see
+//! `CLAUDE.md`), so we match the storage label against the real short name, not
+//! a fuzzy reconstruction.
 //!
-//! The short label is the catalog name's distinctive tokens, in order, with the
-//! generic ones (`"20mm"`, caliber, weapon-family prefix) dropped — i.e. a
-//! concatenated, order-preserving **subsequence of the name's tokens**. So when
-//! the caller flags a gunsmith-storage scan, after the strict pass misses we
-//!   1. match the label against an item's [`Item::scan_alias`] (the exact short
-//!      name, pinned only where structural matching is wrong or ambiguous — the
-//!      AR308 family, the `DMR`/`Nrd` acronym/abbreviation cases), then
-//!   2. structurally align the label to each gunsmith name's tokens, taking the
-//!      lowest-cost unambiguous match.
-//!
-//! This stays scoped to gunsmith-storage scans (the caller's `gunsmith` flag),
-//! so the misc box/stash matching is byte-for-byte unchanged, and it still
-//! **rejects rather than guesses**: a short label that two parts share, or that
-//! aligns only loosely, resolves to nothing (an unrecognized tile) instead of a
-//! wrong tally — same contract as the strict matcher.
+//! So when the caller flags a gunsmith-storage scan, after the strict
+//! whole-name pass misses, [`match_gunsmith`] scores the label against every
+//! gun-part's `scan_alias` by the same confusion-aware distance and takes the
+//! best — **rejecting a tie**: 27 short names are shared by several parts in the
+//! game itself (`"M9"` across an M9's lower/grip/barrel/upper, `"AR-15 DD"` for
+//! the DD stock *and* handguard), so when two parts match equally we resolve to
+//! nothing rather than guess. Same "reject, don't guess" contract as the strict
+//! matcher, and scoped to gunsmith-storage scans (the caller's `gunsmith` flag)
+//! so misc box/stash matching is byte-for-byte unchanged.
 
 // Reached for real only by the Windows-gated box-scan reader (`read_tiles`),
 // plus the unit tests below (every target). The non-test, non-Windows build
@@ -140,39 +135,12 @@ const GUNSMITH_CATEGORY: &str = "gunsmith";
 /// — the alias is the real string, so this only absorbs OCR glyph noise.
 const ALIAS_MIN_SCORE: f64 = 0.80;
 
-/// Structural pass — per *candidate token*, the max confusion-aware distance
-/// for it to be "consumed" by an equal-length slice of the label. `1.0` lets a
-/// single OCR glyph error inside one token through (`mpsa4` for `mp5a4`) while
-/// still requiring the rest of the token to land.
-const STRUCT_TOK_TOL: f64 = 1.0;
-
-/// Structural pass — reject the best alignment if its summed token-edit cost
-/// exceeds this. Set just below one full edit (`1.0`) so only cheap
-/// [`CONFUSABLE`] glyph noise (`0.3` each, ≤ 2 of them) passes: a *full,
-/// unrelated* substitution in a short distinctive token would change the part
-/// (a garbled `MP5` → `MPS` must NOT resolve to the `MP9` upper), so it's
-/// dropped — same "reject rather than guess" contract as the strict matcher.
-/// Genuine abbreviations the name can't form at all (`AR-308DMR`) are pinned via
-/// [`Item::scan_alias`] instead.
-const STRUCT_COST_CAP: f64 = 0.6;
-
-/// Structural pass — reject as **ambiguous** when the runner-up's cost is within
-/// this of the winner's *and* it skipped no more leading tokens. Two parts a
-/// short label can't tell apart (an `"M4 Factory"` handguard vs pistol grip,
-/// `"MP5A4"` across a dozen MP5 parts) resolve to nothing, never a coin-flip.
-const STRUCT_MIN_MARGIN: f64 = 0.6;
-
-/// Structural pass — shortest glued label we'll resolve. Real gun-part short
-/// names are ≥ 3 chars (`"AFG"`); a 1–2 char OCR fragment aligns to too many
-/// longer tokens to be trustworthy.
-const STRUCT_MIN_LABEL: usize = 3;
-
 /// Resolve one tile's OCR'd label `tokens` to an `Item.id`.
 ///
-/// `gunsmith` enables the gun-part short-name passes (alias + structural) — set
-/// only when scanning the Gunsmith → Storage container, so misc box/stash
-/// matching is unaffected (issue #183). The strict whole-name pass runs first
-/// regardless and is identical to the pre-#183 behaviour.
+/// `gunsmith` enables the gun-part short-name (alias) pass — set only when
+/// scanning the Gunsmith → Storage container, so misc box/stash matching is
+/// unaffected (issue #183). The strict whole-name pass runs first regardless and
+/// is identical to the pre-#183 behaviour.
 ///
 /// Returns `None` when the label is empty or nothing resolves. On a strict
 /// score tie, prefers the longer item name (more specific), then the
@@ -230,25 +198,30 @@ pub fn match_item(data: &GameData, tokens: &[&str], gunsmith: bool) -> Option<It
     None
 }
 
-/// The gunsmith-storage short-name resolution: an exact [`Item::scan_alias`]
-/// match first (the pinned overrides), then a structural token-subsequence
-/// alignment of the short label against each gun-part's full name. `label` is
-/// already [`normalize`]d.
+/// The gunsmith-storage short-name resolution: score the tile `label` (already
+/// [`normalize`]d) against every gun-part's [`Item::scan_alias`] — the exact
+/// short name the storage grid shows, extracted from the game's `GunSmithItemAdv`
+/// table — by the same confusion-aware distance, and take the best. **Rejects a
+/// tie**: short names the game shares across parts (`"M9"`, `"AR-15 DD"`) resolve
+/// to nothing rather than a coin-flip.
+///
+/// Compared whitespace-removed so OCR spacing slips ("AR308 Upper" vs
+/// "AR308Upper") don't matter.
 fn match_gunsmith(data: &GameData, label: &str) -> Option<ItemId> {
     let glued: String = label.chars().filter(|c| !c.is_whitespace()).collect();
     if glued.is_empty() {
         return None;
     }
 
-    // 1. Alias pass — the exact storage short name, pinned where structural
-    //    matching is wrong/ambiguous. Compared glued so OCR spacing slips
-    //    ("AR308 Upper" vs "AR308Upper") don't matter.
-    let mut best_alias: Option<(&str, f64, usize)> = None;
+    let mut best_score = ALIAS_MIN_SCORE - 1e-9;
+    let mut best_id: Option<&str> = None;
+    let mut tie = false;
     for item in gunsmith_items(data) {
         let Some(alias) = item.scan_alias.as_deref() else {
             continue;
         };
-        let alias_glued: String = normalize(alias).chars().filter(|c| !c.is_whitespace()).collect();
+        let alias_glued: String =
+            normalize(alias).chars().filter(|c| !c.is_whitespace()).collect();
         if alias_glued.is_empty() {
             continue;
         }
@@ -256,62 +229,28 @@ fn match_gunsmith(data: &GameData, label: &str) -> Option<ItemId> {
         if score < ALIAS_MIN_SCORE {
             continue;
         }
-        let len = alias_glued.chars().count();
-        let replace = match best_alias {
-            None => true,
-            Some((bid, bscore, blen)) => {
-                score > bscore + 1e-9
-                    || (score >= bscore - 1e-9
-                        && (len > blen || (len == blen && item.id.as_str() < bid)))
-            }
-        };
-        if replace {
-            best_alias = Some((item.id.as_str(), score, len));
+        if score > best_score + 1e-9 {
+            best_score = score;
+            best_id = Some(item.id.as_str());
+            tie = false;
+        } else if score >= best_score - 1e-9 && best_id.is_some_and(|b| b != item.id.as_str()) {
+            // Another distinct part matches just as well — the game reuses this
+            // short name, so we can't tell them apart. Drop it.
+            tie = true;
         }
-    }
-    if let Some((id, score, _)) = best_alias {
-        tracing::debug!(label = %label, resolved = %id, score, "match_item: resolved (alias)");
-        return Some(id.to_string());
     }
 
-    // 2. Structural pass — the label as a concatenated, order-preserving
-    //    subsequence of a name's tokens. Rank by (cost, leading-skips, name
-    //    length, id); reject when too costly or ambiguous.
-    let glued_chars: Vec<char> = glued.chars().collect();
-    if glued_chars.len() < STRUCT_MIN_LABEL {
-        return None;
-    }
-    // (cost, skip, ntokens, id)
-    let mut scored: Vec<(f64, u32, usize, &str)> = Vec::new();
-    for item in gunsmith_items(data) {
-        let toks = tokenize(&item.name);
-        if toks.is_empty() {
-            continue;
+    match (best_id, tie) {
+        (Some(id), false) => {
+            tracing::debug!(label = %label, resolved = %id, score = best_score, "match_item: resolved (alias)");
+            Some(id.to_string())
         }
-        if let Some((cost, skip)) = structural_align(&glued_chars, &toks) {
-            scored.push((cost, skip, toks.len(), item.id.as_str()));
+        (Some(id), true) => {
+            tracing::debug!(label = %label, candidate = %id, "match_item: gunsmith alias tie — dropped");
+            None
         }
+        (None, _) => None,
     }
-    scored.sort_by(|a, b| {
-        a.0.partial_cmp(&b.0)
-            .unwrap_or(std::cmp::Ordering::Equal)
-            .then(a.1.cmp(&b.1))
-            .then(a.2.cmp(&b.2))
-            .then(a.3.cmp(b.3))
-    });
-    let &(cost, skip, _, id) = scored.first()?;
-    if cost > STRUCT_COST_CAP {
-        return None;
-    }
-    let ambiguous = scored
-        .get(1)
-        .is_some_and(|&(c2, s2, _, _)| (c2 - cost) < STRUCT_MIN_MARGIN && s2 <= skip);
-    if ambiguous {
-        tracing::debug!(label = %label, resolved = %id, cost, "match_item: gunsmith ambiguous — dropped");
-        return None;
-    }
-    tracing::debug!(label = %label, resolved = %id, cost, skip, "match_item: resolved (structural)");
-    Some(id.to_string())
 }
 
 /// Gun-part catalog items (`category == "gunsmith"`).
@@ -319,67 +258,6 @@ fn gunsmith_items(data: &GameData) -> impl Iterator<Item = &crate::data::Item> {
     data.items
         .iter()
         .filter(|i| i.category.as_deref() == Some(GUNSMITH_CATEGORY))
-}
-
-/// Split a display name into normalized tokens (lowercase alnum runs).
-fn tokenize(name: &str) -> Vec<Vec<char>> {
-    normalize(name)
-        .split_whitespace()
-        .map(|t| t.chars().collect())
-        .collect()
-}
-
-/// Can `label` (normalized, whitespace removed) be formed by concatenating an
-/// order-preserving subsequence of `tokens`, each consumed token matching an
-/// equal-length slice of the label within [`STRUCT_TOK_TOL`] confusion-aware
-/// edits? Returns the best `(cost, skip)` where `cost` sums the per-token edit
-/// distances and `skip` counts candidate tokens passed over *before the last
-/// consumed token* (trailing generic tokens — caliber, "magazine" — are free),
-/// minimizing `(cost, skip)` lexicographically. `None` if the label can't be
-/// fully formed from the tokens.
-fn structural_align(label: &[char], tokens: &[Vec<char>]) -> Option<(f64, u32)> {
-    let n = label.len();
-    let m = tokens.len();
-    // best[pos][ti] = min (cost, skip) to consume label[pos..] using tokens[ti..].
-    let mut best: Vec<Vec<Option<(f64, u32)>>> = vec![vec![None; m + 1]; n + 1];
-    // Label fully consumed: any leftover tokens are free (not counted as skips).
-    for slot in best[n].iter_mut() {
-        *slot = Some((0.0, 0));
-    }
-    for pos in (0..n).rev() {
-        for ti in (0..m).rev() {
-            let mut cur: Option<(f64, u32)> = None;
-            // Skip token ti.
-            if let Some((c, s)) = best[pos][ti + 1] {
-                cur = pick(cur, (c, s + 1));
-            }
-            // Consume token ti against an equal-length slice of the label.
-            let tok = &tokens[ti];
-            let lt = tok.len();
-            if lt > 0 && pos + lt <= n {
-                let dist = weighted_levenshtein(&label[pos..pos + lt], tok);
-                if dist <= STRUCT_TOK_TOL {
-                    if let Some((c, s)) = best[pos + lt][ti + 1] {
-                        cur = pick(cur, (c + dist, s));
-                    }
-                }
-            }
-            best[pos][ti] = cur;
-        }
-    }
-    best[0][0]
-}
-
-/// Lexicographic-min `(cost, skip)` merge for [`structural_align`]'s DP.
-fn pick(acc: Option<(f64, u32)>, cand: (f64, u32)) -> Option<(f64, u32)> {
-    match acc {
-        None => Some(cand),
-        Some(a) => {
-            let better = cand.0 + 1e-9 < a.0
-                || ((cand.0 - a.0).abs() <= 1e-9 && cand.1 < a.1);
-            Some(if better { cand } else { a })
-        }
-    }
 }
 
 /// Lowercase, strip non-alphanumeric except spaces, collapse whitespace.
@@ -450,34 +328,29 @@ mod tests {
         }
     }
 
-    /// Catalog modelled on the real gun-part names, with the short labels the
-    /// Gunsmith → Storage grid shows (the OCR reads in `screenshots/gunsmith/`).
+    /// Catalog modelled on real gun parts — `name` is the full descriptive
+    /// `WFItemsStringTable` name, `scan_alias` the short label the Gunsmith →
+    /// Storage grid shows (from the game's `GunSmithItemAdv` table).
     fn gun_fixture() -> GameData {
         let mut data = fixture(); // keep the misc items, to prove scoping
         data.items.extend([
-            gitem("gunsmith_20rail_sight_cobra", "Cobra 20mm reflex sight", None),
-            gitem("gunsmith_20rail_sight_walther", "Walther 20mm reflex sight", None),
-            gitem("gunsmith_ar15_pistolgrip_m16a1", "AR-15 M16A1 pistolgrip", None),
-            gitem("gunsmith_ar15_lowerreceiver_m16", "M16 5.56x45mm assault rifle", None),
-            gitem("gunsmith_g3_stock_polygreen", "G3 polymer Green stock", None),
-            gitem("gunsmith_g3_stock_polyblack", "G3 polymer Black stock", None),
-            gitem("gunsmith_ak74u_mount_b18", "AKS74U B18 mount", None),
-            gitem("gunsmith_ak_mount_rsr", "AK74N/AKMN RSR mount", None),
-            gitem("gunsmith_scar_stock_ssr", "SECA SSR stock", None),
-            gitem("gunsmith_20rail_foregrip_stormgruff", "StormGruff 20mm foregrip", None),
-            // The AR308 family — three parts sharing the "AR308" stem; the bare
-            // and acronym labels are pinned because structural matching picks the
-            // wrong sibling (the rifle's name leads with "ar308").
-            gitem("gunsmith_ar10_upperreceiver_ar308", "AR-10 AR308 7.62x51mm upper receiver", None),
+            gitem("gunsmith_20rail_sight_cobra", "Cobra 20mm reflex sight", Some("Cobra")),
+            gitem("gunsmith_ar15_pistolgrip_m16a1", "AR-15 M16A1 pistolgrip", Some("M16A1")),
+            gitem("gunsmith_ar15_lowerreceiver_m16", "M16 5.56x45mm assault rifle", Some("M16")),
+            gitem("gunsmith_g3_stock_polygreen", "G3 polymer Green stock", Some("G3 Green Stock")),
+            gitem("gunsmith_ak74u_mount_b18", "AKS74U B18 mount", Some("AKS74U B18")),
+            gitem("gunsmith_ak_mount_rsr", "AK74N/AKMN RSR mount", Some("RSR")),
+            gitem("gunsmith_ump_clip_25", "UMP45 .45acp 25rnd magazine", Some("UMP45 25rd")),
+            // The AR308 family — three parts with three distinct short names; the
+            // bare/acronym ones are NOT a subsequence of the full name, but the
+            // alias resolves them exactly.
+            gitem("gunsmith_ar10_upperreceiver_ar308", "AR-10 AR308 7.62x51mm upper receiver", Some("AR308 Upper")),
             gitem("gunsmith_ar10_muzzle_ar308", "AR-10 AR308 7.62x51mm compensator", Some("AR308")),
-            gitem("gunsmith_ar10_lowerreceiver_ar308", "AR-308 7.62x51mm Design marksman rifle", Some("AR-308DMR")),
-            // MP5A4 parts — bare "MP5A4" can't pick among them (ambiguous).
-            gitem("gunsmith_mp5_upperreceiver_mp5a4", "MP5A4 9x19mm upper receiver", None),
-            gitem("gunsmith_mp5_handguard_3rail", "MP5A4 3Rail handguard", None),
-            gitem("gunsmith_mp5_handguard_mp5", "MP5A4 standard handguard", None),
-            // Two "M4 Factory" parts — "M4 factory" is ambiguous between them.
-            gitem("gunsmith_ar15_handguard_m4factory", "AR-15 M4 Factory handguard", None),
-            gitem("gunsmith_ar15_pistolgrip_m4factory", "AR-15 M4 Factory pistolgrip", None),
+            gitem("gunsmith_ar10_lowerreceiver_ar308", "AR-308 7.62x51mm Design marksman rifle", Some("AR-308 DMR")),
+            // Two parts the game shows the SAME short name for ("AR-15 DD") — an
+            // inherent collision that must resolve to nothing.
+            gitem("gunsmith_arstock_stock_dd", "AR-15 DD stock", Some("AR-15 DD")),
+            gitem("gunsmith_ar15_handguard_dd", "AR-15 DD handguard", Some("AR-15 DD")),
         ]);
         data
     }
@@ -623,63 +496,51 @@ mod tests {
     // ---- Gunsmith → Storage short-name matching (issue #183) ----
 
     #[test]
-    fn gunsmith_structural_resolves_short_labels() {
+    fn gunsmith_alias_resolves_short_labels() {
         let data = gun_fixture();
-        // A single distinctive token, generic tokens dropped.
+        // The exact short name resolves.
         assert_eq!(
             match_item(&data, &["Cobra"], true).as_deref(),
             Some("gunsmith_20rail_sight_cobra")
         );
-        // Mid-name token wins over a same-stem part that leads with it: "M16A1"
-        // is the pistolgrip, NOT the bare "M16" rifle (which can't consume "a1").
+        // "M16A1" is the pistolgrip; the bare "M16" rifle is a different alias.
         assert_eq!(
             match_item(&data, &["M16A1"], true).as_deref(),
             Some("gunsmith_ar15_pistolgrip_m16a1")
         );
-        // The bare rifle still resolves on its own.
         assert_eq!(
             match_item(&data, &["M16"], true).as_deref(),
             Some("gunsmith_ar15_lowerreceiver_m16")
         );
-        // Multi-token subsequence, an interior generic token ("polymer") skipped,
-        // and the colour disambiguates green vs black.
+        // Multi-word short name; OCR spacing doesn't matter (compared glued).
         assert_eq!(
             match_item(&data, &["G3", "Green", "Stock"], true).as_deref(),
             Some("gunsmith_g3_stock_polygreen")
         );
-        // Glued label spanning two tokens (no spaces in the OCR read).
         assert_eq!(
             match_item(&data, &["AKS74UB18"], true).as_deref(),
             Some("gunsmith_ak74u_mount_b18")
         );
-        // An exact token deep in the name beats a fuzzy near-miss elsewhere:
-        // "RSR" is the mount (exact), not "SSR" stock (1 unrelated edit).
         assert_eq!(
             match_item(&data, &["RSR"], true).as_deref(),
             Some("gunsmith_ak_mount_rsr")
         );
-        // "AR308Upper" / "AR308 Upper" → the upper receiver (structural).
+    }
+
+    #[test]
+    fn gunsmith_resolves_ar308_family_distinctly() {
+        // Three AR308 parts with three distinct game short names — each resolves
+        // to its own id, including the acronym ("DMR") and bare-stem ("AR308")
+        // forms that aren't a substring of the full catalog name.
+        let data = gun_fixture();
         assert_eq!(
-            match_item(&data, &["AR308Upper"], true).as_deref(),
-            Some("gunsmith_ar10_upperreceiver_ar308")
+            match_item(&data, &["AR308"], true).as_deref(),
+            Some("gunsmith_ar10_muzzle_ar308")
         );
         assert_eq!(
             match_item(&data, &["AR308", "Upper"], true).as_deref(),
             Some("gunsmith_ar10_upperreceiver_ar308")
         );
-    }
-
-    #[test]
-    fn gunsmith_scan_alias_overrides_structural() {
-        let data = gun_fixture();
-        // Bare "AR308" structurally favours the rifle (its name leads with the
-        // token), but the pinned alias routes it to the compensator.
-        assert_eq!(
-            match_item(&data, &["AR308"], true).as_deref(),
-            Some("gunsmith_ar10_muzzle_ar308")
-        );
-        // The DMR acronym isn't spelled out in the name, so only the alias
-        // resolves the rifle.
         assert_eq!(
             match_item(&data, &["AR-308DMR"], true).as_deref(),
             Some("gunsmith_ar10_lowerreceiver_ar308")
@@ -687,14 +548,34 @@ mod tests {
     }
 
     #[test]
-    fn gunsmith_rejects_ambiguous_short_labels() {
+    fn gunsmith_tolerates_ocr_glyph_noise_in_alias() {
+        // Real frozen capture: "MP5A4 upper" OCRs the 5 as S ("MPSA4"); s↔5 is
+        // confusable, so the alias still resolves.
+        let mut data = gun_fixture();
+        data.items.push(gitem(
+            "gunsmith_mp5_upperreceiver_mp5a4",
+            "MP5A4 9x19mm upper receiver",
+            Some("MP5A4 Upper"),
+        ));
+        assert_eq!(
+            match_item(&data, &["MPSA4", "upper"], true).as_deref(),
+            Some("gunsmith_mp5_upperreceiver_mp5a4")
+        );
+        // The acronym OCR'd "AR-308 OUR" (D→O, M→U) still clears the alias floor.
+        assert_eq!(
+            match_item(&data, &["AR-308", "OUR"], true).as_deref(),
+            Some("gunsmith_ar10_lowerreceiver_ar308")
+        );
+    }
+
+    #[test]
+    fn gunsmith_rejects_shared_short_names() {
         let data = gun_fixture();
-        // Two "M4 Factory" parts, one short label — resolve to nothing, never a
-        // coin-flip.
-        assert_eq!(match_item(&data, &["M4", "factory"], true), None);
-        // Bare "MP5A4" matches a dozen MP5A4 parts equally.
-        assert_eq!(match_item(&data, &["MP5A4"], true), None);
-        // A 1–2 char fragment is below the structural floor.
+        // The game shows "AR-15 DD" for both the DD stock and the DD handguard —
+        // an inherent collision, so resolve to nothing rather than guess.
+        assert_eq!(match_item(&data, &["AR-15", "DD"], true), None);
+        // Nothing close enough to any alias.
+        assert_eq!(match_item(&data, &["Kalashnikov"], true), None);
         assert_eq!(match_item(&data, &["NK"], true), None);
     }
 

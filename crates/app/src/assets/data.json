@@ -1750,7 +1750,8 @@
       "icon_path": "icons/gunsmith_20rail_foregrip_afg.png",
       "category": "gunsmith",
       "subcategory": "Foregrip",
-      "weight": 0.09
+      "weight": 0.09,
+      "scan_alias": "AFG"
     },
     {
       "id": "gunsmith_20rail_foregrip_mamba_bk",
@@ -1758,7 +1759,8 @@
       "icon_path": "icons/gunsmith_20rail_foregrip_mamba_bk.png",
       "category": "gunsmith",
       "subcategory": "Foregrip",
-      "weight": 0.07
+      "weight": 0.07,
+      "scan_alias": "Mamba BK"
     },
     {
       "id": "gunsmith_20rail_foregrip_mamba_olv",
@@ -1766,7 +1768,8 @@
       "icon_path": "icons/gunsmith_20rail_foregrip_mamba_olv.png",
       "category": "gunsmith",
       "subcategory": "Foregrip",
-      "weight": 0.07
+      "weight": 0.07,
+      "scan_alias": "Mamba OLV"
     },
     {
       "id": "gunsmith_20rail_foregrip_mamba_sd",
@@ -1774,7 +1777,8 @@
       "icon_path": "icons/gunsmith_20rail_foregrip_mamba_sd.png",
       "category": "gunsmith",
       "subcategory": "Foregrip",
-      "weight": 0.07
+      "weight": 0.07,
+      "scan_alias": "Mamba SD"
     },
     {
       "id": "gunsmith_20rail_foregrip_pk1b25u",
@@ -1782,7 +1786,8 @@
       "icon_path": "icons/gunsmith_20rail_foregrip_pk1b25u.png",
       "category": "gunsmith",
       "subcategory": "Foregrip",
-      "weight": 0.16
+      "weight": 0.16,
+      "scan_alias": "PK-1B25U"
     },
     {
       "id": "gunsmith_20rail_foregrip_pvg_bk",
@@ -1790,14 +1795,16 @@
       "icon_path": "icons/gunsmith_20rail_foregrip_pvg_bk.png",
       "category": "gunsmith",
       "subcategory": "Foregrip",
-      "weight": 0.07
+      "weight": 0.07,
+      "scan_alias": "PVG BK"
     },
     {
       "id": "gunsmith_20rail_foregrip_pvg_olv",
       "name": "PVG 20mm foregrip OLV",
       "icon_path": "icons/gunsmith_20rail_foregrip_pvg_olv.png",
       "category": "gunsmith",
-      "subcategory": "Foregrip"
+      "subcategory": "Foregrip",
+      "scan_alias": "PVG OLV"
     },
     {
       "id": "gunsmith_20rail_foregrip_pvg_sd",
@@ -1805,7 +1812,8 @@
       "icon_path": "icons/gunsmith_20rail_foregrip_pvg_sd.png",
       "category": "gunsmith",
       "subcategory": "Foregrip",
-      "weight": 0.07
+      "weight": 0.07,
+      "scan_alias": "PVG SD"
     },
     {
       "id": "gunsmith_20rail_foregrip_star5_bk",
@@ -1813,7 +1821,8 @@
       "icon_path": "icons/gunsmith_20rail_foregrip_star5_bk.png",
       "category": "gunsmith",
       "subcategory": "Foregrip",
-      "weight": 0.15
+      "weight": 0.15,
+      "scan_alias": "STAR5 BK"
     },
     {
       "id": "gunsmith_20rail_foregrip_star5_gy",
@@ -1821,7 +1830,8 @@
       "icon_path": "icons/gunsmith_20rail_foregrip_star5_gy.png",
       "category": "gunsmith",
       "subcategory": "Foregrip",
-      "weight": 0.15
+      "weight": 0.15,
+      "scan_alias": "STAR5 GY"
     },
     {
       "id": "gunsmith_20rail_foregrip_star5_olv",
@@ -1829,7 +1839,8 @@
       "icon_path": "icons/gunsmith_20rail_foregrip_star5_olv.png",
       "category": "gunsmith",
       "subcategory": "Foregrip",
-      "weight": 0.15
+      "weight": 0.15,
+      "scan_alias": "STAR5 OLV"
     },
     {
       "id": "gunsmith_20rail_foregrip_star5_sd",
@@ -1837,14 +1848,16 @@
       "icon_path": "icons/gunsmith_20rail_foregrip_star5_sd.png",
       "category": "gunsmith",
       "subcategory": "Foregrip",
-      "weight": 0.15
+      "weight": 0.15,
+      "scan_alias": "STAR5 SD"
     },
     {
       "id": "gunsmith_20rail_foregrip_starkverticalshort",
       "name": "Stark vertical short 20mm foregrip",
       "icon_path": "icons/gunsmith_20rail_foregrip_starkverticalshort.png",
       "category": "gunsmith",
-      "subcategory": "Foregrip"
+      "subcategory": "Foregrip",
+      "scan_alias": "Stark Short"
     },
     {
       "id": "gunsmith_20rail_foregrip_stormgruff",
@@ -1852,7 +1865,8 @@
       "icon_path": "icons/gunsmith_20rail_foregrip_stormgruff.png",
       "category": "gunsmith",
       "subcategory": "Foregrip",
-      "weight": 0.08
+      "weight": 0.08,
+      "scan_alias": "StormGruff"
     },
     {
       "id": "gunsmith_20rail_foregrip_tango_down",
@@ -1860,7 +1874,8 @@
       "icon_path": "icons/gunsmith_20rail_foregrip_tango_down.png",
       "category": "gunsmith",
       "subcategory": "Foregrip",
-      "weight": 0.09
+      "weight": 0.09,
+      "scan_alias": "TangoDown"
     },
     {
       "id": "gunsmith_20rail_foregrip_tds_bk",
@@ -1868,14 +1883,16 @@
       "icon_path": "icons/gunsmith_20rail_foregrip_tds_bk.png",
       "category": "gunsmith",
       "subcategory": "Foregrip",
-      "weight": 0.06
+      "weight": 0.06,
+      "scan_alias": "TDS BK"
     },
     {
       "id": "gunsmith_20rail_foregrip_tds_olv",
       "name": "TDS 20mm foregrip OLV",
       "icon_path": "icons/gunsmith_20rail_foregrip_tds_olv.png",
       "category": "gunsmith",
-      "subcategory": "Foregrip"
+      "subcategory": "Foregrip",
+      "scan_alias": "TDS OLV"
     },
     {
       "id": "gunsmith_20rail_foregrip_tds_sd",
@@ -1883,7 +1900,8 @@
       "icon_path": "icons/gunsmith_20rail_foregrip_tds_sd.png",
       "category": "gunsmith",
       "subcategory": "Foregrip",
-      "weight": 0.06
+      "weight": 0.06,
+      "scan_alias": "TDS SD"
     },
     {
       "id": "gunsmith_20rail_foregrip_transfer_bk",
@@ -1891,7 +1909,8 @@
       "icon_path": "icons/gunsmith_20rail_foregrip_transfer_bk.png",
       "category": "gunsmith",
       "subcategory": "Foregrip",
-      "weight": 0.09
+      "weight": 0.09,
+      "scan_alias": "Transfer BK"
     },
     {
       "id": "gunsmith_20rail_foregrip_transfer_olv",
@@ -1899,14 +1918,16 @@
       "icon_path": "icons/gunsmith_20rail_foregrip_transfer_olv.png",
       "category": "gunsmith",
       "subcategory": "Foregrip",
-      "weight": 0.09
+      "weight": 0.09,
+      "scan_alias": "Transfer OLV"
     },
     {
       "id": "gunsmith_20rail_foregrip_transfer_red",
       "name": "Transfer 20mm foregrip RED",
       "icon_path": "icons/gunsmith_20rail_foregrip_transfer_red.png",
       "category": "gunsmith",
-      "subcategory": "Foregrip"
+      "subcategory": "Foregrip",
+      "scan_alias": "Transfer RED"
     },
     {
       "id": "gunsmith_20rail_foregrip_transfer_sd",
@@ -1914,7 +1935,8 @@
       "icon_path": "icons/gunsmith_20rail_foregrip_transfer_sd.png",
       "category": "gunsmith",
       "subcategory": "Foregrip",
-      "weight": 0.09
+      "weight": 0.09,
+      "scan_alias": "Transfer SD"
     },
     {
       "id": "gunsmith_20rail_frontsight_caffs",
@@ -1922,7 +1944,8 @@
       "icon_path": "icons/gunsmith_20rail_frontsight_caffs.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 2.5
+      "weight": 2.5,
+      "scan_alias": "CA Iron Front BK"
     },
     {
       "id": "gunsmith_20rail_frontsight_caffs_fde",
@@ -1930,7 +1953,8 @@
       "icon_path": "icons/gunsmith_20rail_frontsight_caffs_fde.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 2.5
+      "weight": 2.5,
+      "scan_alias": "CA Iron Front FDE"
     },
     {
       "id": "gunsmith_20rail_frontsight_caffs_green",
@@ -1938,7 +1962,8 @@
       "icon_path": "icons/gunsmith_20rail_frontsight_caffs_green.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 2.5
+      "weight": 2.5,
+      "scan_alias": "CA Iron Front Green"
     },
     {
       "id": "gunsmith_20rail_frontsight_ddfrontsight",
@@ -1946,7 +1971,8 @@
       "icon_path": "icons/gunsmith_20rail_frontsight_ddfrontsight.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.04
+      "weight": 0.04,
+      "scan_alias": "DD Front"
     },
     {
       "id": "gunsmith_20rail_frontsight_evo3frontsight",
@@ -1954,7 +1980,8 @@
       "icon_path": "icons/gunsmith_20rail_frontsight_evo3frontsight.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.02
+      "weight": 0.02,
+      "scan_alias": "EVO3 Front"
     },
     {
       "id": "gunsmith_20rail_frontsight_malyukfs",
@@ -1962,7 +1989,8 @@
       "icon_path": "icons/gunsmith_20rail_frontsight_malyukfs.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.04
+      "weight": 0.04,
+      "scan_alias": "Malyuk Front"
     },
     {
       "id": "gunsmith_20rail_frontsight_vectorfs",
@@ -1970,7 +1998,8 @@
       "icon_path": "icons/gunsmith_20rail_frontsight_vectorfs.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 2.5
+      "weight": 2.5,
+      "scan_alias": "Vector Front"
     },
     {
       "id": "gunsmith_20rail_mount_sightriser",
@@ -1978,7 +2007,8 @@
       "icon_path": "icons/gunsmith_20rail_mount_sightriser.png",
       "category": "gunsmith",
       "subcategory": "Mount",
-      "weight": 0.04
+      "weight": 0.04,
+      "scan_alias": "G33 Riser"
     },
     {
       "id": "gunsmith_20rail_rearsight_cafrs",
@@ -1986,7 +2016,8 @@
       "icon_path": "icons/gunsmith_20rail_rearsight_cafrs.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 2.5
+      "weight": 2.5,
+      "scan_alias": "Caf Rear BK"
     },
     {
       "id": "gunsmith_20rail_rearsight_cafrs_fde",
@@ -1994,7 +2025,8 @@
       "icon_path": "icons/gunsmith_20rail_rearsight_cafrs_fde.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 2.5
+      "weight": 2.5,
+      "scan_alias": "Caf Rear FDE"
     },
     {
       "id": "gunsmith_20rail_rearsight_cafrs_green",
@@ -2002,7 +2034,8 @@
       "icon_path": "icons/gunsmith_20rail_rearsight_cafrs_green.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 2.5
+      "weight": 2.5,
+      "scan_alias": "Caf Rear Green"
     },
     {
       "id": "gunsmith_20rail_rearsight_ddrearsight",
@@ -2010,7 +2043,8 @@
       "icon_path": "icons/gunsmith_20rail_rearsight_ddrearsight.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.04
+      "weight": 0.04,
+      "scan_alias": "DD Rear sight"
     },
     {
       "id": "gunsmith_20rail_rearsight_evo3rearsight",
@@ -2018,7 +2052,8 @@
       "icon_path": "icons/gunsmith_20rail_rearsight_evo3rearsight.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.02
+      "weight": 0.02,
+      "scan_alias": "EVO3 Rear"
     },
     {
       "id": "gunsmith_20rail_rearsight_malyukrs",
@@ -2026,7 +2061,8 @@
       "icon_path": "icons/gunsmith_20rail_rearsight_malyukrs.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.04
+      "weight": 0.04,
+      "scan_alias": "Malyuk Rear"
     },
     {
       "id": "gunsmith_20rail_rearsight_rc416a5rearsight",
@@ -2034,7 +2070,8 @@
       "icon_path": "icons/gunsmith_20rail_rearsight_rc416a5rearsight.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.06
+      "weight": 0.06,
+      "scan_alias": "RC416A5 Rear Sight"
     },
     {
       "id": "gunsmith_20rail_rearsight_scarrearsight",
@@ -2042,7 +2079,8 @@
       "icon_path": "icons/gunsmith_20rail_rearsight_scarrearsight.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.06
+      "weight": 0.06,
+      "scan_alias": "SECA Rear sight"
     },
     {
       "id": "gunsmith_20rail_rearsight_vectorrs",
@@ -2050,7 +2088,8 @@
       "icon_path": "icons/gunsmith_20rail_rearsight_vectorrs.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 2.5
+      "weight": 2.5,
+      "scan_alias": "Vector Rear"
     },
     {
       "id": "gunsmith_20rail_sight_acog",
@@ -2058,7 +2097,8 @@
       "icon_path": "icons/gunsmith_20rail_sight_acog.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.41
+      "weight": 0.41,
+      "scan_alias": "ACOG"
     },
     {
       "id": "gunsmith_20rail_sight_bravo4",
@@ -2066,7 +2106,8 @@
       "icon_path": "icons/gunsmith_20rail_sight_bravo4.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.42
+      "weight": 0.42,
+      "scan_alias": "Beta4"
     },
     {
       "id": "gunsmith_20rail_sight_cobra",
@@ -2074,7 +2115,8 @@
       "icon_path": "icons/gunsmith_20rail_sight_cobra.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.22
+      "weight": 0.22,
+      "scan_alias": "Cobra"
     },
     {
       "id": "gunsmith_20rail_sight_devo",
@@ -2082,7 +2124,8 @@
       "icon_path": "icons/gunsmith_20rail_sight_devo.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.39
+      "weight": 0.39,
+      "scan_alias": "Levo"
     },
     {
       "id": "gunsmith_20rail_sight_eotechblack",
@@ -2090,7 +2133,8 @@
       "icon_path": "icons/gunsmith_20rail_sight_eotechblack.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.27
+      "weight": 0.27,
+      "scan_alias": "PiTech S3 BK"
     },
     {
       "id": "gunsmith_20rail_sight_eotechfde",
@@ -2098,7 +2142,8 @@
       "icon_path": "icons/gunsmith_20rail_sight_eotechfde.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.27
+      "weight": 0.27,
+      "scan_alias": "PiTech S3 FDE"
     },
     {
       "id": "gunsmith_20rail_sight_fpo",
@@ -2106,7 +2151,8 @@
       "icon_path": "icons/gunsmith_20rail_sight_fpo.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.31
+      "weight": 0.31,
+      "scan_alias": "FPO"
     },
     {
       "id": "gunsmith_20rail_sight_hama",
@@ -2114,7 +2160,8 @@
       "icon_path": "icons/gunsmith_20rail_sight_hama.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.42
+      "weight": 0.42,
+      "scan_alias": "HRMA"
     },
     {
       "id": "gunsmith_20rail_sight_mark3",
@@ -2122,7 +2169,8 @@
       "icon_path": "icons/gunsmith_20rail_sight_mark3.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.68
+      "weight": 0.68,
+      "scan_alias": "Hunter-3"
     },
     {
       "id": "gunsmith_20rail_sight_nighthawk",
@@ -2130,7 +2178,8 @@
       "icon_path": "icons/gunsmith_20rail_sight_nighthawk.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.74
+      "weight": 0.74,
+      "scan_alias": "Night Hawk"
     },
     {
       "id": "gunsmith_20rail_sight_ocp7",
@@ -2138,7 +2187,8 @@
       "icon_path": "icons/gunsmith_20rail_sight_ocp7.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.36
+      "weight": 0.36,
+      "scan_alias": "OCP-7"
     },
     {
       "id": "gunsmith_20rail_sight_romeo8t",
@@ -2146,7 +2196,8 @@
       "icon_path": "icons/gunsmith_20rail_sight_romeo8t.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.38
+      "weight": 0.38,
+      "scan_alias": "LOMIO-8T"
     },
     {
       "id": "gunsmith_20rail_sight_scepterbk",
@@ -2154,7 +2205,8 @@
       "icon_path": "icons/gunsmith_20rail_sight_scepterbk.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.65
+      "weight": 0.65,
+      "scan_alias": "Scepter BK"
     },
     {
       "id": "gunsmith_20rail_sight_scepterfde",
@@ -2162,7 +2214,8 @@
       "icon_path": "icons/gunsmith_20rail_sight_scepterfde.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.65
+      "weight": 0.65,
+      "scan_alias": "Scepter FDE"
     },
     {
       "id": "gunsmith_20rail_sight_srs",
@@ -2170,7 +2223,8 @@
       "icon_path": "icons/gunsmith_20rail_sight_srs.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.39
+      "weight": 0.39,
+      "scan_alias": "Savior"
     },
     {
       "id": "gunsmith_20rail_sight_t1highlever",
@@ -2178,7 +2232,8 @@
       "icon_path": "icons/gunsmith_20rail_sight_t1highlever.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.24
+      "weight": 0.24,
+      "scan_alias": "T1 Elevating"
     },
     {
       "id": "gunsmith_20rail_sight_toucan2",
@@ -2186,7 +2241,8 @@
       "icon_path": "icons/gunsmith_20rail_sight_toucan2.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.25
+      "weight": 0.25,
+      "scan_alias": "toucan2"
     },
     {
       "id": "gunsmith_20rail_sight_vertex",
@@ -2196,7 +2252,8 @@
       "subcategory": "Sight",
       "weight": 0.57,
       "price": 24595,
-      "rarity": "Ultimate"
+      "rarity": "Ultimate",
+      "scan_alias": "VerTac X"
     },
     {
       "id": "gunsmith_20rail_sight_walther",
@@ -2204,7 +2261,8 @@
       "icon_path": "icons/gunsmith_20rail_sight_walther.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.12
+      "weight": 0.12,
+      "scan_alias": "Walther"
     },
     {
       "id": "gunsmith_20rail_tactical_pf_mx400",
@@ -2214,7 +2272,8 @@
       "subcategory": "Tactical",
       "weight": 0.09,
       "price": 11894,
-      "rarity": "Unusual"
+      "rarity": "Unusual",
+      "scan_alias": "MX400 Light"
     },
     {
       "id": "gunsmith_45acp_muzzle_cap",
@@ -2222,7 +2281,8 @@
       "icon_path": "icons/gunsmith_45acp_muzzle_cap.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.01
+      "weight": 0.01,
+      "scan_alias": "KW1911 Cap"
     },
     {
       "id": "gunsmith_9x19_muzzle_osprey9",
@@ -2230,7 +2290,8 @@
       "icon_path": "icons/gunsmith_9x19_muzzle_osprey9.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.39
+      "weight": 0.39,
+      "scan_alias": "OSprey9"
     },
     {
       "id": "gunsmith_9x39_barrel_vsssuppressor",
@@ -2238,7 +2299,8 @@
       "icon_path": "icons/gunsmith_9x39_barrel_vsssuppressor.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 0.485
+      "weight": 0.485,
+      "scan_alias": "VSS&ASVal Suppressor"
     },
     {
       "id": "gunsmith_9x39_clip_10",
@@ -2246,7 +2308,8 @@
       "icon_path": "icons/gunsmith_9x39_clip_10.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.131
+      "weight": 0.131,
+      "scan_alias": "VSS 10rd"
     },
     {
       "id": "gunsmith_9x39_clip_20",
@@ -2254,7 +2317,8 @@
       "icon_path": "icons/gunsmith_9x39_clip_20.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.181
+      "weight": 0.181,
+      "scan_alias": "ASVal 20rd"
     },
     {
       "id": "gunsmith_9x39_clip_30",
@@ -2262,7 +2326,8 @@
       "icon_path": "icons/gunsmith_9x39_clip_30.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.397
+      "weight": 0.397,
+      "scan_alias": "SR-3M 30rd"
     },
     {
       "id": "gunsmith_9x39_foregrip_sr3mblack",
@@ -2270,7 +2335,8 @@
       "icon_path": "icons/gunsmith_9x39_foregrip_sr3mblack.png",
       "category": "gunsmith",
       "subcategory": "Foregrip",
-      "weight": 0.08
+      "weight": 0.08,
+      "scan_alias": "SR-3M PolyBlack Grip"
     },
     {
       "id": "gunsmith_9x39_foregrip_sr3mred",
@@ -2278,7 +2344,8 @@
       "icon_path": "icons/gunsmith_9x39_foregrip_sr3mred.png",
       "category": "gunsmith",
       "subcategory": "Foregrip",
-      "weight": 0.08
+      "weight": 0.08,
+      "scan_alias": "SR-3M PolyRed Grip"
     },
     {
       "id": "gunsmith_9x39_handguard_sr3mblack",
@@ -2286,7 +2353,8 @@
       "icon_path": "icons/gunsmith_9x39_handguard_sr3mblack.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.07
+      "weight": 0.07,
+      "scan_alias": "SR-3M PolyBlack"
     },
     {
       "id": "gunsmith_9x39_handguard_sr3mred",
@@ -2294,7 +2362,8 @@
       "icon_path": "icons/gunsmith_9x39_handguard_sr3mred.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.07
+      "weight": 0.07,
+      "scan_alias": "SR-3M PolyRed"
     },
     {
       "id": "gunsmith_9x39_handguard_vssblack",
@@ -2302,7 +2371,8 @@
       "icon_path": "icons/gunsmith_9x39_handguard_vssblack.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.07
+      "weight": 0.07,
+      "scan_alias": "VSS PolyBlack"
     },
     {
       "id": "gunsmith_9x39_handguard_vssred",
@@ -2310,28 +2380,32 @@
       "icon_path": "icons/gunsmith_9x39_handguard_vssred.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.07
+      "weight": 0.07,
+      "scan_alias": "ASVal PolyRed"
     },
     {
       "id": "gunsmith_9x39_lowerreceiver_asval",
       "name": "ASVal 9x39mm assault rifle",
       "icon_path": "icons/gunsmith_9x39_lowerreceiver_asval.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "ASVal"
     },
     {
       "id": "gunsmith_9x39_lowerreceiver_sr3m",
       "name": "SR-3M 9x39mm carbine rifle",
       "icon_path": "icons/gunsmith_9x39_lowerreceiver_sr3m.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "SR-3M"
     },
     {
       "id": "gunsmith_9x39_lowerreceiver_vss",
       "name": "VSS 9x39mm designated marksman rifle",
       "icon_path": "icons/gunsmith_9x39_lowerreceiver_vss.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "VSS"
     },
     {
       "id": "gunsmith_9x39_mount_barrelpic",
@@ -2347,7 +2421,8 @@
       "icon_path": "icons/gunsmith_9x39_mount_piclong.png",
       "category": "gunsmith",
       "subcategory": "Mount",
-      "weight": 0.15
+      "weight": 0.15,
+      "scan_alias": "VSS&ASVal 4 Rail"
     },
     {
       "id": "gunsmith_9x39_mount_picshort",
@@ -2355,7 +2430,8 @@
       "icon_path": "icons/gunsmith_9x39_mount_picshort.png",
       "category": "gunsmith",
       "subcategory": "Mount",
-      "weight": 0.095
+      "weight": 0.095,
+      "scan_alias": "VSS&ASVal 3 Rail"
     },
     {
       "id": "gunsmith_9x39_muzzle_sr3msuppressor",
@@ -2363,7 +2439,8 @@
       "icon_path": "icons/gunsmith_9x39_muzzle_sr3msuppressor.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.49
+      "weight": 0.49,
+      "scan_alias": "SR-3M Suppressor"
     },
     {
       "id": "gunsmith_9x39_pistolgrip_black",
@@ -2371,7 +2448,8 @@
       "icon_path": "icons/gunsmith_9x39_pistolgrip_black.png",
       "category": "gunsmith",
       "subcategory": "Pistol grip",
-      "weight": 0.15
+      "weight": 0.15,
+      "scan_alias": "ASVal&SR-3M PolyBlack"
     },
     {
       "id": "gunsmith_9x39_pistolgrip_red",
@@ -2379,7 +2457,8 @@
       "icon_path": "icons/gunsmith_9x39_pistolgrip_red.png",
       "category": "gunsmith",
       "subcategory": "Pistol grip",
-      "weight": 0.15
+      "weight": 0.15,
+      "scan_alias": "ASVal&SR-3M PolyRed"
     },
     {
       "id": "gunsmith_9x39_rearsight_rs9x39",
@@ -2387,7 +2466,8 @@
       "icon_path": "icons/gunsmith_9x39_rearsight_rs9x39.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.025
+      "weight": 0.025,
+      "scan_alias": "VSS&ASVal Rear"
     },
     {
       "id": "gunsmith_9x39_stock_foldingstock",
@@ -2395,7 +2475,8 @@
       "icon_path": "icons/gunsmith_9x39_stock_foldingstock.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.295
+      "weight": 0.295,
+      "scan_alias": "ASVal&SR-3M Folder"
     },
     {
       "id": "gunsmith_9x39_stock_plastic",
@@ -2403,7 +2484,8 @@
       "icon_path": "icons/gunsmith_9x39_stock_plastic.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.5
+      "weight": 0.5,
+      "scan_alias": "VSS Polymer Stock"
     },
     {
       "id": "gunsmith_9x39_stock_stockmod",
@@ -2411,7 +2493,8 @@
       "icon_path": "icons/gunsmith_9x39_stock_stockmod.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.11
+      "weight": 0.11,
+      "scan_alias": "ASVal&SR-3M ARstock"
     },
     {
       "id": "gunsmith_9x39_stock_wood",
@@ -2419,7 +2502,8 @@
       "icon_path": "icons/gunsmith_9x39_stock_wood.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.61
+      "weight": 0.61,
+      "scan_alias": "VSS Wood Stock"
     },
     {
       "id": "gunsmith_9x39_upperreceiver_picrail",
@@ -2427,7 +2511,8 @@
       "icon_path": "icons/gunsmith_9x39_upperreceiver_picrail.png",
       "category": "gunsmith",
       "subcategory": "Upper receiver",
-      "weight": 0.21
+      "weight": 0.21,
+      "scan_alias": "9x39 Railed Cover"
     },
     {
       "id": "gunsmith_9x39_upperreceiver_standard",
@@ -2435,21 +2520,24 @@
       "icon_path": "icons/gunsmith_9x39_upperreceiver_standard.png",
       "category": "gunsmith",
       "subcategory": "Upper receiver",
-      "weight": 0.2
+      "weight": 0.2,
+      "scan_alias": "9x39 Standard Cover"
     },
     {
       "id": "gunsmith_ak100_lowerreceiver_ak74m",
       "name": "AK74M 5.45x39mm assault rifle",
       "icon_path": "icons/gunsmith_ak100_lowerreceiver_ak74m.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "AK74M"
     },
     {
       "id": "gunsmith_ak100_muzzle_545_762dtk2",
       "name": "AK74/AKM DTK2 5.45x39mm/7.62x39mm compensator",
       "icon_path": "icons/gunsmith_ak100_muzzle_545_762dtk2.png",
       "category": "gunsmith",
-      "subcategory": "Muzzle"
+      "subcategory": "Muzzle",
+      "scan_alias": "DTK2"
     },
     {
       "id": "gunsmith_ak100_muzzle_545reactor",
@@ -2457,7 +2545,8 @@
       "icon_path": "icons/gunsmith_ak100_muzzle_545reactor.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.38
+      "weight": 0.38,
+      "scan_alias": "545 Reactor"
     },
     {
       "id": "gunsmith_ak100_muzzle_545srvv",
@@ -2465,7 +2554,8 @@
       "icon_path": "icons/gunsmith_ak100_muzzle_545srvv.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.11
+      "weight": 0.11,
+      "scan_alias": "545 Srvv"
     },
     {
       "id": "gunsmith_ak100_muzzle_545wafflemaker",
@@ -2473,7 +2563,8 @@
       "icon_path": "icons/gunsmith_ak100_muzzle_545wafflemaker.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.09
+      "weight": 0.09,
+      "scan_alias": "WaffleMaker"
     },
     {
       "id": "gunsmith_ak100_muzzle_556adapter",
@@ -2481,7 +2572,8 @@
       "icon_path": "icons/gunsmith_ak100_muzzle_556adapter.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.05
+      "weight": 0.05,
+      "scan_alias": "5.56 Adapter"
     },
     {
       "id": "gunsmith_ak103_muzzle_762dtk_4m",
@@ -2491,7 +2583,8 @@
       "subcategory": "Muzzle",
       "weight": 0.36,
       "price": 18280,
-      "rarity": "Epic"
+      "rarity": "Epic",
+      "scan_alias": "AK103 DTK-4m"
     },
     {
       "id": "gunsmith_ak103_muzzle_762dynacomp",
@@ -2499,7 +2592,8 @@
       "icon_path": "icons/gunsmith_ak103_muzzle_762dynacomp.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.35
+      "weight": 0.35,
+      "scan_alias": "AK103 Dyna Comp"
     },
     {
       "id": "gunsmith_ak103_muzzle_762hexagon",
@@ -2507,7 +2601,8 @@
       "icon_path": "icons/gunsmith_ak103_muzzle_762hexagon.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.42
+      "weight": 0.42,
+      "scan_alias": "AK103 ATK-P Hexagon"
     },
     {
       "id": "gunsmith_ak103_muzzle_ak103",
@@ -2515,7 +2610,8 @@
       "icon_path": "icons/gunsmith_ak103_muzzle_ak103.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.1
+      "weight": 0.1,
+      "scan_alias": "AK103 AK103 Comp"
     },
     {
       "id": "gunsmith_ak74u_handguard_zb11",
@@ -2523,14 +2619,16 @@
       "icon_path": "icons/gunsmith_ak74u_handguard_zb11.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.36
+      "weight": 0.36,
+      "scan_alias": "Zb11"
     },
     {
       "id": "gunsmith_ak74u_lowerreceiver_aks74un",
       "name": "AKS74UN 5.45x39mm carbine rifle",
       "icon_path": "icons/gunsmith_ak74u_lowerreceiver_aks74un.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "AKS74UN"
     },
     {
       "id": "gunsmith_ak74u_mount_b18",
@@ -2538,7 +2636,8 @@
       "icon_path": "icons/gunsmith_ak74u_mount_b18.png",
       "category": "gunsmith",
       "subcategory": "Mount",
-      "weight": 0.02
+      "weight": 0.02,
+      "scan_alias": "AKS74U B18"
     },
     {
       "id": "gunsmith_ak74u_mount_zb12",
@@ -2546,14 +2645,16 @@
       "icon_path": "icons/gunsmith_ak74u_mount_zb12.png",
       "category": "gunsmith",
       "subcategory": "Mount",
-      "weight": 0.06
+      "weight": 0.06,
+      "scan_alias": "Zb12"
     },
     {
       "id": "gunsmith_ak74u_stock_6p26_sb5",
       "name": "AKS74U 6p26-sb5 stock",
       "icon_path": "icons/gunsmith_ak74u_stock_6p26_sb5.png",
       "category": "gunsmith",
-      "subcategory": "Stock"
+      "subcategory": "Stock",
+      "scan_alias": "6p26-sb5"
     },
     {
       "id": "gunsmith_ak74u_stock_fab",
@@ -2561,7 +2662,8 @@
       "icon_path": "icons/gunsmith_ak74u_stock_fab.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.67
+      "weight": 0.67,
+      "scan_alias": "FAB"
     },
     {
       "id": "gunsmith_ak_clip_545pmag30",
@@ -2569,7 +2671,8 @@
       "icon_path": "icons/gunsmith_ak_clip_545pmag30.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.11
+      "weight": 0.11,
+      "scan_alias": "P-Mag 30rd"
     },
     {
       "id": "gunsmith_ak_clip_545pufgun60",
@@ -2577,7 +2680,8 @@
       "icon_path": "icons/gunsmith_ak_clip_545pufgun60.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.35
+      "weight": 0.35,
+      "scan_alias": "PufGun 60rd"
     },
     {
       "id": "gunsmith_ak_clip_762ak55",
@@ -2585,7 +2689,8 @@
       "icon_path": "icons/gunsmith_ak_clip_762ak55.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.35
+      "weight": 0.35,
+      "scan_alias": "AK55 30rd"
     },
     {
       "id": "gunsmith_ak_clip_762akcustom10",
@@ -2593,7 +2698,8 @@
       "icon_path": "icons/gunsmith_ak_clip_762akcustom10.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.18
+      "weight": 0.18,
+      "scan_alias": "Custom 10rd"
     },
     {
       "id": "gunsmith_ak_clip_762akcustom20",
@@ -2601,7 +2707,8 @@
       "icon_path": "icons/gunsmith_ak_clip_762akcustom20.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.25
+      "weight": 0.25,
+      "scan_alias": "Custom 20rd"
     },
     {
       "id": "gunsmith_ak_clip_762drum60molot",
@@ -2609,7 +2716,8 @@
       "icon_path": "icons/gunsmith_ak_clip_762drum60molot.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.75
+      "weight": 0.75,
+      "scan_alias": "Molot 75rd"
     },
     {
       "id": "gunsmith_ak_clip_762pmag30",
@@ -2617,7 +2725,8 @@
       "icon_path": "icons/gunsmith_ak_clip_762pmag30.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.11
+      "weight": 0.11,
+      "scan_alias": "P-Mag 30rd"
     },
     {
       "id": "gunsmith_ak_clip_762poly10black",
@@ -2625,7 +2734,8 @@
       "icon_path": "icons/gunsmith_ak_clip_762poly10black.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.07
+      "weight": 0.07,
+      "scan_alias": "Polymer BK 10rd"
     },
     {
       "id": "gunsmith_ak_clip_762poly10fde",
@@ -2633,7 +2743,8 @@
       "icon_path": "icons/gunsmith_ak_clip_762poly10fde.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.07
+      "weight": 0.07,
+      "scan_alias": "Polymer FDE 10rd"
     },
     {
       "id": "gunsmith_ak_clip_762poly20black",
@@ -2641,7 +2752,8 @@
       "icon_path": "icons/gunsmith_ak_clip_762poly20black.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.09
+      "weight": 0.09,
+      "scan_alias": "Polymer BK 20rd"
     },
     {
       "id": "gunsmith_ak_clip_762poly20fde",
@@ -2649,7 +2761,8 @@
       "icon_path": "icons/gunsmith_ak_clip_762poly20fde.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.09
+      "weight": 0.09,
+      "scan_alias": "Polymer FDE 20rd"
     },
     {
       "id": "gunsmith_ak_clip_762quad60black",
@@ -2657,7 +2770,8 @@
       "icon_path": "icons/gunsmith_ak_clip_762quad60black.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.23
+      "weight": 0.23,
+      "scan_alias": "Quad BK 60rd"
     },
     {
       "id": "gunsmith_ak_clip_762quad60fde",
@@ -2665,7 +2779,8 @@
       "icon_path": "icons/gunsmith_ak_clip_762quad60fde.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.23
+      "weight": 0.23,
+      "scan_alias": "Quad FDE 60rd"
     },
     {
       "id": "gunsmith_ak_handguard_6p20sb6",
@@ -2673,7 +2788,8 @@
       "icon_path": "icons/gunsmith_ak_handguard_6p20sb6.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.34
+      "weight": 0.34,
+      "scan_alias": "6p20-sb6"
     },
     {
       "id": "gunsmith_ak_handguard_6p20sb9",
@@ -2681,7 +2797,8 @@
       "icon_path": "icons/gunsmith_ak_handguard_6p20sb9.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.21
+      "weight": 0.21,
+      "scan_alias": "6p20-sb9"
     },
     {
       "id": "gunsmith_ak_handguard_ak74titanris",
@@ -2689,7 +2806,8 @@
       "icon_path": "icons/gunsmith_ak_handguard_ak74titanris.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.36
+      "weight": 0.36,
+      "scan_alias": "Titan RIS"
     },
     {
       "id": "gunsmith_ak_handguard_lhvakhandguard",
@@ -2697,7 +2815,8 @@
       "icon_path": "icons/gunsmith_ak_handguard_lhvakhandguard.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.26
+      "weight": 0.26,
+      "scan_alias": "Ihvak"
     },
     {
       "id": "gunsmith_ak_handguard_xrs74yg",
@@ -2707,28 +2826,32 @@
       "subcategory": "Handguard",
       "weight": 0.49,
       "price": 8546,
-      "rarity": "Ultimate"
+      "rarity": "Ultimate",
+      "scan_alias": "XRS"
     },
     {
       "id": "gunsmith_ak_lowerreceiver_ak74",
       "name": "AK74 5.45x39mm assault rifle",
       "icon_path": "icons/gunsmith_ak_lowerreceiver_ak74.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "AK74"
     },
     {
       "id": "gunsmith_ak_lowerreceiver_ak74n",
       "name": "AK74N 5.45x39mm assault rifle",
       "icon_path": "icons/gunsmith_ak_lowerreceiver_ak74n.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "AK74N"
     },
     {
       "id": "gunsmith_ak_lowerreceiver_akmn",
       "name": "AKMN 7.62x39mm assault rifle",
       "icon_path": "icons/gunsmith_ak_lowerreceiver_akmn.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "AKMN"
     },
     {
       "id": "gunsmith_ak_mount_mtk83",
@@ -2736,7 +2859,8 @@
       "icon_path": "icons/gunsmith_ak_mount_mtk83.png",
       "category": "gunsmith",
       "subcategory": "Mount",
-      "weight": 0.09
+      "weight": 0.09,
+      "scan_alias": "MTK83"
     },
     {
       "id": "gunsmith_ak_mount_rsr",
@@ -2744,7 +2868,8 @@
       "icon_path": "icons/gunsmith_ak_mount_rsr.png",
       "category": "gunsmith",
       "subcategory": "Mount",
-      "weight": 0.18
+      "weight": 0.18,
+      "scan_alias": "RSR"
     },
     {
       "id": "gunsmith_ak_muzzle_762akml",
@@ -2752,7 +2877,8 @@
       "icon_path": "icons/gunsmith_ak_muzzle_762akml.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.05
+      "weight": 0.05,
+      "scan_alias": "AKML"
     },
     {
       "id": "gunsmith_ak_muzzle_762hexagon",
@@ -2762,14 +2888,16 @@
       "subcategory": "Muzzle",
       "weight": 0.47,
       "price": 16976,
-      "rarity": "Rare"
+      "rarity": "Rare",
+      "scan_alias": "AKM Hexagon"
     },
     {
       "id": "gunsmith_ak_muzzle_762srvv",
       "name": "AKM Srvv 7.62x39mm compensator",
       "icon_path": "icons/gunsmith_ak_muzzle_762srvv.png",
       "category": "gunsmith",
-      "subcategory": "Muzzle"
+      "subcategory": "Muzzle",
+      "scan_alias": "762 SRVV"
     },
     {
       "id": "gunsmith_ak_muzzle_ak103adapter",
@@ -2777,7 +2905,8 @@
       "icon_path": "icons/gunsmith_ak_muzzle_ak103adapter.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.1
+      "weight": 0.1,
+      "scan_alias": "AKM AK103 Adapter"
     },
     {
       "id": "gunsmith_ak_muzzle_ar10adapter",
@@ -2785,7 +2914,8 @@
       "icon_path": "icons/gunsmith_ak_muzzle_ar10adapter.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.11
+      "weight": 0.11,
+      "scan_alias": "AR-10 Adapter"
     },
     {
       "id": "gunsmith_ak_muzzle_vr5t",
@@ -2793,7 +2923,8 @@
       "icon_path": "icons/gunsmith_ak_muzzle_vr5t.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.08
+      "weight": 0.08,
+      "scan_alias": "VR5T"
     },
     {
       "id": "gunsmith_ak_pistolgrip_moeak",
@@ -2803,7 +2934,8 @@
       "subcategory": "Pistol grip",
       "weight": 0.0,
       "price": 4486,
-      "rarity": "Epic"
+      "rarity": "Epic",
+      "scan_alias": "MOE"
     },
     {
       "id": "gunsmith_ak_pistolgrip_pk3",
@@ -2811,14 +2943,16 @@
       "icon_path": "icons/gunsmith_ak_pistolgrip_pk3.png",
       "category": "gunsmith",
       "subcategory": "Pistol grip",
-      "weight": 0.16
+      "weight": 0.16,
+      "scan_alias": "PK3"
     },
     {
       "id": "gunsmith_ak_pistolgrip_scorpius",
       "name": "AK74/AKM Scorpius pistol grip",
       "icon_path": "icons/gunsmith_ak_pistolgrip_scorpius.png",
       "category": "gunsmith",
-      "subcategory": "Pistol grip"
+      "subcategory": "Pistol grip",
+      "scan_alias": "Scorpius"
     },
     {
       "id": "gunsmith_ak_rearsight_rdv2",
@@ -2826,7 +2960,8 @@
       "icon_path": "icons/gunsmith_ak_rearsight_rdv2.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.02
+      "weight": 0.02,
+      "scan_alias": "RDV2"
     },
     {
       "id": "gunsmith_ak_stock_arbufferadapter",
@@ -2834,7 +2969,8 @@
       "icon_path": "icons/gunsmith_ak_stock_arbufferadapter.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.14
+      "weight": 0.14,
+      "scan_alias": "AR Buffer Adapter"
     },
     {
       "id": "gunsmith_ak_upperreceiver_akdustcovertitan",
@@ -2842,7 +2978,8 @@
       "icon_path": "icons/gunsmith_ak_upperreceiver_akdustcovertitan.png",
       "category": "gunsmith",
       "subcategory": "Upper receiver",
-      "weight": 0.2
+      "weight": 0.2,
+      "scan_alias": "Titan Cover"
     },
     {
       "id": "gunsmith_ak_upperreceiver_pdc",
@@ -2850,7 +2987,8 @@
       "icon_path": "icons/gunsmith_ak_upperreceiver_pdc.png",
       "category": "gunsmith",
       "subcategory": "Upper receiver",
-      "weight": 0.16
+      "weight": 0.16,
+      "scan_alias": "PDC Cover"
     },
     {
       "id": "gunsmith_akalpha_clip_30",
@@ -2858,7 +2996,8 @@
       "icon_path": "icons/gunsmith_akalpha_clip_30.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.16
+      "weight": 0.16,
+      "scan_alias": "AKalpha 30rd"
     },
     {
       "id": "gunsmith_akalpha_handguard_akalpha",
@@ -2866,14 +3005,16 @@
       "icon_path": "icons/gunsmith_akalpha_handguard_akalpha.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.31
+      "weight": 0.31,
+      "scan_alias": "AKalpha"
     },
     {
       "id": "gunsmith_akalpha_lowerreceiver_akalpha",
       "name": "AKalpha 7.62x39mm assault rifle",
       "icon_path": "icons/gunsmith_akalpha_lowerreceiver_akalpha.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "AKalpha"
     },
     {
       "id": "gunsmith_akalpha_muzzle_flashhider",
@@ -2881,7 +3022,8 @@
       "icon_path": "icons/gunsmith_akalpha_muzzle_flashhider.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.02
+      "weight": 0.02,
+      "scan_alias": "AKalpha FlashHider"
     },
     {
       "id": "gunsmith_akalpha_stock_folder",
@@ -2889,7 +3031,8 @@
       "icon_path": "icons/gunsmith_akalpha_stock_folder.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.7
+      "weight": 0.7,
+      "scan_alias": "AKalpha Folder"
     },
     {
       "id": "gunsmith_akalpha_upperreceiver_akalpha",
@@ -2897,7 +3040,8 @@
       "icon_path": "icons/gunsmith_akalpha_upperreceiver_akalpha.png",
       "category": "gunsmith",
       "subcategory": "Upper receiver",
-      "weight": 0.16
+      "weight": 0.16,
+      "scan_alias": "AKalpha Upper"
     },
     {
       "id": "gunsmith_ar10_barrel_508",
@@ -2905,7 +3049,8 @@
       "icon_path": "icons/gunsmith_ar10_barrel_508.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 1.4
+      "weight": 1.4,
+      "scan_alias": "AR-10 508mm"
     },
     {
       "id": "gunsmith_ar10_clip_10",
@@ -2921,7 +3066,8 @@
       "name": "AR-10 7.62x51mm 20rnd magazine",
       "icon_path": "icons/gunsmith_ar10_clip_20.png",
       "category": "gunsmith",
-      "subcategory": "Magazine"
+      "subcategory": "Magazine",
+      "scan_alias": "AR-10 20rd"
     },
     {
       "id": "gunsmith_ar10_lowerreceiver_ar308",
@@ -2929,7 +3075,7 @@
       "icon_path": "icons/gunsmith_ar10_lowerreceiver_ar308.png",
       "category": "gunsmith",
       "subcategory": "Lower receiver",
-      "scan_alias": "AR-308DMR"
+      "scan_alias": "AR-308 DMR"
     },
     {
       "id": "gunsmith_ar10_muzzle_ar308",
@@ -2946,7 +3092,8 @@
       "icon_path": "icons/gunsmith_ar10_muzzle_m14vortex.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.06
+      "weight": 0.06,
+      "scan_alias": "AR10 M14 Vortex Comp"
     },
     {
       "id": "gunsmith_ar10_muzzle_qdc762",
@@ -2954,7 +3101,8 @@
       "icon_path": "icons/gunsmith_ar10_muzzle_qdc762.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.09
+      "weight": 0.09,
+      "scan_alias": "AR10 QDC762 Comp"
     },
     {
       "id": "gunsmith_ar10_muzzle_rd704muzzle",
@@ -2962,7 +3110,8 @@
       "icon_path": "icons/gunsmith_ar10_muzzle_rd704muzzle.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.06
+      "weight": 0.06,
+      "scan_alias": "Dowave"
     },
     {
       "id": "gunsmith_ar10_muzzle_rfb51t",
@@ -2970,7 +3119,8 @@
       "icon_path": "icons/gunsmith_ar10_muzzle_rfb51t.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.12
+      "weight": 0.12,
+      "scan_alias": "AR-10 51T"
     },
     {
       "id": "gunsmith_ar10_muzzle_sa58belgium",
@@ -2978,7 +3128,8 @@
       "icon_path": "icons/gunsmith_ar10_muzzle_sa58belgium.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.2
+      "weight": 0.2,
+      "scan_alias": "SA58 Belgium"
     },
     {
       "id": "gunsmith_ar10_muzzle_sa58combo",
@@ -2986,14 +3137,16 @@
       "icon_path": "icons/gunsmith_ar10_muzzle_sa58combo.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.1
+      "weight": 0.1,
+      "scan_alias": "SA58 Combo"
     },
     {
       "id": "gunsmith_ar10_upperreceiver_ar308",
       "name": "AR-10 AR308 7.62x51mm upper receiver",
       "icon_path": "icons/gunsmith_ar10_upperreceiver_ar308.png",
       "category": "gunsmith",
-      "subcategory": "Upper receiver"
+      "subcategory": "Upper receiver",
+      "scan_alias": "AR308 Upper"
     },
     {
       "id": "gunsmith_ar15_ar10_muzzle_cookiecutter",
@@ -3003,7 +3156,8 @@
       "subcategory": "Muzzle",
       "weight": 0.13,
       "price": 15790,
-      "rarity": "Legendary"
+      "rarity": "Legendary",
+      "scan_alias": "AR15&AR10 CookieCutter Comp"
     },
     {
       "id": "gunsmith_ar15_ar10_muzzle_tbeast_mccover",
@@ -3013,7 +3167,8 @@
       "subcategory": "Muzzle",
       "weight": 0.47,
       "price": 25367,
-      "rarity": "Legendary"
+      "rarity": "Legendary",
+      "scan_alias": "AR15&AR10 TBeast MC-Cover"
     },
     {
       "id": "gunsmith_ar15_barrel_180mm",
@@ -3021,14 +3176,16 @@
       "icon_path": "icons/gunsmith_ar15_barrel_180mm.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 0.47
+      "weight": 0.47,
+      "scan_alias": "AR-15 180mm"
     },
     {
       "id": "gunsmith_ar15_barrel_180mmsight",
       "name": "AR-15 5.56x45mm 180mm barrel with sight",
       "icon_path": "icons/gunsmith_ar15_barrel_180mmsight.png",
       "category": "gunsmith",
-      "subcategory": "Barrel"
+      "subcategory": "Barrel",
+      "scan_alias": "AR-15 180mm Sight"
     },
     {
       "id": "gunsmith_ar15_barrel_254mm",
@@ -3036,7 +3193,8 @@
       "icon_path": "icons/gunsmith_ar15_barrel_254mm.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 0.58
+      "weight": 0.58,
+      "scan_alias": "AR-15 254mm"
     },
     {
       "id": "gunsmith_ar15_barrel_254mmsight",
@@ -3044,7 +3202,8 @@
       "icon_path": "icons/gunsmith_ar15_barrel_254mmsight.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 0.6
+      "weight": 0.6,
+      "scan_alias": "AR-15 254mm Sight"
     },
     {
       "id": "gunsmith_ar15_barrel_368mm",
@@ -3052,7 +3211,8 @@
       "icon_path": "icons/gunsmith_ar15_barrel_368mm.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 0.7
+      "weight": 0.7,
+      "scan_alias": "AR-15 368mm"
     },
     {
       "id": "gunsmith_ar15_barrel_368mmsight",
@@ -3060,7 +3220,8 @@
       "icon_path": "icons/gunsmith_ar15_barrel_368mmsight.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 0.72
+      "weight": 0.72,
+      "scan_alias": "AR-15 368mm Sight"
     },
     {
       "id": "gunsmith_ar15_barrel_508mm",
@@ -3068,7 +3229,8 @@
       "icon_path": "icons/gunsmith_ar15_barrel_508mm.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 0.92
+      "weight": 0.92,
+      "scan_alias": "AR-15 508mm"
     },
     {
       "id": "gunsmith_ar15_barrel_508mmsight",
@@ -3076,14 +3238,16 @@
       "icon_path": "icons/gunsmith_ar15_barrel_508mmsight.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 0.92
+      "weight": 0.92,
+      "scan_alias": "AR-15 508mm Sight"
     },
     {
       "id": "gunsmith_ar15_clip_20r",
       "name": "AR-15 5.56x45mm 20rnd magazine",
       "icon_path": "icons/gunsmith_ar15_clip_20r.png",
       "category": "gunsmith",
-      "subcategory": "Magazine"
+      "subcategory": "Magazine",
+      "scan_alias": "AR-15 20rd"
     },
     {
       "id": "gunsmith_ar15_clip_arstanag30",
@@ -3091,7 +3255,8 @@
       "icon_path": "icons/gunsmith_ar15_clip_arstanag30.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.16
+      "weight": 0.16,
+      "scan_alias": "AR-15 30rd AR STANAG"
     },
     {
       "id": "gunsmith_ar15_clip_drum50",
@@ -3099,7 +3264,8 @@
       "icon_path": "icons/gunsmith_ar15_clip_drum50.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.41
+      "weight": 0.41,
+      "scan_alias": "AR-15 50rd Drum"
     },
     {
       "id": "gunsmith_ar15_clip_hkstanag30",
@@ -3107,7 +3273,8 @@
       "icon_path": "icons/gunsmith_ar15_clip_hkstanag30.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.12
+      "weight": 0.12,
+      "scan_alias": "AR-15 30rd RC STANAG"
     },
     {
       "id": "gunsmith_ar15_clip_pdrum60",
@@ -3117,14 +3284,16 @@
       "subcategory": "Magazine",
       "weight": 0.45,
       "price": 16740,
-      "rarity": "Ultimate"
+      "rarity": "Ultimate",
+      "scan_alias": "AR-15 60rd P-Drum"
     },
     {
       "id": "gunsmith_ar15_clip_pmag30",
       "name": "AR-15 5.56x45mm 30rnd P-Mag magazine",
       "icon_path": "icons/gunsmith_ar15_clip_pmag30.png",
       "category": "gunsmith",
-      "subcategory": "Magazine"
+      "subcategory": "Magazine",
+      "scan_alias": "AR-15 30rd P-Mag"
     },
     {
       "id": "gunsmith_ar15_clip_sf60",
@@ -3132,7 +3301,8 @@
       "icon_path": "icons/gunsmith_ar15_clip_sf60.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.25
+      "weight": 0.25,
+      "scan_alias": "AR-15 60rd SSF"
     },
     {
       "id": "gunsmith_ar15_handguard_4inchris",
@@ -3151,7 +3321,8 @@
       "icon_path": "icons/gunsmith_ar15_handguard_dd.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.47
+      "weight": 0.47,
+      "scan_alias": "AR-15 DD"
     },
     {
       "id": "gunsmith_ar15_handguard_delta9inch",
@@ -3159,7 +3330,8 @@
       "icon_path": "icons/gunsmith_ar15_handguard_delta9inch.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.26
+      "weight": 0.26,
+      "scan_alias": "AR-15 Delta 9"
     },
     {
       "id": "gunsmith_ar15_handguard_hunterwood",
@@ -3167,7 +3339,8 @@
       "icon_path": "icons/gunsmith_ar15_handguard_hunterwood.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.8
+      "weight": 0.8,
+      "scan_alias": "AR-15 Hunter Wood"
     },
     {
       "id": "gunsmith_ar15_handguard_m16poly",
@@ -3175,7 +3348,8 @@
       "icon_path": "icons/gunsmith_ar15_handguard_m16poly.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.17
+      "weight": 0.17,
+      "scan_alias": "M16 Polymer"
     },
     {
       "id": "gunsmith_ar15_handguard_m16ris",
@@ -3183,7 +3357,8 @@
       "icon_path": "icons/gunsmith_ar15_handguard_m16ris.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.6
+      "weight": 0.6,
+      "scan_alias": "M16 RIS"
     },
     {
       "id": "gunsmith_ar15_handguard_m4factory",
@@ -3191,7 +3366,8 @@
       "icon_path": "icons/gunsmith_ar15_handguard_m4factory.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.15
+      "weight": 0.15,
+      "scan_alias": "AR-15 M4"
     },
     {
       "id": "gunsmith_ar15_handguard_minifree",
@@ -3199,7 +3375,8 @@
       "icon_path": "icons/gunsmith_ar15_handguard_minifree.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.35
+      "weight": 0.35,
+      "scan_alias": "AR-15 Mini-Free"
     },
     {
       "id": "gunsmith_ar15_handguard_ssgen3",
@@ -3209,28 +3386,32 @@
       "subcategory": "Handguard",
       "weight": 0.4,
       "price": 17022,
-      "rarity": "Legendary"
+      "rarity": "Legendary",
+      "scan_alias": "AR-15 SSR Gen4"
     },
     {
       "id": "gunsmith_ar15_lowerreceiver_ar15",
       "name": "AR-15 5.56x45mm semi-automatic assault rifle",
       "icon_path": "icons/gunsmith_ar15_lowerreceiver_ar15.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "AR-15"
     },
     {
       "id": "gunsmith_ar15_lowerreceiver_m16",
       "name": "M16 5.56x45mm assault rifle",
       "icon_path": "icons/gunsmith_ar15_lowerreceiver_m16.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "M16"
     },
     {
       "id": "gunsmith_ar15_lowerreceiver_m4a1",
       "name": "M4A1 5.56x45mm carbine rifle",
       "icon_path": "icons/gunsmith_ar15_lowerreceiver_m4a1.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "M4A1"
     },
     {
       "id": "gunsmith_ar15_mount_handlescoperail",
@@ -3238,7 +3419,8 @@
       "icon_path": "icons/gunsmith_ar15_mount_handlescoperail.png",
       "category": "gunsmith",
       "subcategory": "Mount",
-      "weight": 0.05
+      "weight": 0.05,
+      "scan_alias": "AR-15 M4 Scope Mount"
     },
     {
       "id": "gunsmith_ar15_muzzle_51t",
@@ -3246,7 +3428,8 @@
       "icon_path": "icons/gunsmith_ar15_muzzle_51t.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.08
+      "weight": 0.08,
+      "scan_alias": "AR-15 51T"
     },
     {
       "id": "gunsmith_ar15_muzzle_sf3p",
@@ -3254,7 +3437,8 @@
       "icon_path": "icons/gunsmith_ar15_muzzle_sf3p.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.06
+      "weight": 0.06,
+      "scan_alias": "AR-15 SF3P"
     },
     {
       "id": "gunsmith_ar15_muzzle_sf4p",
@@ -3262,14 +3446,16 @@
       "icon_path": "icons/gunsmith_ar15_muzzle_sf4p.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.06
+      "weight": 0.06,
+      "scan_alias": "AR-15 SF4P"
     },
     {
       "id": "gunsmith_ar15_muzzle_slr",
       "name": "AR15 SLR 5.56x45mm compensator",
       "icon_path": "icons/gunsmith_ar15_muzzle_slr.png",
       "category": "gunsmith",
-      "subcategory": "Muzzle"
+      "subcategory": "Muzzle",
+      "scan_alias": "AR15 SLR Comp"
     },
     {
       "id": "gunsmith_ar15_muzzle_slrhiheat",
@@ -3277,7 +3463,8 @@
       "icon_path": "icons/gunsmith_ar15_muzzle_slrhiheat.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.08
+      "weight": 0.08,
+      "scan_alias": "AR15 SLR HiHeat Comp"
     },
     {
       "id": "gunsmith_ar15_muzzle_usgia2",
@@ -3285,7 +3472,8 @@
       "icon_path": "icons/gunsmith_ar15_muzzle_usgia2.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.06
+      "weight": 0.06,
+      "scan_alias": "AR-15 USGIA2"
     },
     {
       "id": "gunsmith_ar15_muzzle_vp09",
@@ -3293,7 +3481,8 @@
       "icon_path": "icons/gunsmith_ar15_muzzle_vp09.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.08
+      "weight": 0.08,
+      "scan_alias": "AR15 VP09 Comp"
     },
     {
       "id": "gunsmith_ar15_pistolgrip_battlegripv2",
@@ -3301,7 +3490,8 @@
       "icon_path": "icons/gunsmith_ar15_pistolgrip_battlegripv2.png",
       "category": "gunsmith",
       "subcategory": "Pistol grip",
-      "weight": 0.07
+      "weight": 0.07,
+      "scan_alias": "Battle Grip V2"
     },
     {
       "id": "gunsmith_ar15_pistolgrip_ddenhanced",
@@ -3309,7 +3499,8 @@
       "icon_path": "icons/gunsmith_ar15_pistolgrip_ddenhanced.png",
       "category": "gunsmith",
       "subcategory": "Pistol grip",
-      "weight": 0.07
+      "weight": 0.07,
+      "scan_alias": "AR-15 DD Enhanced"
     },
     {
       "id": "gunsmith_ar15_pistolgrip_ecsfde",
@@ -3317,7 +3508,8 @@
       "icon_path": "icons/gunsmith_ar15_pistolgrip_ecsfde.png",
       "category": "gunsmith",
       "subcategory": "Pistol grip",
-      "weight": 0.08
+      "weight": 0.08,
+      "scan_alias": "Ecs FDE"
     },
     {
       "id": "gunsmith_ar15_pistolgrip_ergo",
@@ -3325,7 +3517,8 @@
       "icon_path": "icons/gunsmith_ar15_pistolgrip_ergo.png",
       "category": "gunsmith",
       "subcategory": "Pistol grip",
-      "weight": 0.08
+      "weight": 0.08,
+      "scan_alias": "AR-15 ERGO"
     },
     {
       "id": "gunsmith_ar15_pistolgrip_hunterwood",
@@ -3333,7 +3526,8 @@
       "icon_path": "icons/gunsmith_ar15_pistolgrip_hunterwood.png",
       "category": "gunsmith",
       "subcategory": "Pistol grip",
-      "weight": 0.12
+      "weight": 0.12,
+      "scan_alias": "AR-15 Hunter Wood"
     },
     {
       "id": "gunsmith_ar15_pistolgrip_m16a1",
@@ -3341,7 +3535,8 @@
       "icon_path": "icons/gunsmith_ar15_pistolgrip_m16a1.png",
       "category": "gunsmith",
       "subcategory": "Pistol grip",
-      "weight": 0.04
+      "weight": 0.04,
+      "scan_alias": "M16A1"
     },
     {
       "id": "gunsmith_ar15_pistolgrip_m4factory",
@@ -3349,7 +3544,8 @@
       "icon_path": "icons/gunsmith_ar15_pistolgrip_m4factory.png",
       "category": "gunsmith",
       "subcategory": "Pistol grip",
-      "weight": 0.06
+      "weight": 0.06,
+      "scan_alias": "M4 factory"
     },
     {
       "id": "gunsmith_ar15_pistolgrip_moe",
@@ -3357,7 +3553,8 @@
       "icon_path": "icons/gunsmith_ar15_pistolgrip_moe.png",
       "category": "gunsmith",
       "subcategory": "Pistol grip",
-      "weight": 0.045
+      "weight": 0.045,
+      "scan_alias": "MOE"
     },
     {
       "id": "gunsmith_ar15_pistolgrip_moe_k",
@@ -3367,14 +3564,16 @@
       "subcategory": "Pistol grip",
       "weight": 0.045,
       "price": 4127,
-      "rarity": "Epic"
+      "rarity": "Epic",
+      "scan_alias": "MOE-K"
     },
     {
       "id": "gunsmith_ar15_pistolgrip_prs",
       "name": "AR-15 PRS pistolgrip",
       "icon_path": "icons/gunsmith_ar15_pistolgrip_prs.png",
       "category": "gunsmith",
-      "subcategory": "Pistol grip"
+      "subcategory": "Pistol grip",
+      "scan_alias": "AR-15 PRS"
     },
     {
       "id": "gunsmith_ar15_rearsight_m4handle",
@@ -3382,7 +3581,8 @@
       "icon_path": "icons/gunsmith_ar15_rearsight_m4handle.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.02
+      "weight": 0.02,
+      "scan_alias": "M4 Handle"
     },
     {
       "id": "gunsmith_ar15_stock_a5slimstock",
@@ -3390,7 +3590,8 @@
       "icon_path": "icons/gunsmith_ar15_stock_a5slimstock.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.29
+      "weight": 0.29,
+      "scan_alias": "RC416A5 Slim"
     },
     {
       "id": "gunsmith_ar15_upperreceiver_m16a2",
@@ -3398,7 +3599,8 @@
       "icon_path": "icons/gunsmith_ar15_upperreceiver_m16a2.png",
       "category": "gunsmith",
       "subcategory": "Upper receiver",
-      "weight": 0.32
+      "weight": 0.32,
+      "scan_alias": "M16A2 Upper"
     },
     {
       "id": "gunsmith_ar15_upperreceiver_m4factroy",
@@ -3406,7 +3608,8 @@
       "icon_path": "icons/gunsmith_ar15_upperreceiver_m4factroy.png",
       "category": "gunsmith",
       "subcategory": "Upper receiver",
-      "weight": 0.27
+      "weight": 0.27,
+      "scan_alias": "M4 Upper"
     },
     {
       "id": "gunsmith_arbuffer_stock_acesocom",
@@ -3414,7 +3617,8 @@
       "icon_path": "icons/gunsmith_arbuffer_stock_acesocom.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.28
+      "weight": 0.28,
+      "scan_alias": "ACE SOCOM"
     },
     {
       "id": "gunsmith_arbuffer_stock_arbuffertube",
@@ -3422,7 +3626,8 @@
       "icon_path": "icons/gunsmith_arbuffer_stock_arbuffertube.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.15
+      "weight": 0.15,
+      "scan_alias": "AR-15 Buffer"
     },
     {
       "id": "gunsmith_arbuffer_stock_enhancedbuffer",
@@ -3430,14 +3635,16 @@
       "icon_path": "icons/gunsmith_arbuffer_stock_enhancedbuffer.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.16
+      "weight": 0.16,
+      "scan_alias": "Enhanced buffer"
     },
     {
       "id": "gunsmith_arbuffer_stock_hunterwood",
       "name": "AR-15 Hunter Wood buffer tube stock",
       "icon_path": "icons/gunsmith_arbuffer_stock_hunterwood.png",
       "category": "gunsmith",
-      "subcategory": "Stock"
+      "subcategory": "Stock",
+      "scan_alias": "Hunter Wood"
     },
     {
       "id": "gunsmith_arbuffer_stock_m16a2",
@@ -3445,7 +3652,8 @@
       "icon_path": "icons/gunsmith_arbuffer_stock_m16a2.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.3
+      "weight": 0.3,
+      "scan_alias": "M16A2"
     },
     {
       "id": "gunsmith_arbuffer_stock_pistol",
@@ -3453,7 +3661,8 @@
       "icon_path": "icons/gunsmith_arbuffer_stock_pistol.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.12
+      "weight": 0.12,
+      "scan_alias": "Pistol buffer"
     },
     {
       "id": "gunsmith_arbuffer_stock_prsgen3",
@@ -3463,7 +3672,8 @@
       "subcategory": "Stock",
       "weight": 0.6,
       "price": 10874,
-      "rarity": "Ultimate"
+      "rarity": "Ultimate",
+      "scan_alias": "AR-15 PRSGen3"
     },
     {
       "id": "gunsmith_arbuffer_stock_ubr",
@@ -3473,7 +3683,8 @@
       "subcategory": "Stock",
       "weight": 0.45,
       "price": 9411,
-      "rarity": "Ultimate"
+      "rarity": "Ultimate",
+      "scan_alias": "UBR"
     },
     {
       "id": "gunsmith_arbuffer_stock_vertgen2pdw",
@@ -3481,14 +3692,16 @@
       "icon_path": "icons/gunsmith_arbuffer_stock_vertgen2pdw.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.34
+      "weight": 0.34,
+      "scan_alias": "Vert Gen2"
     },
     {
       "id": "gunsmith_arstock_stock_car15",
       "name": "AR-15 CAR15 stock",
       "icon_path": "icons/gunsmith_arstock_stock_car15.png",
       "category": "gunsmith",
-      "subcategory": "Stock"
+      "subcategory": "Stock",
+      "scan_alias": "AR-15 CAR15"
     },
     {
       "id": "gunsmith_arstock_stock_ctr",
@@ -3496,7 +3709,8 @@
       "icon_path": "icons/gunsmith_arstock_stock_ctr.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.23
+      "weight": 0.23,
+      "scan_alias": "AR-15 CTR"
     },
     {
       "id": "gunsmith_arstock_stock_dd",
@@ -3506,7 +3720,8 @@
       "subcategory": "Stock",
       "weight": 0.22,
       "price": 8604,
-      "rarity": "Legendary"
+      "rarity": "Legendary",
+      "scan_alias": "AR-15 DD"
     },
     {
       "id": "gunsmith_arstock_stock_glcore",
@@ -3514,7 +3729,8 @@
       "icon_path": "icons/gunsmith_arstock_stock_glcore.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.27
+      "weight": 0.27,
+      "scan_alias": "AR-15 BLCore"
     },
     {
       "id": "gunsmith_arstock_stock_m4factory",
@@ -3522,7 +3738,8 @@
       "icon_path": "icons/gunsmith_arstock_stock_m4factory.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.2
+      "weight": 0.2,
+      "scan_alias": "AR-15 M4"
     },
     {
       "id": "gunsmith_arstock_stock_str",
@@ -3530,7 +3747,8 @@
       "icon_path": "icons/gunsmith_arstock_stock_str.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.24
+      "weight": 0.24,
+      "scan_alias": "STR"
     },
     {
       "id": "gunsmith_aug_barrel_383",
@@ -3538,7 +3756,8 @@
       "icon_path": "icons/gunsmith_aug_barrel_383.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 0.7
+      "weight": 0.7,
+      "scan_alias": "AUG 383mm"
     },
     {
       "id": "gunsmith_aug_barrel_417",
@@ -3546,7 +3765,8 @@
       "icon_path": "icons/gunsmith_aug_barrel_417.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 0.74
+      "weight": 0.74,
+      "scan_alias": "AUG 417mm"
     },
     {
       "id": "gunsmith_aug_barrel_510",
@@ -3554,7 +3774,8 @@
       "icon_path": "icons/gunsmith_aug_barrel_510.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 0.96
+      "weight": 0.96,
+      "scan_alias": "AUG 510mm"
     },
     {
       "id": "gunsmith_aug_barrel_9mm325",
@@ -3562,7 +3783,8 @@
       "icon_path": "icons/gunsmith_aug_barrel_9mm325.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 0.6
+      "weight": 0.6,
+      "scan_alias": "AUG 325mm"
     },
     {
       "id": "gunsmith_aug_clip_30",
@@ -3570,7 +3792,8 @@
       "icon_path": "icons/gunsmith_aug_clip_30.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.19
+      "weight": 0.19,
+      "scan_alias": "AUG 30rd"
     },
     {
       "id": "gunsmith_aug_clip_42",
@@ -3578,7 +3801,8 @@
       "icon_path": "icons/gunsmith_aug_clip_42.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.26
+      "weight": 0.26,
+      "scan_alias": "AUG 42rd"
     },
     {
       "id": "gunsmith_aug_clip_9mm",
@@ -3586,7 +3810,8 @@
       "icon_path": "icons/gunsmith_aug_clip_9mm.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.1
+      "weight": 0.1,
+      "scan_alias": "AUG 25rd"
     },
     {
       "id": "gunsmith_aug_foregrip_augvertical",
@@ -3594,28 +3819,32 @@
       "icon_path": "icons/gunsmith_aug_foregrip_augvertical.png",
       "category": "gunsmith",
       "subcategory": "Foregrip",
-      "weight": 0.1
+      "weight": 0.1,
+      "scan_alias": "AUG Vertical"
     },
     {
       "id": "gunsmith_aug_lowerreceiver_aug9mm",
       "name": "AUG-9 9x19mm sub-machine gun",
       "icon_path": "icons/gunsmith_aug_lowerreceiver_aug9mm.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "9-Aug"
     },
     {
       "id": "gunsmith_aug_lowerreceiver_auga1",
       "name": "AUG A1 5.56x45mm assault rifle",
       "icon_path": "icons/gunsmith_aug_lowerreceiver_auga1.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "AUG A1"
     },
     {
       "id": "gunsmith_aug_lowerreceiver_auga3",
       "name": "AUG A3 5.56x45mm assault rifle",
       "icon_path": "icons/gunsmith_aug_lowerreceiver_auga3.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "AUG A3"
     },
     {
       "id": "gunsmith_aug_mount_foregripmount1",
@@ -3623,7 +3852,8 @@
       "icon_path": "icons/gunsmith_aug_mount_foregripmount1.png",
       "category": "gunsmith",
       "subcategory": "Mount",
-      "weight": 0.1
+      "weight": 0.1,
+      "scan_alias": "Foregrip Mount"
     },
     {
       "id": "gunsmith_aug_mount_foregripmount2",
@@ -3631,7 +3861,8 @@
       "icon_path": "icons/gunsmith_aug_mount_foregripmount2.png",
       "category": "gunsmith",
       "subcategory": "Mount",
-      "weight": 0.1
+      "weight": 0.1,
+      "scan_alias": "Foregrip Tactical"
     },
     {
       "id": "gunsmith_aug_mount_handguardextend",
@@ -3639,7 +3870,8 @@
       "icon_path": "icons/gunsmith_aug_mount_handguardextend.png",
       "category": "gunsmith",
       "subcategory": "Mount",
-      "weight": 0.35
+      "weight": 0.35,
+      "scan_alias": "Extended handguard"
     },
     {
       "id": "gunsmith_aug_mount_longscopemount",
@@ -3647,7 +3879,8 @@
       "icon_path": "icons/gunsmith_aug_mount_longscopemount.png",
       "category": "gunsmith",
       "subcategory": "Mount",
-      "weight": 0.12
+      "weight": 0.12,
+      "scan_alias": "AUG long"
     },
     {
       "id": "gunsmith_aug_mount_middlescopemount",
@@ -3655,7 +3888,8 @@
       "icon_path": "icons/gunsmith_aug_mount_middlescopemount.png",
       "category": "gunsmith",
       "subcategory": "Mount",
-      "weight": 0.12
+      "weight": 0.12,
+      "scan_alias": "AUG Medium"
     },
     {
       "id": "gunsmith_aug_mount_scopestg77",
@@ -3663,7 +3897,8 @@
       "icon_path": "icons/gunsmith_aug_mount_scopestg77.png",
       "category": "gunsmith",
       "subcategory": "Mount",
-      "weight": 0.5
+      "weight": 0.5,
+      "scan_alias": "AUG STG77"
     },
     {
       "id": "gunsmith_aug_muzzle_9mm",
@@ -3671,7 +3906,8 @@
       "icon_path": "icons/gunsmith_aug_muzzle_9mm.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.07
+      "weight": 0.07,
+      "scan_alias": "9-Aug"
     },
     {
       "id": "gunsmith_aug_muzzle_a1",
@@ -3679,7 +3915,8 @@
       "icon_path": "icons/gunsmith_aug_muzzle_a1.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.07
+      "weight": 0.07,
+      "scan_alias": "A1"
     },
     {
       "id": "gunsmith_aug_muzzle_a3",
@@ -3687,7 +3924,8 @@
       "icon_path": "icons/gunsmith_aug_muzzle_a3.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.07
+      "weight": 0.07,
+      "scan_alias": "A3"
     },
     {
       "id": "gunsmith_aug_muzzle_adapter556",
@@ -3695,7 +3933,8 @@
       "icon_path": "icons/gunsmith_aug_muzzle_adapter556.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.12
+      "weight": 0.12,
+      "scan_alias": "5.56adapter Adapter"
     },
     {
       "id": "gunsmith_aug_muzzle_sfmonster556",
@@ -3705,7 +3944,8 @@
       "subcategory": "Muzzle",
       "weight": 0.36,
       "price": 23471,
-      "rarity": "Ultimate"
+      "rarity": "Ultimate",
+      "scan_alias": "Monster556"
     },
     {
       "id": "gunsmith_aug_muzzle_sl7i",
@@ -3713,7 +3953,8 @@
       "icon_path": "icons/gunsmith_aug_muzzle_sl7i.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.55
+      "weight": 0.55,
+      "scan_alias": "SL7i"
     },
     {
       "id": "gunsmith_aug_muzzle_ums",
@@ -3721,7 +3962,8 @@
       "icon_path": "icons/gunsmith_aug_muzzle_ums.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.48
+      "weight": 0.48,
+      "scan_alias": "UMS"
     },
     {
       "id": "gunsmith_aug_upperreceiver_a1stg77",
@@ -3729,7 +3971,8 @@
       "icon_path": "icons/gunsmith_aug_upperreceiver_a1stg77.png",
       "category": "gunsmith",
       "subcategory": "Upper receiver",
-      "weight": 1.2
+      "weight": 1.2,
+      "scan_alias": "STG77 Upper"
     },
     {
       "id": "gunsmith_aug_upperreceiver_a3",
@@ -3737,7 +3980,8 @@
       "icon_path": "icons/gunsmith_aug_upperreceiver_a3.png",
       "category": "gunsmith",
       "subcategory": "Upper receiver",
-      "weight": 0.8
+      "weight": 0.8,
+      "scan_alias": "A3 Upper"
     },
     {
       "id": "gunsmith_bx4_barrel_long",
@@ -3745,7 +3989,8 @@
       "icon_path": "icons/gunsmith_bx4_barrel_long.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 0.28
+      "weight": 0.28,
+      "scan_alias": "BX4 Long"
     },
     {
       "id": "gunsmith_bx4_barrel_short",
@@ -3753,7 +3998,8 @@
       "icon_path": "icons/gunsmith_bx4_barrel_short.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 0.24
+      "weight": 0.24,
+      "scan_alias": "BX4 Short"
     },
     {
       "id": "gunsmith_bx4_clip_25mag",
@@ -3761,14 +4007,16 @@
       "icon_path": "icons/gunsmith_bx4_clip_25mag.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.22
+      "weight": 0.22,
+      "scan_alias": "BX4 25rd"
     },
     {
       "id": "gunsmith_bx4_lowerreceiver_bx4",
       "name": "BX4 9x19mm sub-machine gun",
       "icon_path": "icons/gunsmith_bx4_lowerreceiver_bx4.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "BX4"
     },
     {
       "id": "gunsmith_bx4_mount_handguardrail",
@@ -3776,7 +4024,8 @@
       "icon_path": "icons/gunsmith_bx4_mount_handguardrail.png",
       "category": "gunsmith",
       "subcategory": "Mount",
-      "weight": 0.02
+      "weight": 0.02,
+      "scan_alias": "BX4 Rail"
     },
     {
       "id": "gunsmith_bx4_muzzle_cap",
@@ -3784,7 +4033,8 @@
       "icon_path": "icons/gunsmith_bx4_muzzle_cap.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.01
+      "weight": 0.01,
+      "scan_alias": "BX4 Cap"
     },
     {
       "id": "gunsmith_evo3_barrel_evo3",
@@ -3792,7 +4042,8 @@
       "icon_path": "icons/gunsmith_evo3_barrel_evo3.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 0.21
+      "weight": 0.21,
+      "scan_alias": "EVO3 Barrel"
     },
     {
       "id": "gunsmith_evo3_clip_30rounds",
@@ -3800,7 +4051,8 @@
       "icon_path": "icons/gunsmith_evo3_clip_30rounds.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.17
+      "weight": 0.17,
+      "scan_alias": "EVO3 30rd"
     },
     {
       "id": "gunsmith_evo3_clip_50pve",
@@ -3808,7 +4060,8 @@
       "icon_path": "icons/gunsmith_evo3_clip_50pve.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.66
+      "weight": 0.66,
+      "scan_alias": "EVO3 50rd mag"
     },
     {
       "id": "gunsmith_evo3_clip_drum",
@@ -3816,7 +4069,8 @@
       "icon_path": "icons/gunsmith_evo3_clip_drum.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.66
+      "weight": 0.66,
+      "scan_alias": "EVO3 50rd Drum"
     },
     {
       "id": "gunsmith_evo3_handguard_evo3",
@@ -3824,14 +4078,16 @@
       "icon_path": "icons/gunsmith_evo3_handguard_evo3.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.22
+      "weight": 0.22,
+      "scan_alias": "EVO3"
     },
     {
       "id": "gunsmith_evo3_lowerreceiver_evo3",
       "name": "EVO3 9x19mm sub-machine gun",
       "icon_path": "icons/gunsmith_evo3_lowerreceiver_evo3.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "EVO3"
     },
     {
       "id": "gunsmith_evo3_muzzle_evo3",
@@ -3839,7 +4095,8 @@
       "icon_path": "icons/gunsmith_evo3_muzzle_evo3.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.06
+      "weight": 0.06,
+      "scan_alias": "EVO3 Cap"
     },
     {
       "id": "gunsmith_evo3_stock_evo3",
@@ -3847,7 +4104,8 @@
       "icon_path": "icons/gunsmith_evo3_stock_evo3.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.43
+      "weight": 0.43,
+      "scan_alias": "EVO3 Stock"
     },
     {
       "id": "gunsmith_evo3_upperreceiver_evo3",
@@ -3855,7 +4113,8 @@
       "icon_path": "icons/gunsmith_evo3_upperreceiver_evo3.png",
       "category": "gunsmith",
       "subcategory": "Upper receiver",
-      "weight": 0.32
+      "weight": 0.32,
+      "scan_alias": "EVO3 Upper"
     },
     {
       "id": "gunsmith_flame12_barrel_10inch",
@@ -3863,7 +4122,8 @@
       "icon_path": "icons/gunsmith_flame12_barrel_10inch.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 0.27
+      "weight": 0.27,
+      "scan_alias": "Flame12 10inch"
     },
     {
       "id": "gunsmith_flame12_barrel_18inch",
@@ -3871,7 +4131,8 @@
       "icon_path": "icons/gunsmith_flame12_barrel_18inch.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 0.32
+      "weight": 0.32,
+      "scan_alias": "Flame12 18inch"
     },
     {
       "id": "gunsmith_flame12_clip_10",
@@ -3879,7 +4140,8 @@
       "icon_path": "icons/gunsmith_flame12_clip_10.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.28
+      "weight": 0.28,
+      "scan_alias": "Flame12 10rd"
     },
     {
       "id": "gunsmith_flame12_handguard_flame12",
@@ -3887,14 +4149,16 @@
       "icon_path": "icons/gunsmith_flame12_handguard_flame12.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.38
+      "weight": 0.38,
+      "scan_alias": "Flame12"
     },
     {
       "id": "gunsmith_flame12_lowerreceiver_flame12",
       "name": "Flame12 12ga shotgun",
       "icon_path": "icons/gunsmith_flame12_lowerreceiver_flame12.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "Flame12"
     },
     {
       "id": "gunsmith_flame12_muzzle_cap",
@@ -3902,7 +4166,8 @@
       "icon_path": "icons/gunsmith_flame12_muzzle_cap.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.02
+      "weight": 0.02,
+      "scan_alias": "Flame12 Cap"
     },
     {
       "id": "gunsmith_flame12_pistolgrip_flame12",
@@ -3910,7 +4175,8 @@
       "icon_path": "icons/gunsmith_flame12_pistolgrip_flame12.png",
       "category": "gunsmith",
       "subcategory": "Pistol grip",
-      "weight": 0.08
+      "weight": 0.08,
+      "scan_alias": "Flame12 Grip"
     },
     {
       "id": "gunsmith_flame12_stock_arbufferadapter",
@@ -3918,7 +4184,8 @@
       "icon_path": "icons/gunsmith_flame12_stock_arbufferadapter.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.17
+      "weight": 0.17,
+      "scan_alias": "Flame12 Adapter"
     },
     {
       "id": "gunsmith_flame12_upperreceiver_flame12",
@@ -3926,7 +4193,8 @@
       "icon_path": "icons/gunsmith_flame12_upperreceiver_flame12.png",
       "category": "gunsmith",
       "subcategory": "Upper receiver",
-      "weight": 0.16
+      "weight": 0.16,
+      "scan_alias": "Flame12 Upper"
     },
     {
       "id": "gunsmith_g18c_barrel_comp",
@@ -3934,7 +4202,8 @@
       "icon_path": "icons/gunsmith_g18c_barrel_comp.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 0.11
+      "weight": 0.11,
+      "scan_alias": "G18C"
     },
     {
       "id": "gunsmith_g18c_clip_17rnd",
@@ -3942,7 +4211,8 @@
       "icon_path": "icons/gunsmith_g18c_clip_17rnd.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.1
+      "weight": 0.1,
+      "scan_alias": "G18C 17rd"
     },
     {
       "id": "gunsmith_g18c_clip_30rnd",
@@ -3950,7 +4220,8 @@
       "icon_path": "icons/gunsmith_g18c_clip_30rnd.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.14
+      "weight": 0.14,
+      "scan_alias": "G18C 30rd"
     },
     {
       "id": "gunsmith_g18c_clip_33rnd",
@@ -3958,7 +4229,8 @@
       "icon_path": "icons/gunsmith_g18c_clip_33rnd.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.15
+      "weight": 0.15,
+      "scan_alias": "G18C 33rd"
     },
     {
       "id": "gunsmith_g18c_clip_50rnd",
@@ -3966,7 +4238,8 @@
       "icon_path": "icons/gunsmith_g18c_clip_50rnd.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.6
+      "weight": 0.6,
+      "scan_alias": "G18C 50rd Drum"
     },
     {
       "id": "gunsmith_g18c_frontsight_fs",
@@ -3974,14 +4247,16 @@
       "icon_path": "icons/gunsmith_g18c_frontsight_fs.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.01
+      "weight": 0.01,
+      "scan_alias": "G18C Front"
     },
     {
       "id": "gunsmith_g18c_lowerreceiver_g18c",
       "name": "G18C 9x19mm automatic pistol",
       "icon_path": "icons/gunsmith_g18c_lowerreceiver_g18c.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "G18C"
     },
     {
       "id": "gunsmith_g18c_rearsight_rs",
@@ -3989,7 +4264,8 @@
       "icon_path": "icons/gunsmith_g18c_rearsight_rs.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.01
+      "weight": 0.01,
+      "scan_alias": "G18C Rear"
     },
     {
       "id": "gunsmith_g18c_upperreceiver_g18c",
@@ -3997,7 +4273,8 @@
       "icon_path": "icons/gunsmith_g18c_upperreceiver_g18c.png",
       "category": "gunsmith",
       "subcategory": "Upper receiver",
-      "weight": 0.26
+      "weight": 0.26,
+      "scan_alias": "G18C"
     },
     {
       "id": "gunsmith_g3_clip_10",
@@ -4005,7 +4282,8 @@
       "icon_path": "icons/gunsmith_g3_clip_10.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.07
+      "weight": 0.07,
+      "scan_alias": "G3 10rd"
     },
     {
       "id": "gunsmith_g3_clip_20",
@@ -4013,14 +4291,16 @@
       "icon_path": "icons/gunsmith_g3_clip_20.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.14
+      "weight": 0.14,
+      "scan_alias": "G3 20rd"
     },
     {
       "id": "gunsmith_g3_clip_30",
       "name": "G3 7.62x51mm 30rnd magazine",
       "icon_path": "icons/gunsmith_g3_clip_30.png",
       "category": "gunsmith",
-      "subcategory": "Magazine"
+      "subcategory": "Magazine",
+      "scan_alias": "G3 30rd"
     },
     {
       "id": "gunsmith_g3_clip_50bk",
@@ -4028,7 +4308,8 @@
       "icon_path": "icons/gunsmith_g3_clip_50bk.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.43
+      "weight": 0.43,
+      "scan_alias": "G3 50rd BK"
     },
     {
       "id": "gunsmith_g3_clip_50od",
@@ -4036,7 +4317,8 @@
       "icon_path": "icons/gunsmith_g3_clip_50od.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.43
+      "weight": 0.43,
+      "scan_alias": "G3 50rd OD"
     },
     {
       "id": "gunsmith_g3_handguard_aimsport",
@@ -4044,7 +4326,8 @@
       "icon_path": "icons/gunsmith_g3_handguard_aimsport.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.25
+      "weight": 0.25,
+      "scan_alias": "G3 AS"
     },
     {
       "id": "gunsmith_g3_handguard_bt",
@@ -4052,7 +4335,8 @@
       "icon_path": "icons/gunsmith_g3_handguard_bt.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.26
+      "weight": 0.26,
+      "scan_alias": "G3 BD"
     },
     {
       "id": "gunsmith_g3_handguard_prsgreen",
@@ -4060,7 +4344,8 @@
       "icon_path": "icons/gunsmith_g3_handguard_prsgreen.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.42
+      "weight": 0.42,
+      "scan_alias": "G3 precision"
     },
     {
       "id": "gunsmith_g3_handguard_sg1",
@@ -4068,7 +4353,8 @@
       "icon_path": "icons/gunsmith_g3_handguard_sg1.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.37
+      "weight": 0.37,
+      "scan_alias": "G3 SG-1"
     },
     {
       "id": "gunsmith_g3_handguard_spuhr",
@@ -4078,7 +4364,8 @@
       "subcategory": "Handguard",
       "weight": 0.32,
       "price": 8531,
-      "rarity": "Rare"
+      "rarity": "Rare",
+      "scan_alias": "G3 SPUHR"
     },
     {
       "id": "gunsmith_g3_handguard_wood",
@@ -4086,28 +4373,32 @@
       "icon_path": "icons/gunsmith_g3_handguard_wood.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.29
+      "weight": 0.29,
+      "scan_alias": "RC91 Wood"
     },
     {
       "id": "gunsmith_g3_lowerreceiver_g3",
       "name": "G3 7.62x51mm assault rifle",
       "icon_path": "icons/gunsmith_g3_lowerreceiver_g3.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "G3"
     },
     {
       "id": "gunsmith_g3_lowerreceiver_g3ak4",
       "name": "G3 AK4 7.62x51mm assault rifle",
       "icon_path": "icons/gunsmith_g3_lowerreceiver_g3ak4.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "AK4"
     },
     {
       "id": "gunsmith_g3_lowerreceiver_hk91",
       "name": "RC91 7.62x51mm semi-automatic rifle",
       "icon_path": "icons/gunsmith_g3_lowerreceiver_hk91.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "RC91"
     },
     {
       "id": "gunsmith_g3_mount_bt3",
@@ -4115,7 +4406,8 @@
       "icon_path": "icons/gunsmith_g3_mount_bt3.png",
       "category": "gunsmith",
       "subcategory": "Mount",
-      "weight": 0.14
+      "weight": 0.14,
+      "scan_alias": "G3 BT3"
     },
     {
       "id": "gunsmith_g3_mount_falconscope",
@@ -4125,7 +4417,8 @@
       "subcategory": "Mount",
       "weight": 0.32,
       "price": 12636,
-      "rarity": "Rare"
+      "rarity": "Rare",
+      "scan_alias": "Falcon"
     },
     {
       "id": "gunsmith_g3_mount_handguardcoverrail",
@@ -4133,7 +4426,8 @@
       "icon_path": "icons/gunsmith_g3_mount_handguardcoverrail.png",
       "category": "gunsmith",
       "subcategory": "Mount",
-      "weight": 0.18
+      "weight": 0.18,
+      "scan_alias": "Handguard Rail"
     },
     {
       "id": "gunsmith_g3_mount_highlever",
@@ -4141,7 +4435,8 @@
       "icon_path": "icons/gunsmith_g3_mount_highlever.png",
       "category": "gunsmith",
       "subcategory": "Mount",
-      "weight": 0.06
+      "weight": 0.06,
+      "scan_alias": "G3 High Lever"
     },
     {
       "id": "gunsmith_g3_mount_mlf",
@@ -4149,7 +4444,8 @@
       "icon_path": "icons/gunsmith_g3_mount_mlf.png",
       "category": "gunsmith",
       "subcategory": "Mount",
-      "weight": 0.07
+      "weight": 0.07,
+      "scan_alias": "MLF"
     },
     {
       "id": "gunsmith_g3_muzzle_g3a3",
@@ -4157,7 +4453,8 @@
       "icon_path": "icons/gunsmith_g3_muzzle_g3a3.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.05
+      "weight": 0.05,
+      "scan_alias": "G3A3"
     },
     {
       "id": "gunsmith_g3_pistolgrip_polyblack",
@@ -4165,7 +4462,8 @@
       "icon_path": "icons/gunsmith_g3_pistolgrip_polyblack.png",
       "category": "gunsmith",
       "subcategory": "Pistol grip",
-      "weight": 0.09
+      "weight": 0.09,
+      "scan_alias": "G3 polymer BK"
     },
     {
       "id": "gunsmith_g3_pistolgrip_polygreen",
@@ -4173,7 +4471,8 @@
       "icon_path": "icons/gunsmith_g3_pistolgrip_polygreen.png",
       "category": "gunsmith",
       "subcategory": "Pistol grip",
-      "weight": 0.09
+      "weight": 0.09,
+      "scan_alias": "G3 polymer OD"
     },
     {
       "id": "gunsmith_g3_pistolgrip_prsblack",
@@ -4183,7 +4482,8 @@
       "subcategory": "Pistol grip",
       "weight": 0.12,
       "price": 11075,
-      "rarity": "Epic"
+      "rarity": "Epic",
+      "scan_alias": "G3 PRS Black"
     },
     {
       "id": "gunsmith_g3_pistolgrip_prswood",
@@ -4191,7 +4491,8 @@
       "icon_path": "icons/gunsmith_g3_pistolgrip_prswood.png",
       "category": "gunsmith",
       "subcategory": "Pistol grip",
-      "weight": 0.14
+      "weight": 0.14,
+      "scan_alias": "G3 PRS Wood"
     },
     {
       "id": "gunsmith_g3_rearsight_drum",
@@ -4199,7 +4500,8 @@
       "icon_path": "icons/gunsmith_g3_rearsight_drum.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.03
+      "weight": 0.03,
+      "scan_alias": "G3 Drum"
     },
     {
       "id": "gunsmith_g3_stock_arbufferadapter",
@@ -4207,7 +4509,8 @@
       "icon_path": "icons/gunsmith_g3_stock_arbufferadapter.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.16
+      "weight": 0.16,
+      "scan_alias": "G3 AR Buffer Adapter"
     },
     {
       "id": "gunsmith_g3_stock_polyak4",
@@ -4215,21 +4518,24 @@
       "icon_path": "icons/gunsmith_g3_stock_polyak4.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.07
+      "weight": 0.07,
+      "scan_alias": "G3 AK4 Stock"
     },
     {
       "id": "gunsmith_g3_stock_polyblack",
       "name": "G3 polymer Black stock",
       "icon_path": "icons/gunsmith_g3_stock_polyblack.png",
       "category": "gunsmith",
-      "subcategory": "Stock"
+      "subcategory": "Stock",
+      "scan_alias": "G3 Black Stock"
     },
     {
       "id": "gunsmith_g3_stock_polygreen",
       "name": "G3 polymer Green stock",
       "icon_path": "icons/gunsmith_g3_stock_polygreen.png",
       "category": "gunsmith",
-      "subcategory": "Stock"
+      "subcategory": "Stock",
+      "scan_alias": "G3 Green Stock"
     },
     {
       "id": "gunsmith_g3_stock_psgprs",
@@ -4237,7 +4543,8 @@
       "icon_path": "icons/gunsmith_g3_stock_psgprs.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 1.1
+      "weight": 1.1,
+      "scan_alias": "PSG PRS"
     },
     {
       "id": "gunsmith_g3_stock_retrackable",
@@ -4245,7 +4552,8 @@
       "icon_path": "icons/gunsmith_g3_stock_retrackable.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.32
+      "weight": 0.32,
+      "scan_alias": "G3 Retractable"
     },
     {
       "id": "gunsmith_g3_stock_spuhr",
@@ -4253,7 +4561,8 @@
       "icon_path": "icons/gunsmith_g3_stock_spuhr.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.52
+      "weight": 0.52,
+      "scan_alias": "G3 SPUHR"
     },
     {
       "id": "gunsmith_g3_stock_wood",
@@ -4261,7 +4570,8 @@
       "icon_path": "icons/gunsmith_g3_stock_wood.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.65
+      "weight": 0.65,
+      "scan_alias": "G3 Wood Stock"
     },
     {
       "id": "gunsmith_g3_upperreceiver_g3",
@@ -4269,14 +4579,16 @@
       "icon_path": "icons/gunsmith_g3_upperreceiver_g3.png",
       "category": "gunsmith",
       "subcategory": "Upper receiver",
-      "weight": 1.65
+      "weight": 1.65,
+      "scan_alias": "G3 Upper"
     },
     {
       "id": "gunsmith_g3_upperreceiver_g3ak4",
       "name": "G3AK4 7.62x51mm upper receiver",
       "icon_path": "icons/gunsmith_g3_upperreceiver_g3ak4.png",
       "category": "gunsmith",
-      "subcategory": "Upper receiver"
+      "subcategory": "Upper receiver",
+      "scan_alias": "G3AK4 Upper"
     },
     {
       "id": "gunsmith_hk416_barrel_358mm",
@@ -4284,7 +4596,8 @@
       "icon_path": "icons/gunsmith_hk416_barrel_358mm.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 0.78
+      "weight": 0.78,
+      "scan_alias": "RC416A5 358mm"
     },
     {
       "id": "gunsmith_hk416_frontsight_rc416a5",
@@ -4292,7 +4605,8 @@
       "icon_path": "icons/gunsmith_hk416_frontsight_rc416a5.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.06
+      "weight": 0.06,
+      "scan_alias": "RC416A5 Front Sight"
     },
     {
       "id": "gunsmith_hk416_handguard_416a54rail274mm",
@@ -4300,14 +4614,16 @@
       "icon_path": "icons/gunsmith_hk416_handguard_416a54rail274mm.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.65
+      "weight": 0.65,
+      "scan_alias": "RC416A5 4Rail"
     },
     {
       "id": "gunsmith_hk416_lowerreceiver_hk416a5",
       "name": "RC416A5 5.56x45mm assault rifle",
       "icon_path": "icons/gunsmith_hk416_lowerreceiver_hk416a5.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "RC416A5"
     },
     {
       "id": "gunsmith_hk416_upperreceiver_hk416a5",
@@ -4315,7 +4631,8 @@
       "icon_path": "icons/gunsmith_hk416_upperreceiver_hk416a5.png",
       "category": "gunsmith",
       "subcategory": "Upper receiver",
-      "weight": 0.28
+      "weight": 0.28,
+      "scan_alias": "RC416A5 Upper"
     },
     {
       "id": "gunsmith_hk51_handguard_kgrip",
@@ -4323,7 +4640,8 @@
       "icon_path": "icons/gunsmith_hk51_handguard_kgrip.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.29
+      "weight": 0.29,
+      "scan_alias": "RC51 K-Grip"
     },
     {
       "id": "gunsmith_hk51_handguard_polygreen",
@@ -4331,7 +4649,8 @@
       "icon_path": "icons/gunsmith_hk51_handguard_polygreen.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.21
+      "weight": 0.21,
+      "scan_alias": "RC51 Polymer OD"
     },
     {
       "id": "gunsmith_hk51_handguard_ris",
@@ -4339,7 +4658,8 @@
       "icon_path": "icons/gunsmith_hk51_handguard_ris.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.31
+      "weight": 0.31,
+      "scan_alias": "RC51 RIS"
     },
     {
       "id": "gunsmith_hk51_handguard_triangle",
@@ -4347,7 +4667,8 @@
       "icon_path": "icons/gunsmith_hk51_handguard_triangle.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.32
+      "weight": 0.32,
+      "scan_alias": "RC51 Triangle"
     },
     {
       "id": "gunsmith_hk51_handguard_wood",
@@ -4355,7 +4676,8 @@
       "icon_path": "icons/gunsmith_hk51_handguard_wood.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.28
+      "weight": 0.28,
+      "scan_alias": "RC51 Wood"
     },
     {
       "id": "gunsmith_hk51_upperreceiver_hk51",
@@ -4363,7 +4685,8 @@
       "icon_path": "icons/gunsmith_hk51_upperreceiver_hk51.png",
       "category": "gunsmith",
       "subcategory": "Upper receiver",
-      "weight": 1.33
+      "weight": 1.33,
+      "scan_alias": "RC51 Upper"
     },
     {
       "id": "gunsmith_kw1911_barrel_kw1911",
@@ -4371,7 +4694,8 @@
       "icon_path": "icons/gunsmith_kw1911_barrel_kw1911.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 2.0
+      "weight": 2.0,
+      "scan_alias": "KW1911 Barrel"
     },
     {
       "id": "gunsmith_kw1911_clip_kw1911",
@@ -4379,7 +4703,8 @@
       "icon_path": "icons/gunsmith_kw1911_clip_kw1911.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.26
+      "weight": 0.26,
+      "scan_alias": "KW1911 10rd"
     },
     {
       "id": "gunsmith_kw1911_frontsight_kw1911",
@@ -4387,14 +4712,16 @@
       "icon_path": "icons/gunsmith_kw1911_frontsight_kw1911.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.01
+      "weight": 0.01,
+      "scan_alias": "KW1911 Front"
     },
     {
       "id": "gunsmith_kw1911_lowerreceiver_kw1911",
       "name": "KW1911 .45acp semi-automatic pistol",
       "icon_path": "icons/gunsmith_kw1911_lowerreceiver_kw1911.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "KW1911"
     },
     {
       "id": "gunsmith_kw1911_pistolgrip_kw1911",
@@ -4402,7 +4729,8 @@
       "icon_path": "icons/gunsmith_kw1911_pistolgrip_kw1911.png",
       "category": "gunsmith",
       "subcategory": "Pistol grip",
-      "weight": 0.05
+      "weight": 0.05,
+      "scan_alias": "KW1911 Grip"
     },
     {
       "id": "gunsmith_kw1911_rearsight_kw1911",
@@ -4410,7 +4738,8 @@
       "icon_path": "icons/gunsmith_kw1911_rearsight_kw1911.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.01
+      "weight": 0.01,
+      "scan_alias": "KW1911 Rear"
     },
     {
       "id": "gunsmith_kw1911_upperreceiver_kw1911",
@@ -4418,7 +4747,8 @@
       "icon_path": "icons/gunsmith_kw1911_upperreceiver_kw1911.png",
       "category": "gunsmith",
       "subcategory": "Upper receiver",
-      "weight": 0.34
+      "weight": 0.34,
+      "scan_alias": "KW1911 Slide"
     },
     {
       "id": "gunsmith_m1897_barrel_508mm",
@@ -4426,7 +4756,8 @@
       "icon_path": "icons/gunsmith_m1897_barrel_508mm.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 1.35
+      "weight": 1.35,
+      "scan_alias": "M1897 508mm"
     },
     {
       "id": "gunsmith_m1897_clip_7round",
@@ -4434,7 +4765,8 @@
       "icon_path": "icons/gunsmith_m1897_clip_7round.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 2.0
+      "weight": 2.0,
+      "scan_alias": "M1897 7rd Internal"
     },
     {
       "id": "gunsmith_m1897_frontsight_bayonetlug",
@@ -4442,7 +4774,8 @@
       "icon_path": "icons/gunsmith_m1897_frontsight_bayonetlug.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.2
+      "weight": 0.2,
+      "scan_alias": "M1897 Bayonet Lug"
     },
     {
       "id": "gunsmith_m1897_handguard_pumpwood",
@@ -4450,14 +4783,16 @@
       "icon_path": "icons/gunsmith_m1897_handguard_pumpwood.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.31
+      "weight": 0.31,
+      "scan_alias": "M1897 Wood"
     },
     {
       "id": "gunsmith_m1897_lowerreceiver_m1897",
       "name": "M1897 12ga pump action shotgun",
       "icon_path": "icons/gunsmith_m1897_lowerreceiver_m1897.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "M1897"
     },
     {
       "id": "gunsmith_m1897_mount_heatcover",
@@ -4465,7 +4800,8 @@
       "icon_path": "icons/gunsmith_m1897_mount_heatcover.png",
       "category": "gunsmith",
       "subcategory": "Mount",
-      "weight": 0.25
+      "weight": 0.25,
+      "scan_alias": "M1897 Heat Cover"
     },
     {
       "id": "gunsmith_m1897_stock_wood",
@@ -4473,7 +4809,8 @@
       "icon_path": "icons/gunsmith_m1897_stock_wood.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.64
+      "weight": 0.64,
+      "scan_alias": "M1897 Wood"
     },
     {
       "id": "gunsmith_m1928_barrel_long",
@@ -4481,7 +4818,8 @@
       "icon_path": "icons/gunsmith_m1928_barrel_long.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 0.52
+      "weight": 0.52,
+      "scan_alias": "M1928 Long"
     },
     {
       "id": "gunsmith_m1928_barrel_m1a1",
@@ -4489,7 +4827,8 @@
       "icon_path": "icons/gunsmith_m1928_barrel_m1a1.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 0.4
+      "weight": 0.4,
+      "scan_alias": "M1928 M1A1"
     },
     {
       "id": "gunsmith_m1928_barrel_short",
@@ -4497,7 +4836,8 @@
       "icon_path": "icons/gunsmith_m1928_barrel_short.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 0.42
+      "weight": 0.42,
+      "scan_alias": "M1928 Short"
     },
     {
       "id": "gunsmith_m1928_clip_drum50",
@@ -4505,7 +4845,8 @@
       "icon_path": "icons/gunsmith_m1928_clip_drum50.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.92
+      "weight": 0.92,
+      "scan_alias": "M1928 50rd"
     },
     {
       "id": "gunsmith_m1928_clip_mag25",
@@ -4513,7 +4854,8 @@
       "icon_path": "icons/gunsmith_m1928_clip_mag25.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.32
+      "weight": 0.32,
+      "scan_alias": "M1928 25rd"
     },
     {
       "id": "gunsmith_m1928_handguard_horizontal",
@@ -4521,7 +4863,8 @@
       "icon_path": "icons/gunsmith_m1928_handguard_horizontal.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.36
+      "weight": 0.36,
+      "scan_alias": "M1928 Horizontal"
     },
     {
       "id": "gunsmith_m1928_handguard_vertical",
@@ -4529,14 +4872,16 @@
       "icon_path": "icons/gunsmith_m1928_handguard_vertical.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.45
+      "weight": 0.45,
+      "scan_alias": "M1928 Vertical"
     },
     {
       "id": "gunsmith_m1928_lowerreceiver_m1928",
       "name": "M1928 .45acp submachinegun",
       "icon_path": "icons/gunsmith_m1928_lowerreceiver_m1928.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "M1928"
     },
     {
       "id": "gunsmith_m1928_muzzle_compensatorsight",
@@ -4544,7 +4889,8 @@
       "icon_path": "icons/gunsmith_m1928_muzzle_compensatorsight.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.25
+      "weight": 0.25,
+      "scan_alias": "AK74"
     },
     {
       "id": "gunsmith_m1928_pistolgrip_m1928",
@@ -4552,7 +4898,8 @@
       "icon_path": "icons/gunsmith_m1928_pistolgrip_m1928.png",
       "category": "gunsmith",
       "subcategory": "Pistol grip",
-      "weight": 0.3
+      "weight": 0.3,
+      "scan_alias": "M1928 Grip"
     },
     {
       "id": "gunsmith_m1928_rearsight_m1928",
@@ -4560,7 +4907,8 @@
       "icon_path": "icons/gunsmith_m1928_rearsight_m1928.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.025
+      "weight": 0.025,
+      "scan_alias": "M1928 Rear"
     },
     {
       "id": "gunsmith_m1928_stock_m1928",
@@ -4568,7 +4916,8 @@
       "icon_path": "icons/gunsmith_m1928_stock_m1928.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 1.15
+      "weight": 1.15,
+      "scan_alias": "M1928 Stock"
     },
     {
       "id": "gunsmith_m1928_upperreceiver_m1928",
@@ -4576,7 +4925,8 @@
       "icon_path": "icons/gunsmith_m1928_upperreceiver_m1928.png",
       "category": "gunsmith",
       "subcategory": "Upper receiver",
-      "weight": 0.92
+      "weight": 0.92,
+      "scan_alias": "M1928 Upper"
     },
     {
       "id": "gunsmith_m1a_barrel_406mm",
@@ -4584,7 +4934,8 @@
       "icon_path": "icons/gunsmith_m1a_barrel_406mm.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 1.18
+      "weight": 1.18,
+      "scan_alias": "M1A 406mm"
     },
     {
       "id": "gunsmith_m1a_barrel_558mm",
@@ -4592,7 +4943,8 @@
       "icon_path": "icons/gunsmith_m1a_barrel_558mm.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 1.22
+      "weight": 1.22,
+      "scan_alias": "M1A 558mm"
     },
     {
       "id": "gunsmith_m1a_clip_20",
@@ -4600,7 +4952,8 @@
       "icon_path": "icons/gunsmith_m1a_clip_20.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.23
+      "weight": 0.23,
+      "scan_alias": "M1A 20rd"
     },
     {
       "id": "gunsmith_m1a_frontsight_m1a",
@@ -4608,14 +4961,16 @@
       "icon_path": "icons/gunsmith_m1a_frontsight_m1a.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.04
+      "weight": 0.04,
+      "scan_alias": "M1A Front sight"
     },
     {
       "id": "gunsmith_m1a_lowerreceiver_m1a",
       "name": "M1A 7.62x51mm battle rifle",
       "icon_path": "icons/gunsmith_m1a_lowerreceiver_m1a.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "M1A"
     },
     {
       "id": "gunsmith_m1a_mount_utg4",
@@ -4623,7 +4978,8 @@
       "icon_path": "icons/gunsmith_m1a_mount_utg4.png",
       "category": "gunsmith",
       "subcategory": "Mount",
-      "weight": 0.25
+      "weight": 0.25,
+      "scan_alias": "M1A UTG4"
     },
     {
       "id": "gunsmith_m1a_stock_archangelm1a",
@@ -4631,7 +4987,8 @@
       "icon_path": "icons/gunsmith_m1a_stock_archangelm1a.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 1.9
+      "weight": 1.9,
+      "scan_alias": "M1A Arch Angle"
     },
     {
       "id": "gunsmith_m1a_stock_socom16",
@@ -4639,7 +4996,8 @@
       "icon_path": "icons/gunsmith_m1a_stock_socom16.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.2
+      "weight": 0.2,
+      "scan_alias": "M1A SOCOM16"
     },
     {
       "id": "gunsmith_m3a1_barrel",
@@ -4647,7 +5005,8 @@
       "icon_path": "icons/gunsmith_m3a1_barrel.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 0.35
+      "weight": 0.35,
+      "scan_alias": "M3A1 Barrel"
     },
     {
       "id": "gunsmith_m3a1_clip_45acp30r",
@@ -4655,14 +5014,16 @@
       "icon_path": "icons/gunsmith_m3a1_clip_45acp30r.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.4
+      "weight": 0.4,
+      "scan_alias": "M3 30rd"
     },
     {
       "id": "gunsmith_m3a1_lowerreceiver_m3a1",
       "name": "M3A1 .45acp sub-machine gun",
       "icon_path": "icons/gunsmith_m3a1_lowerreceiver_m3a1.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "M3A1"
     },
     {
       "id": "gunsmith_m3a1_stock",
@@ -4670,7 +5031,8 @@
       "icon_path": "icons/gunsmith_m3a1_stock.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.25
+      "weight": 0.25,
+      "scan_alias": "M3A1 Stock"
     },
     {
       "id": "gunsmith_m40a5_barrel_610mm",
@@ -4678,7 +5040,8 @@
       "icon_path": "icons/gunsmith_m40a5_barrel_610mm.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 1.2
+      "weight": 1.2,
+      "scan_alias": "M40A5 610mm"
     },
     {
       "id": "gunsmith_m40a5_clip_10r",
@@ -4686,7 +5049,8 @@
       "icon_path": "icons/gunsmith_m40a5_clip_10r.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.5
+      "weight": 0.5,
+      "scan_alias": "M40A5 10rd"
     },
     {
       "id": "gunsmith_m40a5_clip_5r",
@@ -4694,14 +5058,16 @@
       "icon_path": "icons/gunsmith_m40a5_clip_5r.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.3
+      "weight": 0.3,
+      "scan_alias": "M40A5 5rd"
     },
     {
       "id": "gunsmith_m40a5_lowerreceiver_m40a5",
       "name": "M40A5 7.62x51mm bolt action rifle",
       "icon_path": "icons/gunsmith_m40a5_lowerreceiver_m40a5.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "M40A5"
     },
     {
       "id": "gunsmith_m40a5_mount_frontrail",
@@ -4709,7 +5075,8 @@
       "icon_path": "icons/gunsmith_m40a5_mount_frontrail.png",
       "category": "gunsmith",
       "subcategory": "Mount",
-      "weight": 0.01
+      "weight": 0.01,
+      "scan_alias": "M40A5 Front rail"
     },
     {
       "id": "gunsmith_m40a5_mount_scoperail",
@@ -4717,7 +5084,8 @@
       "icon_path": "icons/gunsmith_m40a5_mount_scoperail.png",
       "category": "gunsmith",
       "subcategory": "Mount",
-      "weight": 0.163
+      "weight": 0.163,
+      "scan_alias": "M40A5"
     },
     {
       "id": "gunsmith_m40a5_muzzle_cap",
@@ -4725,7 +5093,8 @@
       "icon_path": "icons/gunsmith_m40a5_muzzle_cap.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.01
+      "weight": 0.01,
+      "scan_alias": "M40A5 Cap"
     },
     {
       "id": "gunsmith_m40a5_stock_spr",
@@ -4733,7 +5102,8 @@
       "icon_path": "icons/gunsmith_m40a5_stock_spr.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 2.2
+      "weight": 2.2,
+      "scan_alias": "M40A5 SPR"
     },
     {
       "id": "gunsmith_m870_barrel_355mm",
@@ -4741,7 +5111,8 @@
       "icon_path": "icons/gunsmith_m870_barrel_355mm.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 0.7
+      "weight": 0.7,
+      "scan_alias": "M870 355mm"
     },
     {
       "id": "gunsmith_m870_barrel_508mm",
@@ -4749,7 +5120,8 @@
       "icon_path": "icons/gunsmith_m870_barrel_508mm.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 0.8
+      "weight": 0.8,
+      "scan_alias": "M870 508mm"
     },
     {
       "id": "gunsmith_m870_barrel_660mm",
@@ -4757,7 +5129,8 @@
       "icon_path": "icons/gunsmith_m870_barrel_660mm.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 1.1
+      "weight": 1.1,
+      "scan_alias": "M870 660mm"
     },
     {
       "id": "gunsmith_m870_clip_10",
@@ -4765,7 +5138,8 @@
       "icon_path": "icons/gunsmith_m870_clip_10.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 2.0
+      "weight": 2.0,
+      "scan_alias": "M870 10rd Internal"
     },
     {
       "id": "gunsmith_m870_clip_4",
@@ -4773,7 +5147,8 @@
       "icon_path": "icons/gunsmith_m870_clip_4.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 2.0
+      "weight": 2.0,
+      "scan_alias": "M870 4rd Internal"
     },
     {
       "id": "gunsmith_m870_clip_7",
@@ -4781,21 +5156,24 @@
       "icon_path": "icons/gunsmith_m870_clip_7.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 2.0
+      "weight": 2.0,
+      "scan_alias": "M870 7rd Internal"
     },
     {
       "id": "gunsmith_m870_frontsight_fs1",
       "name": "M870 FS1 barrel front sight",
       "icon_path": "icons/gunsmith_m870_frontsight_fs1.png",
       "category": "gunsmith",
-      "subcategory": "Sight"
+      "subcategory": "Sight",
+      "scan_alias": "M870 FS1 Front"
     },
     {
       "id": "gunsmith_m870_frontsight_fs2",
       "name": "M870 FS2 barrel front sight",
       "icon_path": "icons/gunsmith_m870_frontsight_fs2.png",
       "category": "gunsmith",
-      "subcategory": "Sight"
+      "subcategory": "Sight",
+      "scan_alias": "M870 FS2 Front"
     },
     {
       "id": "gunsmith_m870_handguard_classic",
@@ -4803,7 +5181,8 @@
       "icon_path": "icons/gunsmith_m870_handguard_classic.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.7
+      "weight": 0.7,
+      "scan_alias": "M870 Classic"
     },
     {
       "id": "gunsmith_m870_handguard_cqb",
@@ -4811,7 +5190,8 @@
       "icon_path": "icons/gunsmith_m870_handguard_cqb.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.45
+      "weight": 0.45,
+      "scan_alias": "M870 CQB"
     },
     {
       "id": "gunsmith_m870_handguard_moe",
@@ -4819,7 +5199,8 @@
       "icon_path": "icons/gunsmith_m870_handguard_moe.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.6
+      "weight": 0.6,
+      "scan_alias": "M870 MOE"
     },
     {
       "id": "gunsmith_m870_handguard_sfeed",
@@ -4827,7 +5208,8 @@
       "icon_path": "icons/gunsmith_m870_handguard_sfeed.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.5
+      "weight": 0.5,
+      "scan_alias": "M870 SFeed"
     },
     {
       "id": "gunsmith_m870_handguard_vertical",
@@ -4835,14 +5217,16 @@
       "icon_path": "icons/gunsmith_m870_handguard_vertical.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.52
+      "weight": 0.52,
+      "scan_alias": "M870 Vertical"
     },
     {
       "id": "gunsmith_m870_lowerreceiver_m870",
       "name": "M870 12ga pump action shotgun",
       "icon_path": "icons/gunsmith_m870_lowerreceiver_m870.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "M870"
     },
     {
       "id": "gunsmith_m870_mount_rail",
@@ -4850,7 +5234,8 @@
       "icon_path": "icons/gunsmith_m870_mount_rail.png",
       "category": "gunsmith",
       "subcategory": "Mount",
-      "weight": 0.15
+      "weight": 0.15,
+      "scan_alias": "M870 Barrel"
     },
     {
       "id": "gunsmith_m870_mount_toprail",
@@ -4858,7 +5243,8 @@
       "icon_path": "icons/gunsmith_m870_mount_toprail.png",
       "category": "gunsmith",
       "subcategory": "Mount",
-      "weight": 0.15
+      "weight": 0.15,
+      "scan_alias": "M870 Top"
     },
     {
       "id": "gunsmith_m870_rearsight_rs",
@@ -4866,7 +5252,8 @@
       "icon_path": "icons/gunsmith_m870_rearsight_rs.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.25
+      "weight": 0.25,
+      "scan_alias": "M870 Rear"
     },
     {
       "id": "gunsmith_m870_rearsight_rsrailed",
@@ -4874,7 +5261,8 @@
       "icon_path": "icons/gunsmith_m870_rearsight_rsrailed.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.25
+      "weight": 0.25,
+      "scan_alias": "Railed Rear"
     },
     {
       "id": "gunsmith_m870_stock_buffertubeadapter",
@@ -4882,7 +5270,8 @@
       "icon_path": "icons/gunsmith_m870_stock_buffertubeadapter.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.13
+      "weight": 0.13,
+      "scan_alias": "M870 ARstock adpater"
     },
     {
       "id": "gunsmith_m870_stock_m590",
@@ -4890,7 +5279,8 @@
       "icon_path": "icons/gunsmith_m870_stock_m590.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.65
+      "weight": 0.65,
+      "scan_alias": "M870 M590"
     },
     {
       "id": "gunsmith_m870_stock_m590pistolgrip",
@@ -4898,7 +5288,8 @@
       "icon_path": "icons/gunsmith_m870_stock_m590pistolgrip.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.69
+      "weight": 0.69,
+      "scan_alias": "M590 grip stock"
     },
     {
       "id": "gunsmith_m870_stock_sga",
@@ -4906,7 +5297,8 @@
       "icon_path": "icons/gunsmith_m870_stock_sga.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.5
+      "weight": 0.5,
+      "scan_alias": "M870 SGA"
     },
     {
       "id": "gunsmith_m870_stock_sps",
@@ -4914,7 +5306,8 @@
       "icon_path": "icons/gunsmith_m870_stock_sps.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.64
+      "weight": 0.64,
+      "scan_alias": "M870 SPS"
     },
     {
       "id": "gunsmith_m870m_clip_8rd",
@@ -4930,7 +5323,8 @@
       "icon_path": "icons/gunsmith_m9_barrel_m9.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 0.12
+      "weight": 0.12,
+      "scan_alias": "M9"
     },
     {
       "id": "gunsmith_m9_clip_17rnd",
@@ -4938,7 +5332,8 @@
       "icon_path": "icons/gunsmith_m9_clip_17rnd.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.13
+      "weight": 0.13,
+      "scan_alias": "M9 17rd"
     },
     {
       "id": "gunsmith_m9_frontsight_fs",
@@ -4946,14 +5341,16 @@
       "icon_path": "icons/gunsmith_m9_frontsight_fs.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.01
+      "weight": 0.01,
+      "scan_alias": "M9 Front"
     },
     {
       "id": "gunsmith_m9_lowerreceiver_m9",
       "name": "M9 9x19mm semi-automatic pistol",
       "icon_path": "icons/gunsmith_m9_lowerreceiver_m9.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "M9"
     },
     {
       "id": "gunsmith_m9_pistolgrip_m9",
@@ -4961,7 +5358,8 @@
       "icon_path": "icons/gunsmith_m9_pistolgrip_m9.png",
       "category": "gunsmith",
       "subcategory": "Pistol grip",
-      "weight": 0.02
+      "weight": 0.02,
+      "scan_alias": "M9"
     },
     {
       "id": "gunsmith_m9_rearsight_rs",
@@ -4969,7 +5367,8 @@
       "icon_path": "icons/gunsmith_m9_rearsight_rs.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.01
+      "weight": 0.01,
+      "scan_alias": "M9 Rear"
     },
     {
       "id": "gunsmith_m9_upperreceiver_m9",
@@ -4977,21 +5376,24 @@
       "icon_path": "icons/gunsmith_m9_upperreceiver_m9.png",
       "category": "gunsmith",
       "subcategory": "Upper receiver",
-      "weight": 0.29
+      "weight": 0.29,
+      "scan_alias": "M9"
     },
     {
       "id": "gunsmith_malyuk_lowerreceiver_malyuk545",
       "name": "Malyuk 5.45x39mm assault rifle",
       "icon_path": "icons/gunsmith_malyuk_lowerreceiver_malyuk545.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "Malyuk 545"
     },
     {
       "id": "gunsmith_malyuk_lowerreceiver_malyuk762",
       "name": "Malyuk 7.62x39mm assault rifle",
       "icon_path": "icons/gunsmith_malyuk_lowerreceiver_malyuk762.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "Malyuk 762"
     },
     {
       "id": "gunsmith_malyuk_muzzle_ak103muzzleadapter",
@@ -4999,7 +5401,8 @@
       "icon_path": "icons/gunsmith_malyuk_muzzle_ak103muzzleadapter.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.1
+      "weight": 0.1,
+      "scan_alias": "AK103 Adapter"
     },
     {
       "id": "gunsmith_malyuk_muzzle_ak74muzzleadapter",
@@ -5007,7 +5410,8 @@
       "icon_path": "icons/gunsmith_malyuk_muzzle_ak74muzzleadapter.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.1
+      "weight": 0.1,
+      "scan_alias": "AK74 Adapter"
     },
     {
       "id": "gunsmith_malyuk_muzzle_ipisuppressor",
@@ -5015,7 +5419,8 @@
       "icon_path": "icons/gunsmith_malyuk_muzzle_ipisuppressor.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.43
+      "weight": 0.43,
+      "scan_alias": "IPI"
     },
     {
       "id": "gunsmith_malyuk_upperreceiver_malyuk",
@@ -5023,7 +5428,8 @@
       "icon_path": "icons/gunsmith_malyuk_upperreceiver_malyuk.png",
       "category": "gunsmith",
       "subcategory": "Upper receiver",
-      "weight": 0.2
+      "weight": 0.2,
+      "scan_alias": "Malyuk Cover"
     },
     {
       "id": "gunsmith_mcx_barrel_13inch",
@@ -5031,14 +5437,16 @@
       "icon_path": "icons/gunsmith_mcx_barrel_13inch.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 0.46
+      "weight": 0.46,
+      "scan_alias": "XM5 13inch"
     },
     {
       "id": "gunsmith_mcx_lowerreceiver_xm5",
       "name": "XM5 6.8x51mm NGSW battle rifle",
       "icon_path": "icons/gunsmith_mcx_lowerreceiver_xm5.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "XM5"
     },
     {
       "id": "gunsmith_mcx_stock_buffertube",
@@ -5046,7 +5454,8 @@
       "icon_path": "icons/gunsmith_mcx_stock_buffertube.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.15
+      "weight": 0.15,
+      "scan_alias": "XM5 AR Buffer Adapter"
     },
     {
       "id": "gunsmith_mcx_upperreceiver_xm5",
@@ -5054,7 +5463,8 @@
       "icon_path": "icons/gunsmith_mcx_upperreceiver_xm5.png",
       "category": "gunsmith",
       "subcategory": "Upper receiver",
-      "weight": 0.37
+      "weight": 0.37,
+      "scan_alias": "XM5 Upper"
     },
     {
       "id": "gunsmith_mosin_barrel_9130",
@@ -5062,7 +5472,8 @@
       "icon_path": "icons/gunsmith_mosin_barrel_9130.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 1.7
+      "weight": 1.7,
+      "scan_alias": "Mosin 9130"
     },
     {
       "id": "gunsmith_mosin_barrel_m1891",
@@ -5070,7 +5481,8 @@
       "icon_path": "icons/gunsmith_mosin_barrel_m1891.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 1.7
+      "weight": 1.7,
+      "scan_alias": "Mosin M1891"
     },
     {
       "id": "gunsmith_mosin_barrel_m38",
@@ -5078,7 +5490,8 @@
       "icon_path": "icons/gunsmith_mosin_barrel_m38.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 1.5
+      "weight": 1.5,
+      "scan_alias": "Mosin M38"
     },
     {
       "id": "gunsmith_mosin_barrel_obrez",
@@ -5086,7 +5499,8 @@
       "icon_path": "icons/gunsmith_mosin_barrel_obrez.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 0.6
+      "weight": 0.6,
+      "scan_alias": "Mosin Obrez"
     },
     {
       "id": "gunsmith_mosin_clip_internal",
@@ -5094,7 +5508,8 @@
       "icon_path": "icons/gunsmith_mosin_clip_internal.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 2.0
+      "weight": 2.0,
+      "scan_alias": "Mosin 5rd"
     },
     {
       "id": "gunsmith_mosin_frontsight_m1891",
@@ -5102,7 +5517,8 @@
       "icon_path": "icons/gunsmith_mosin_frontsight_m1891.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.06
+      "weight": 0.06,
+      "scan_alias": "Mosin M1891 Front"
     },
     {
       "id": "gunsmith_mosin_frontsight_m38",
@@ -5110,28 +5526,32 @@
       "icon_path": "icons/gunsmith_mosin_frontsight_m38.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.08
+      "weight": 0.08,
+      "scan_alias": "Mosin M38 Front"
     },
     {
       "id": "gunsmith_mosin_lowerreceiver_9130",
       "name": "Mosin 9130 7.62x54mmR bolt action rifle",
       "icon_path": "icons/gunsmith_mosin_lowerreceiver_9130.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "Mosin 9130"
     },
     {
       "id": "gunsmith_mosin_lowerreceiver_m1891",
       "name": "Mosin M1891 7.62x54mmR bolt action rifle",
       "icon_path": "icons/gunsmith_mosin_lowerreceiver_m1891.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "Mosin M1891"
     },
     {
       "id": "gunsmith_mosin_lowerreceiver_m38",
       "name": "Mosin M38 7.62x54mmR bolt action rifle",
       "icon_path": "icons/gunsmith_mosin_lowerreceiver_m38.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "Mosin M38"
     },
     {
       "id": "gunsmith_mosin_mount_puscope",
@@ -5139,7 +5559,8 @@
       "icon_path": "icons/gunsmith_mosin_mount_puscope.png",
       "category": "gunsmith",
       "subcategory": "Mount",
-      "weight": 0.44
+      "weight": 0.44,
+      "scan_alias": "Mosin PU"
     },
     {
       "id": "gunsmith_mosin_muzzle_akmadapter",
@@ -5147,7 +5568,8 @@
       "icon_path": "icons/gunsmith_mosin_muzzle_akmadapter.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.09
+      "weight": 0.09,
+      "scan_alias": "Mosin AKM Adapter"
     },
     {
       "id": "gunsmith_mosin_rearsight_9130",
@@ -5155,7 +5577,8 @@
       "icon_path": "icons/gunsmith_mosin_rearsight_9130.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.15
+      "weight": 0.15,
+      "scan_alias": "Mosin 9130 Rear"
     },
     {
       "id": "gunsmith_mosin_rearsight_m1891",
@@ -5163,7 +5586,8 @@
       "icon_path": "icons/gunsmith_mosin_rearsight_m1891.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.15
+      "weight": 0.15,
+      "scan_alias": "Mosin M1891 Rear"
     },
     {
       "id": "gunsmith_mosin_stock_9130",
@@ -5171,7 +5595,8 @@
       "icon_path": "icons/gunsmith_mosin_stock_9130.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 1.75
+      "weight": 1.75,
+      "scan_alias": "Mosin 9130 Sniper"
     },
     {
       "id": "gunsmith_mosin_stock_m1891",
@@ -5179,7 +5604,8 @@
       "icon_path": "icons/gunsmith_mosin_stock_m1891.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 1.75
+      "weight": 1.75,
+      "scan_alias": "Mosin M1891"
     },
     {
       "id": "gunsmith_mosin_stock_m1891obrez",
@@ -5187,7 +5613,8 @@
       "icon_path": "icons/gunsmith_mosin_stock_m1891obrez.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.25
+      "weight": 0.25,
+      "scan_alias": "Mosin Obrez"
     },
     {
       "id": "gunsmith_mosin_stock_m38",
@@ -5195,7 +5622,8 @@
       "icon_path": "icons/gunsmith_mosin_stock_m38.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 1.6
+      "weight": 1.6,
+      "scan_alias": "Mosin M38"
     },
     {
       "id": "gunsmith_mp5_clip_100rnd",
@@ -5203,7 +5631,8 @@
       "icon_path": "icons/gunsmith_mp5_clip_100rnd.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 1.3
+      "weight": 1.3,
+      "scan_alias": "MP5 100rd Drum"
     },
     {
       "id": "gunsmith_mp5_clip_10rnd",
@@ -5211,7 +5640,8 @@
       "icon_path": "icons/gunsmith_mp5_clip_10rnd.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.12
+      "weight": 0.12,
+      "scan_alias": "MP5 20rd"
     },
     {
       "id": "gunsmith_mp5_clip_30rnd",
@@ -5219,7 +5649,8 @@
       "icon_path": "icons/gunsmith_mp5_clip_30rnd.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.17
+      "weight": 0.17,
+      "scan_alias": "MP5 30rd"
     },
     {
       "id": "gunsmith_mp5_clip_50rnd",
@@ -5227,7 +5658,8 @@
       "icon_path": "icons/gunsmith_mp5_clip_50rnd.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.64
+      "weight": 0.64,
+      "scan_alias": "MP5 50rd Drum"
     },
     {
       "id": "gunsmith_mp5_handguard_3rail",
@@ -5235,7 +5667,8 @@
       "icon_path": "icons/gunsmith_mp5_handguard_3rail.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.31
+      "weight": 0.31,
+      "scan_alias": "MP5A4 3Rail"
     },
     {
       "id": "gunsmith_mp5_handguard_keymod",
@@ -5243,7 +5676,8 @@
       "icon_path": "icons/gunsmith_mp5_handguard_keymod.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.23
+      "weight": 0.23,
+      "scan_alias": "MP5A4 KeyMod"
     },
     {
       "id": "gunsmith_mp5_handguard_magpulsl",
@@ -5251,7 +5685,8 @@
       "icon_path": "icons/gunsmith_mp5_handguard_magpulsl.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.21
+      "weight": 0.21,
+      "scan_alias": "MagPul SL"
     },
     {
       "id": "gunsmith_mp5_handguard_mp5",
@@ -5259,7 +5694,8 @@
       "icon_path": "icons/gunsmith_mp5_handguard_mp5.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.24
+      "weight": 0.24,
+      "scan_alias": "MP5A4 Standard"
     },
     {
       "id": "gunsmith_mp5_handguard_mp5sd",
@@ -5267,7 +5703,8 @@
       "icon_path": "icons/gunsmith_mp5_handguard_mp5sd.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.13
+      "weight": 0.13,
+      "scan_alias": "MP5SD"
     },
     {
       "id": "gunsmith_mp5_handguard_surefire628flashlight",
@@ -5275,7 +5712,8 @@
       "icon_path": "icons/gunsmith_mp5_handguard_surefire628flashlight.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.31
+      "weight": 0.31,
+      "scan_alias": "MP5A4 SF628 Light"
     },
     {
       "id": "gunsmith_mp5_handguard_wooden",
@@ -5283,21 +5721,24 @@
       "icon_path": "icons/gunsmith_mp5_handguard_wooden.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.28
+      "weight": 0.28,
+      "scan_alias": "MP5A4 Wooden"
     },
     {
       "id": "gunsmith_mp5_lowerreceiver_mp5a4",
       "name": "MP5A4 9x19mm sub-machine gun",
       "icon_path": "icons/gunsmith_mp5_lowerreceiver_mp5a4.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "MP5A4"
     },
     {
       "id": "gunsmith_mp5_lowerreceiver_mp5k",
       "name": "MP5K 9x19mm PDW sub-machine gun",
       "icon_path": "icons/gunsmith_mp5_lowerreceiver_mp5k.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "MP5K PDW"
     },
     {
       "id": "gunsmith_mp5_mount_mp5kmount",
@@ -5305,7 +5746,8 @@
       "icon_path": "icons/gunsmith_mp5_mount_mp5kmount.png",
       "category": "gunsmith",
       "subcategory": "Mount",
-      "weight": 0.07
+      "weight": 0.07,
+      "scan_alias": "MP5K Rail"
     },
     {
       "id": "gunsmith_mp5_mount_mp5mount",
@@ -5313,7 +5755,8 @@
       "icon_path": "icons/gunsmith_mp5_mount_mp5mount.png",
       "category": "gunsmith",
       "subcategory": "Mount",
-      "weight": 0.22
+      "weight": 0.22,
+      "scan_alias": "MP5 Rail"
     },
     {
       "id": "gunsmith_mp5_mount_suppressorrail",
@@ -5329,7 +5772,8 @@
       "icon_path": "icons/gunsmith_mp5_muzzle_cap.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.05
+      "weight": 0.05,
+      "scan_alias": "MP5 Cap"
     },
     {
       "id": "gunsmith_mp5_muzzle_mp5sd",
@@ -5337,7 +5781,8 @@
       "icon_path": "icons/gunsmith_mp5_muzzle_mp5sd.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.5
+      "weight": 0.5,
+      "scan_alias": "MP5SD"
     },
     {
       "id": "gunsmith_mp5_muzzle_suppressor",
@@ -5345,7 +5790,8 @@
       "icon_path": "icons/gunsmith_mp5_muzzle_suppressor.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.29
+      "weight": 0.29,
+      "scan_alias": "MP5"
     },
     {
       "id": "gunsmith_mp5_muzzle_trilug",
@@ -5353,7 +5799,8 @@
       "icon_path": "icons/gunsmith_mp5_muzzle_trilug.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.09
+      "weight": 0.09,
+      "scan_alias": "MP5 Trilug"
     },
     {
       "id": "gunsmith_mp5_rearsight_mp5",
@@ -5361,7 +5808,8 @@
       "icon_path": "icons/gunsmith_mp5_rearsight_mp5.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.04
+      "weight": 0.04,
+      "scan_alias": "MP5 Rear"
     },
     {
       "id": "gunsmith_mp5_stock_buffertubeadapter",
@@ -5369,7 +5817,8 @@
       "icon_path": "icons/gunsmith_mp5_stock_buffertubeadapter.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.15
+      "weight": 0.15,
+      "scan_alias": "MP5A4 Buffer Adapter"
     },
     {
       "id": "gunsmith_mp5_stock_mp5",
@@ -5377,7 +5826,8 @@
       "icon_path": "icons/gunsmith_mp5_stock_mp5.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.6
+      "weight": 0.6,
+      "scan_alias": "MP5A4 Standard"
     },
     {
       "id": "gunsmith_mp5_stock_mp5backplate",
@@ -5385,7 +5835,8 @@
       "icon_path": "icons/gunsmith_mp5_stock_mp5backplate.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.18
+      "weight": 0.18,
+      "scan_alias": "MP5 Back Plate"
     },
     {
       "id": "gunsmith_mp5_stock_mp5folderstock",
@@ -5393,7 +5844,8 @@
       "icon_path": "icons/gunsmith_mp5_stock_mp5folderstock.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.32
+      "weight": 0.32,
+      "scan_alias": "MP5A4 Folder"
     },
     {
       "id": "gunsmith_mp5_stock_mp5kbackplate",
@@ -5401,7 +5853,8 @@
       "icon_path": "icons/gunsmith_mp5_stock_mp5kbackplate.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.13
+      "weight": 0.13,
+      "scan_alias": "MP5K Back Plate"
     },
     {
       "id": "gunsmith_mp5_stock_pdw",
@@ -5409,7 +5862,8 @@
       "icon_path": "icons/gunsmith_mp5_stock_pdw.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.39
+      "weight": 0.39,
+      "scan_alias": "MP5K PDW"
     },
     {
       "id": "gunsmith_mp5_stock_picrailadapter",
@@ -5417,7 +5871,8 @@
       "icon_path": "icons/gunsmith_mp5_stock_picrailadapter.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.15
+      "weight": 0.15,
+      "scan_alias": "MP5A4 Pic Rail Adapter"
     },
     {
       "id": "gunsmith_mp5_upperreceiver_mp5a4",
@@ -5425,7 +5880,8 @@
       "icon_path": "icons/gunsmith_mp5_upperreceiver_mp5a4.png",
       "category": "gunsmith",
       "subcategory": "Upper receiver",
-      "weight": 0.89
+      "weight": 0.89,
+      "scan_alias": "MP5A4 Upper"
     },
     {
       "id": "gunsmith_mp5_upperreceiver_mp5k",
@@ -5433,7 +5889,8 @@
       "icon_path": "icons/gunsmith_mp5_upperreceiver_mp5k.png",
       "category": "gunsmith",
       "subcategory": "Upper receiver",
-      "weight": 2.0
+      "weight": 2.0,
+      "scan_alias": "MP5K Upper"
     },
     {
       "id": "gunsmith_mp5_upperreceiver_mp5sd",
@@ -5441,7 +5898,8 @@
       "icon_path": "icons/gunsmith_mp5_upperreceiver_mp5sd.png",
       "category": "gunsmith",
       "subcategory": "Upper receiver",
-      "weight": 0.85
+      "weight": 0.85,
+      "scan_alias": "MP5SD Upper"
     },
     {
       "id": "gunsmith_mp9_clip_15",
@@ -5449,7 +5907,8 @@
       "icon_path": "icons/gunsmith_mp9_clip_15.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.06
+      "weight": 0.06,
+      "scan_alias": "MP9 15rd"
     },
     {
       "id": "gunsmith_mp9_clip_20",
@@ -5457,7 +5916,8 @@
       "icon_path": "icons/gunsmith_mp9_clip_20.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.07
+      "weight": 0.07,
+      "scan_alias": "MP9 20rd"
     },
     {
       "id": "gunsmith_mp9_clip_30",
@@ -5465,14 +5925,16 @@
       "icon_path": "icons/gunsmith_mp9_clip_30.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.08
+      "weight": 0.08,
+      "scan_alias": "MP9 30rd"
     },
     {
       "id": "gunsmith_mp9_lowerreceiver_mp9",
       "name": "MP9 9x19mm PDW sub-machine gun",
       "icon_path": "icons/gunsmith_mp9_lowerreceiver_mp9.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "MP9 PDW"
     },
     {
       "id": "gunsmith_mp9_mount_bottom",
@@ -5480,7 +5942,8 @@
       "icon_path": "icons/gunsmith_mp9_mount_bottom.png",
       "category": "gunsmith",
       "subcategory": "Mount",
-      "weight": 0.09
+      "weight": 0.09,
+      "scan_alias": "MP9 Bottom"
     },
     {
       "id": "gunsmith_mp9_mount_side",
@@ -5488,7 +5951,8 @@
       "icon_path": "icons/gunsmith_mp9_mount_side.png",
       "category": "gunsmith",
       "subcategory": "Mount",
-      "weight": 0.02
+      "weight": 0.02,
+      "scan_alias": "MP9 Side"
     },
     {
       "id": "gunsmith_mp9_muzzle_adapter",
@@ -5496,7 +5960,8 @@
       "icon_path": "icons/gunsmith_mp9_muzzle_adapter.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.14
+      "weight": 0.14,
+      "scan_alias": "MP9 Adapter"
     },
     {
       "id": "gunsmith_mp9_muzzle_suppressor",
@@ -5504,7 +5969,8 @@
       "icon_path": "icons/gunsmith_mp9_muzzle_suppressor.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.29
+      "weight": 0.29,
+      "scan_alias": "MP9 Suppressor"
     },
     {
       "id": "gunsmith_mp9_stock_mp9fold",
@@ -5512,7 +5978,8 @@
       "icon_path": "icons/gunsmith_mp9_stock_mp9fold.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.15
+      "weight": 0.15,
+      "scan_alias": "MP9 Folder"
     },
     {
       "id": "gunsmith_mp9_stock_mp9pb",
@@ -5520,7 +5987,8 @@
       "icon_path": "icons/gunsmith_mp9_stock_mp9pb.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.16
+      "weight": 0.16,
+      "scan_alias": "MP9 PB"
     },
     {
       "id": "gunsmith_mp9_upperreceiver_mp9",
@@ -5528,7 +5996,8 @@
       "icon_path": "icons/gunsmith_mp9_upperreceiver_mp9.png",
       "category": "gunsmith",
       "subcategory": "Upper receiver",
-      "weight": 0.19
+      "weight": 0.19,
+      "scan_alias": "MP9 Upper"
     },
     {
       "id": "gunsmith_p226_barrel_threaded",
@@ -5536,7 +6005,8 @@
       "icon_path": "icons/gunsmith_p226_barrel_threaded.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 0.18
+      "weight": 0.18,
+      "scan_alias": "P226 Threaded"
     },
     {
       "id": "gunsmith_p226_barrel_unthreaded",
@@ -5544,7 +6014,8 @@
       "icon_path": "icons/gunsmith_p226_barrel_unthreaded.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 0.18
+      "weight": 0.18,
+      "scan_alias": "P226 Unthreaded"
     },
     {
       "id": "gunsmith_p226_clip_15",
@@ -5552,7 +6023,8 @@
       "icon_path": "icons/gunsmith_p226_clip_15.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.1
+      "weight": 0.1,
+      "scan_alias": "P226 15rd"
     },
     {
       "id": "gunsmith_p226_clip_20",
@@ -5560,7 +6032,8 @@
       "icon_path": "icons/gunsmith_p226_clip_20.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.11
+      "weight": 0.11,
+      "scan_alias": "P226 20rd"
     },
     {
       "id": "gunsmith_p226_frontsight_fs",
@@ -5568,14 +6041,16 @@
       "icon_path": "icons/gunsmith_p226_frontsight_fs.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.01
+      "weight": 0.01,
+      "scan_alias": "P226 Front"
     },
     {
       "id": "gunsmith_p226_lowerreceiver_p226",
       "name": "P226 9x19mm semi-automatic pistol",
       "icon_path": "icons/gunsmith_p226_lowerreceiver_p226.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "P226"
     },
     {
       "id": "gunsmith_p226_muzzle_protector",
@@ -5583,7 +6058,8 @@
       "icon_path": "icons/gunsmith_p226_muzzle_protector.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.01
+      "weight": 0.01,
+      "scan_alias": "P226 Muzzle Protector"
     },
     {
       "id": "gunsmith_p226_rearsight_rs",
@@ -5591,7 +6067,8 @@
       "icon_path": "icons/gunsmith_p226_rearsight_rs.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.01
+      "weight": 0.01,
+      "scan_alias": "P226 Rear"
     },
     {
       "id": "gunsmith_p226_upperreceiver_p226",
@@ -5599,7 +6076,8 @@
       "icon_path": "icons/gunsmith_p226_upperreceiver_p226.png",
       "category": "gunsmith",
       "subcategory": "Upper receiver",
-      "weight": 0.19
+      "weight": 0.19,
+      "scan_alias": "P226"
     },
     {
       "id": "gunsmith_picstock_stock_cqbskeletonstock",
@@ -5607,7 +6085,8 @@
       "icon_path": "icons/gunsmith_picstock_stock_cqbskeletonstock.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.16
+      "weight": 0.16,
+      "scan_alias": "CQB Skeleton"
     },
     {
       "id": "gunsmith_picstock_stock_tfstock",
@@ -5615,7 +6094,8 @@
       "icon_path": "icons/gunsmith_picstock_stock_tfstock.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.17
+      "weight": 0.17,
+      "scan_alias": "TF PicRail"
     },
     {
       "id": "gunsmith_pistol_mount_universal",
@@ -5623,7 +6103,8 @@
       "icon_path": "icons/gunsmith_pistol_mount_universal.png",
       "category": "gunsmith",
       "subcategory": "Mount",
-      "weight": 0.07
+      "weight": 0.07,
+      "scan_alias": "Universal Pistol"
     },
     {
       "id": "gunsmith_pistol_muzzle_innovation",
@@ -5631,7 +6112,8 @@
       "icon_path": "icons/gunsmith_pistol_muzzle_innovation.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.11
+      "weight": 0.11,
+      "scan_alias": "Innovation Pistol Comp"
     },
     {
       "id": "gunsmith_pkp_barrel_pkp658mm",
@@ -5639,7 +6121,8 @@
       "icon_path": "icons/gunsmith_pkp_barrel_pkp658mm.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 1.5
+      "weight": 1.5,
+      "scan_alias": "PKP 658mm"
     },
     {
       "id": "gunsmith_pkp_clip_drum",
@@ -5647,14 +6130,16 @@
       "icon_path": "icons/gunsmith_pkp_clip_drum.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.85
+      "weight": 0.85,
+      "scan_alias": "PKP 80rd Drum"
     },
     {
       "id": "gunsmith_pkp_lowerreceiver_pkp",
       "name": "PKP 7.62x54mmR LMG",
       "icon_path": "icons/gunsmith_pkp_lowerreceiver_pkp.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "PKP"
     },
     {
       "id": "gunsmith_pkp_muzzle_762x54rmuzzle",
@@ -5662,7 +6147,8 @@
       "icon_path": "icons/gunsmith_pkp_muzzle_762x54rmuzzle.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.06
+      "weight": 0.06,
+      "scan_alias": "PKP Comp"
     },
     {
       "id": "gunsmith_pkp_rearsight_pkrearsight",
@@ -5670,7 +6156,8 @@
       "icon_path": "icons/gunsmith_pkp_rearsight_pkrearsight.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.02
+      "weight": 0.02,
+      "scan_alias": "PKP Rear"
     },
     {
       "id": "gunsmith_psg_handguard_triangle",
@@ -5678,14 +6165,16 @@
       "icon_path": "icons/gunsmith_psg_handguard_triangle.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.37
+      "weight": 0.37,
+      "scan_alias": "PSG-1 Triangle"
     },
     {
       "id": "gunsmith_psg_lowerreceiver_psg1",
       "name": "PSG-1 7.62x51mm Design marksman rifle",
       "icon_path": "icons/gunsmith_psg_lowerreceiver_psg1.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "PSG-1"
     },
     {
       "id": "gunsmith_psg_mount_scoperail",
@@ -5693,7 +6182,8 @@
       "icon_path": "icons/gunsmith_psg_mount_scoperail.png",
       "category": "gunsmith",
       "subcategory": "Mount",
-      "weight": 0.06
+      "weight": 0.06,
+      "scan_alias": "PSG Scope Rail"
     },
     {
       "id": "gunsmith_psg_upperreceiver_psg1",
@@ -5701,7 +6191,8 @@
       "icon_path": "icons/gunsmith_psg_upperreceiver_psg1.png",
       "category": "gunsmith",
       "subcategory": "Upper receiver",
-      "weight": 1.7
+      "weight": 1.7,
+      "scan_alias": "PSG-1 Upper"
     },
     {
       "id": "gunsmith_rd704_handguard_slrionlite",
@@ -5709,14 +6200,16 @@
       "icon_path": "icons/gunsmith_rd704_handguard_slrionlite.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.37
+      "weight": 0.37,
+      "scan_alias": "SLR Ionlite"
     },
     {
       "id": "gunsmith_rd704_lowerreceiver_rd704",
       "name": "RD704 7.62x39mm assault rifle",
       "icon_path": "icons/gunsmith_rd704_lowerreceiver_rd704.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "RD704"
     },
     {
       "id": "gunsmith_rfb_barrel_rfb",
@@ -5724,7 +6217,8 @@
       "icon_path": "icons/gunsmith_rfb_barrel_rfb.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 0.91
+      "weight": 0.91,
+      "scan_alias": "RFB"
     },
     {
       "id": "gunsmith_rfb_clip_20rnd",
@@ -5732,7 +6226,8 @@
       "icon_path": "icons/gunsmith_rfb_clip_20rnd.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.29
+      "weight": 0.29,
+      "scan_alias": "RFB 20rd"
     },
     {
       "id": "gunsmith_rfb_handguard_rfb",
@@ -5740,14 +6235,16 @@
       "icon_path": "icons/gunsmith_rfb_handguard_rfb.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.22
+      "weight": 0.22,
+      "scan_alias": "RFB"
     },
     {
       "id": "gunsmith_rfb_lowerreceiver_rfb",
       "name": "RFB 7.62x51mm battle rifle",
       "icon_path": "icons/gunsmith_rfb_lowerreceiver_rfb.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "RFB"
     },
     {
       "id": "gunsmith_rfb_mount_bottom",
@@ -5755,7 +6252,8 @@
       "icon_path": "icons/gunsmith_rfb_mount_bottom.png",
       "category": "gunsmith",
       "subcategory": "Mount",
-      "weight": 0.09
+      "weight": 0.09,
+      "scan_alias": "RFB Bottom"
     },
     {
       "id": "gunsmith_rfb_mount_fore4rail",
@@ -5763,7 +6261,8 @@
       "icon_path": "icons/gunsmith_rfb_mount_fore4rail.png",
       "category": "gunsmith",
       "subcategory": "Mount",
-      "weight": 0.15
+      "weight": 0.15,
+      "scan_alias": "RFB Fore 4"
     },
     {
       "id": "gunsmith_rfb_mount_top",
@@ -5771,7 +6270,8 @@
       "icon_path": "icons/gunsmith_rfb_mount_top.png",
       "category": "gunsmith",
       "subcategory": "Mount",
-      "weight": 0.12
+      "weight": 0.12,
+      "scan_alias": "RFB Top"
     },
     {
       "id": "gunsmith_sa58_barrel_279mm",
@@ -5779,7 +6279,8 @@
       "icon_path": "icons/gunsmith_sa58_barrel_279mm.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 0.41
+      "weight": 0.41,
+      "scan_alias": "SA58 279mm"
     },
     {
       "id": "gunsmith_sa58_barrel_457mm",
@@ -5787,7 +6288,8 @@
       "icon_path": "icons/gunsmith_sa58_barrel_457mm.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 0.61
+      "weight": 0.61,
+      "scan_alias": "SA58 457mm"
     },
     {
       "id": "gunsmith_sa58_barrel_533mm",
@@ -5795,7 +6297,8 @@
       "icon_path": "icons/gunsmith_sa58_barrel_533mm.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 0.78
+      "weight": 0.78,
+      "scan_alias": "SA58 533mm"
     },
     {
       "id": "gunsmith_sa58_clip_10rnd",
@@ -5803,7 +6306,8 @@
       "icon_path": "icons/gunsmith_sa58_clip_10rnd.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.27
+      "weight": 0.27,
+      "scan_alias": "SA58 10rd"
     },
     {
       "id": "gunsmith_sa58_clip_20rnd",
@@ -5811,7 +6315,8 @@
       "icon_path": "icons/gunsmith_sa58_clip_20rnd.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.35
+      "weight": 0.35,
+      "scan_alias": "SA58 20rd"
     },
     {
       "id": "gunsmith_sa58_clip_20rndmmw",
@@ -5819,7 +6324,8 @@
       "icon_path": "icons/gunsmith_sa58_clip_20rndmmw.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.29
+      "weight": 0.29,
+      "scan_alias": "SA58 20rd MMW"
     },
     {
       "id": "gunsmith_sa58_clip_30rnd",
@@ -5827,7 +6333,8 @@
       "icon_path": "icons/gunsmith_sa58_clip_30rnd.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.49
+      "weight": 0.49,
+      "scan_alias": "SA58 30rd"
     },
     {
       "id": "gunsmith_sa58_clip_50rnd",
@@ -5835,7 +6342,8 @@
       "icon_path": "icons/gunsmith_sa58_clip_50rnd.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.7
+      "weight": 0.7,
+      "scan_alias": "SA58 50rd Drum"
     },
     {
       "id": "gunsmith_sa58_handguard_fal",
@@ -5843,7 +6351,8 @@
       "icon_path": "icons/gunsmith_sa58_handguard_fal.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.51
+      "weight": 0.51,
+      "scan_alias": "SA58 FAL"
     },
     {
       "id": "gunsmith_sa58_handguard_para",
@@ -5851,14 +6360,16 @@
       "icon_path": "icons/gunsmith_sa58_handguard_para.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.61
+      "weight": 0.61,
+      "scan_alias": "SA58 Para"
     },
     {
       "id": "gunsmith_sa58_lowerreceiver_sa58",
       "name": "SA58 7.62x51mm battle rifle",
       "icon_path": "icons/gunsmith_sa58_lowerreceiver_sa58.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "SA58"
     },
     {
       "id": "gunsmith_sa58_pistolgrip_sa58",
@@ -5866,7 +6377,8 @@
       "icon_path": "icons/gunsmith_sa58_pistolgrip_sa58.png",
       "category": "gunsmith",
       "subcategory": "Pistol grip",
-      "weight": 0.11
+      "weight": 0.11,
+      "scan_alias": "SA58 Standard"
     },
     {
       "id": "gunsmith_sa58_pistolgrip_saw",
@@ -5874,7 +6386,8 @@
       "icon_path": "icons/gunsmith_sa58_pistolgrip_saw.png",
       "category": "gunsmith",
       "subcategory": "Pistol grip",
-      "weight": 0.13
+      "weight": 0.13,
+      "scan_alias": "SA58 SAW"
     },
     {
       "id": "gunsmith_sa58_rearsight_holland",
@@ -5882,7 +6395,8 @@
       "icon_path": "icons/gunsmith_sa58_rearsight_holland.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.09
+      "weight": 0.09,
+      "scan_alias": "SA58 Holland"
     },
     {
       "id": "gunsmith_sa58_rearsight_separated",
@@ -5890,7 +6404,8 @@
       "icon_path": "icons/gunsmith_sa58_rearsight_separated.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.05
+      "weight": 0.05,
+      "scan_alias": "SA58 Separated"
     },
     {
       "id": "gunsmith_sa58_stock_adpt",
@@ -5898,7 +6413,8 @@
       "icon_path": "icons/gunsmith_sa58_stock_adpt.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.31
+      "weight": 0.31,
+      "scan_alias": "SA58 Buffer Adapter"
     },
     {
       "id": "gunsmith_sa58_stock_black",
@@ -5906,7 +6422,8 @@
       "icon_path": "icons/gunsmith_sa58_stock_black.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.8
+      "weight": 0.8,
+      "scan_alias": "SA58 Black"
     },
     {
       "id": "gunsmith_sa58_stock_brs",
@@ -5914,7 +6431,8 @@
       "icon_path": "icons/gunsmith_sa58_stock_brs.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.81
+      "weight": 0.81,
+      "scan_alias": "SA58 BRS"
     },
     {
       "id": "gunsmith_sa58_stock_para",
@@ -5922,7 +6440,8 @@
       "icon_path": "icons/gunsmith_sa58_stock_para.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.35
+      "weight": 0.35,
+      "scan_alias": "SA58 Para stock"
     },
     {
       "id": "gunsmith_sa58_stock_prs",
@@ -5930,7 +6449,8 @@
       "icon_path": "icons/gunsmith_sa58_stock_prs.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.86
+      "weight": 0.86,
+      "scan_alias": "SA58 PRS"
     },
     {
       "id": "gunsmith_sa58_stock_spr",
@@ -5938,7 +6458,8 @@
       "icon_path": "icons/gunsmith_sa58_stock_spr.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.95
+      "weight": 0.95,
+      "scan_alias": "SA58 SPR"
     },
     {
       "id": "gunsmith_sa58_stock_wooden",
@@ -5946,7 +6467,8 @@
       "icon_path": "icons/gunsmith_sa58_stock_wooden.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.9
+      "weight": 0.9,
+      "scan_alias": "SA58 Wooden"
     },
     {
       "id": "gunsmith_sa58_upperreceiver_ed",
@@ -5954,7 +6476,8 @@
       "icon_path": "icons/gunsmith_sa58_upperreceiver_ed.png",
       "category": "gunsmith",
       "subcategory": "Upper receiver",
-      "weight": 0.22
+      "weight": 0.22,
+      "scan_alias": "SA58 ED Cover"
     },
     {
       "id": "gunsmith_sa58_upperreceiver_fal",
@@ -5962,7 +6485,8 @@
       "icon_path": "icons/gunsmith_sa58_upperreceiver_fal.png",
       "category": "gunsmith",
       "subcategory": "Upper receiver",
-      "weight": 0.21
+      "weight": 0.21,
+      "scan_alias": "SA58 FAL Cover"
     },
     {
       "id": "gunsmith_sa58_upperreceiver_sa58",
@@ -5970,7 +6494,8 @@
       "icon_path": "icons/gunsmith_sa58_upperreceiver_sa58.png",
       "category": "gunsmith",
       "subcategory": "Upper receiver",
-      "weight": 0.18
+      "weight": 0.18,
+      "scan_alias": "SA58 Standard Cover"
     },
     {
       "id": "gunsmith_scar_frontsight_fs",
@@ -5978,14 +6503,16 @@
       "icon_path": "icons/gunsmith_scar_frontsight_fs.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.06
+      "weight": 0.06,
+      "scan_alias": "SECA Front"
     },
     {
       "id": "gunsmith_scar_lowerreceiver_mk16",
       "name": "SECA16 5.56x45mm assault rifle",
       "icon_path": "icons/gunsmith_scar_lowerreceiver_mk16.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "SECA16"
     },
     {
       "id": "gunsmith_scar_mount_bottomrail",
@@ -5993,7 +6520,8 @@
       "icon_path": "icons/gunsmith_scar_mount_bottomrail.png",
       "category": "gunsmith",
       "subcategory": "Mount",
-      "weight": 0.13
+      "weight": 0.13,
+      "scan_alias": "Bottom rail"
     },
     {
       "id": "gunsmith_scar_mount_mrex",
@@ -6001,7 +6529,8 @@
       "icon_path": "icons/gunsmith_scar_mount_mrex.png",
       "category": "gunsmith",
       "subcategory": "Mount",
-      "weight": 0.33
+      "weight": 0.33,
+      "scan_alias": "SECA MREX"
     },
     {
       "id": "gunsmith_scar_stock_ssr",
@@ -6009,7 +6538,8 @@
       "icon_path": "icons/gunsmith_scar_stock_ssr.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 1.2
+      "weight": 1.2,
+      "scan_alias": "SECA SSR"
     },
     {
       "id": "gunsmith_sjogren_barrel_long",
@@ -6017,7 +6547,8 @@
       "icon_path": "icons/gunsmith_sjogren_barrel_long.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 0.8
+      "weight": 0.8,
+      "scan_alias": "Sjogren 710mm"
     },
     {
       "id": "gunsmith_sjogren_barrel_medium",
@@ -6025,7 +6556,8 @@
       "icon_path": "icons/gunsmith_sjogren_barrel_medium.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 0.6
+      "weight": 0.6,
+      "scan_alias": "Sjogren 360mm"
     },
     {
       "id": "gunsmith_sjogren_barrel_short",
@@ -6033,7 +6565,8 @@
       "icon_path": "icons/gunsmith_sjogren_barrel_short.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 0.4
+      "weight": 0.4,
+      "scan_alias": "Sjogren 350mm"
     },
     {
       "id": "gunsmith_sjogren_handguard_long",
@@ -6041,7 +6574,8 @@
       "icon_path": "icons/gunsmith_sjogren_handguard_long.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 1.2
+      "weight": 1.2,
+      "scan_alias": "Sjogren 10rd handguard"
     },
     {
       "id": "gunsmith_sjogren_handguard_medium",
@@ -6049,7 +6583,8 @@
       "icon_path": "icons/gunsmith_sjogren_handguard_medium.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.96
+      "weight": 0.96,
+      "scan_alias": "Sjogren 6rd handguard"
     },
     {
       "id": "gunsmith_sjogren_handguard_short",
@@ -6057,14 +6592,16 @@
       "icon_path": "icons/gunsmith_sjogren_handguard_short.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.9
+      "weight": 0.9,
+      "scan_alias": "Sjogren 4rd handguard"
     },
     {
       "id": "gunsmith_sjogren_lowerreceiver_sjogren",
       "name": "Sjogren 12ga semi-automatic shotgun",
       "icon_path": "icons/gunsmith_sjogren_lowerreceiver_sjogren.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "Sjogren"
     },
     {
       "id": "gunsmith_sjogren_mount_rail1",
@@ -6072,7 +6609,8 @@
       "icon_path": "icons/gunsmith_sjogren_mount_rail1.png",
       "category": "gunsmith",
       "subcategory": "Mount",
-      "weight": 0.15
+      "weight": 0.15,
+      "scan_alias": "handguard tactical"
     },
     {
       "id": "gunsmith_sjogren_mount_rail2",
@@ -6080,7 +6618,8 @@
       "icon_path": "icons/gunsmith_sjogren_mount_rail2.png",
       "category": "gunsmith",
       "subcategory": "Mount",
-      "weight": 0.14
+      "weight": 0.14,
+      "scan_alias": "barrel sight"
     },
     {
       "id": "gunsmith_sjogren_stock_full",
@@ -6088,7 +6627,8 @@
       "icon_path": "icons/gunsmith_sjogren_stock_full.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.64
+      "weight": 0.64,
+      "scan_alias": "Sjogren Full"
     },
     {
       "id": "gunsmith_sjogren_stock_sawoff",
@@ -6096,7 +6636,8 @@
       "icon_path": "icons/gunsmith_sjogren_stock_sawoff.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.25
+      "weight": 0.25,
+      "scan_alias": "Sjogren Sawed Off"
     },
     {
       "id": "gunsmith_sks_clip_10undettachable",
@@ -6104,7 +6645,8 @@
       "icon_path": "icons/gunsmith_sks_clip_10undettachable.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.19
+      "weight": 0.19,
+      "scan_alias": "SKS 10rd Internal"
     },
     {
       "id": "gunsmith_sks_clip_35promag",
@@ -6112,7 +6654,8 @@
       "icon_path": "icons/gunsmith_sks_clip_35promag.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.22
+      "weight": 0.22,
+      "scan_alias": "SKS 35rd Pro Mag"
     },
     {
       "id": "gunsmith_sks_clip_drum",
@@ -6120,7 +6663,8 @@
       "icon_path": "icons/gunsmith_sks_clip_drum.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 1.05
+      "weight": 1.05,
+      "scan_alias": "SKS 75rd Drum"
     },
     {
       "id": "gunsmith_sks_clip_puf20",
@@ -6128,14 +6672,16 @@
       "icon_path": "icons/gunsmith_sks_clip_puf20.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.12
+      "weight": 0.12,
+      "scan_alias": "SKS 20rd Puf"
     },
     {
       "id": "gunsmith_sks_lowerreceiver_opsks",
       "name": "OP-SKS 7.62x39mm carbine rifle",
       "icon_path": "icons/gunsmith_sks_lowerreceiver_opsks.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "OPSKS"
     },
     {
       "id": "gunsmith_sks_mount_choate",
@@ -6143,7 +6689,8 @@
       "icon_path": "icons/gunsmith_sks_mount_choate.png",
       "category": "gunsmith",
       "subcategory": "Mount",
-      "weight": 0.05
+      "weight": 0.05,
+      "scan_alias": "SKS Choate"
     },
     {
       "id": "gunsmith_sks_mount_dovetailmount",
@@ -6151,7 +6698,8 @@
       "icon_path": "icons/gunsmith_sks_mount_dovetailmount.png",
       "category": "gunsmith",
       "subcategory": "Mount",
-      "weight": 0.13
+      "weight": 0.13,
+      "scan_alias": "SKS Dove Tail"
     },
     {
       "id": "gunsmith_sks_mount_socom",
@@ -6159,7 +6707,8 @@
       "icon_path": "icons/gunsmith_sks_mount_socom.png",
       "category": "gunsmith",
       "subcategory": "Mount",
-      "weight": 0.17
+      "weight": 0.17,
+      "scan_alias": "SKS SOCOM"
     },
     {
       "id": "gunsmith_sks_muzzle_hexagonsuppressor",
@@ -6167,7 +6716,8 @@
       "icon_path": "icons/gunsmith_sks_muzzle_hexagonsuppressor.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.46
+      "weight": 0.46,
+      "scan_alias": "SKS Hexagon"
     },
     {
       "id": "gunsmith_sks_muzzle_wt0032ak103adapter",
@@ -6175,7 +6725,8 @@
       "icon_path": "icons/gunsmith_sks_muzzle_wt0032ak103adapter.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.43
+      "weight": 0.43,
+      "scan_alias": "SKS AK103 Adapter"
     },
     {
       "id": "gunsmith_sks_rearsight_sksrearsight",
@@ -6183,7 +6734,8 @@
       "icon_path": "icons/gunsmith_sks_rearsight_sksrearsight.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.02
+      "weight": 0.02,
+      "scan_alias": "SKS Rear"
     },
     {
       "id": "gunsmith_sks_stock_carlo",
@@ -6191,7 +6743,8 @@
       "icon_path": "icons/gunsmith_sks_stock_carlo.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 1.2
+      "weight": 1.2,
+      "scan_alias": "SKS Carlo"
     },
     {
       "id": "gunsmith_sks_stock_tapco",
@@ -6199,14 +6752,16 @@
       "icon_path": "icons/gunsmith_sks_stock_tapco.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 1.1
+      "weight": 1.1,
+      "scan_alias": "SKS Tapco"
     },
     {
       "id": "gunsmith_sks_stock_uas",
       "name": "SKS UAS stock",
       "icon_path": "icons/gunsmith_sks_stock_uas.png",
       "category": "gunsmith",
-      "subcategory": "Stock"
+      "subcategory": "Stock",
+      "scan_alias": "SKS UAS"
     },
     {
       "id": "gunsmith_sks_stock_woodred",
@@ -6214,7 +6769,8 @@
       "icon_path": "icons/gunsmith_sks_stock_woodred.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 1.5
+      "weight": 1.5,
+      "scan_alias": "SKS Wood Red"
     },
     {
       "id": "gunsmith_sks_stock_woodyellow",
@@ -6222,7 +6778,8 @@
       "icon_path": "icons/gunsmith_sks_stock_woodyellow.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 1.5
+      "weight": 1.5,
+      "scan_alias": "SKS Wood Yellow"
     },
     {
       "id": "gunsmith_sks_upperreceiver_dustcover",
@@ -6230,7 +6787,8 @@
       "icon_path": "icons/gunsmith_sks_upperreceiver_dustcover.png",
       "category": "gunsmith",
       "subcategory": "Upper receiver",
-      "weight": 0.08
+      "weight": 0.08,
+      "scan_alias": "SKS Cover"
     },
     {
       "id": "gunsmith_sks_upperreceiver_mtu017",
@@ -6238,7 +6796,8 @@
       "icon_path": "icons/gunsmith_sks_upperreceiver_mtu017.png",
       "category": "gunsmith",
       "subcategory": "Upper receiver",
-      "weight": 0.22
+      "weight": 0.22,
+      "scan_alias": "MTU017 Cover"
     },
     {
       "id": "gunsmith_svd_barrel_cutoff",
@@ -6246,7 +6805,8 @@
       "icon_path": "icons/gunsmith_svd_barrel_cutoff.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 1.05
+      "weight": 1.05,
+      "scan_alias": "SVD 410mm"
     },
     {
       "id": "gunsmith_svd_barrel_fulllength",
@@ -6254,7 +6814,8 @@
       "icon_path": "icons/gunsmith_svd_barrel_fulllength.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 1.12
+      "weight": 1.12,
+      "scan_alias": "SVD 565mm"
     },
     {
       "id": "gunsmith_svd_clip_10rnd",
@@ -6262,7 +6823,8 @@
       "icon_path": "icons/gunsmith_svd_clip_10rnd.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.112
+      "weight": 0.112,
+      "scan_alias": "SVD 10rd"
     },
     {
       "id": "gunsmith_svd_handguard_plastic",
@@ -6270,7 +6832,8 @@
       "icon_path": "icons/gunsmith_svd_handguard_plastic.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.25
+      "weight": 0.25,
+      "scan_alias": "AK74M"
     },
     {
       "id": "gunsmith_svd_handguard_svdmod",
@@ -6278,7 +6841,8 @@
       "icon_path": "icons/gunsmith_svd_handguard_svdmod.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.89
+      "weight": 0.89,
+      "scan_alias": "SVD SAG"
     },
     {
       "id": "gunsmith_svd_handguard_wood",
@@ -6286,14 +6850,16 @@
       "icon_path": "icons/gunsmith_svd_handguard_wood.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.45
+      "weight": 0.45,
+      "scan_alias": "SVD Wood"
     },
     {
       "id": "gunsmith_svd_lowerreceiver_svd",
       "name": "SVD 7.62x54mmR designated marksman rifle",
       "icon_path": "icons/gunsmith_svd_lowerreceiver_svd.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "SVD"
     },
     {
       "id": "gunsmith_svd_mount_picrail",
@@ -6301,7 +6867,8 @@
       "icon_path": "icons/gunsmith_svd_mount_picrail.png",
       "category": "gunsmith",
       "subcategory": "Mount",
-      "weight": 0.165
+      "weight": 0.165,
+      "scan_alias": "SVD Rail"
     },
     {
       "id": "gunsmith_svd_mount_pso1scope",
@@ -6309,7 +6876,8 @@
       "icon_path": "icons/gunsmith_svd_mount_pso1scope.png",
       "category": "gunsmith",
       "subcategory": "Mount",
-      "weight": 0.6
+      "weight": 0.6,
+      "scan_alias": "SVD PSO-1"
     },
     {
       "id": "gunsmith_svd_muzzle_suppressor",
@@ -6317,7 +6885,8 @@
       "icon_path": "icons/gunsmith_svd_muzzle_suppressor.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.99
+      "weight": 0.99,
+      "scan_alias": "SVD R43"
     },
     {
       "id": "gunsmith_svd_muzzle_svd",
@@ -6325,7 +6894,8 @@
       "icon_path": "icons/gunsmith_svd_muzzle_svd.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.08
+      "weight": 0.08,
+      "scan_alias": "SVD Compensator"
     },
     {
       "id": "gunsmith_svd_rearsight_svd",
@@ -6333,7 +6903,8 @@
       "icon_path": "icons/gunsmith_svd_rearsight_svd.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.015
+      "weight": 0.015,
+      "scan_alias": "SVD Rear"
     },
     {
       "id": "gunsmith_svd_stock_buffertubeadapter",
@@ -6341,7 +6912,8 @@
       "icon_path": "icons/gunsmith_svd_stock_buffertubeadapter.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.127
+      "weight": 0.127,
+      "scan_alias": "SVD ARstock adaptor"
     },
     {
       "id": "gunsmith_svd_stock_plastic",
@@ -6349,7 +6921,8 @@
       "icon_path": "icons/gunsmith_svd_stock_plastic.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.35
+      "weight": 0.35,
+      "scan_alias": "SVD Polymer Stock"
     },
     {
       "id": "gunsmith_svd_stock_wood",
@@ -6357,7 +6930,8 @@
       "icon_path": "icons/gunsmith_svd_stock_wood.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.6
+      "weight": 0.6,
+      "scan_alias": "SVD Wood Stock"
     },
     {
       "id": "gunsmith_svd_upperreceiver_cutoff",
@@ -6365,7 +6939,8 @@
       "icon_path": "icons/gunsmith_svd_upperreceiver_cutoff.png",
       "category": "gunsmith",
       "subcategory": "Upper receiver",
-      "weight": 0.05
+      "weight": 0.05,
+      "scan_alias": "Cut Off Cover"
     },
     {
       "id": "gunsmith_svd_upperreceiver_fulllength",
@@ -6373,7 +6948,8 @@
       "icon_path": "icons/gunsmith_svd_upperreceiver_fulllength.png",
       "category": "gunsmith",
       "subcategory": "Upper receiver",
-      "weight": 0.088
+      "weight": 0.088,
+      "scan_alias": "Standard Cover"
     },
     {
       "id": "gunsmith_svt40_barrel_svt40",
@@ -6381,7 +6957,8 @@
       "icon_path": "icons/gunsmith_svt40_barrel_svt40.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 1.33
+      "weight": 1.33,
+      "scan_alias": "SVT40"
     },
     {
       "id": "gunsmith_svt40_clip_10",
@@ -6389,14 +6966,16 @@
       "icon_path": "icons/gunsmith_svt40_clip_10.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.28
+      "weight": 0.28,
+      "scan_alias": "SVT40 10rd"
     },
     {
       "id": "gunsmith_svt40_lowerreceiver_svt40",
       "name": "SVT40 7.62x54mmR battle rifle",
       "icon_path": "icons/gunsmith_svt40_lowerreceiver_svt40.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "SVT40"
     },
     {
       "id": "gunsmith_svt40_mount_puscope",
@@ -6404,7 +6983,8 @@
       "icon_path": "icons/gunsmith_svt40_mount_puscope.png",
       "category": "gunsmith",
       "subcategory": "Mount",
-      "weight": 0.42
+      "weight": 0.42,
+      "scan_alias": "SVT40 PU"
     },
     {
       "id": "gunsmith_svt40_muzzle_svt40",
@@ -6412,7 +6992,8 @@
       "icon_path": "icons/gunsmith_svt40_muzzle_svt40.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.07
+      "weight": 0.07,
+      "scan_alias": "SVT40 Comp"
     },
     {
       "id": "gunsmith_svt40_rearsight_rs",
@@ -6420,7 +7001,8 @@
       "icon_path": "icons/gunsmith_svt40_rearsight_rs.png",
       "category": "gunsmith",
       "subcategory": "Sight",
-      "weight": 0.02
+      "weight": 0.02,
+      "scan_alias": "SVT40 Rear"
     },
     {
       "id": "gunsmith_svt40_stock_svt40",
@@ -6428,7 +7010,8 @@
       "icon_path": "icons/gunsmith_svt40_stock_svt40.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 1.22
+      "weight": 1.22,
+      "scan_alias": "SVT40"
     },
     {
       "id": "gunsmith_svt40_upperreceiver_svt40",
@@ -6436,7 +7019,8 @@
       "icon_path": "icons/gunsmith_svt40_upperreceiver_svt40.png",
       "category": "gunsmith",
       "subcategory": "Upper receiver",
-      "weight": 0.09
+      "weight": 0.09,
+      "scan_alias": "SVT40 Cover"
     },
     {
       "id": "gunsmith_ump_barrel_ump45",
@@ -6444,7 +7028,8 @@
       "icon_path": "icons/gunsmith_ump_barrel_ump45.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 0.42
+      "weight": 0.42,
+      "scan_alias": "UMP45 Barrel"
     },
     {
       "id": "gunsmith_ump_clip_25",
@@ -6460,7 +7045,8 @@
       "name": "UMP45 .45acp sub-machine gun",
       "icon_path": "icons/gunsmith_ump_lowerreceiver_ump45.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "UMP45"
     },
     {
       "id": "gunsmith_ump_muzzle_flashhider",
@@ -6468,7 +7054,8 @@
       "icon_path": "icons/gunsmith_ump_muzzle_flashhider.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.06
+      "weight": 0.06,
+      "scan_alias": "UMP45 FlashHider"
     },
     {
       "id": "gunsmith_ump_stock_folder",
@@ -6476,7 +7063,8 @@
       "icon_path": "icons/gunsmith_ump_stock_folder.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.65
+      "weight": 0.65,
+      "scan_alias": "UMP45 Folder"
     },
     {
       "id": "gunsmith_ump_upperreceiver_ump",
@@ -6484,7 +7072,8 @@
       "icon_path": "icons/gunsmith_ump_upperreceiver_ump.png",
       "category": "gunsmith",
       "subcategory": "Upper receiver",
-      "weight": 0.45
+      "weight": 0.45,
+      "scan_alias": "UMP45 Upper"
     },
     {
       "id": "gunsmith_vector_barrel_10mm127mm",
@@ -6492,7 +7081,8 @@
       "icon_path": "icons/gunsmith_vector_barrel_10mm127mm.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 0.17
+      "weight": 0.17,
+      "scan_alias": "Vector 45 127mm"
     },
     {
       "id": "gunsmith_vector_barrel_10mm228mm",
@@ -6500,7 +7090,8 @@
       "icon_path": "icons/gunsmith_vector_barrel_10mm228mm.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 0.19
+      "weight": 0.19,
+      "scan_alias": "Vector 45 228mm"
     },
     {
       "id": "gunsmith_vector_barrel_10mm304mm",
@@ -6508,7 +7099,8 @@
       "icon_path": "icons/gunsmith_vector_barrel_10mm304mm.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 0.23
+      "weight": 0.23,
+      "scan_alias": "Vector 45 304mm"
     },
     {
       "id": "gunsmith_vector_barrel_9mm127mm",
@@ -6516,7 +7108,8 @@
       "icon_path": "icons/gunsmith_vector_barrel_9mm127mm.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 0.16
+      "weight": 0.16,
+      "scan_alias": "Vector 9 127mm"
     },
     {
       "id": "gunsmith_vector_barrel_9mm228mm",
@@ -6524,7 +7117,8 @@
       "icon_path": "icons/gunsmith_vector_barrel_9mm228mm.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 0.18
+      "weight": 0.18,
+      "scan_alias": "Vector 9 228mm"
     },
     {
       "id": "gunsmith_vector_barrel_9mm304mm",
@@ -6532,7 +7126,8 @@
       "icon_path": "icons/gunsmith_vector_barrel_9mm304mm.png",
       "category": "gunsmith",
       "subcategory": "Barrel",
-      "weight": 0.22
+      "weight": 0.22,
+      "scan_alias": "Vector 9 304mm"
     },
     {
       "id": "gunsmith_vector_clip_45acp17rnd",
@@ -6540,7 +7135,8 @@
       "icon_path": "icons/gunsmith_vector_clip_45acp17rnd.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.09
+      "weight": 0.09,
+      "scan_alias": "Vector 45 17rd"
     },
     {
       "id": "gunsmith_vector_clip_45acp35rnd",
@@ -6548,7 +7144,8 @@
       "icon_path": "icons/gunsmith_vector_clip_45acp35rnd.png",
       "category": "gunsmith",
       "subcategory": "Magazine",
-      "weight": 0.19
+      "weight": 0.19,
+      "scan_alias": "Vector 45 35rd"
     },
     {
       "id": "gunsmith_vector_handguard_mk012",
@@ -6556,7 +7153,8 @@
       "icon_path": "icons/gunsmith_vector_handguard_mk012.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.34
+      "weight": 0.34,
+      "scan_alias": "Vector MK012"
     },
     {
       "id": "gunsmith_vector_handguard_mk013",
@@ -6564,21 +7162,24 @@
       "icon_path": "icons/gunsmith_vector_handguard_mk013.png",
       "category": "gunsmith",
       "subcategory": "Handguard",
-      "weight": 0.3
+      "weight": 0.3,
+      "scan_alias": "Vector MK013"
     },
     {
       "id": "gunsmith_vector_lowerreceiver_vector10mm",
       "name": "Vector .45acp sub-machine gun",
       "icon_path": "icons/gunsmith_vector_lowerreceiver_vector10mm.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "Vector 45"
     },
     {
       "id": "gunsmith_vector_lowerreceiver_vector9mm",
       "name": "Vector 9x19mm sub-machine gun",
       "icon_path": "icons/gunsmith_vector_lowerreceiver_vector9mm.png",
       "category": "gunsmith",
-      "subcategory": "Lower receiver"
+      "subcategory": "Lower receiver",
+      "scan_alias": "Vector 9"
     },
     {
       "id": "gunsmith_vector_muzzle_cap",
@@ -6586,7 +7187,8 @@
       "icon_path": "icons/gunsmith_vector_muzzle_cap.png",
       "category": "gunsmith",
       "subcategory": "Muzzle",
-      "weight": 0.08
+      "weight": 0.08,
+      "scan_alias": "Vector Muzzle Cap"
     },
     {
       "id": "gunsmith_vector_stock_buffertubeadapter",
@@ -6594,7 +7196,8 @@
       "icon_path": "icons/gunsmith_vector_stock_buffertubeadapter.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.28
+      "weight": 0.28,
+      "scan_alias": "Vector Buffer Adapter"
     },
     {
       "id": "gunsmith_vector_stock_fde",
@@ -6602,7 +7205,8 @@
       "icon_path": "icons/gunsmith_vector_stock_fde.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.3
+      "weight": 0.3,
+      "scan_alias": "Vector FDE"
     },
     {
       "id": "gunsmith_vector_stock_rg",
@@ -6610,7 +7214,8 @@
       "icon_path": "icons/gunsmith_vector_stock_rg.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.3
+      "weight": 0.3,
+      "scan_alias": "Vector RG"
     },
     {
       "id": "gunsmith_vector_stock_sling",
@@ -6618,7 +7223,8 @@
       "icon_path": "icons/gunsmith_vector_stock_sling.png",
       "category": "gunsmith",
       "subcategory": "Stock",
-      "weight": 0.25
+      "weight": 0.25,
+      "scan_alias": "Vector Sling"
     },
     {
       "id": "misc_b_aladdinlamp",

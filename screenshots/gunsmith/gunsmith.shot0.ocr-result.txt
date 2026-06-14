@@ -8,15 +8,20 @@
 # the frozen gunsmith.shot0.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 5 item tile(s) across 3 grid row(s)
-  dropped 9 text(s) that matched no catalog item (window title, weight
+  recognized 10 item tile(s) across 5 grid row(s)
+  dropped 13 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
+    1 x gunsmith_ak74u_lowerreceiver_aks74un
     1 x gunsmith_ak_mount_rsr
     1 x gunsmith_ar10_barrel_508
     1 x gunsmith_ar10_lowerreceiver_ar308
+    1 x gunsmith_ar10_upperreceiver_ar308
+    1 x gunsmith_ar15_mount_handlescoperail
+    1 x gunsmith_ar15_pistolgrip_m4factory
     1 x gunsmith_mp5_upperreceiver_mp5a4
+    1 x gunsmith_sks_upperreceiver_dustcover
     1 x gunsmith_ump_clip_25
 #
 ## DETAIL — every text the OCR produced, row by row
@@ -27,11 +32,11 @@
     O SETTINGS                     -> (no match)
   [tabs  ]
     ALL                            -> (no match)
-  [chrome]
-    AKS74U                         -> (no match)
+  [items ]
+    AKS74U                         -> gunsmith_ak74u_lowerreceiver_aks74un
     U.Uh•r                         -> (no match)
     Ga Grun Stock                  -> (no match)
-    AR30e upper                    -> (no match)
+    AR30e upper                    -> gunsmith_ar10_upperreceiver_ar308
     e Mod.3FUE                     -> (no match)
   [items ]
     RSR                            -> gunsmith_ak_mount_rsr
@@ -41,13 +46,13 @@
     St. rmGrutf                    -> (no match)
   [items ]
     AR-iO 508mm                    -> gunsmith_ar10_barrel_508
-    SKS cover                      -> (no match)
+    SKS cover                      -> gunsmith_sks_upperreceiver_dustcover
     Elev.ting                      -> (no match)
-    M4 f.ctory                     -> (no match)
-  [chrome]
+    M4 f.ctory                     -> gunsmith_ar15_pistolgrip_m4factory
+  [items ]
     AR-15 mmm Sight                -> (no match)
     usue                           -> (no match)
-    VAR-IS "4 scope Mount          -> (no match)
+    VAR-IS "4 scope Mount          -> gunsmith_ar15_mount_handlescoperail
     fké4i8AE upper                 -> (no match)
   [items ]
     sixse-MG                       -> (no match)

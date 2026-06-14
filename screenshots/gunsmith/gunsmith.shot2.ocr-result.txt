@@ -8,8 +8,8 @@
 # the frozen gunsmith.shot2.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 7 item tile(s) across 4 grid row(s)
-  dropped 9 text(s) that matched no catalog item (window title, weight
+  recognized 8 item tile(s) across 5 grid row(s)
+  dropped 14 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
@@ -19,7 +19,7 @@
     1 x gunsmith_20rail_sight_srs
     1 x gunsmith_20rail_sight_t1highlever
     1 x gunsmith_ak_mount_rsr
-    1 x gunsmith_ar15_muzzle_usgia2
+    2 x gunsmith_ar15_muzzle_usgia2
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
@@ -28,10 +28,10 @@
     AUTO MODE                      -> (no match)
     O SETTINGS                     -> (no match)
     SAVE TO PRESET                 -> (no match)
-  [chrome]
+  [items ]
     f.ct.ry                        -> (no match)
     MI SAE                         -> (no match)
-    AR-IS USG'A2                   -> (no match)
+    AR-IS USG'A2                   -> gunsmith_ar15_muzzle_usgia2
     juts                           -> (no match)
     MA f .etary                    -> (no match)
     aord                           -> (no match)

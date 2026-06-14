@@ -8,13 +8,16 @@
 # the frozen gunsmith.shot1.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 2 item tile(s) across 2 grid row(s)
-  dropped 3 text(s) that matched no catalog item (window title, weight
+  recognized 6 item tile(s) across 4 grid row(s)
+  dropped 8 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
     1 x gunsmith_20rail_sight_t1highlever
     1 x gunsmith_ar15_handguard_4inchris
+    2 x gunsmith_ar15_pistolgrip_m4factory
+    1 x gunsmith_aug_clip_42
+    1 x gunsmith_mp9_upperreceiver_mp9
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
@@ -25,17 +28,17 @@
     SAVE TO PRESET                 -> (no match)
   [tabs  ]
     ALL                            -> (no match)
-  [chrome]
+  [items ]
     s1x88-MG                       -> (no match)
     UPSA4                          -> (no match)
-    MPS" upper                     -> (no match)
+    MPS" upper                     -> gunsmith_mp9_upperreceiver_mp9
     UMP'S esrd                     -> (no match)
   [items ]
     AR-IS OO                       -> (no match)
     AR-IS 4in RIS                  -> gunsmith_ar15_handguard_4inchris
   [items ]
     lÅk-1S usue                    -> (no match)
-    auc 42rd                       -> (no match)
+    auc 42rd                       -> gunsmith_aug_clip_42
     Elevating                      -> gunsmith_20rail_sight_t1highlever
   [chrome]
     .4                             -> (no match)
@@ -43,11 +46,11 @@
     mue upper                      -> (no match)
     'ÅkJGsoemmSi:ht                -> (no match)
     Polymer                        -> (no match)
-  [chrome]
-    "4 factory                     -> (no match)
+  [items ]
+    "4 factory                     -> gunsmith_ar15_pistolgrip_m4factory
     -15 USGIAe                     -> (no match)
     MIS                            -> (no match)
-    M4 factory                     -> (no match)
+    M4 factory                     -> gunsmith_ar15_pistolgrip_m4factory
     20                             -> (no match)
   [chrome]
     BACK                           -> (no match)

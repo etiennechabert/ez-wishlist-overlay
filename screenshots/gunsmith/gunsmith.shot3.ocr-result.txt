@@ -8,13 +8,15 @@
 # the frozen gunsmith.shot3.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 4 item tile(s) across 3 grid row(s)
-  dropped 8 text(s) that matched no catalog item (window title, weight
+  recognized 6 item tile(s) across 4 grid row(s)
+  dropped 9 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
+    1 x gunsmith_20rail_foregrip_pk1b25u
     1 x gunsmith_20rail_sight_ocp7
     1 x gunsmith_20rail_sight_t1highlever
+    1 x gunsmith_20rail_sight_toucan2
     1 x gunsmith_ar10_clip_10
     1 x gunsmith_ar15_handguard_4inchris
 #
@@ -32,7 +34,7 @@
   [items ]
     'EQ-ISL„                       -> (no match)
     AR-IS 4in RIS                  -> gunsmith_ar15_handguard_4inchris
-    '6k.1B2su                      -> (no match)
+    '6k.1B2su                      -> gunsmith_20rail_foregrip_pk1b25u
     Elevating                      -> gunsmith_20rail_sight_t1highlever
   [items ]
     ocp-7                          -> gunsmith_20rail_sight_ocp7
@@ -44,9 +46,9 @@
     pi-0-1 Cover                   -> (no match)
     6p20-sbB                       -> (no match)
     SO                             -> (no match)
-  [chrome]
+  [items ]
     6p1-,bS                        -> (no match)
-    toucane                        -> (no match)
+    toucane                        -> gunsmith_20rail_sight_toucan2
     obru                           -> (no match)
   [chrome]
     WITHDRAW                       -> (no match)

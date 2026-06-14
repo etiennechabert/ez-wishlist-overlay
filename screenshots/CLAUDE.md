@@ -194,19 +194,23 @@ The gunsmith's own stash (in-game path **Gunsmith → Storage**): a weight-cappe
 matcher (issue #183).
 
 **Why it needs its own matcher.** The storage grid shows hand-authored *short*
-gun-part names (`Cobra`, `M16A1`, `AR308 Upper`, `AKS74UB18`) while the catalog
-carries the full `WFItemsStringTable` names (`Cobra 20mm reflex sight`, …). So
-`read_tiles` runs with `gunsmith = true` (scoped to this one container — set
-from the `ScanTarget` in `main.rs`), adding two passes after the strict one: an
-exact `Item.scan_alias` match, then a structural token-subsequence alignment.
-See the `crate::ocr::match_item` module docs. Misc box/stash matching is
-untouched (`gunsmith = false`).
+gun-part names (`Cobra`, `M16A1`, `AR-308 DMR`, `AKS74U B18`) while the catalog
+carries the full `WFItemsStringTable` names (`Cobra 20mm reflex sight`, …). Those
+short names ARE in the paks — the game's **`GunSmithItemAdv`** table holds one
+per `gunsmith.*` tag — so they're extracted offline into each part's
+`Item.scan_alias` (see the data-provenance section in the repo-root `CLAUDE.md`).
+`read_tiles` runs with `gunsmith = true` (scoped to this one container — set from
+the `ScanTarget` in `main.rs`), and after the strict pass misses, matches the
+tile against each part's `scan_alias` by the same confusion-aware distance. See
+the `crate::ocr::match_item` module docs. Misc box/stash matching is untouched
+(`gunsmith = false`).
 
 **Gate — `gunsmith_storage_scan_resolves_parts`** (cross-platform, off the
 frozen `.boxes.json`): the scan must resolve a **floor** of distinct parts (was
 **0** before #183), every one genuinely in the `gunsmith` catalog, plus
-spot-checked tiles across the resolution paths (clean structural, confusable
-structural, each `scan_alias` kind). It's a floor, not an exact tally:
+spot-checked tiles — including heavily OCR-garbled reads the alias still recovers
+(`AR-308 OUR` → the rifle, `AR-IO lord` → the 10rd mag). It's a floor, not an
+exact tally:
 
 - **This is a gappy gaze-crop series, NOT row-by-row.** The 4 shots overlap with
   scroll gaps (~1424×927 debug crops, not full 3096×3312 mirror frames), so the
@@ -215,10 +219,10 @@ structural, each `scan_alias` kind). It's a floor, not an exact tally:
   merge keeps different rows. `gunsmith.label.txt` is the **golden snapshot** of
   what currently resolves (a regression reference + the `.ocr-result.txt` input),
   not the storage's true contents.
-- Ambiguous short labels (`M4 factory` = two parts, `MP5A4` = a dozen) and a few
-  not-yet-aliased abbreviations stay unrecognized **by design** (reject rather
-  than guess). To resolve more, pin an `Item.scan_alias` against a verified tile
-  or add a confusable pair — never loosen the cost cap.
+- Short names the game **shares across parts** (27 of them — `M9`, `AR-15 DD`,
+  `AR-15 M4`) stay unrecognized **by design**: the alias matcher rejects a tie
+  rather than guess. A handful of parts (3 of 614) have no extractable short name
+  and likewise won't resolve.
 - **To gate an exact/graded tally**, recapture full frames row-by-row (the stash
   #163 convention) so the merge is gap-free, then score it in `eval_report_json`
   the way box/stash are. Until then the floor gate is the guard.

@@ -31,8 +31,17 @@ Paks are **pak v11, UNENCRYPTED** (no AES key); file data is **Oodle**-compresse
   - ⚠️ `…/Warfare/ItemInfoWeight/WarfareItemInfo` is the **UI widget**, not a stats
     table. **Sell prices are NOT in the paks** — each blueprint's `SellInfo` maps a
     GUID the **Nakama backend** resolves at runtime; `data.json` prices stay curated.
+  - **Gun parts** (`gunsmith.*`): full names in `WFItemsStringTable` (catalog
+    `Item.name`); the **short name the Gunsmith → Storage grid shows** is a
+    *separate* string in `…/Warfare/Gunsmith/GunSmithItemAdv` — a DataTable keyed
+    by the `gunsmith.*` tag (705 rows), value = the short label (`AR-308 DMR`,
+    `AR308`, `G3 Green Stock`). 27 short names are shared across parts (`M9`,
+    `AR-15 DD`). These populate `Item.scan_alias` for the OCR storage scan
+    (issue #183). Its `.uasset` uses the legacy FName format (`int32 len`+null +
+    4-byte hash), not the UE5.5 2-byte header — handle both when parsing.
 - **pakchunk0** — `…/Localization/Game/{en,…}/Game.locres` (UI strings; note the
-  misc-item names are NOT here — they're in `WFItemsStringTable`).
+  misc-item names are NOT here — they're in `WFItemsStringTable`; gun-part SIGHT
+  short names also appear in its `GoodsStringTable`, e.g. `1144_name="Cobra"`).
 
 ### How to extract (FModel — the safe path)
 1. FModel (`fmodel.app`); Add Undetected Game → the Paks dir; **UE = `GAME_UE5_5`**;
