@@ -350,6 +350,25 @@ pub fn source_text(dark: bool) -> Color32 {
     }
 }
 
+/// One legend entry: a small rounded swatch followed by its label. Shared by
+/// the hideout and research panes so their status-color keys stay identical —
+/// the swatch is painted with the *live* theme color, so the legend tracks the
+/// active palette and dark/light mode automatically.
+pub fn legend_swatch(ui: &mut egui::Ui, color: Color32, label: &str, tip: &str) {
+    const SW: f32 = 13.0;
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(SW, SW), egui::Sense::hover());
+    if ui.is_rect_visible(rect) {
+        let border = ui.visuals().weak_text_color();
+        // Hairline border behind the chip so pale fills still read as a
+        // distinct swatch against the panel in either theme.
+        ui.painter().rect_filled(rect.expand(1.0), 3.5, border);
+        ui.painter().rect_filled(rect, 3.0, color);
+    }
+    ui.add(egui::Label::new(egui::RichText::new(label).small()).selectable(false))
+        .on_hover_text(tip);
+    ui.add_space(4.0);
+}
+
 /// WCAG 2.x contrast math, shared by the theme-readability tests here and in
 /// `containers_pane`. Single source of truth so the two suites can't measure
 /// "is this legible?" differently. Test-only.

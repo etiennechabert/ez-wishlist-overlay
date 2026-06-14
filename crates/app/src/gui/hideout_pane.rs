@@ -131,34 +131,30 @@ pub fn ui(
     legend_row(ui);
     ui.separator();
 
-    match settings.read().hideout_view {
-        HideoutView::Modules => {
-            header_row(ui);
-            ui.separator();
-            let rows = build_hideout_rows(&data.modules);
-            for (idx, row) in rows.iter().enumerate() {
-                match row {
-                    HideoutRow::SyntheticHeader(name) => {
-                        synthetic_header_row(ui, state, save_tx, name)
-                    }
-                    HideoutRow::Module { module, is_child } => {
-                        module_row(ui, state, save_tx, idx, module, *is_child);
+    // Grid / progress list scrolls in the height left above the docked recipe
+    // editor (rendered by the app as a ctx-level bottom panel — see
+    // `editor_footer` — so it stays pinned to the window bottom while editing).
+    egui::ScrollArea::vertical()
+        .id_salt("hideout-scroll")
+        .auto_shrink([false, false])
+        .show(ui, |ui| match settings.read().hideout_view {
+            HideoutView::Modules => {
+                header_row(ui);
+                ui.separator();
+                let rows = build_hideout_rows(&data.modules);
+                for (idx, row) in rows.iter().enumerate() {
+                    match row {
+                        HideoutRow::SyntheticHeader(name) => {
+                            synthetic_header_row(ui, state, save_tx, name)
+                        }
+                        HideoutRow::Module { module, is_child } => {
+                            module_row(ui, state, save_tx, idx, module, *is_child);
+                        }
                     }
                 }
             }
-        }
-        HideoutView::Progress => progress_list(ui, state, save_tx, icons),
-    }
-
-    // The recipe editor renders in BOTH views off the ctx-memory selection
-    // (keyed SELECTED_ID, layout-independent), so "Edit" works identically
-    // from a grid cell or a progress-list row.
-    if let Some(sel) = selected(ui.ctx()) {
-        ui.add_space(8.0);
-        if let Some((module, upgrade)) = find_upgrade(&data.modules, &sel) {
-            editable_recipe_panel(ui, state, save_tx, icons, &module.name, upgrade);
-        }
-    }
+            HideoutView::Progress => progress_list(ui, state, save_tx, icons),
+        });
 
     // Upgrade-completion modal — driven by ctx memory (set when any "Done"
     // checkbox is ticked, in either view), so a single instance covers the
@@ -166,6 +162,33 @@ pub fn ui(
     upgrade_completion_modal(ui, state, save_tx, icons, &data.modules);
 
     outcome
+}
+
+/// Whether a recipe is open in the editor — the app uses this to decide whether
+/// to dock the [`editor_footer`] bottom panel this frame.
+pub fn editor_is_open(ctx: &egui::Context) -> bool {
+    selected(ctx).is_some()
+}
+
+/// The recipe editor, rendered by the app into a docked bottom panel so it stays
+/// pinned to the window bottom while editing (the grid scrolls above it). Reads
+/// the ctx-memory selection (set by any "Edit" button) and finds its upgrade.
+pub fn editor_footer(
+    ui: &mut egui::Ui,
+    state: &Arc<RwLock<AppState>>,
+    save_tx: &Sender<SaveTick>,
+    icons: &mut IconCache,
+) {
+    let data = state.read().data.clone();
+    let Some(sel) = selected(ui.ctx()) else {
+        return;
+    };
+    let Some((module, upgrade)) = find_upgrade(&data.modules, &sel) else {
+        return;
+    };
+    // Rendered directly (no scroll area) so the docked bottom panel auto-sizes
+    // to the editor — a scroll area inside an auto-sizing panel collapses it.
+    editable_recipe_panel(ui, state, save_tx, icons, &module.name, upgrade);
 }
 
 /// Segmented "By module" / "By progress" toggle. Returns `true` when the
@@ -210,32 +233,32 @@ fn legend_row(ui: &mut egui::Ui) {
                 .strong()
                 .color(ui.visuals().weak_text_color()),
         );
-        legend_swatch(
+        theme::legend_swatch(
             ui,
             theme::tracked_fill(dark),
             "Tracked",
             "On your list — you're working toward it.",
         );
-        legend_swatch(
+        theme::legend_swatch(
             ui,
             theme::ready_fill(dark),
             "Ready",
             "Every required item collected — claim it in-game.",
         );
-        legend_swatch(ui, theme::done_fill(dark), "Done", "Built / completed.");
-        legend_swatch(
+        theme::legend_swatch(ui, theme::done_fill(dark), "Done", "Built / completed.");
+        theme::legend_swatch(
             ui,
             theme::pinned_accent(dark),
             "Pinned",
             "Prioritized — floats to the top of the By-progress list.",
         );
-        legend_swatch(
+        theme::legend_swatch(
             ui,
             theme::override_marker(dark),
             "Customized",
             "Recipe you've edited away from the bundled default.",
         );
-        legend_swatch(
+        theme::legend_swatch(
             ui,
             theme::unknown_fill(dark),
             "Unknown",
@@ -243,22 +266,6 @@ fn legend_row(ui: &mut egui::Ui) {
              Open Edit to fill it in.",
         );
     });
-}
-
-/// One legend entry: a small rounded swatch followed by its label.
-fn legend_swatch(ui: &mut egui::Ui, color: egui::Color32, label: &str, tip: &str) {
-    const SW: f32 = 13.0;
-    let (rect, _) = ui.allocate_exact_size(egui::vec2(SW, SW), egui::Sense::hover());
-    if ui.is_rect_visible(rect) {
-        let border = ui.visuals().weak_text_color();
-        // Hairline border behind the chip so pale fills still read as a
-        // distinct swatch against the panel in either theme.
-        ui.painter().rect_filled(rect.expand(1.0), 3.5, border);
-        ui.painter().rect_filled(rect, 3.0, color);
-    }
-    ui.add(egui::Label::new(egui::RichText::new(label).small()).selectable(false))
-        .on_hover_text(tip);
-    ui.add_space(4.0);
 }
 
 /// Compact "is this module available right now?" toggle that sits at the left
@@ -1981,6 +1988,9 @@ mod tests {
             .build_ui(move |ui| {
                 theme::set_scheme(ColorScheme::OkabeIto);
                 let _ = super::ui(ui, &ui_state, &ui_settings, &mut icons, &save_tx);
+                // The app renders the editor in a docked bottom panel; the
+                // harness stacks it under the pane so it's queryable when open.
+                super::editor_footer(ui, &ui_state, &save_tx, &mut icons);
             })
     }
 
