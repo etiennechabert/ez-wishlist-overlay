@@ -11,16 +11,17 @@ screenshots/
   box/       box.shotN.webp/.boxes.json + box.label.txt          # world container tablet  (3 shots)
   stash/     stash.shotNN.webp/.boxes.json + stash.label.txt     # Johnny's-Service junk-box terminal (38 shots)
   research/  tree.shotN.webp + <node>.webp + research.label.txt  # Neumann's RESEARCH tree (19 nodes; not OCR-gated yet)
-  gunsmith/  gunsmith.shotN.webp                                 # Neumann's Gunsmith → Storage gun-parts container (4 shots; capture-only, #175)
+  gunsmith/  gunsmith.shotN.webp/.boxes.json + gunsmith.label.txt # Neumann's Gunsmith → Storage gun-parts container (4 shots; #175/#183)
 ```
 
-Three asset types, each scored **independently** by the pipeline:
+Four asset types, each scored **independently** by the pipeline:
 
 | Asset | In-game screen | OCR exercised | Label = ground truth for |
 |---|---|---|---|
 | **hideout** | Facility Upgrade panel | full pipeline (identify upgrade + read each item's `owned/needed` counter) | per-cell owned-count + identification |
 | **box** | a world container tablet (category tab strip: All / Medical / … / Tool) | `read_tiles` + `merge_capture` (row-uniqueness dedup) over the scroll shots | the merged item tally (passes exactly) |
 | **stash** | the "JOHNNY'S SERVICE" junk-box submit terminal ("only miscellaneous items can be stored here") | same as box | the item tally (gap-free 38-shot series; name divergences keep it scored, not gated) |
+| **gunsmith** | Neumann's Gunsmith → Storage (gun parts, 30 KG cap) | same as box, but `read_tiles` runs with the gun-part **short-name** matcher (`gunsmith = true`, issue #183) | a golden snapshot of resolved parts (gappy gaze-crop series — floor + spot-checks, not exact) |
 
 > Both box and stash are titled "JUNK BOX" in-game — they're different screens.
 > `box` is the physical world container; `stash` is the player's submit terminal.
@@ -184,27 +185,48 @@ These captures are the box-scan **gaze-crop** debug WebPs (`~1424×927`), not
 full 3096×3312 mirror frames — fine for ground truth + icon cutouts; recapture
 full frames only if an OCR gate ever needs them.
 
-## gunsmith/ — Neumann's Gunsmith → Storage (gun-parts container; capture-only)
+## gunsmith/ — Neumann's Gunsmith → Storage (gun-parts container)
 
 The gunsmith's own stash (in-game path **Gunsmith → Storage**): a weight-capped
-(30 KG) container of gun parts with no sorting and no content overview — the
-next container-scan target (epic #175, where Gun Parts get catalog entries with
-value + weight). `gunsmith.shot0..3.webp` is a 4-shot scroll series captured
-2026-06-12; the weight strip reads `29.37 / 30 KG`, and the box-scan engine
-already parses it (`observed_weight`) on these frames — every item tile drops
-as "no item matched" only because the parts aren't in the catalog yet.
+(30 KG) container of gun parts with no sorting and no content overview (epic
+#175). `gunsmith.shot0..3.webp` is a 4-shot scroll series captured 2026-06-14
+(weight strip `26.93 / 30 KG`); the box-scan engine parses the weight
+(`observed_weight`) and now **resolves the gun-part tiles** via the short-name
+matcher (issue #183).
 
-**Capture-only for now** — deliberately none of the usual sidecars:
+**Why it needs its own matcher.** The storage grid shows hand-authored *short*
+gun-part names (`Cobra`, `M16A1`, `AR-308 DMR`, `AKS74U B18`) while the catalog
+carries the full `WFItemsStringTable` names (`Cobra 20mm reflex sight`, …). Those
+short names ARE in the paks — the game's **`GunSmithItemAdv`** table holds one
+per `gunsmith.*` tag — so they're extracted offline into each part's
+`Item.scan_alias` (see the data-provenance section in the repo-root `CLAUDE.md`).
+`read_tiles` runs with `gunsmith = true` (scoped to this one container — set from
+the `ScanTarget` in `main.rs`), and after the strict pass misses, matches the
+tile against each part's `scan_alias` by the same confusion-aware distance. See
+the `crate::ocr::match_item` module docs. Misc box/stash matching is untouched
+(`gunsmith = false`).
 
-- no `gunsmith.label.txt`: most parts have no `item_id` to reference (the
-  `gunsmith` category holds only #168's 38 research items); the label lands
-  with the epic's catalog PR.
-- no `.boxes.json` / `.ocr-result.txt`: `regen_box_fixtures` and the result
-  writers only know box/stash.
-- Like `research/`, these are the **gaze-crop debug WebPs** (~1610×927), not
-  full 3096×3312 mirror frames, and the scroll coverage is NOT validated
-  row-by-row. When the OCR gate lands, recapture full frames row-by-row (the
-  stash #163 convention) instead of promoting these.
+**Gate — `gunsmith_storage_scan_resolves_parts`** (cross-platform, off the
+frozen `.boxes.json`, PP-OCRv4 since #181): the scan resolves **41 distinct
+parts** (floor 38; was **0** before #183 — and only ~21 on the old Windows
+engine, so #182's PP-OCR migration is what unlocked clean gun-part reads), every
+one genuinely in the `gunsmith` catalog, plus spot-checked tiles across part
+classes. It's a floor, not an exact tally:
+
+- **This is a gappy gaze-crop series, NOT row-by-row.** The 4 shots overlap with
+  scroll gaps (~1424×927 debug crops, not full 3096×3312 mirror frames), so the
+  row-uniqueness merge yields a *partial, dedup-sensitive* tally — when the
+  matcher changes what resolves, a row's recognized-composition changes and the
+  merge keeps different rows. `gunsmith.label.txt` is the **golden snapshot** of
+  what currently resolves (a regression reference + the `.ocr-result.txt` input),
+  not the storage's true contents.
+- Short names the game **shares across parts** (27 of them — `M9`, `AR-15 DD`,
+  `AR-15 M4`) stay unrecognized **by design**: the alias matcher rejects a tie
+  rather than guess. A handful of parts (3 of 614) have no extractable short name
+  and likewise won't resolve.
+- **To gate an exact/graded tally**, recapture full frames row-by-row (the stash
+  #163 convention) so the merge is gap-free, then score it in `eval_report_json`
+  the way box/stash are. Until then the floor gate is the guard.
 
 ## units/ — per-item isolated-OCR fixtures
 

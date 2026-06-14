@@ -660,8 +660,16 @@ fn dedup_icon_labels(rows: &mut [RowReport], med_h: f32) {
 /// which is what lets [`stitch`] align overlapping captures.
 ///
 /// [issue #109]: https://github.com/etiennechabert/ez-wishlist-overlay/issues/109
+/// `gunsmith` enables the gun-part short-name matcher for tile resolution — set
+/// only for a Gunsmith → Storage scan, so misc box/stash tiles never resolve to
+/// a gun part (issue #183). Forwarded straight to [`match_item`].
 #[allow(dead_code)]
-pub fn read_tiles(boxes: &[LabelBox], img_h: f32, data: &GameData) -> BoxReadResult {
+pub fn read_tiles(
+    boxes: &[LabelBox],
+    img_h: f32,
+    data: &GameData,
+    gunsmith: bool,
+) -> BoxReadResult {
     let observed_weight = extract_weight(boxes, img_h).map(|(v, _)| v);
 
     let refs: Vec<&LabelBox> = boxes.iter().collect();
@@ -706,7 +714,7 @@ pub fn read_tiles(boxes: &[LabelBox], img_h: f32, data: &GameData) -> BoxReadRes
                 .iter()
                 .map(|t| {
                     let tokens: Vec<&str> = t.iter().map(|b| b.text.as_str()).collect();
-                    (join_text(t), match_item(data, &tokens))
+                    (join_text(t), match_item(data, &tokens, gunsmith))
                 })
                 .collect();
             let kind = if resolved.iter().all(|(_, m)| m.is_none()) {
@@ -1177,6 +1185,7 @@ pub fn format_capture_dump(
 pub fn process_box_image(
     img: &image::DynamicImage,
     data: &GameData,
+    gunsmith: bool,
 ) -> anyhow::Result<BoxReadResult> {
     use crate::ocr::engine;
     use anyhow::Context;
@@ -1194,7 +1203,7 @@ pub fn process_box_image(
             h: w.rect.height,
         })
         .collect();
-    Ok(read_tiles(&boxes, img_h as f32, data))
+    Ok(read_tiles(&boxes, img_h as f32, data, gunsmith))
 }
 
 /// Non-Windows stub: the OCR engine is Windows-only, so there's nothing to
@@ -1203,6 +1212,7 @@ pub fn process_box_image(
 pub fn process_box_image(
     _img: &image::DynamicImage,
     _data: &GameData,
+    _gunsmith: bool,
 ) -> anyhow::Result<BoxReadResult> {
     Ok(BoxReadResult::default())
 }
@@ -1359,11 +1369,12 @@ pub(crate) mod tests {
     /// written into the container.
     pub(crate) fn run_box_scan(category: &str, shots: &[String]) -> HashMap<ItemId, u32> {
         let data = crate::assets::load_game_data().expect("embedded data.json");
+        let gunsmith = category == "gunsmith";
         let mut master: Vec<ScanRow> = Vec::new();
         let mut next_id = 0u64;
         for shot in shots {
             let fx = BoxFixture::load(category, shot);
-            let res = read_tiles(&fx.label_boxes(), fx.img_h, &data);
+            let res = read_tiles(&fx.label_boxes(), fx.img_h, &data, gunsmith);
             merge_capture(&mut master, &mut next_id, &res.tile_rows);
         }
         tally_rows(&master).0
@@ -1680,6 +1691,13 @@ pub(crate) mod tests {
             "stash" => (0..38)
                 .map(|i| format!("stash.shot{i:02}.boxes.json"))
                 .collect(),
+            // Gunsmith → Storage gun-part container (issue #175 PR 4). A 4-shot
+            // gaze-crop scroll series, scored graded (not exact) like stash —
+            // the shots overlap with gaps, so the merge can't reach a complete
+            // tally; a full-frame row-by-row recapture would gate it exactly.
+            "gunsmith" => (0..4)
+                .map(|i| format!("gunsmith.shot{i}.boxes.json"))
+                .collect(),
             other => panic!("unknown scan category {other:?}"),
         }
     }
@@ -1695,23 +1713,35 @@ pub(crate) mod tests {
     #[ignore = "regenerates committed box/stash .ocr-result.txt sidecars"]
     fn write_box_scan_results() {
         let data = crate::assets::load_game_data().expect("embedded data.json");
-        let notes: std::collections::HashMap<&str, &str> = [(
-            "stash",
-            "the 38-shot row-by-row series is gap-free and data.json names now \
-             match the game's own strings; the residual misses are engine-level \
-             (busy-icon tiles OCR to no text, e.g. RAM) plus phantom rows from \
-             garbled first sightings — informational, not gated",
-        )]
+        let notes: std::collections::HashMap<&str, &str> = [
+            (
+                "stash",
+                "the 38-shot row-by-row series is gap-free and data.json names now \
+                 match the game's own strings; the residual misses are engine-level \
+                 (busy-icon tiles OCR to no text, e.g. RAM) plus phantom rows from \
+                 garbled first sightings — informational, not gated",
+            ),
+            (
+                "gunsmith",
+                "a 4-shot gaze-crop scroll series (issue #175 PR 4): the gun-part \
+                 short-name matcher (issue #183) resolves each tile against the \
+                 part's scan_alias (the storage short name, from the game's \
+                 GunSmithItemAdv table); short names the game shares across parts \
+                 (e.g. 'AR-15 DD') stay unrecognized by design. The shots overlap \
+                 with gaps so the merge is partial — a golden snapshot, not a full \
+                 tally; a full-frame row-by-row recapture would gate it exactly",
+            ),
+        ]
         .into_iter()
         .collect();
 
         let mut written = 0usize;
-        for category in ["box", "stash"] {
+        for category in ["box", "stash", "gunsmith"] {
             let shots = scan_shots(category);
             // Per-shot: one sidecar per scroll-shot image.
             for shot in &shots {
                 let fx = BoxFixture::load(category, shot);
-                let read = read_tiles(&fx.label_boxes(), fx.img_h, &data);
+                let read = read_tiles(&fx.label_boxes(), fx.img_h, &data, category == "gunsmith");
                 let stem = shot.trim_end_matches(".boxes.json");
                 let text = shot_result_text(stem, category, &read);
                 let out = fixture_dir(category).join(format!("{stem}.ocr-result.txt"));
@@ -1731,16 +1761,16 @@ pub(crate) mod tests {
     }
 
     /// (Windows-only, ignored) Regenerate every `<stem>.boxes.json` from the
-    /// capture images (PNG / JPEG / WebP) across **both** box-scan categories
-    /// (`screenshots/box/` and `screenshots/stash/`). Run after adding/replacing
-    /// a capture:
+    /// capture images (PNG / JPEG / WebP) across the box-scan categories
+    /// (`screenshots/box/`, `screenshots/stash/`, `screenshots/gunsmith/`). Run
+    /// after adding/replacing a capture:
     ///   cargo test -p ez-wishlist-overlay regen_box_fixtures -- --ignored
     #[test]
     #[ignore]
     #[cfg(target_os = "windows")]
     fn regen_box_fixtures() {
         use image::GenericImageView;
-        for category in ["box", "stash"] {
+        for category in ["box", "stash", "gunsmith"] {
             for entry in std::fs::read_dir(fixture_dir(category)).expect("fixture dir") {
                 let path = entry.unwrap().path();
                 let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
@@ -1797,7 +1827,7 @@ pub(crate) mod tests {
                         }
                         for t in &cells {
                             let tokens: Vec<&str> = t.iter().map(|b| b.text.as_str()).collect();
-                            if let Some(id) = match_item(&data, &tokens) {
+                            if let Some(id) = match_item(&data, &tokens, category == "gunsmith") {
                                 let x0 = t.iter().map(|b| b.x).fold(f32::INFINITY, f32::min);
                                 let y0 = t.iter().map(|b| b.y).fold(f32::INFINITY, f32::min);
                                 let x1 = t
@@ -1910,6 +1940,103 @@ pub(crate) mod tests {
         );
     }
 
+    /// (Ignored authoring aid) Dump the merged gunsmith-storage scan tally with
+    /// item names — used to author `gunsmith.label.txt` and set the gate floor.
+    ///   cargo test -p ez-wishlist-overlay dump_gunsmith_scan -- --ignored --nocapture
+    #[test]
+    #[ignore = "authoring aid — print the gunsmith scan's resolved tally"]
+    fn dump_gunsmith_scan() {
+        let data = crate::assets::load_game_data().expect("embedded data.json");
+        let names: HashMap<&str, &str> = data
+            .items
+            .iter()
+            .map(|i| (i.id.as_str(), i.name.as_str()))
+            .collect();
+        let tally = run_box_scan("gunsmith", &scan_shots("gunsmith"));
+        let mut rows: Vec<_> = tally.iter().collect();
+        rows.sort_by_key(|(id, _)| id.to_string());
+        println!("<<<GUNSMITH_TALLY {} distinct>>>", rows.len());
+        for (id, n) in rows {
+            println!(
+                "{id}\t{n}\t{}",
+                names.get(id.as_str()).copied().unwrap_or("?")
+            );
+        }
+        println!("<<<END_GUNSMITH_TALLY>>>");
+    }
+
+    /// Floor of distinct gun parts the gunsmith-storage scan must resolve. The
+    /// frozen 2026-06-14 captures (PP-OCRv4, #181) resolve **41**; before the
+    /// issue-#183 matcher they resolved **0** (every tile dropped as "no item
+    /// matched"). A floor (not an exact tally) because the row-uniqueness merge's
+    /// dedup count shifts when the matcher / engine changes — what's gated is
+    /// "the gun-part matcher keeps resolving real parts", with the spot-checks
+    /// below pinning specific tiles.
+    const GUNSMITH_GATE_MIN_DISTINCT: usize = 38;
+
+    /// `gunsmith` scan — Neumann's Gunsmith → Storage (issue #175 PR 4 / #183).
+    ///
+    /// The grid shows hand-authored *short* gun-part names, not the full catalog
+    /// names the misc box/stash tiles show, so it needs the gun-part matcher
+    /// ([`crate::ocr::match_item`] with `gunsmith = true`), which matches each
+    /// tile against the part's `scan_alias` (the storage short name from the
+    /// game's `GunSmithItemAdv` table). This gate runs everywhere off the frozen
+    /// `.boxes.json` (PP-OCRv4) and asserts the scan resolves a floor of distinct
+    /// parts — all genuinely in the `gunsmith` catalog — plus a spread of
+    /// spot-checked tiles across part classes. Short names the game shares across
+    /// parts stay unrecognized by design, so this is a floor, not an exact match
+    /// (see `gunsmith.label.txt`).
+    #[test]
+    fn gunsmith_storage_scan_resolves_parts() {
+        let data = crate::assets::load_game_data().expect("embedded data.json");
+        let cat: HashMap<&str, Option<&str>> = data
+            .items
+            .iter()
+            .map(|i| (i.id.as_str(), i.category.as_deref()))
+            .collect();
+        let tally = run_box_scan("gunsmith", &scan_shots("gunsmith"));
+
+        assert!(
+            tally.len() >= GUNSMITH_GATE_MIN_DISTINCT,
+            "gunsmith scan regressed: resolved {} distinct parts (floor {}); \
+             was 0 before the #183 gun-part matcher. Tally: {:?}",
+            tally.len(),
+            GUNSMITH_GATE_MIN_DISTINCT,
+            tally.keys().collect::<std::collections::BTreeSet<_>>(),
+        );
+        // Every resolved tile must be a real gun part — the gun-part matcher must
+        // never cross categories or invent an id.
+        for id in tally.keys() {
+            assert_eq!(
+                cat.get(id.as_str()).copied().flatten(),
+                Some("gunsmith"),
+                "gunsmith scan resolved a non-gun-part id: {id}",
+            );
+        }
+        // Spot-checks: specific tiles that must keep resolving via their alias,
+        // spread across part classes and the alias edge cases (the AR308 family's
+        // three distinct short names, an acronym, a magazine round-count).
+        for id in [
+            "gunsmith_20rail_sight_cobra",          // sight, alias "Cobra"
+            "gunsmith_ak_mount_rsr",                // mount, alias "RSR"
+            "gunsmith_ar10_barrel_508",             // barrel, alias "AR-10 508mm"
+            "gunsmith_ar10_muzzle_ar308",           // AR308 family: compensator = "AR308"
+            "gunsmith_ar10_upperreceiver_ar308",    // AR308 family: upper = "AR308 Upper"
+            "gunsmith_ar10_lowerreceiver_ar308",    // AR308 family: rifle = "AR-308 DMR"
+            "gunsmith_ar10_clip_10",                // magazine, alias "AR-10 10rd"
+            "gunsmith_ump_clip_25",                 // magazine, alias "UMP45 25rd"
+            "gunsmith_ar15_handguard_4inchris",     // handguard, alias "AR-15 4in RIS"
+            "gunsmith_g3_stock_polygreen",          // stock, alias "G3 Green Stock"
+            "gunsmith_sks_upperreceiver_dustcover", // upper, alias "SKS Cover"
+        ] {
+            assert!(
+                tally.contains_key(id),
+                "gunsmith scan no longer resolves {id}; tally: {:?}",
+                tally.keys().collect::<std::collections::BTreeSet<_>>(),
+            );
+        }
+    }
+
     /// Run a scan with the issue-#165 round union harvesting the scroll
     /// overlap between consecutive shots: each shot is fused with its
     /// successor as a synthetic 2-round burst before merging. The committed
@@ -1922,7 +2049,7 @@ pub(crate) mod tests {
             .iter()
             .map(|shot| {
                 let fx = BoxFixture::load(category, shot);
-                read_tiles(&fx.label_boxes(), fx.img_h, &data)
+                read_tiles(&fx.label_boxes(), fx.img_h, &data, category == "gunsmith")
             })
             .collect();
         let mut master: Vec<ScanRow> = Vec::new();
@@ -2307,6 +2434,7 @@ pub(crate) mod tests {
             weight: None,
             price: None,
             rarity: None,
+            scan_alias: None,
         }
     }
 
@@ -2375,7 +2503,7 @@ pub(crate) mod tests {
             // Weight readout (fixed chrome).
             lb("21.94", 600.0, 430.0),
         ];
-        let res = read_tiles(&boxes, 500.0, &data);
+        let res = read_tiles(&boxes, 500.0, &data, false);
         assert_eq!(
             res.tile_rows.concat(),
             vec![
@@ -2501,7 +2629,7 @@ pub(crate) mod tests {
             lb("Kalashnikov", 200.0, 120.0), // not in the vocab
             lb("Gunpowder", 360.0, 120.0),
         ];
-        let res = read_tiles(&boxes, 500.0, &data);
+        let res = read_tiles(&boxes, 500.0, &data, false);
         assert_eq!(
             res.tile_rows.concat(),
             vec![
@@ -2567,7 +2695,7 @@ pub(crate) mod tests {
             lb("Piezometer", 360.0, 120.0),
             lb("21.94", 600.0, 430.0),
         ];
-        let res = read_tiles(&boxes, 500.0, &data);
+        let res = read_tiles(&boxes, 500.0, &data, false);
         let kinds: Vec<RowKind> = res.rows.iter().map(|r| r.kind).collect();
         assert!(kinds.contains(&RowKind::Category), "tab strip → Category");
         assert!(kinds.contains(&RowKind::Names), "item row → Names");
@@ -2591,7 +2719,7 @@ pub(crate) mod tests {
             lb("Piezometer", 360.0, 120.0),
             lb("21.94", 600.0, 430.0),
         ];
-        let res = read_tiles(&boxes, 500.0, &data);
+        let res = read_tiles(&boxes, 500.0, &data, false);
         let mut master = Vec::new();
         let mut next_id = 0u64;
         let merge = merge_capture(&mut master, &mut next_id, &res.tile_rows);
@@ -2629,6 +2757,7 @@ pub(crate) mod tests {
             &[lb("Piezometer", 50.0, 120.0), lb("Gunpowder", 360.0, 120.0)],
             500.0,
             &data,
+            false,
         );
         let r2 = read_tiles(
             &[
@@ -2639,6 +2768,7 @@ pub(crate) mod tests {
             ],
             500.0,
             &data,
+            false,
         );
         let reads = vec![r1, r2];
         let per_round: Vec<Vec<RoundRow>> = reads.iter().map(round_rows).collect();

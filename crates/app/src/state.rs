@@ -1662,6 +1662,7 @@ mod tests {
                     weight: None,
                     price: None,
                     rarity: None,
+                    scan_alias: None,
                 },
                 Item {
                     id: "screws".into(),
@@ -1672,6 +1673,7 @@ mod tests {
                     weight: None,
                     price: None,
                     rarity: None,
+                    scan_alias: None,
                 },
             ],
         })
@@ -3117,6 +3119,7 @@ mod tests {
                 weight: None,
                 price: None,
                 rarity: None,
+                scan_alias: None,
             }
         }
         fn node(

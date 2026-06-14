@@ -1,0 +1,55 @@
+# gunsmith — Neumann's Gunsmith → Storage gun-part container, ground truth.
+# Captured 2026-06-14 (weight strip 26.93 / 30 KG). 4-shot gaze-crop scroll
+# series (issue #175 PR 4), OCR'd by the PP-OCRv4 engine (#181/#182). Unlike
+# box/stash this is NOT a row-by-row gap-free capture: the shots overlap with
+# gaps, so the row-uniqueness merge yields a PARTIAL, dedup-sensitive tally —
+# not the storage's full contents. This file is the golden snapshot of the parts
+# the gun-part matcher (issue #183) resolves from these frozen captures via each
+# part's scan_alias (the storage short name, sourced from the game's
+# GunSmithItemAdv table). The gate (`gunsmith_storage_scan_resolves_parts`)
+# asserts a FLOOR of distinct parts + spot-checks, not this exact tally, because
+# the dedup count shifts when the matcher/engine changes. A full-frame
+# row-by-row recapture would let it gate exactly.
+#
+# <item_id>  <count>
+gunsmith_20rail_foregrip_afg  1
+gunsmith_20rail_foregrip_pk1b25u  1
+gunsmith_20rail_foregrip_pvg_bk  1
+gunsmith_20rail_foregrip_stormgruff  1
+gunsmith_20rail_foregrip_tds_sd  1
+gunsmith_20rail_frontsight_vectorfs  1
+gunsmith_20rail_rearsight_vectorrs  1
+gunsmith_20rail_sight_cobra  3
+gunsmith_20rail_sight_ocp7  2
+gunsmith_20rail_sight_srs  1
+gunsmith_20rail_sight_t1highlever  5
+gunsmith_20rail_sight_toucan2  1
+gunsmith_20rail_sight_walther  1
+gunsmith_ak74u_mount_b18  1
+gunsmith_ak_handguard_6p20sb9  1
+gunsmith_ak_lowerreceiver_akmn  1
+gunsmith_ak_mount_rsr  2
+gunsmith_ar10_barrel_508  1
+gunsmith_ar10_clip_10  1
+gunsmith_ar10_lowerreceiver_ar308  1
+gunsmith_ar10_muzzle_ar308  1
+gunsmith_ar10_upperreceiver_ar308  2
+gunsmith_ar15_barrel_368mmsight  1
+gunsmith_ar15_barrel_508mmsight  1
+gunsmith_ar15_handguard_4inchris  2
+gunsmith_ar15_handguard_m16poly  1
+gunsmith_ar15_lowerreceiver_m16  3
+gunsmith_ar15_mount_handlescoperail  1
+gunsmith_ar15_muzzle_usgia2  3
+gunsmith_ar15_pistolgrip_m16a1  1
+gunsmith_ar15_pistolgrip_m4factory  4
+gunsmith_ar15_upperreceiver_m16a2  2
+gunsmith_arbuffer_stock_m16a2  2
+gunsmith_g3_handguard_bt  1
+gunsmith_g3_pistolgrip_prsblack  1
+gunsmith_g3_stock_polygreen  1
+gunsmith_hk416_upperreceiver_hk416a5  1
+gunsmith_mp5_lowerreceiver_mp5a4  1
+gunsmith_mp5_upperreceiver_mp5a4  1
+gunsmith_sks_upperreceiver_dustcover  1
+gunsmith_ump_clip_25  1

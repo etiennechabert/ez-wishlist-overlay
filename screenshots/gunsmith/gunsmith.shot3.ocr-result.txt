@@ -1,0 +1,67 @@
+# gunsmith.shot3 — what the OCR read in this one screenshot
+# (auto-generated; do not edit by hand — see screenshots/CLAUDE.md)
+#
+# This is ONE scroll shot of the gunsmith grid. The grid is taller than the
+# screen, so the full contents come from merging every shot — that merged
+# result, scored against the label, lives in gunsmith.ocr-result.txt. This file
+# just shows what the OCR pulled out of this single frame, regenerated from
+# the frozen gunsmith.shot3.boxes.json (so it never runs the game).
+#
+## SUMMARY
+  recognized 15 item tile(s) across 4 grid row(s)
+  dropped 4 text(s) that matched no catalog item (window title, weight
+    readout, category tabs/subtitles — i.e. screen chrome, not items)
+#
+  items found in this frame:
+    1 x gunsmith_20rail_foregrip_afg
+    1 x gunsmith_20rail_foregrip_pk1b25u
+    1 x gunsmith_20rail_foregrip_tds_sd
+    1 x gunsmith_20rail_frontsight_vectorfs
+    1 x gunsmith_20rail_rearsight_vectorrs
+    2 x gunsmith_20rail_sight_cobra
+    2 x gunsmith_20rail_sight_ocp7
+    1 x gunsmith_20rail_sight_t1highlever
+    1 x gunsmith_20rail_sight_toucan2
+    1 x gunsmith_ak_handguard_6p20sb9
+    1 x gunsmith_ak_mount_rsr
+    1 x gunsmith_ar10_clip_10
+    1 x gunsmith_ar15_handguard_4inchris
+#
+## DETAIL — every text the OCR produced, row by row
+#   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
+#   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
+  [chrome]
+    AUTO MODE                      -> (no match)
+    2,580,850                      -> (no match)
+    SETTINGS                       -> (no match)
+    SAVETO PRESET                  -> (no match)
+  [tabs  ]
+    ALL                            -> (no match)
+  [items ]
+    PEQ-15Laser                    -> (no match)
+    AR-154in RIS                   -> gunsmith_ar15_handguard_4inchris
+    PK-1B25U                       -> gunsmith_20rail_foregrip_pk1b25u
+    6p1-sb5                        -> (no match)
+    T1 Elevating                   -> gunsmith_20rail_sight_t1highlever
+  [items ]
+    OCP-7                          -> gunsmith_20rail_sight_ocp7
+    RSR                            -> gunsmith_ak_mount_rsr
+    OCP-7                          -> gunsmith_20rail_sight_ocp7
+    Cobra                          -> gunsmith_20rail_sight_cobra
+    AFG                            -> gunsmith_20rail_foregrip_afg
+  [items ]
+    Vector Front                   -> gunsmith_20rail_frontsight_vectorfs
+    Vector Rear                    -> gunsmith_20rail_rearsight_vectorrs
+    AR-1010rd                      -> gunsmith_ar10_clip_10
+    6p1-0-1Cover                   -> (no match)
+    6p20-sb9                       -> gunsmith_ak_handguard_6p20sb9
+    TOS SO                         -> gunsmith_20rail_foregrip_tds_sd
+  [items ]
+    6p1-sb5                        -> (no match)
+    toucan2                        -> gunsmith_20rail_sight_toucan2
+    Cobra                          -> gunsmith_20rail_sight_cobra
+  [chrome]
+    RACK                           -> (no match)
+    WITHDRAW                       -> (no match)
+    SELL                           -> (no match)
+    26.93 / 30 KG                  -> (no match)
