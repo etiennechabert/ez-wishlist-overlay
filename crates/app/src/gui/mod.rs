@@ -441,17 +441,15 @@ impl eframe::App for App {
             ui.separator();
             match self.tab {
                 LeftTab::Hideout => {
-                    let outcome = egui::ScrollArea::vertical()
-                        .show(ui, |ui| {
-                            hideout_pane::ui(
-                                ui,
-                                &self.state,
-                                &self.settings,
-                                &mut self.icons,
-                                &self.save_tx,
-                            )
-                        })
-                        .inner;
+                    // No outer ScrollArea — the pane keeps the recipe editor
+                    // pinned and visible while only the grid/list scrolls.
+                    let outcome = hideout_pane::ui(
+                        ui,
+                        &self.state,
+                        &self.settings,
+                        &mut self.icons,
+                        &self.save_tx,
+                    );
                     if outcome.settings_changed {
                         self.persist_settings();
                     }

@@ -389,19 +389,24 @@ fn detail_card(
         .show(ui, |ui| {
             ui.set_width(ui.available_width());
 
-            // Header: unlocked item identity.
             let unlock = state
                 .read()
                 .index
                 .items_by_id
                 .get(&node.unlocks_item_id)
                 .cloned();
-            ui.horizontal(|ui| {
-                if let Some(item) = &unlock {
-                    if let Some(tex) = icons.get(ui.ctx(), &item.icon_path) {
-                        ui.add(egui::Image::new(tex).fit_to_exact_size(egui::vec2(40.0, 40.0)));
-                    }
-                    ui.vertical(|ui| {
+
+            // Full-size icon of the unlocked blueprint item on the right, using
+            // the horizontal space the text leaves; the body (title, samples,
+            // controls) flows in the left column.
+            let icon_sz = (ui.available_width() * 0.26).clamp(96.0, 168.0);
+            ui.horizontal_top(|ui| {
+                let left_w = (ui.available_width() - icon_sz - 14.0).max(220.0);
+                ui.vertical(|ui| {
+                    ui.set_width(left_w);
+
+                    // Header: name + what it unlocks.
+                    if let Some(item) = &unlock {
                         ui.label(
                             egui::RichText::new(format!("{} — unlocks {}", node.name, item.name))
                                 .strong()
@@ -422,109 +427,116 @@ fn detail_card(
                         }
                         meta.push(status_label(status).to_string());
                         ui.label(egui::RichText::new(meta.join("  ·  ")).weak());
-                    });
-                } else {
-                    ui.label(egui::RichText::new(&node.name).strong().size(15.0));
-                }
-            });
-
-            // Parent gating line.
-            if !node.parents.is_empty() {
-                let gates: Vec<String> = node
-                    .parents
-                    .iter()
-                    .map(|p| {
-                        let s = state.read();
-                        let name = s
-                            .index
-                            .research_nodes_by_id
-                            .get(p)
-                            .map(|n| n.name.clone())
-                            .unwrap_or_else(|| p.clone());
-                        // ●/○ (Geometric Shapes, covered by Hack) — ✓/✗ render
-                        // as tofu in the bundled fonts, same trap hideout_pane
-                        // documents for its toggle glyphs.
-                        let mark = if s.research_status(p) == ResearchStatus::Developed {
-                            "●"
-                        } else {
-                            "○"
-                        };
-                        format!("{name} {mark}")
-                    })
-                    .collect();
-                ui.label(
-                    egui::RichText::new(format!("Requires developed: {}", gates.join(", "))).weak(),
-                );
-            }
-            ui.add_space(6.0);
-
-            // Samples with owned/needed.
-            let progress = state.read().research_progress(node_id);
-            ui.label(
-                egui::RichText::new(format!(
-                    "Research samples (found in raid) — {}/{}:",
-                    progress.collected, progress.needed
-                ))
-                .strong(),
-            );
-            for req in &node.samples {
-                let (name, icon_path, owned) = {
-                    let s = state.read();
-                    let item = s.index.items_by_id.get(&req.item_id);
-                    (
-                        item.map(|i| i.name.clone())
-                            .unwrap_or_else(|| req.item_id.clone()),
-                        item.map(|i| i.icon_path.clone()).unwrap_or_default(),
-                        s.owned_total(&req.item_id),
-                    )
-                };
-                ui.horizontal(|ui| {
-                    if let Some(tex) = icons.get(ui.ctx(), &icon_path) {
-                        ui.add(egui::Image::new(tex).fit_to_exact_size(egui::vec2(20.0, 20.0)));
-                    }
-                    let met = owned >= req.quantity;
-                    let count = egui::RichText::new(format!("{owned}/{}", req.quantity));
-                    ui.label(if met {
-                        count.color(theme::done_text(dark))
                     } else {
-                        count
-                    });
-                    ui.label(name);
-                });
-            }
-            ui.add_space(6.0);
+                        ui.label(egui::RichText::new(&node.name).strong().size(15.0));
+                    }
 
-            // Wishlist controls — Track + Pin, the research counterparts of the
-            // hideout cluster. Hidden once developed: a developed node feeds
-            // nothing to the wishlist, so tracking/pinning would be a no-op.
-            // Mirrors `upgrade_controls`: both boxes read into locals, Pin
-            // enables off the *post-toggle* Track so track+pin in one frame
-            // behaves, and the diffs apply after the row.
-            if status != ResearchStatus::Developed {
-                let (mut tracked, mut pinned) = {
-                    let s = state.read();
-                    (
-                        s.tracked_research.contains(node_id),
-                        s.is_research_pinned(node_id),
-                    )
-                };
-                let (orig_tracked, orig_pinned) = (tracked, pinned);
-                ui.horizontal(|ui| {
-                    ui.checkbox(&mut tracked, "Track samples")
-                        .on_hover_text("Put this node's research samples on the overlay wishlist.");
-                    ui.add_enabled(tracked, egui::Checkbox::new(&mut pinned, "Pin"))
-                        .on_hover_text(
-                            "Prioritize: pull these samples to the front of the overlay, \
-                             highlighted with a purple accent.",
-                        )
-                        .on_disabled_hover_text("Track this node first, then you can pin it.");
-                    // Focus: one click to grind toward a blueprint deeper in the
-                    // tree — tracks + pins it and every prerequisite still needed
-                    // to reach it. Only meaningful for nodes that *have* gates;
-                    // a root is covered by Track + Pin alone.
+                    // Parent gating line.
                     if !node.parents.is_empty() {
-                        ui.separator();
-                        if ui
+                        let gates: Vec<String> = node
+                            .parents
+                            .iter()
+                            .map(|p| {
+                                let s = state.read();
+                                let name = s
+                                    .index
+                                    .research_nodes_by_id
+                                    .get(p)
+                                    .map(|n| n.name.clone())
+                                    .unwrap_or_else(|| p.clone());
+                                // ●/○ (Geometric Shapes, covered by Hack) — ✓/✗ render
+                                // as tofu in the bundled fonts, same trap hideout_pane
+                                // documents for its toggle glyphs.
+                                let mark = if s.research_status(p) == ResearchStatus::Developed {
+                                    "●"
+                                } else {
+                                    "○"
+                                };
+                                format!("{name} {mark}")
+                            })
+                            .collect();
+                        ui.label(
+                            egui::RichText::new(format!(
+                                "Requires developed: {}",
+                                gates.join(", ")
+                            ))
+                            .weak(),
+                        );
+                    }
+                    ui.add_space(6.0);
+
+                    // Samples with owned/needed.
+                    let progress = state.read().research_progress(node_id);
+                    ui.label(
+                        egui::RichText::new(format!(
+                            "Research samples (found in raid) — {}/{}:",
+                            progress.collected, progress.needed
+                        ))
+                        .strong(),
+                    );
+                    for req in &node.samples {
+                        let (name, icon_path, owned) = {
+                            let s = state.read();
+                            let item = s.index.items_by_id.get(&req.item_id);
+                            (
+                                item.map(|i| i.name.clone())
+                                    .unwrap_or_else(|| req.item_id.clone()),
+                                item.map(|i| i.icon_path.clone()).unwrap_or_default(),
+                                s.owned_total(&req.item_id),
+                            )
+                        };
+                        ui.horizontal(|ui| {
+                            if let Some(tex) = icons.get(ui.ctx(), &icon_path) {
+                                ui.add(
+                                    egui::Image::new(tex).fit_to_exact_size(egui::vec2(20.0, 20.0)),
+                                );
+                            }
+                            let met = owned >= req.quantity;
+                            let count = egui::RichText::new(format!("{owned}/{}", req.quantity));
+                            ui.label(if met {
+                                count.color(theme::done_text(dark))
+                            } else {
+                                count
+                            });
+                            ui.label(name);
+                        });
+                    }
+                    ui.add_space(6.0);
+
+                    // Wishlist controls — Track + Pin, the research counterparts of the
+                    // hideout cluster. Hidden once developed: a developed node feeds
+                    // nothing to the wishlist, so tracking/pinning would be a no-op.
+                    // Mirrors `upgrade_controls`: both boxes read into locals, Pin
+                    // enables off the *post-toggle* Track so track+pin in one frame
+                    // behaves, and the diffs apply after the row.
+                    if status != ResearchStatus::Developed {
+                        let (mut tracked, mut pinned) = {
+                            let s = state.read();
+                            (
+                                s.tracked_research.contains(node_id),
+                                s.is_research_pinned(node_id),
+                            )
+                        };
+                        let (orig_tracked, orig_pinned) = (tracked, pinned);
+                        ui.horizontal(|ui| {
+                            ui.checkbox(&mut tracked, "Track samples").on_hover_text(
+                                "Put this node's research samples on the overlay wishlist.",
+                            );
+                            ui.add_enabled(tracked, egui::Checkbox::new(&mut pinned, "Pin"))
+                                .on_hover_text(
+                                    "Prioritize: pull these samples to the front of the overlay, \
+                             highlighted with a purple accent.",
+                                )
+                                .on_disabled_hover_text(
+                                    "Track this node first, then you can pin it.",
+                                );
+                            // Focus: one click to grind toward a blueprint deeper in the
+                            // tree — tracks + pins it and every prerequisite still needed
+                            // to reach it. Only meaningful for nodes that *have* gates;
+                            // a root is covered by Track + Pin alone.
+                            if !node.parents.is_empty() {
+                                ui.separator();
+                                if ui
                             .button("Focus this blueprint")
                             .on_hover_text(
                                 "Track and pin this blueprint and every prerequisite still \
@@ -536,60 +548,71 @@ fn detail_card(
                             state.write().focus_research(node_id);
                             notify(state, save_tx);
                         }
-                    }
-                });
-                if tracked != orig_tracked {
-                    state.write().set_tracked_research(node_id, tracked);
-                    notify(state, save_tx);
-                }
-                if pinned != orig_pinned {
-                    state.write().set_pinned_research(node_id, pinned);
-                    notify(state, save_tx);
-                }
-                if status == ResearchStatus::Locked {
-                    ui.label(
-                        egui::RichText::new(
-                            "Locked in-game until every parent is developed — samples can \
+                            }
+                        });
+                        if tracked != orig_tracked {
+                            state.write().set_tracked_research(node_id, tracked);
+                            notify(state, save_tx);
+                        }
+                        if pinned != orig_pinned {
+                            state.write().set_pinned_research(node_id, pinned);
+                            notify(state, save_tx);
+                        }
+                        if status == ResearchStatus::Locked {
+                            ui.label(
+                                egui::RichText::new(
+                                    "Locked in-game until every parent is developed — samples can \
                              still be collected (and tracked) ahead of time.",
-                        )
-                        .weak()
-                        .italics(),
-                    );
-                }
-            }
-            ui.add_space(4.0);
+                                )
+                                .weak()
+                                .italics(),
+                            );
+                        }
+                    }
+                    ui.add_space(4.0);
 
-            // Done — mark the blueprint developed. There is no "start research"
-            // step: a Ready (or legacy in-progress) node completes straight from
-            // here, with the same consume-vs-keep choice hideout upgrades use.
-            // Locked nodes show nothing — you can't develop what the game still
-            // gates; a developed node offers only the undo.
-            ui.horizontal(|ui| match status {
-                ResearchStatus::Available | ResearchStatus::InProgress => {
-                    let can_consume = state.read().can_consume_research_samples(node_id);
-                    if ui
-                        .add_enabled(
-                            can_consume,
-                            egui::Button::new("Developed — consume samples"),
-                        )
-                        .on_disabled_hover_text("You don't own every sample yet.")
-                        .clicked()
-                    {
-                        state.write().complete_research(node_id, true);
-                        notify(state, save_tx);
-                    }
-                    if ui.button("Developed — keep items").clicked() {
-                        state.write().complete_research(node_id, false);
-                        notify(state, save_tx);
+                    // Done — mark the blueprint developed. There is no "start research"
+                    // step: a Ready (or legacy in-progress) node completes straight from
+                    // here, with the same consume-vs-keep choice hideout upgrades use.
+                    // Locked nodes show nothing — you can't develop what the game still
+                    // gates; a developed node offers only the undo.
+                    ui.horizontal(|ui| match status {
+                        ResearchStatus::Available | ResearchStatus::InProgress => {
+                            let can_consume = state.read().can_consume_research_samples(node_id);
+                            if ui
+                                .add_enabled(
+                                    can_consume,
+                                    egui::Button::new("Developed — consume samples"),
+                                )
+                                .on_disabled_hover_text("You don't own every sample yet.")
+                                .clicked()
+                            {
+                                state.write().complete_research(node_id, true);
+                                notify(state, save_tx);
+                            }
+                            if ui.button("Developed — keep items").clicked() {
+                                state.write().complete_research(node_id, false);
+                                notify(state, save_tx);
+                            }
+                        }
+                        ResearchStatus::Developed => {
+                            if ui.button("Undo developed").clicked() {
+                                state.write().set_research_state(node_id, None);
+                                notify(state, save_tx);
+                            }
+                        }
+                        ResearchStatus::Locked => {}
+                    });
+                });
+
+                // Full-size icon of the unlocked item, right of the body.
+                if let Some(item) = &unlock {
+                    if let Some(tex) = icons.get(ui.ctx(), &item.icon_path) {
+                        ui.add(
+                            egui::Image::new(tex).fit_to_exact_size(egui::vec2(icon_sz, icon_sz)),
+                        );
                     }
                 }
-                ResearchStatus::Developed => {
-                    if ui.button("Undo developed").clicked() {
-                        state.write().set_research_state(node_id, None);
-                        notify(state, save_tx);
-                    }
-                }
-                ResearchStatus::Locked => {}
             });
         });
 }

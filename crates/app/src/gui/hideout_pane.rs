@@ -131,34 +131,45 @@ pub fn ui(
     legend_row(ui);
     ui.separator();
 
-    match settings.read().hideout_view {
-        HideoutView::Modules => {
-            header_row(ui);
+    // The recipe editor renders in BOTH views off the ctx-memory selection
+    // (keyed SELECTED_ID, layout-independent), so "Edit" works identically from
+    // a grid cell or a progress-list row. It's pinned here ABOVE the scrolling
+    // grid so it stays visible while editing even on a short window — the old
+    // placement (after the grid, inside the outer scroll) pushed it off-screen.
+    // Pinned at the top, not the bottom: egui won't reliably bottom-dock a panel
+    // with this much nested content (see research_pane), and top keeps it on
+    // screen all the same.
+    if let Some(sel) = selected(ui.ctx()) {
+        if let Some((module, upgrade)) = find_upgrade(&data.modules, &sel) {
+            editable_recipe_panel(ui, state, save_tx, icons, &module.name, upgrade);
+            ui.add_space(6.0);
             ui.separator();
-            let rows = build_hideout_rows(&data.modules);
-            for (idx, row) in rows.iter().enumerate() {
-                match row {
-                    HideoutRow::SyntheticHeader(name) => {
-                        synthetic_header_row(ui, state, save_tx, name)
-                    }
-                    HideoutRow::Module { module, is_child } => {
-                        module_row(ui, state, save_tx, idx, module, *is_child);
+        }
+    }
+
+    // Grid / progress list scrolls in the remaining height below the pinned
+    // controls (and editor, when open).
+    egui::ScrollArea::vertical()
+        .id_salt("hideout-scroll")
+        .auto_shrink([false, false])
+        .show(ui, |ui| match settings.read().hideout_view {
+            HideoutView::Modules => {
+                header_row(ui);
+                ui.separator();
+                let rows = build_hideout_rows(&data.modules);
+                for (idx, row) in rows.iter().enumerate() {
+                    match row {
+                        HideoutRow::SyntheticHeader(name) => {
+                            synthetic_header_row(ui, state, save_tx, name)
+                        }
+                        HideoutRow::Module { module, is_child } => {
+                            module_row(ui, state, save_tx, idx, module, *is_child);
+                        }
                     }
                 }
             }
-        }
-        HideoutView::Progress => progress_list(ui, state, save_tx, icons),
-    }
-
-    // The recipe editor renders in BOTH views off the ctx-memory selection
-    // (keyed SELECTED_ID, layout-independent), so "Edit" works identically
-    // from a grid cell or a progress-list row.
-    if let Some(sel) = selected(ui.ctx()) {
-        ui.add_space(8.0);
-        if let Some((module, upgrade)) = find_upgrade(&data.modules, &sel) {
-            editable_recipe_panel(ui, state, save_tx, icons, &module.name, upgrade);
-        }
-    }
+            HideoutView::Progress => progress_list(ui, state, save_tx, icons),
+        });
 
     // Upgrade-completion modal — driven by ctx memory (set when any "Done"
     // checkbox is ticked, in either view), so a single instance covers the
