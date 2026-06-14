@@ -8,7 +8,7 @@
 # the frozen stash.shot03.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 13 item tile(s) across 3 grid row(s)
+  recognized 15 item tile(s) across 3 grid row(s)
   dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
@@ -19,7 +19,7 @@
     1 x misc_b_opticaldisc
     1 x misc_b_pcfan
     2 x misc_b_pipeline
-    2 x misc_b_ram
+    4 x misc_b_ram
     1 x misc_b_tape
     1 x misc_hammer
     1 x misc_notebook
@@ -31,7 +31,9 @@
     JUNK BOX                       -> (no match)
   [items ]
     RAM                            -> misc_b_ram
-    co                             -> misc_b_opticaldisc
+    RAM                            -> misc_b_ram
+    CD                             -> misc_b_opticaldisc
+    RAM                            -> misc_b_ram
     Tape                           -> misc_b_tape
   [tabs  ]
     Electric                       -> (no match)
@@ -52,11 +54,10 @@
     Building                       -> (no match)
     Building                       -> (no match)
   [chrome]
-    Si                             -> (no match)
-    G or                           -> (no match)
+    SiLurGor                       -> (no match)
   [items ]
     Insulating Tape                -> misc_b_insulatingtape
-    Size O battery2                -> misc_b_battery_2
+    Size D battery2                -> misc_b_battery_2
     Insulating Tape                -> misc_b_insulatingtape
     RAM                            -> misc_b_ram
     Asthma medicine                -> misc_b_asthmamedication

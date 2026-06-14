@@ -258,6 +258,11 @@ pub struct RowReport {
     /// raw center.) Consumed by [`grid_rows`] to place the per-shot feedback
     /// marks at the right column.
     pub cxs: Vec<f32>,
+    /// Pixel text height of each cell (median of its boxes' heights), aligned
+    /// 1:1 with [`cells`](Self::cells). Used by [`dedup_icon_labels`] to tell an
+    /// icon-printed name (rendered larger on the box art) from the real tile
+    /// name below it.
+    pub chs: Vec<f32>,
 }
 
 /// Category words shown on the box screen. The fixed top **tab strip** (All /
@@ -464,16 +469,30 @@ fn cluster_rows<'a>(boxes: &[&'a LabelBox], slope: f32, tol: f32) -> Vec<Vec<&'a
     rows
 }
 
+/// De-sheared vertical gap (as a fraction of median box height) above which
+/// [`split_subrows`] starts a new sub-row. See that function for why `0.6`.
+const SUBROW_GAP_FRAC: f32 = 0.6;
+
 /// Split one generous grid-row *block* into sub-rows at de-sheared vertical gaps
-/// wider than ~one text height. A box tile stacks the item **name** over its
-/// **category subtitle** (~2 text heights apart), so this separates the two; the
-/// subtitle sub-row is then dropped while the name survives. A block with a single
-/// sub-row (the names-only tablet layout, or a lone chrome line) returns unsplit.
+/// wider than [`SUBROW_GAP_FRAC`]·med_h. A box tile stacks the item **name** over
+/// its **category subtitle** (~1.3 text heights apart), so this separates the two;
+/// the subtitle sub-row is then dropped while the name survives. A block with a
+/// single sub-row (the names-only tablet layout, or a lone chrome line) returns
+/// unsplit.
+///
+/// The threshold sits between the **within-row** consecutive de-sheared gap
+/// (adjacent tiles across one row — a few px, even with an imperfect slope) and
+/// the **name↔category** gap (~30 px). The original `1.1·med_h` landed right on
+/// the name↔category gap once the PP-OCR engine's unclip inflated `med_h` (#181),
+/// so under a steeper VR viewing angle the name and its subtitle merged into one
+/// unmatchable "Name Category Name" row that got dropped — losing whole grid rows
+/// from a scan (#182). `0.6` clears the within-row gap with margin while still
+/// splitting the name from its subtitle.
 #[allow(dead_code)]
 fn split_subrows<'a>(block: &[&'a LabelBox], slope: f32, med_h: f32) -> Vec<Vec<&'a LabelBox>> {
     let mut sorted = block.to_vec();
     sorted.sort_by(|a, b| deshear(a, slope).total_cmp(&deshear(b, slope)));
-    let gap = (med_h * 1.1).max(1.0);
+    let gap = (med_h * SUBROW_GAP_FRAC).max(1.0);
 
     let mut subs: Vec<Vec<&LabelBox>> = Vec::new();
     let mut cur: Vec<&LabelBox> = Vec::new();
@@ -516,6 +535,110 @@ fn split_tiles<'a>(row: &[&'a LabelBox]) -> Vec<Vec<&'a LabelBox>> {
     tiles
 }
 
+/// De-sheared vertical gap (×med_h) under which an upper `Names` row is close
+/// enough to a lower one to be holding the lower tile's icon-printed name.
+/// ≈0.6 of a grid-row pitch (~11.8·med_h on stash): above the icon-label→name
+/// gap (~5·med_h) but below a genuine adjacent grid row (~11·med_h). A per-shot
+/// pitch estimate was rejected — it collapses on icon-print-heavy frames where
+/// every row gap is sub-pitch — so the threshold is med_h-relative; the
+/// mandatory same-column test (below) is what keeps the box gate safe under it.
+#[allow(dead_code)]
+const ICON_LABEL_VGAP_FRAC: f32 = 7.0;
+
+/// How much taller (×) an upper tile's glyphs must be than the lower's to count
+/// as the icon-printed name rather than a real tile name. The box art renders
+/// the printed product name ~1.3× the tile-name size (e.g. "ASPIRIN" h≈38 over
+/// "Aspirin" h≈28); 1.15 keeps margin while still rejecting a same-height real
+/// name that happens to sit above the next row's icon print.
+#[allow(dead_code)]
+const ICON_LABEL_MIN_TALLER: f32 = 1.15;
+
+/// Median adjacent-tile x-gap within a row's cell centers (its column pitch),
+/// falling back to 4·med_h when the row has fewer than two cells.
+#[allow(dead_code)]
+fn col_pitch(cxs: &[f32], med_h: f32) -> f32 {
+    if cxs.len() < 2 {
+        return 4.0 * med_h;
+    }
+    let mut sorted = cxs.to_vec();
+    sorted.sort_by(f32::total_cmp);
+    median(sorted.windows(2).map(|w| w[1] - w[0])).max(med_h)
+}
+
+/// Drop the icon-printed product name some box tiles carry on their art (e.g.
+/// "ASPIRIN" on the Aspirin box, "Box Nails" on Boxed Nails). It OCRs as a
+/// second text box ~one icon-height above the real tile name in the SAME grid
+/// cell and resolves to the SAME item, so left in it survives as a phantom tile
+/// that double-counts the item (the live box/stash `EXTRA` aspire/nail).
+///
+/// For each pair of `Names` rows where the upper sits within
+/// [`ICON_LABEL_VGAP_FRAC`]·med_h above the lower, demote an upper tile that
+/// duplicates a lower tile to `None` when ALL of: (1) **same item** (same
+/// resolved id); (2) **same column** (x-centers within half the lower row's
+/// column pitch); (3) **upper is the icon print** — its glyphs are taller
+/// ([`ICON_LABEL_MIN_TALLER`]×) than the lower's, since the box art renders the
+/// printed name larger than the tile's real name.
+///
+/// Keyed this way, legitimately repeated items are all untouched: side by side
+/// in one row (same ry, fails the vertical test); a full grid-row apart (fails
+/// the gap); in a different column (fails the column test); and — critically —
+/// a *real* name row sitting above the *next* row's icon print is spared by the
+/// height test (the real name is not taller than an icon print). A row emptied
+/// to all-`None` becomes `Chrome`. The box gate's only same-item vertical
+/// neighbours wrap to a different column, so it is doubly safe.
+#[allow(dead_code)]
+fn dedup_icon_labels(rows: &mut [RowReport], med_h: f32) {
+    let vgap = med_h * ICON_LABEL_VGAP_FRAC;
+    let names: Vec<usize> = rows
+        .iter()
+        .enumerate()
+        .filter(|(_, r)| r.kind == RowKind::Names)
+        .map(|(i, _)| i)
+        .collect();
+
+    // Immutable pass collects (row, cell) demotions, then apply (avoids
+    // aliasing two &mut into `rows`).
+    let mut demote: Vec<(usize, usize)> = Vec::new();
+    for &iu in &names {
+        for &il in &names {
+            if iu == il {
+                continue;
+            }
+            let dv = rows[il].ry - rows[iu].ry; // upper `iu` above lower `il`
+            if dv <= 0.0 || dv >= vgap {
+                continue;
+            }
+            let xtol = 0.5 * col_pitch(&rows[il].cxs, med_h);
+            for (cu, (_, tu)) in rows[iu].cells.iter().enumerate() {
+                let Some(idu) = tu.as_ref() else { continue };
+                let cxu = rows[iu].cxs[cu];
+                let hu = rows[iu].chs.get(cu).copied().unwrap_or(med_h);
+                let is_icon_dup = rows[il]
+                    .cells
+                    .iter()
+                    .zip(&rows[il].cxs)
+                    .zip(&rows[il].chs)
+                    .any(|(((_, tl), &cxl), &hl)| {
+                        tl.as_ref() == Some(idu)
+                            && (cxu - cxl).abs() < xtol
+                            && hu > hl * ICON_LABEL_MIN_TALLER
+                    });
+                if is_icon_dup {
+                    demote.push((iu, cu));
+                }
+            }
+        }
+    }
+    for (ri, ci) in demote {
+        rows[ri].cells[ci].1 = None;
+    }
+    for r in rows.iter_mut() {
+        if r.kind == RowKind::Names && r.cells.iter().all(|(_, t)| t.is_none()) {
+            r.kind = RowKind::Chrome;
+        }
+    }
+}
+
 /// Turn one screenshot's recognized text boxes into reading-order tiles.
 ///
 /// Layout-aware and tilt-robust ([issue #109]):
@@ -553,7 +676,6 @@ pub fn read_tiles(boxes: &[LabelBox], img_h: f32, data: &GameData, gunsmith: boo
     // separate even if the slope estimate is a little off.
     let blocks = cluster_rows(&refs, slope, med_h * 4.0);
 
-    let mut tile_rows: Vec<Vec<Tile>> = Vec::new();
     let mut rows: Vec<RowReport> = Vec::new();
     for block in &blocks {
         for sub in split_subrows(block, slope, med_h) {
@@ -563,6 +685,10 @@ pub fn read_tiles(boxes: &[LabelBox], img_h: f32, data: &GameData, gunsmith: boo
             // on every RowReport so the feedback overlays can place per-cell
             // marks at the right column (#137 / #138).
             let cxs: Vec<f32> = cells.iter().map(|t| tile_cx(t)).collect();
+            let chs: Vec<f32> = cells
+                .iter()
+                .map(|t| median(t.iter().map(|b| b.h)))
+                .collect();
 
             // Skip a category sub-row (tab strip or per-item subtitles): one whose
             // tiles are mostly category words.
@@ -573,6 +699,7 @@ pub fn read_tiles(boxes: &[LabelBox], img_h: f32, data: &GameData, gunsmith: boo
                     kind: RowKind::Category,
                     cells: cells.iter().map(|t| (join_text(t), None)).collect(),
                     cxs,
+                    chs,
                 });
                 continue;
             }
@@ -593,14 +720,23 @@ pub fn read_tiles(boxes: &[LabelBox], img_h: f32, data: &GameData, gunsmith: boo
             rows.push(RowReport {
                 ry,
                 kind,
-                cells: resolved.clone(),
+                cells: resolved,
                 cxs,
+                chs,
             });
-            if kind == RowKind::Names {
-                tile_rows.push(resolved.into_iter().map(|(_, m)| m).collect());
-            }
         }
     }
+
+    // Drop icon-printed-name duplicates before building the tile grid, so both
+    // the single-shot `tile_rows` and the burst `round_rows` (which read
+    // `rows`) see the deduped result.
+    dedup_icon_labels(&mut rows, med_h);
+
+    let tile_rows: Vec<Vec<Tile>> = rows
+        .iter()
+        .filter(|r| r.kind == RowKind::Names)
+        .map(|r| r.cells.iter().map(|(_, t)| t.clone()).collect())
+        .collect();
 
     BoxReadResult {
         tile_rows,
@@ -1038,7 +1174,7 @@ pub fn format_capture_dump(
 }
 
 /// OCR one box-screen screenshot into a [`BoxReadResult`]. Windows-only — runs
-/// Windows.Media.Ocr, then hands the word boxes to the platform-independent
+/// the OCR engine, then hands the word boxes to the platform-independent
 /// [`read_tiles`].
 #[cfg(target_os = "windows")]
 pub fn process_box_image(
@@ -1065,7 +1201,7 @@ pub fn process_box_image(
     Ok(read_tiles(&boxes, img_h as f32, data, gunsmith))
 }
 
-/// Non-Windows stub: Windows.Media.Ocr is unavailable, so there's nothing to
+/// Non-Windows stub: the OCR engine is Windows-only, so there's nothing to
 /// read. Mirrors [`crate::ocr::pipeline::process_image`]'s stub.
 #[cfg(not(target_os = "windows"))]
 pub fn process_box_image(
@@ -1109,18 +1245,21 @@ pub(crate) mod tests {
                     kind: RowKind::Category,
                     cells: vec![("All".into(), None)],
                     cxs: vec![100.0],
+                    chs: vec![18.0],
                 },
                 RowReport {
                     ry: 100.0,
                     kind: RowKind::Names,
                     cells: vec![("Bolts".into(), Some("bolts".into())), ("???".into(), None)],
                     cxs: vec![200.0, 600.0],
+                    chs: vec![18.0, 18.0],
                 },
                 RowReport {
                     ry: 150.0,
                     kind: RowKind::Chrome,
                     cells: vec![("21.9 / 30".into(), None)],
                     cxs: vec![400.0],
+                    chs: vec![18.0],
                 },
             ],
         };
@@ -1146,12 +1285,14 @@ pub(crate) mod tests {
     // Native-capture regression fixtures (`screenshots/box/`, `screenshots/stash/`).
     //
     // Real box-screen captures keep getting flushed from the debug dir, so we
-    // freeze each one's Windows.Media.Ocr output (the word boxes) to JSON next
-    // to its PNG. `read_tiles` + `merge_capture` are pure and platform-independent,
-    // so these fixtures let us regression-test the whole post-OCR pipeline on every
-    // target (incl. Linux CI) without re-running the Windows-only, slightly
-    // nondeterministic engine. The PNGs are the ground truth; the `.boxes.json`
-    // are regenerated from them by `regen_box_fixtures` (Windows, --ignored).
+    // freeze each one's OCR-engine output (the word boxes; PP-OCRv4 since
+    // #181) to JSON next to its PNG. `read_tiles` + `merge_capture` are pure
+    // and platform-independent, so these fixtures let us regression-test the
+    // whole post-OCR pipeline on every target (incl. Linux CI) without
+    // re-running the Windows-only engine. The PNGs are the ground truth; the
+    // `.boxes.json` are regenerated from them by `regen_box_fixtures`
+    // (Windows, --ignored) — required after ANY engine change, or the replay
+    // silently keeps scoring the old engine.
     //
     // Expected results live in `<scan>.label.txt` (`<item_id>  <count>` lines).
     // The `box` scan passes. The `stash` scan stays `#[ignore]`d: its 38-shot
@@ -1755,12 +1896,14 @@ pub(crate) mod tests {
     /// bump this floor (and [`STASH_GATE_EXTRA_MAX`]) to the new value in the
     /// same PR — the committed `stash.ocr-result.txt` SUMMARY is the number to
     /// copy.
-    const STASH_GATE_TILES_CORRECT: u32 = 178;
+    const STASH_GATE_TILES_CORRECT: u32 = 190;
     /// Companion cap on over-counted / hallucinated tiles (`Σ max(0, read −
     /// label)`), so the floor above can't be gamed by a looser matcher that
-    /// trades precision for recall. Baseline: 16 (phantom rows from garbled
-    /// first sightings — see [`stash_scan_matches_label`]).
-    const STASH_GATE_EXTRA_MAX: u32 = 16;
+    /// trades precision for recall. Now 6: the icon-label dedup
+    /// ([`dedup_icon_labels`]) removed the Aspirin + Nail phantoms (was 16 →
+    /// actual 4); the residual is the battery-twin digit misread. The few-tile
+    /// margins above the actual (195 / 4) absorb cross-machine regen variance.
+    const STASH_GATE_EXTRA_MAX: u32 = 6;
 
     /// The stash scan's enforced quality gate. Unlike the strict (`#[ignore]`d)
     /// exact-match above, this runs everywhere — Linux CI included, off the
@@ -1914,7 +2057,7 @@ pub(crate) mod tests {
     /// the engine read in only one of a row's sightings, the exact
     /// engine-miss class issue #165 targets. **Ratchet** like the baseline
     /// gates: if a change legitimately raises this, bump it in the same PR.
-    const STASH_UNION_TILES_CORRECT: u32 = 179;
+    const STASH_UNION_TILES_CORRECT: u32 = 190;
     /// Companion cap on the pair-union run's over-counted tiles. One above
     /// the single-read [`STASH_GATE_EXTRA_MAX`] (16), and **not** a
     /// hallucination: the union correctly fills the unmatched tile of
@@ -1924,7 +2067,7 @@ pub(crate) mod tests {
     /// drifts, beyond `rows_match`'s one-drift dedup tolerance — so the
     /// correct fill lands in a double-counted row. The union never *mints*
     /// tiles (see `union_never_multiplies_an_item_beyond_any_sighting`).
-    const STASH_UNION_EXTRA_MAX: u32 = 17;
+    const STASH_UNION_EXTRA_MAX: u32 = 6;
 
     /// Offline validation for the round union (issue #165), on the frozen
     /// stash fixtures: fusing each shot with its successor as a 2-round
@@ -2360,6 +2503,109 @@ pub(crate) mod tests {
         assert!(matches!(res.observed_weight, Some(v) if (v - 21.94).abs() < 0.01));
     }
 
+    /// Build a `Names` `RowReport` from `(text, id, cx, ch)` cells.
+    fn names(ry: f32, cells: &[(&str, Option<&str>, f32, f32)]) -> RowReport {
+        RowReport {
+            ry,
+            kind: RowKind::Names,
+            cells: cells
+                .iter()
+                .map(|(t, id, _, _)| (t.to_string(), id.map(|s| s.to_string())))
+                .collect(),
+            cxs: cells.iter().map(|c| c.2).collect(),
+            chs: cells.iter().map(|c| c.3).collect(),
+        }
+    }
+
+    /// The icon-printed product name ("ASPIRIN", taller) over the real tile name
+    /// ("Aspirin") in the same cell/column is demoted, so the item counts once.
+    #[test]
+    fn dedup_drops_taller_icon_label_over_name() {
+        let med = 28.0;
+        let mut rows = vec![
+            names(700.0, &[("ASPIRIN", Some("aspire"), 150.0, 38.0)]),
+            names(
+                843.0,
+                &[
+                    ("Aspirin", Some("aspire"), 160.0, 28.0),
+                    ("CD", Some("cd"), 480.0, 28.0),
+                    ("RAM", Some("ram"), 800.0, 28.0),
+                ],
+            ),
+        ];
+        dedup_icon_labels(&mut rows, med);
+        assert_eq!(rows[0].kind, RowKind::Chrome, "icon-print row emptied");
+        assert_eq!(rows[1].kind, RowKind::Names);
+        assert_eq!(rows[1].cells.iter().filter(|(_, t)| t.is_some()).count(), 3);
+    }
+
+    /// Two back-to-back icon-print/name pairs (every row gap sub-pitch — the case
+    /// that poisons a per-shot pitch estimate). Both icon prints are demoted AND
+    /// both real names survive: the height test stops a real upper name from
+    /// being eaten by the next row's icon print directly below it.
+    #[test]
+    fn dedup_handles_back_to_back_pairs_keeps_real_names() {
+        let med = 28.0;
+        let mut rows = vec![
+            names(300.0, &[("ASPIRIN", Some("aspire"), 150.0, 38.0)]), // icon-print 1
+            names(
+                445.0,
+                &[
+                    ("Aspirin", Some("aspire"), 160.0, 28.0),
+                    ("Tape", Some("tape"), 480.0, 28.0),
+                ],
+            ), // name 1
+            names(600.0, &[("ASPIRIN", Some("aspire"), 150.0, 38.0)]), // icon-print 2 (~155 below name 1)
+            names(
+                745.0,
+                &[
+                    ("Aspirin", Some("aspire"), 160.0, 28.0),
+                    ("CD", Some("cd"), 480.0, 28.0),
+                ],
+            ), // name 2
+        ];
+        dedup_icon_labels(&mut rows, med);
+        assert_eq!(rows[0].kind, RowKind::Chrome, "icon-print 1 demoted");
+        assert_eq!(rows[2].kind, RowKind::Chrome, "icon-print 2 demoted");
+        // Both real name rows keep their aspire (NOT eaten by the icon print below).
+        assert!(rows[1]
+            .cells
+            .iter()
+            .any(|(_, t)| t.as_deref() == Some("aspire")));
+        assert!(rows[3]
+            .cells
+            .iter()
+            .any(|(_, t)| t.as_deref() == Some("aspire")));
+    }
+
+    /// Legit same item in a DIFFERENT column (e.g. Civil Radio wrapping col4→col0)
+    /// is preserved — the same-column test rejects it.
+    #[test]
+    fn dedup_keeps_same_item_different_column() {
+        let med = 28.0;
+        let mut rows = vec![
+            names(540.0, &[("Radio", Some("radio"), 900.0, 30.0)]),
+            names(700.0, &[("Radio", Some("radio"), 260.0, 28.0)]),
+        ];
+        dedup_icon_labels(&mut rows, med);
+        assert_eq!(rows[0].kind, RowKind::Names);
+        assert_eq!(rows[1].kind, RowKind::Names);
+    }
+
+    /// Legit same item a FULL grid-row pitch apart, same column (beardoil R23/R24)
+    /// is preserved — the vertical gap exceeds the icon-label window.
+    #[test]
+    fn dedup_keeps_same_item_full_pitch_apart() {
+        let med = 28.0;
+        let mut rows = vec![
+            names(300.0, &[("Beardoil", Some("beardoil"), 160.0, 28.0)]),
+            names(620.0, &[("Beardoil", Some("beardoil"), 160.0, 28.0)]),
+        ];
+        dedup_icon_labels(&mut rows, med);
+        assert_eq!(rows[0].kind, RowKind::Names);
+        assert_eq!(rows[1].kind, RowKind::Names);
+    }
+
     #[test]
     fn read_tiles_marks_unrecognized_tiles_as_none() {
         let data = box_data();
@@ -2376,6 +2622,48 @@ pub(crate) mod tests {
                 None,
                 Some("gunpowder".to_string())
             ]
+        );
+    }
+
+    /// Regression guard for #182: a tilted item-name row and its category
+    /// subtitle, ~one text-height apart, must split into **two** sub-rows. The
+    /// PP-OCR engine's unclip inflates box heights (here `med_h = 24`), so the
+    /// old `1.1·med_h` (26.4) split threshold exceeded the ~24 px name↔category
+    /// gap and a slight shear merged them into one dropped "Name Category Name"
+    /// row — losing whole grid rows from a live scan.
+    #[test]
+    fn split_subrows_separates_tilted_name_from_category() {
+        let slope = -0.02;
+        let med_h = 24.0;
+        // Two bands 24 px apart (de-sheared ry ≈ 112 / 136), each tilted by
+        // `slope` across a full-width 5-tile row, boxes 24 px tall.
+        let band = |ry: f32| -> Vec<LabelBox> {
+            (0..5)
+                .map(|i| {
+                    let x = 100.0 + i as f32 * 200.0;
+                    let cx = x + 20.0;
+                    LabelBox {
+                        text: "x".into(),
+                        x,
+                        y: (ry + slope * cx) - 12.0, // cy = ry + slope*cx  ⇒  deshear = ry
+                        w: 40.0,
+                        h: 24.0,
+                    }
+                })
+                .collect()
+        };
+        let names = band(112.0);
+        let cats = band(136.0);
+        let refs: Vec<&LabelBox> = names.iter().chain(cats.iter()).collect();
+        let subs = split_subrows(&refs, slope, med_h);
+        assert_eq!(
+            subs.len(),
+            2,
+            "name and category subtitle must be separate sub-rows, not merged"
+        );
+        assert!(
+            subs.iter().all(|s| s.len() == 5),
+            "each sub-row keeps its 5 tiles"
         );
     }
 

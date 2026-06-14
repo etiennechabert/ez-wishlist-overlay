@@ -8,8 +8,8 @@
 # the frozen stash.shot35.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 13 item tile(s) across 3 grid row(s)
-  dropped 1 text(s) that matched no catalog item (window title, weight
+  recognized 15 item tile(s) across 3 grid row(s)
+  dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
@@ -19,9 +19,11 @@
     1 x misc_b_insulatingtape
     1 x misc_b_iodophor
     1 x misc_b_lighter
+    1 x misc_b_match
     1 x misc_b_moldboard
     1 x misc_b_oldphone
     1 x misc_b_opticaldisc
+    1 x misc_b_ram
     1 x misc_b_spraycan
     1 x misc_b_wirecutting
     1 x misc_hammer
@@ -33,7 +35,7 @@
   [chrome]
     JUNK BOX                       -> (no match)
   [items ]
-    Mndpr•of M•tches               -> (no match)
+    Windproof Matches              -> misc_b_match
     Spray can                      -> misc_b_spraycan
     Insulating Tape                -> misc_b_insulatingtape
     Hammer                         -> misc_hammer
@@ -45,11 +47,11 @@
     Tool                           -> (no match)
     Electric                       -> (no match)
   [chrome]
-    Lu rG or                       -> (no match)
+    SiLurGor                       -> (no match)
   [items ]
-    Size O batterye                -> misc_b_battery_1
-    hthm• medicine                 -> misc_b_asthmamedication
-    Iodine                         -> misc_b_iodophor
+    Size D battery?                -> misc_b_battery_1
+    Asthma medicine                -> misc_b_asthmamedication
+    lodine                         -> misc_b_iodophor
     Wire Cutter                    -> misc_b_wirecutting
     Moldboard                      -> misc_b_moldboard
   [tabs  ]
@@ -59,9 +61,10 @@
     Tool                           -> (no match)
     Tool                           -> (no match)
   [items ]
+    RAM                            -> misc_b_ram
     Lighter                        -> misc_b_lighter
     Flash light                    -> misc_b_flashlight
-    co                             -> misc_b_opticaldisc
+    CD                             -> misc_b_opticaldisc
     Notebook                       -> misc_notebook
   [tabs  ]
     Electric                       -> (no match)

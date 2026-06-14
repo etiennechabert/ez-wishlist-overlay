@@ -8,19 +8,20 @@
 # the frozen stash.shot00.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 13 item tile(s) across 4 grid row(s)
+  recognized 15 item tile(s) across 3 grid row(s)
   dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
-    2 x misc_b_aspire
+    1 x misc_b_aspire
     1 x misc_b_deodorant
     1 x misc_b_iodophor
     1 x misc_b_match
     1 x misc_b_moldboard
-    1 x misc_b_opticaldisc
+    2 x misc_b_opticaldisc
     1 x misc_b_pcfan
     1 x misc_b_plier_large
+    2 x misc_b_ram
     1 x misc_b_spraycan
     1 x misc_b_wrench
     1 x misc_cpu
@@ -29,11 +30,16 @@
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
 #   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
+  [chrome]
+    JUNK BUX                       -> (no match)
+  [chrome]
+    ze                             -> (no match)
   [items ]
     Large Plier                    -> misc_b_plier_large
     Moldboard                      -> misc_b_moldboard
     Deodorant                      -> misc_b_deodorant
-    cpu Fan                        -> misc_b_pcfan
+    RAM                            -> misc_b_ram
+    CPU Fan                        -> misc_b_pcfan
   [tabs  ]
     Tool                           -> (no match)
     Tool                           -> (no match)
@@ -41,9 +47,9 @@
     Electric                       -> (no match)
     Electric                       -> (no match)
   [items ]
-    %ndproof Matches               -> misc_b_match
+    Windproof Matches              -> misc_b_match
     CD                             -> misc_b_opticaldisc
-    Iodine                         -> misc_b_iodophor
+    lodine                         -> misc_b_iodophor
     Wrench                         -> misc_b_wrench
     Floppydisk                     -> misc_floppydisk
   [tabs  ]
@@ -52,10 +58,12 @@
     Medical Supplies               -> (no match)
     Tool                           -> (no match)
     Intel                          -> (no match)
-  [items ]
-    ASPIRIN                        -> misc_b_aspire
+  [chrome]
+    ASPIRIN                        -> (no match)
   [items ]
     Aspirin                        -> misc_b_aspire
+    CD                             -> misc_b_opticaldisc
+    RAM                            -> misc_b_ram
     Spray can                      -> misc_b_spraycan
     CPU                            -> misc_cpu
   [tabs  ]

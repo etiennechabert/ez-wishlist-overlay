@@ -9,7 +9,7 @@
 #
 ## SUMMARY
   recognized 8 item tile(s) across 2 grid row(s)
-  dropped 1 text(s) that matched no catalog item (window title, weight
+  dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
@@ -24,9 +24,7 @@
 #   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
   [tabs  ]
     ALL                            -> (no match)
-    Building                       -> (no match)
-    Combustible                    -> (no match)
-    Electric                       -> (no match)
+    Building Combustible Electric  -> (no match)
     Household                      -> (no match)
     Intel                          -> (no match)
     Tool                           -> (no match)
@@ -35,12 +33,14 @@
     Piezometer                     -> misc_b_piezometer
     Piezometer                     -> misc_b_piezometer
     Gun oil                        -> misc_b_gunoil
-    Submitted items transfe        -> (no match)
+  [chrome]
+    1796                           -> (no match)
   [items ]
     Gunpowder                      -> misc_gunpowder
     Gunpowder                      -> misc_gunpowder
     Oil can                        -> misc_oilcan
     Oil can                        -> misc_oilcan
   [chrome]
-    29.46                          -> (no match)
-    30                             -> (no match)
+    29.46/30                       -> (no match)
+  [chrome]
+    JUNK                           -> (no match)

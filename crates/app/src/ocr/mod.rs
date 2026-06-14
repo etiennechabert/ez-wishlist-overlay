@@ -29,6 +29,13 @@ pub mod anchor;
 pub mod debug_dump;
 #[cfg(target_os = "windows")]
 pub mod engine;
+// The two engine implementations behind the `engine` seam: PP-OCR (default)
+// and the legacy WinRT wrapper (feature `ocr-winrt`, A/B fallback — see
+// `engine.rs`).
+#[cfg(all(target_os = "windows", not(feature = "ocr-winrt")))]
+mod engine_ppocr;
+#[cfg(all(target_os = "windows", feature = "ocr-winrt"))]
+mod engine_winrt;
 #[cfg(target_os = "windows")]
 pub mod match_upgrade;
 // Box-container screen OCR + row-uniqueness merge. The merge core

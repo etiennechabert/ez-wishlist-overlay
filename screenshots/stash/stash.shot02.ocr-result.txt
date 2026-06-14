@@ -8,15 +8,16 @@
 # the frozen stash.shot02.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 10 item tile(s) across 3 grid row(s)
+  recognized 15 item tile(s) across 3 grid row(s)
   dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
     1 x misc_b_aspire
-    1 x misc_b_opticaldisc
+    2 x misc_b_opticaldisc
     1 x misc_b_pcfan
     2 x misc_b_pipeline
+    4 x misc_b_ram
     1 x misc_b_spraycan
     1 x misc_b_tape
     1 x misc_cpu
@@ -26,9 +27,12 @@
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
 #   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
+  [chrome]
+    JUNK BUX                       -> (no match)
   [items ]
     Aspirin                        -> misc_b_aspire
-    co                             -> misc_b_opticaldisc
+    CD                             -> misc_b_opticaldisc
+    RAM                            -> misc_b_ram
     Spray can                      -> misc_b_spraycan
     CPU                            -> misc_cpu
   [tabs  ]
@@ -37,9 +41,19 @@
     Electric                       -> (no match)
     Building                       -> (no match)
     Electric                       -> (no match)
+  [chrome]
+    200                            -> (no match)
   [items ]
+    RAM                            -> misc_b_ram
+    RAM                            -> misc_b_ram
+    CO                             -> misc_b_opticaldisc
+    RAM                            -> misc_b_ram
     Tape                           -> misc_b_tape
   [tabs  ]
+    Electric                       -> (no match)
+    Electric                       -> (no match)
+    Intel                          -> (no match)
+    Electric                       -> (no match)
     Intel                          -> (no match)
   [items ]
     CPU Fan                        -> misc_b_pcfan
@@ -49,7 +63,7 @@
     Valve                          -> misc_b_pipeline
   [tabs  ]
     Electric                       -> (no match)
-    Intel                          -> (no match)
+    Intet                          -> (no match)
     Tool                           -> (no match)
     Building                       -> (no match)
     Building                       -> (no match)

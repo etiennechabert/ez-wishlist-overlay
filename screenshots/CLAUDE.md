@@ -113,7 +113,8 @@ frozen OCR below, not the image, and q95 preserves every item name).
   row per shot, so each row is visible in ~3 consecutive frames): the redundancy
   leaves no scroll gaps, gives hard tiles several chances to read, and lets the
   row-uniqueness merge be validated against re-seen rows.
-- **`<scan>.shotN.boxes.json`** — the **frozen Windows.Media.Ocr output** (word
+- **`<scan>.shotN.boxes.json`** — the **frozen OCR-engine output** (PP-OCRv4
+  since #181; word
   boxes + image height) for that frame. `read_tiles`/`merge_capture` are pure and
   platform-independent, so these let the post-OCR pipeline be regression-tested
   on **every** target (Linux CI included) without re-running the Windows-only,

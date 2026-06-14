@@ -5,7 +5,7 @@
 # across runs (FLAKY); a PASS means the cell read correctly on every run.
 #
 identification: PASS (resolved on every run)
-owned-count:    4/4 cells correct  (band 4-4 over 1 runs; wrong reads: 0)
+owned-count:    4/4 cells correct  (band 4-4 over 5 runs; wrong reads: 0)
 #
 # status  cell  item_id                         read              label (owned/needed)
   PASS   [0]  misc_b_flashlight               3                 3/5

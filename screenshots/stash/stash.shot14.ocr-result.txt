@@ -8,7 +8,7 @@
 # the frozen stash.shot14.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 13 item tile(s) across 3 grid row(s)
+  recognized 15 item tile(s) across 3 grid row(s)
   dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
@@ -18,12 +18,13 @@
     2 x misc_b_battery_1
     1 x misc_b_ceramic_adhesive
     1 x misc_b_deodorant
+    1 x misc_b_ram
     1 x misc_b_rustedcleaner
     1 x misc_b_tape
     2 x misc_b_wd40
     1 x misc_b_wirecutting
     1 x misc_facialcleaner
-    1 x misc_floppydisk
+    2 x misc_floppydisk
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
@@ -34,17 +35,22 @@
     Ceramic adhesive               -> misc_b_ceramic_adhesive
     Deodorant                      -> misc_b_deodorant
     Tape                           -> misc_b_tape
-    RLBt cleaner                   -> misc_b_rustedcleaner
+    Floppydisk                     -> misc_floppydisk
+    Rust cleaner                   -> misc_b_rustedcleaner
   [tabs  ]
     Building                       -> (no match)
     Household                      -> (no match)
     Intel                          -> (no match)
     Intel                          -> (no match)
     Household                      -> (no match)
+  [chrome]
+    VARIETY                        -> (no match)
+  [chrome]
+    PACK                           -> (no match)
   [items ]
     Floppydisk                     -> misc_floppydisk
     Band-aids                      -> misc_b_bandaid
-    Size O batteryl                -> misc_b_battery_1
+    Size D batteryl                -> misc_b_battery_1
     Asthma medicine                -> misc_b_asthmamedication
     Size D batteryl                -> misc_b_battery_1
   [tabs  ]
@@ -54,10 +60,11 @@
     Medical Supplies               -> (no match)
     Power                          -> (no match)
   [items ]
-    wo-40                          -> misc_b_wd40
+    Wo-40                          -> misc_b_wd40
     Wire Cutter                    -> misc_b_wirecutting
-    wo-40                          -> misc_b_wd40
+    Wo-40                          -> misc_b_wd40
     Cleanser                       -> misc_facialcleaner
+    RAM                            -> misc_b_ram
   [tabs  ]
     Combustible                    -> (no match)
     Tool                           -> (no match)

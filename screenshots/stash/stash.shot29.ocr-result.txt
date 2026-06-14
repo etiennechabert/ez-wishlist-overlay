@@ -8,7 +8,7 @@
 # the frozen stash.shot29.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 12 item tile(s) across 3 grid row(s)
+  recognized 15 item tile(s) across 3 grid row(s)
   dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
@@ -19,9 +19,10 @@
     2 x misc_b_ionbattery
     1 x misc_b_lighterfluid
     1 x misc_b_match
-    1 x misc_b_opticaldisc
+    2 x misc_b_opticaldisc
     1 x misc_b_pesticide
     1 x misc_b_piezometer
+    2 x misc_b_ram
     1 x misc_floppydisk
 #
 ## DETAIL — every text the OCR produced, row by row
@@ -30,9 +31,10 @@
   [chrome]
     JUNK BOX                       -> (no match)
   [items ]
-    Size O batteryl                -> misc_b_battery_1
-    BeardOi1                       -> misc_b_beardoil
+    Size D batteryl                -> misc_b_battery_1
+    BeardOil                       -> misc_b_beardoil
     Pesticide                      -> misc_b_pesticide
+    CD                             -> misc_b_opticaldisc
     Ceramic adhesive               -> misc_b_ceramic_adhesive
   [tabs  ]
     Power                          -> (no match)
@@ -40,10 +42,12 @@
     Household                      -> (no match)
     Intel                          -> (no match)
     Building                       -> (no match)
+  [chrome]
+    LurGor                         -> (no match)
   [items ]
-    Size O batteryl                -> misc_b_battery_1
-    Ion Battery                    -> misc_b_ionbattery
-    co                             -> misc_b_opticaldisc
+    Size D battery1                -> misc_b_battery_1
+    lon Battery                    -> misc_b_ionbattery
+    CD                             -> misc_b_opticaldisc
     Lighter fluid                  -> misc_b_lighterfluid
     Floppydisk                     -> misc_floppydisk
   [tabs  ]
@@ -54,8 +58,10 @@
     Intel                          -> (no match)
   [items ]
     Piezometer                     -> misc_b_piezometer
-    Ion Battery                    -> misc_b_ionbattery
+    lon Battery                    -> misc_b_ionbattery
+    RAM                            -> misc_b_ram
     Windproof Matches              -> misc_b_match
+    RAM                            -> misc_b_ram
   [tabs  ]
     Building                       -> (no match)
     Power                          -> (no match)

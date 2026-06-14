@@ -8,7 +8,7 @@
 # the frozen stash.shot12.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 14 item tile(s) across 3 grid row(s)
+  recognized 15 item tile(s) across 3 grid row(s)
   dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
@@ -20,6 +20,7 @@
     1 x misc_b_gastank_large
     1 x misc_b_newphone
     2 x misc_b_pcfan
+    1 x misc_b_ram
     1 x misc_b_rustedcleaner
     1 x misc_b_tape
     1 x misc_floppydisk
@@ -32,9 +33,10 @@
     JUNK BOX                       -> (no match)
   [items ]
     Band-aids                      -> misc_b_bandaid
-    Size O batterye                -> misc_b_battery_1
+    Size D battery?                -> misc_b_battery_1
     Notebook                       -> misc_notebook
-    NewPhane                       -> misc_b_newphone
+    RAM                            -> misc_b_ram
+    NewPhone                       -> misc_b_newphone
   [tabs  ]
     Medical Supplies               -> (no match)
     Power                          -> (no match)
@@ -42,10 +44,12 @@
     Electric                       -> (no match)
     Electric                       -> (no match)
   [chrome]
-    -3                             -> (no match)
+    TOSH                           -> (no match)
+  [chrome]
+    REAMTIGHT                      -> (no match)
   [items ]
     Notebook                       -> misc_notebook
-    cpu Fan                        -> misc_b_pcfan
+    CPU Fan                        -> misc_b_pcfan
     CPU Fan                        -> misc_b_pcfan
     Large gas can                  -> misc_b_gastank_large
     Ceramic adhesive               -> misc_b_ceramic_adhesive
@@ -55,6 +59,13 @@
     Electric                       -> (no match)
     Combustible                    -> (no match)
     Building                       -> (no match)
+  [chrome]
+    TOSR                           -> (no match)
+    海TED                           -> (no match)
+  [chrome]
+    REAMTIGHT                      -> (no match)
+  [chrome]
+    120                            -> (no match)
   [items ]
     Ceramic adhesive               -> misc_b_ceramic_adhesive
     Deodorant                      -> misc_b_deodorant
