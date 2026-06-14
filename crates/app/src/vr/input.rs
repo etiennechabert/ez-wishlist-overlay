@@ -217,6 +217,7 @@ mod tests {
                 weight: None,
                 price: None,
                 rarity: None,
+                scan_alias: None,
             }],
         };
         let mut state = AppState::new(Arc::new(data));

@@ -26,21 +26,19 @@
 #   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
   [tabs  ]
     ALL                            -> (no match)
-    Building                       -> (no match)
-    Combustible                    -> (no match)
-    Electric                       -> (no match)
-    Household                      -> (no match)
+    Building Combustible Electric Household -> (no match)
     Intel                          -> (no match)
     Tool                           -> (no match)
-  [items ]
-    Gunpowder                      -> misc_gunpowder
-    Gunpowder                      -> misc_gunpowder
-    Oil can                        -> misc_oilcan
-    Oil can                        -> misc_oilcan
   [chrome]
-    Submitted items transfer       -> (no match)
+    1796                           -> (no match)
+    1796                           -> (no match)
   [items ]
+    Gunpowder                      -> misc_gunpowder
+    Gunpowder                      -> misc_gunpowder
     Oil can                        -> misc_oilcan
+    Oil can                        -> misc_oilcan
+  [items ]
+    Dil can                        -> misc_oilcan
     Tape player                    -> misc_b_tapeplayer
     Voltage transformer            -> misc_b_transformer
     Civil Radio                    -> misc_b_civilradio
@@ -51,7 +49,4 @@
     Hard Drive                     -> misc_b_harddrive
   [chrome]
     29.46                          -> (no match)
-    /                              -> (no match)
     30                             -> (no match)
-  [chrome]
-    JUNK                           -> (no match)

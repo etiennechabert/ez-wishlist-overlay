@@ -31,8 +31,13 @@ Paks are **pak v11, UNENCRYPTED** (no AES key); file data is **Oodle**-compresse
   - ⚠️ `…/Warfare/ItemInfoWeight/WarfareItemInfo` is the **UI widget**, not a stats
     table. **Sell prices are NOT in the paks** — each blueprint's `SellInfo` maps a
     GUID the **Nakama backend** resolves at runtime; `data.json` prices stay curated.
+  - **Gun parts** (`gunsmith.*`): full names in `WFItemsStringTable` (catalog
+    `Item.name`); the **short name the Gunsmith → Storage grid shows** (catalog
+    `Item.scan_alias`, the OCR storage-scan label — issue #183) is a *separate*
+    string in `…/Warfare/Gunsmith/GunSmithItemAdv` — see the parse recipe below.
 - **pakchunk0** — `…/Localization/Game/{en,…}/Game.locres` (UI strings; note the
-  misc-item names are NOT here — they're in `WFItemsStringTable`).
+  misc-item names are NOT here — they're in `WFItemsStringTable`; gun-part SIGHT
+  short names also appear in its `GoodsStringTable`, e.g. `1144_name="Cobra"`).
 
 ### How to extract (FModel — the safe path)
 1. FModel (`fmodel.app`); Add Undetected Game → the Paks dir; **UE = `GAME_UE5_5`**;
@@ -61,10 +66,34 @@ Paks are **pak v11, UNENCRYPTED** (no AES key); file data is **Oodle**-compresse
   consecutive integer-valued f64s `BakedSourceUV`+`Dimension` in the sprite `.uexp`).
   All 150 misc icons + 11 backpacks + both junk boxes were re-extracted this way
   (tooling: `C:\Users\etien\fontx` getpak/tex2png + `gamedata/export_icons.py`).
+- **Gun-part short name → `scan_alias`** (the Gunsmith → Storage label, issue
+  #183): the DataTable `…/Warfare/Gunsmith/GunSmithItemAdv`. ⚠️ Its `.uasset`
+  name table uses the **legacy FName format** — per entry: `int32 len` (incl the
+  null; negative ⇒ UTF-16, `2·|len|` bytes) + the bytes + a **4-byte hash** —
+  *not* the UE5.5 2-byte `FSerializedNameHeader` the recipe tables use, so reuse
+  the recipe name-walker and it finds nothing. Walk it (take the longest valid
+  chain) to get the 705 `gunsmith.*` tags (the row keys). In the `.uexp`, a row
+  starts where `(uint32 idx, uint32 num==0)` resolves to a `gunsmith.*` name; the
+  inline FStrings (`int32 len`+ascii+null) are the short labels in row order —
+  assign each to the row whose `[start, next_start)` range contains it. **Join**
+  tag → full name (`WFItemsStringTable` `gunsmith.x.y_name`) → catalog `Item.name`
+  → id (exact, else normalized-alnum); set `scan_alias`. 611/614 parts matched
+  (3 have no short name; ~91 tags aren't in the catalog = the missing-icon parts).
+  Tooling: `C:\Users\etien\fontx\gamedata\extract_shortnames.py` → `shortnames.json`,
+  then an **object-aware line insert** into data.json (find each gunsmith item's
+  `{…}` span, append `"scan_alias"` as the last field) — do NOT `json.dump` the
+  whole file: the compact one-line `research` requirement objects would reflow
+  into a huge unrelated diff. Sight short names also appear in `Game.locres`
+  `GoodsStringTable` (`<gid>_name`, e.g. `1144_name="Cobra"`) — a cross-check,
+  but `GunSmithItemAdv` is the complete source.
 
 ### Gotchas
 - Recipes are **seasonal** (`_S2`…`_S5`); `data.json` currently tracks ~**S5**.
   Re-confirm the live season against `screenshots/hideout/` each game update.
+- **Gun-part short names (`scan_alias`) drift on game updates** like everything
+  else — re-run the `GunSmithItemAdv` parse recipe above and re-join when the
+  Gunsmith → Storage labels stop matching (the `gunsmith_storage_scan_resolves_parts`
+  gate floor is the early-warning canary). Snapshot last extracted 2026-06-14.
 - **Name drift:** app "Nails" vs game "Boxed Nails"; `misc_b_storagebattery`="Car
   Battery". **Id drift:** the size-D-battery twins were renamed in #162 — game
   blueprints `ValuableItem_1batterie_2` ("Size D battery1") /

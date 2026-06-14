@@ -299,6 +299,14 @@ fn handle_box_capture(
         return;
     };
     let data = state.read().data.clone();
+    // The Gunsmith → Storage container shows short gun-part names, not the full
+    // catalog names the misc box/stash tiles show, so it needs the gun-part
+    // matcher (issue #183). Scope it to that one built-in container so misc
+    // scans are unaffected.
+    let gunsmith = matches!(
+        &session.target,
+        ocr::ScanTarget::Container(id) if id.as_str() == state::GUNSMITH_STORAGE_ID
+    );
     // OCR every frame of the shot's burst independently (issue #165). One
     // frame is the norm; extras exist only when the user raised the
     // OCR-rounds setting. A failed round is dropped (the shot survives on
@@ -308,7 +316,7 @@ fn handle_box_capture(
         .chain(job.extra_rounds.iter())
         .enumerate()
     {
-        match ocr::box_scan::process_box_image(img, &data) {
+        match ocr::box_scan::process_box_image(img, &data, gunsmith) {
             Ok(r) => reads.push(r),
             Err(e) => {
                 tracing::warn!(error = %e, round = round + 1, "box-scan OCR failed");

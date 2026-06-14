@@ -50,8 +50,8 @@ pub fn read_icon(icon_path: &str) -> Option<std::borrow::Cow<'static, [u8]>> {
 /// "owned count = 0" — upgrade identification still works).
 ///
 /// Windows-only: the OCR pipeline itself is `cfg(target_os = "windows")`
-/// (Windows.Media.Ocr is the only engine), so this helper has no caller
-/// on Linux/macOS — gating it here keeps `-D warnings` happy in CI.
+/// (the engine ships there only — see `ocr/engine.rs`), so this helper has
+/// no caller on Linux/macOS — gating it here keeps `-D warnings` happy in CI.
 #[cfg(target_os = "windows")]
 pub fn ocr_template_files() -> Vec<(String, std::borrow::Cow<'static, [u8]>)> {
     Assets::iter()

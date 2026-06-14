@@ -9,7 +9,7 @@
 //!   5. For each cell strip, binarize + template-match → owned count.
 //!   6. Assemble [`OcrOutcome`].
 //!
-//! Non-Windows: returns `Ok(None)` — Windows.Media.Ocr is unavailable.
+//! Non-Windows: returns `Ok(None)` — the OCR engine is Windows-only.
 
 use crate::data::GameData;
 #[cfg(target_os = "windows")]
@@ -114,7 +114,7 @@ pub fn process_image(
             word_count = full_words.len(),
             engine_ms = t_engine_start.elapsed().as_millis() as u64,
             first_words = ?first_words,
-            "ocr pipeline: Windows.Media.Ocr first-pass complete"
+            "ocr pipeline: engine first-pass complete"
         );
     }
     let layout = match anchor::detect_panel(&full_words, img_w, img_h) {

@@ -1,0 +1,75 @@
+# gunsmith.shot1 — what the OCR read in this one screenshot
+# (auto-generated; do not edit by hand — see screenshots/CLAUDE.md)
+#
+# This is ONE scroll shot of the gunsmith grid. The grid is taller than the
+# screen, so the full contents come from merging every shot — that merged
+# result, scored against the label, lives in gunsmith.ocr-result.txt. This file
+# just shows what the OCR pulled out of this single frame, regenerated from
+# the frozen gunsmith.shot1.boxes.json (so it never runs the game).
+#
+## SUMMARY
+  recognized 20 item tile(s) across 5 grid row(s)
+  dropped 5 text(s) that matched no catalog item (window title, weight
+    readout, category tabs/subtitles — i.e. screen chrome, not items)
+#
+  items found in this frame:
+    1 x gunsmith_20rail_foregrip_pvg_bk
+    1 x gunsmith_20rail_sight_t1highlever
+    1 x gunsmith_ak_lowerreceiver_akmn
+    1 x gunsmith_ar15_barrel_508mmsight
+    1 x gunsmith_ar15_handguard_4inchris
+    1 x gunsmith_ar15_handguard_m16poly
+    3 x gunsmith_ar15_lowerreceiver_m16
+    2 x gunsmith_ar15_muzzle_usgia2
+    3 x gunsmith_ar15_pistolgrip_m4factory
+    1 x gunsmith_ar15_upperreceiver_m16a2
+    2 x gunsmith_arbuffer_stock_m16a2
+    1 x gunsmith_mp5_lowerreceiver_mp5a4
+    1 x gunsmith_mp5_upperreceiver_mp5a4
+    1 x gunsmith_ump_clip_25
+#
+## DETAIL — every text the OCR produced, row by row
+#   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
+#   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
+  [chrome]
+    AUTO MODE                      -> (no match)
+    2,580,850                      -> (no match)
+    SETTINGS                       -> (no match)
+    SAVETO PRESET                  -> (no match)
+  [tabs  ]
+    ALL                            -> (no match)
+  [items ]
+    slx68-MG                       -> (no match)
+    MP5A4                          -> gunsmith_mp5_lowerreceiver_mp5a4
+    MPSA4Upper                     -> gunsmith_mp5_upperreceiver_mp5a4
+    UMP4525rd                      -> gunsmith_ump_clip_25
+    AKMN                           -> gunsmith_ak_lowerreceiver_akmn
+    M4 factory                     -> gunsmith_ar15_pistolgrip_m4factory
+  [items ]
+    AR-1500                        -> (no match)
+    AR-154in RIS                   -> gunsmith_ar15_handguard_4inchris
+  [items ]
+    AR-15M4                        -> (no match)
+    AR-15USGIA2                    -> gunsmith_ar15_muzzle_usgia2
+    PVGBK                          -> gunsmith_20rail_foregrip_pvg_bk
+    M16                            -> gunsmith_ar15_lowerreceiver_m16
+    KW191110rd AUG42rd             -> (no match)
+    T1 Elevating                   -> gunsmith_20rail_sight_t1highlever
+  [items ]
+    M16                            -> gunsmith_ar15_lowerreceiver_m16
+    M16A2Upper                     -> gunsmith_ar15_upperreceiver_m16a2
+    AR-15508mm Sight               -> gunsmith_ar15_barrel_508mmsight
+    M16 Polymer                    -> gunsmith_ar15_handguard_m16poly
+  [items ]
+    M4factory                      -> gunsmith_ar15_pistolgrip_m4factory
+    M16A2                          -> gunsmith_arbuffer_stock_m16a2
+    AR-15USGIA2                    -> gunsmith_ar15_muzzle_usgia2
+    M16                            -> gunsmith_ar15_lowerreceiver_m16
+    M16A2                          -> gunsmith_arbuffer_stock_m16a2
+    M4 factory                     -> gunsmith_ar15_pistolgrip_m4factory
+    612030rd                       -> (no match)
+  [chrome]
+    BACK                           -> (no match)
+    WITHDRAW                       -> (no match)
+    SELL                           -> (no match)
+    26.93 / 30 KG                  -> (no match)

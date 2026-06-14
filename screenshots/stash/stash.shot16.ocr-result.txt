@@ -8,17 +8,18 @@
 # the frozen stash.shot16.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 16 item tile(s) across 5 grid row(s)
-  dropped 1 text(s) that matched no catalog item (window title, weight
+  recognized 15 item tile(s) across 3 grid row(s)
+  dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
-    4 x misc_b_aspire
+    2 x misc_b_aspire
     1 x misc_b_battery_1
     1 x misc_b_gastank
     1 x misc_b_gunoil
     1 x misc_b_ionbattery
     1 x misc_b_match
+    1 x misc_b_ram
     1 x misc_b_superglue
     3 x misc_b_wd40
     1 x misc_b_wirecutting
@@ -31,41 +32,44 @@
   [chrome]
     JUNK BOX                       -> (no match)
   [items ]
-    wo-40                          -> misc_b_wd40
+    WD-40                          -> misc_b_wd40
     Wire Cutter                    -> misc_b_wirecutting
-    wo-40                          -> misc_b_wd40
+    WD-40                          -> misc_b_wd40
     Cleanser                       -> misc_facialcleaner
+    RAM                            -> misc_b_ram
   [tabs  ]
     Combustible                    -> (no match)
     Tool                           -> (no match)
     Combustible                    -> (no match)
     Household                      -> (no match)
     Electric                       -> (no match)
-  [items ]
-    ASPIR'N                        -> misc_b_aspire
+  [chrome]
+    ASPIRIN                        -> (no match)
   [items ]
     Windproof Matches              -> misc_b_match
     Gun oil                        -> misc_b_gunoil
     Super Glue                     -> misc_b_superglue
     Aspirin                        -> misc_b_aspire
-    wo-40                          -> misc_b_wd40
+    WD-40                          -> misc_b_wd40
   [tabs  ]
     Combustible                    -> (no match)
     Combustible                    -> (no match)
     Building                       -> (no match)
     Medical Supplies               -> (no match)
     Combustible                    -> (no match)
-  [items ]
-    ASPIR'N                        -> misc_b_aspire
-    Lurc•r                         -> (no match)
+  [chrome]
+    ASPIRIN                        -> (no match)
+    iLurGor                        -> (no match)
+  [chrome]
+    AS                             -> (no match)
   [items ]
     Notebook                       -> misc_notebook
     Gas can                        -> misc_b_gastank
     Aspirin                        -> misc_b_aspire
-    Size D batteryi                -> misc_b_battery_1
-    Ion Battery                    -> misc_b_ionbattery
+    Size D battery1                -> misc_b_battery_1
+    lon Battery                    -> misc_b_ionbattery
   [tabs  ]
-    Intel                          -> (no match)
+    Intet                          -> (no match)
     Combustible                    -> (no match)
     Medical Supplies               -> (no match)
     Power                          -> (no match)

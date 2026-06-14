@@ -1,0 +1,9 @@
+# OCR result - hideout/units/CoffeeMakerLv1__misc_wastechip.webp   (auto-generated; do not edit by hand)
+# Source: engine::recognize_image over the lone item crop (isolated-OCR unit).
+# The Windows OCR engine is non-deterministic: reads are collapsed across runs
+#   (e.g. "copper wirex2,copper virex1" = FLAKY); a PASS read its name every run.
+# Regenerate with scripts/ocr-eval.ps1 then scripts/ocr-write-results.ps1.
+#
+status:   PASS  (5/5 runs read the expected name; gated)
+expected: wastechip
+OCR read: 000 wastechip 3/2

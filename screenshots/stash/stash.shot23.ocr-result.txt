@@ -8,7 +8,7 @@
 # the frozen stash.shot23.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 14 item tile(s) across 3 grid row(s)
+  recognized 15 item tile(s) across 3 grid row(s)
   dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
@@ -20,6 +20,7 @@
     1 x misc_b_glue_large
     1 x misc_b_lighterfluid
     1 x misc_b_moldboard
+    1 x misc_b_opticaldisc
     1 x misc_b_pcfan
     1 x misc_b_rat_poison
     1 x misc_b_rustedcleaner
@@ -33,9 +34,9 @@
   [chrome]
     JUNK BOX                       -> (no match)
   [items ]
-    BeardOil                       -> misc_b_beardoil
+    Beardoil                       -> misc_b_beardoil
     Lighter fluid                  -> misc_b_lighterfluid
-    wo-40                          -> misc_b_wd40
+    WD-40                          -> misc_b_wd40
     Moldboard                      -> misc_b_moldboard
     Band-aids                      -> misc_b_bandaid
   [tabs  ]
@@ -44,23 +45,30 @@
     Combustible                    -> (no match)
     Tool                           -> (no match)
     Medical Supplies               -> (no match)
+  [chrome]
+    iLurGor                        -> (no match)
+  [chrome]
+    ATED                           -> (no match)
   [items ]
     Instant glue                   -> misc_b_glue_large
     Rust cleaner                   -> misc_b_rustedcleaner
-    wa-40                          -> misc_b_wd40
-    Size O batteryl                -> misc_b_battery_1
+    WD-40                          -> misc_b_wd40
+    Size Dbatteryl                 -> misc_b_battery_1
     CPU Fan                        -> misc_b_pcfan
   [tabs  ]
-    Building                       -> (no match)
+    Buil ding                      -> (no match)
     Household                      -> (no match)
     Combustible                    -> (no match)
     Power                          -> (no match)
     Electric                       -> (no match)
   [chrome]
-    HARGARiNE'                     -> (no match)
+    MARGARINE                      -> (no match)
+  [chrome]
+    SUA.SALT                       -> (no match)
   [items ]
     Tire Sealant                   -> misc_b_tire_sealant
     Salt can                       -> misc_b_saltcan
+    CD                             -> misc_b_opticaldisc
     Large gas can                  -> misc_b_gastank_large
     Rat Poison                     -> misc_b_rat_poison
   [tabs  ]

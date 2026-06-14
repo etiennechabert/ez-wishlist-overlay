@@ -8,7 +8,7 @@
 # the frozen stash.shot37.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 13 item tile(s) across 3 grid row(s)
+  recognized 15 item tile(s) across 3 grid row(s)
   dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
@@ -20,6 +20,8 @@
     2 x misc_b_insulatingtape
     1 x misc_b_lighter
     1 x misc_b_lighterfluid
+    1 x misc_b_opticaldisc
+    1 x misc_b_ram
     1 x misc_b_recorder
     1 x misc_b_rustedcleaner
     1 x misc_b_tape
@@ -32,8 +34,10 @@
   [chrome]
     JUNK BOX                       -> (no match)
   [items ]
+    RAM                            -> misc_b_ram
     Lighter                        -> misc_b_lighter
     Flash light                    -> misc_b_flashlight
+    CD                             -> misc_b_opticaldisc
     Notebook                       -> misc_notebook
   [tabs  ]
     Electric                       -> (no match)
@@ -42,12 +46,14 @@
     Intel                          -> (no match)
     Intel                          -> (no match)
   [chrome]
-    Lu r Gor                       -> (no match)
+    SiLurGor                       -> (no match)
+  [chrome]
+    NTFE                           -> (no match)
   [items ]
-    Size O batterye                -> misc_b_battery_1
+    Size D battery?                -> misc_b_battery_1
     Insulating Tape                -> misc_b_insulatingtape
     Insulating Tape                -> misc_b_insulatingtape
-    BeardOi1                       -> misc_b_beardoil
+    Beardoil                       -> misc_b_beardoil
     Lighter fluid                  -> misc_b_lighterfluid
   [tabs  ]
     Power                          -> (no match)
@@ -55,6 +61,8 @@
     Building                       -> (no match)
     Household                      -> (no match)
     Combustible                    -> (no match)
+  [chrome]
+    ATED                           -> (no match)
   [items ]
     Tape                           -> misc_b_tape
     Tire Sealant                   -> misc_b_tire_sealant

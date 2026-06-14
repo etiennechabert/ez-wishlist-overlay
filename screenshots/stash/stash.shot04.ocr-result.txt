@@ -8,19 +8,20 @@
 # the frozen stash.shot04.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 14 item tile(s) across 3 grid row(s)
+  recognized 15 item tile(s) across 3 grid row(s)
   dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
     1 x misc_b_asthmamedication
-    1 x misc_b_battery_1
-    2 x misc_b_battery_2
+    2 x misc_b_battery_1
+    1 x misc_b_battery_2
     1 x misc_b_ceramic_adhesive
     1 x misc_b_disinfectingwipes
     2 x misc_b_insulatingtape
     1 x misc_b_pcfan
     2 x misc_b_pipeline
+    1 x misc_b_ram
     1 x misc_b_screw
     1 x misc_hammer
     1 x misc_notebook
@@ -43,11 +44,12 @@
     Building                       -> (no match)
     Building                       -> (no match)
   [chrome]
-    Si Lu r G or                   -> (no match)
+    SiLurGor                       -> (no match)
   [items ]
     Insulating Tape                -> misc_b_insulatingtape
-    Size O battery2                -> misc_b_battery_2
+    Size D battery2                -> misc_b_battery_2
     Insulating Tape                -> misc_b_insulatingtape
+    RAM                            -> misc_b_ram
     Asthma medicine                -> misc_b_asthmamedication
   [tabs  ]
     Building                       -> (no match)
@@ -56,12 +58,18 @@
     Electric                       -> (no match)
     Medical Supplies               -> (no match)
   [chrome]
-    Si L ur Gor                    -> (no match)
+    SiLurGor                       -> (no match)
+    iLurGor                        -> (no match)
+    NICEBOLTS                      -> (no match)
+  [chrome]
+    TOSH                           -> (no match)
+  [chrome]
+    EAMTIGHT                       -> (no match)
   [items ]
     Disinfectant wipes             -> misc_b_disinfectingwipes
     Ceramic adhesive               -> misc_b_ceramic_adhesive
-    Size D battery2                -> misc_b_battery_2
-    Size O batteryi                -> misc_b_battery_1
+    Size D battery?                -> misc_b_battery_1
+    Size D batteryl                -> misc_b_battery_1
     Boxed Bolts                    -> misc_b_screw
   [tabs  ]
     Medical Supplies               -> (no match)

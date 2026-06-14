@@ -2048,6 +2048,7 @@ mod tests {
                 weight: Some(12.4),
                 price: None,
                 rarity: None,
+                scan_alias: None,
             }],
             research: Vec::new(),
         })

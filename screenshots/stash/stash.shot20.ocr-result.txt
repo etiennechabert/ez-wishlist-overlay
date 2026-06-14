@@ -8,7 +8,7 @@
 # the frozen stash.shot20.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 14 item tile(s) across 3 grid row(s)
+  recognized 15 item tile(s) across 3 grid row(s)
   dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
@@ -23,6 +23,7 @@
     2 x misc_b_ionbattery
     1 x misc_b_newphone
     1 x misc_b_pcfan
+    1 x misc_b_ram
     1 x misc_b_wd40
     1 x misc_wastechip
 #
@@ -34,7 +35,7 @@
   [items ]
     WD-40                          -> misc_b_wd40
     Asthma medicine                -> misc_b_asthmamedication
-    Ion Battery                    -> misc_b_ionbattery
+    lon Battery                    -> misc_b_ionbattery
     Aspirin                        -> misc_b_aspire
     CPU Fan                        -> misc_b_pcfan
   [tabs  ]
@@ -43,11 +44,14 @@
     Power                          -> (no match)
     Medical Supplies               -> (no match)
     Electric                       -> (no match)
+  [chrome]
+    iLurGor                        -> (no match)
   [items ]
     NewPhone                       -> misc_b_newphone
-    Ion Battery                    -> misc_b_ionbattery
-    Size D batteryl                -> misc_b_battery_1
-    Size D batteryl                -> misc_b_battery_1
+    RAM                            -> misc_b_ram
+    lon Battery                    -> misc_b_ionbattery
+    Size Dbatteryl                 -> misc_b_battery_1
+    Size Dbatteryl                 -> misc_b_battery_1
   [tabs  ]
     Electric                       -> (no match)
     Electric                       -> (no match)
@@ -55,11 +59,11 @@
     Power                          -> (no match)
     Power                          -> (no match)
   [items ]
-    BeardOi1                       -> misc_b_beardoil
+    Beardoil                       -> misc_b_beardoil
     Flash light                    -> misc_b_flashlight
     Gas can                        -> misc_b_gastank
     Instant glue                   -> misc_b_glue_large
-    w•stechip                      -> misc_wastechip
+    wastechip                      -> misc_wastechip
   [tabs  ]
     Household                      -> (no match)
     Electric                       -> (no match)
