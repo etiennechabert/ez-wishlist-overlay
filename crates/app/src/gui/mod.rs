@@ -433,15 +433,32 @@ impl eframe::App for App {
         // Hideout recipe editor, docked to the window bottom (same ctx-level
         // primitive as the right preview panel) so it stays pinned while the
         // grid/list above scrolls. Not resizable — fixed height, no drag handle.
-        // (The research detail card can't be docked this way: egui collapses its
-        // flowed content in a bottom panel, so it's pinned at the top of its tab
-        // instead — see research_pane::ui.)
         if self.tab == LeftTab::Hideout && hideout_pane::editor_is_open(ctx) {
             egui::TopBottomPanel::bottom("hideout-recipe-editor-fixed")
                 .resizable(false)
                 .default_height(340.0)
                 .show(ctx, |ui| {
                     hideout_pane::editor_footer(ui, &self.state, &self.save_tx, &mut self.icons);
+                });
+        }
+
+        // Research detail card, docked to the window bottom the same way. Sized
+        // to its content (exact_height), not resizable — flush to the bottom with
+        // no drag handle. Docking left of the right preview panel, it spans the
+        // full central width without hiding the Active-items column.
+        if self.tab == LeftTab::Research && research_pane::detail_is_open(&self.research_ui) {
+            let card_h = research_pane::card_height(&self.state, &self.research_ui);
+            egui::TopBottomPanel::bottom("research-detail-card-fixed")
+                .resizable(false)
+                .exact_height(card_h)
+                .show(ctx, |ui| {
+                    research_pane::detail_footer(
+                        ui,
+                        &self.state,
+                        &mut self.icons,
+                        &self.save_tx,
+                        &mut self.research_ui,
+                    );
                 });
         }
 
@@ -470,13 +487,7 @@ impl eframe::App for App {
                     }
                 }
                 LeftTab::Research => {
-                    research_pane::ui(
-                        ui,
-                        &self.state,
-                        &mut self.icons,
-                        &self.save_tx,
-                        &mut self.research_ui,
-                    );
+                    research_pane::ui(ui, &self.state, &mut self.research_ui);
                 }
                 LeftTab::Containers => {
                     egui::ScrollArea::vertical().show(ui, |ui| {
