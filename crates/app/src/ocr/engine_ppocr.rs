@@ -21,7 +21,10 @@
 //!    the full extent), map back to source pixel space.
 //! 3. **rec** — crop each line from the *original* image (full glyph
 //!    resolution), resize to h=48 / w≥320 padded, same normalize → CTC
-//!    softmax over the embedded 6625-class dict.
+//!    softmax over the embedded 6625-class dict. Lines are width-sorted and
+//!    recognized in batches ([`REC_BATCH`]) in one ONNX call each, not one call
+//!    per line — a box/stash frame has 40-80 lines and the per-line dispatch
+//!    dominated latency.
 //! 4. **decode** — greedy CTC collapse, drop lines under the 0.5 text score,
 //!    then split each line into **words** at dict spaces, deriving per-word x
 //!    ranges from the CTC column indices. Downstream consumers
@@ -68,16 +71,32 @@ const DB_MIN_SIZE: u32 = 3;
 // --- rec parameters ---
 /// Recognition input height; width scales proportionally.
 const REC_H: u32 = 48;
-/// Minimum (padded) recognition width — matches RapidOCR, whose batch padding
-/// floors the width at the canonical 320 even for narrow crops.
+/// How many line crops to recognize per ONNX rec call. Crops are width-sorted
+/// then chunked, so a batch holds similar widths and wastes little compute on
+/// padding (RapidOCR's `rec_batch_num`). Batching collapses the dozens of tiny
+/// per-line rec dispatches a box/stash frame used to issue.
+const REC_BATCH: usize = 8;
+/// Minimum rec input width. Each batch pads to its widest crop but never below
+/// this: very narrow names (e.g. "WD-40") decode more reliably with the canonical
+/// ~320 px context the model was trained on — padding a 2-char crop to only its
+/// own ~60 px flipped a borderline glyph (d→o). The dispatch + thread wins below
+/// don't depend on the padding width, so keeping the floor costs ~nothing.
 const REC_MIN_W: u32 = 320;
 /// Drop a recognized line when its mean per-glyph confidence is below this
 /// (RapidOCR's global `text_score`).
 const TEXT_SCORE: f32 = 0.5;
-/// Cap intra-op threads: OCR runs on one background worker and must stay a
-/// good neighbour to the VR compositor, so we trade a little latency for a
-/// bounded CPU footprint instead of letting ORT fan out across every core.
-const INTRA_THREADS: usize = 4;
+/// Intra-op threads for the det/rec sessions. Detection (one large conv) is the
+/// per-frame bottleneck and scales with threads, so we give it about half the
+/// machine's cores — enough to cut latency materially while leaving the other
+/// half for the VR compositor + game (OCR runs in bursts while the user pauses
+/// to scan, not every frame). Clamped to [2, 8]: 8 is past DBNet's useful
+/// scaling here, and 2 keeps a low-core machine from over-subscribing.
+fn intra_threads() -> usize {
+    let cores = std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(4);
+    (cores / 2).clamp(2, 8)
+}
 
 struct Engine {
     det: Session,
@@ -98,10 +117,11 @@ fn engine() -> Result<&'static Mutex<Engine>> {
         // `ort`'s builder errors aren't Send+Sync (and carry a different
         // generic per stage), so they can't ride anyhow's `context`; flatten
         // each step to a string at the boundary.
+        let threads = intra_threads();
         let build = |model: &[u8], what: &str| -> Result<Session> {
             let mut b = Session::builder().map_err(|e| anyhow::anyhow!("{what}: builder: {e}"))?;
             b = b
-                .with_intra_threads(INTRA_THREADS)
+                .with_intra_threads(threads)
                 .map_err(|e| anyhow::anyhow!("{what}: threads: {e}"))?;
             b.commit_from_memory(model)
                 .map_err(|e| anyhow::anyhow!("{what}: load: {e}"))
@@ -151,6 +171,7 @@ pub fn recognize_image(img: &DynamicImage) -> Result<Vec<OcrWord>> {
     let mut eng = engine()?.lock();
 
     // --- detection ---
+    let t_det = std::time::Instant::now();
     let (det_input, det_w, det_h, scale) = det_preprocess(&rgb);
     let prob = {
         let input = ort::value::Tensor::from_array((
@@ -167,9 +188,17 @@ pub fn recognize_image(img: &DynamicImage) -> Result<Vec<OcrWord>> {
     };
 
     let boxes = db_postprocess(&prob, det_w, det_h);
+    let det_ms = t_det.elapsed().as_secs_f32() * 1000.0;
 
-    // --- recognition, line by line, then word splitting ---
-    let mut words: Vec<OcrWord> = Vec::new();
+    // --- recognition: batch the line crops through rec ---
+    // One ONNX rec call per detected line dominated latency (40-80 tiny runs per
+    // box/stash frame, each paying full dispatch + thread fan-out overhead).
+    // Batching mirrors RapidOCR's `rec_batch_num`: crop every line from the
+    // FULL-RES source (glyph quality unchanged — det only locates), sort by
+    // width so similar widths share a batch, and pad each batch to its own max
+    // (no fixed 320 floor) so a batch wastes minimal compute on grey padding.
+    let t_rec = std::time::Instant::now();
+    let mut pend: Vec<(RgbImage, u32, f32, f32, f32, f32)> = Vec::new();
     for b in boxes {
         // Map the det-space box back to source pixels and clamp.
         let x0 = ((b.x as f32 / scale).floor().max(0.0) as u32).min(src_w - 1);
@@ -180,17 +209,39 @@ pub fn recognize_image(img: &DynamicImage) -> Result<Vec<OcrWord>> {
             continue;
         }
         let crop = image::imageops::crop_imm(&rgb, x0, y0, x1 - x0, y1 - y0).to_image();
-        let Some(line) = recognize_line(&mut eng, &crop)? else {
-            continue;
-        };
-        words.extend(split_words(
-            &line,
+        let (resized, resized_w) = rec_resize(&crop);
+        pend.push((
+            resized,
+            resized_w,
             x0 as f32,
             y0 as f32,
             (x1 - x0) as f32,
             (y1 - y0) as f32,
         ));
     }
+    // Widest-similar crops together: sort by width, batch, pad to batch max.
+    let mut order: Vec<usize> = (0..pend.len()).collect();
+    order.sort_by_key(|&i| pend[i].1);
+    let mut rec_runs = 0usize;
+    let mut words: Vec<OcrWord> = Vec::new();
+    for chunk in order.chunks(REC_BATCH) {
+        let wmax = chunk
+            .iter()
+            .map(|&i| pend[i].1)
+            .max()
+            .unwrap_or(8)
+            .max(REC_MIN_W);
+        let crops = chunk.iter().map(|&i| (&pend[i].0, pend[i].1));
+        let lines = recognize_batch(&mut eng, crops, wmax)?;
+        rec_runs += 1;
+        for (&i, line) in chunk.iter().zip(lines) {
+            if let Some(line) = line {
+                let (_, _, x, y, w, h) = pend[i];
+                words.extend(split_words(&line, x, y, w, h));
+            }
+        }
+    }
+    let rec_ms = t_rec.elapsed().as_secs_f32() * 1000.0;
 
     // Reading order: top-to-bottom, left-to-right — matches the order the
     // WinRT engine emitted, which `anchor`'s sliding token windows assume.
@@ -210,8 +261,21 @@ pub fn recognize_image(img: &DynamicImage) -> Result<Vec<OcrWord>> {
         width = src_w,
         height = src_h,
         words = words.len(),
+        det_ms,
+        rec_ms,
+        rec_runs,
         "PP-OCR finished"
     );
+    // Opt-in measurement (env OCR_TIMING) so per-frame det/rec latency is visible
+    // without enabling debug logging — used to size the rec-batching work (#182
+    // follow-up). Cheap: one env read per frame.
+    if std::env::var_os("OCR_TIMING").is_some() {
+        eprintln!(
+            "OCR_TIMING det={det_ms:.0}ms rec={rec_ms:.0}ms rec_runs={rec_runs} total={:.0}ms words={}",
+            det_ms + rec_ms,
+            words.len()
+        );
+    }
     Ok(words)
 }
 
@@ -367,47 +431,86 @@ fn db_postprocess(prob: &[f32], w: u32, h: u32) -> Vec<DetBox> {
 }
 
 /// One recognized text line plus the CTC column geometry needed to split it
-/// into words: `chars[i]` was decoded at column `cols[i]` of `total_cols`
-/// over a crop resized to `resized_w` px wide.
+/// into words: `chars[i]` was decoded at column `cols[i]` of `total_cols` over a
+/// rec input of `padded_w` px, of which the crop's real content occupies the
+/// leftmost `resized_w` px (the rest is right-padding).
 struct RecLine {
     chars: Vec<String>,
     cols: Vec<usize>,
     total_cols: usize,
     resized_w: u32,
+    padded_w: u32,
 }
 
-/// Recognize one cropped line. Returns `None` when the mean confidence falls
-/// below [`TEXT_SCORE`] or nothing decodes.
-fn recognize_line(eng: &mut Engine, crop: &RgbImage) -> Result<Option<RecLine>> {
+/// Resize one crop to the rec input height ([`REC_H`]), width proportional
+/// (min 8 px). Returns the resized image and its width.
+fn rec_resize(crop: &RgbImage) -> (RgbImage, u32) {
     let (cw, ch) = crop.dimensions();
-    let ratio = cw as f32 / ch as f32;
+    let ratio = cw as f32 / ch.max(1) as f32;
     let resized_w = ((REC_H as f32 * ratio).ceil() as u32).max(8);
-    let padded_w = resized_w.max(REC_MIN_W);
-    let resized = image::imageops::resize(crop, resized_w, REC_H, FilterType::Triangle);
+    (
+        image::imageops::resize(crop, resized_w, REC_H, FilterType::Triangle),
+        resized_w,
+    )
+}
 
-    let n = (padded_w * REC_H) as usize;
-    // Pad value 0.0 == the normalized 127.5 grey, matching RapidOCR's zero pad
-    // after normalization.
-    let mut chw = vec![0f32; 3 * n];
-    for (x, y, px) in resized.enumerate_pixels() {
-        let i = (y * padded_w + x) as usize;
-        let [r, g, b] = px.0;
-        chw[i] = b as f32 / 127.5 - 1.0;
-        chw[n + i] = g as f32 / 127.5 - 1.0;
-        chw[2 * n + i] = r as f32 / 127.5 - 1.0;
+/// Run rec on a batch of pre-resized crops in ONE ONNX call. Every crop is
+/// right-padded to `wmax` (0.0 == the normalized 127.5 grey, matching RapidOCR's
+/// zero pad). Returns one `Option<RecLine>` per input, in input order (`None` =
+/// empty or below [`TEXT_SCORE`]).
+fn recognize_batch<'a>(
+    eng: &mut Engine,
+    crops: impl Iterator<Item = (&'a RgbImage, u32)>,
+    wmax: u32,
+) -> Result<Vec<Option<RecLine>>> {
+    let crops: Vec<(&RgbImage, u32)> = crops.collect();
+    let b = crops.len();
+    if b == 0 {
+        return Ok(Vec::new());
+    }
+    let n = (wmax * REC_H) as usize;
+    let mut chw = vec![0f32; b * 3 * n];
+    for (bi, (crop, _)) in crops.iter().enumerate() {
+        let base = bi * 3 * n;
+        for (x, y, px) in crop.enumerate_pixels() {
+            let i = (y * wmax + x) as usize;
+            let [r, g, bl] = px.0;
+            chw[base + i] = bl as f32 / 127.5 - 1.0;
+            chw[base + n + i] = g as f32 / 127.5 - 1.0;
+            chw[base + 2 * n + i] = r as f32 / 127.5 - 1.0;
+        }
     }
 
-    let input =
-        ort::value::Tensor::from_array(([1usize, 3, REC_H as usize, padded_w as usize], chw))
-            .context("rec input tensor")?;
+    let input = ort::value::Tensor::from_array(([b, 3, REC_H as usize, wmax as usize], chw))
+        .context("rec batch tensor")?;
     let outputs = eng.rec.run(ort::inputs!["x" => input]).context("rec run")?;
     let (shape, data) = outputs[0]
         .try_extract_tensor::<f32>()
         .context("rec output")?;
-    // [1, T, C]
+    // [B, T, C]
     let t_len = shape[1] as usize;
     let classes = shape[2] as usize;
 
+    let mut out = Vec::with_capacity(b);
+    for (bi, &(_, resized_w)) in crops.iter().enumerate() {
+        let slice = &data[bi * t_len * classes..(bi + 1) * t_len * classes];
+        out.push(ctc_decode(
+            slice, t_len, classes, &eng.dict, resized_w, wmax,
+        ));
+    }
+    Ok(out)
+}
+
+/// Greedy CTC-decode one `[T, C]` logit slice into a [`RecLine`]. Returns `None`
+/// when nothing decodes or the mean per-glyph confidence is below [`TEXT_SCORE`].
+fn ctc_decode(
+    data: &[f32],
+    t_len: usize,
+    classes: usize,
+    dict: &[String],
+    resized_w: u32,
+    padded_w: u32,
+) -> Option<RecLine> {
     let mut chars = Vec::new();
     let mut cols = Vec::new();
     let mut confs = Vec::new();
@@ -422,7 +525,7 @@ fn recognize_line(eng: &mut Engine, crop: &RgbImage) -> Result<Option<RecLine>> 
             }
         }
         if best != 0 && best != prev {
-            if let Some(glyph) = eng.dict.get(best) {
+            if let Some(glyph) = dict.get(best) {
                 chars.push(glyph.clone());
                 cols.push(t);
                 confs.push(best_p);
@@ -431,18 +534,19 @@ fn recognize_line(eng: &mut Engine, crop: &RgbImage) -> Result<Option<RecLine>> 
         prev = best;
     }
     if chars.is_empty() {
-        return Ok(None);
+        return None;
     }
     let mean = confs.iter().sum::<f32>() / confs.len() as f32;
     if mean < TEXT_SCORE {
-        return Ok(None);
+        return None;
     }
-    Ok(Some(RecLine {
+    Some(RecLine {
         chars,
         cols,
         total_cols: t_len,
         resized_w,
-    }))
+        padded_w,
+    })
 }
 
 /// Split a recognized line into word boxes. Each CTC column maps to an x slice
@@ -451,7 +555,7 @@ fn recognize_line(eng: &mut Engine, crop: &RgbImage) -> Result<Option<RecLine>> 
 /// onto the source crop `x..x+w`. The y/height are the line's — downstream
 /// clustering only needs horizontal precision.
 fn split_words(line: &RecLine, x: f32, y: f32, w: f32, h: f32) -> Vec<OcrWord> {
-    let padded_w = line.resized_w.max(REC_MIN_W) as f32;
+    let padded_w = line.padded_w as f32;
     let col_px = padded_w / line.total_cols.max(1) as f32;
     let to_src = |col: usize, end: bool| -> f32 {
         let cx = (col as f32 + if end { 1.0 } else { 0.0 }) * col_px;

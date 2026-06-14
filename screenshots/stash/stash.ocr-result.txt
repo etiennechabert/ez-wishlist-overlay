@@ -6,13 +6,13 @@
 # stash.label.txt. Per-shot reads are in the sibling stash.shotN.ocr-result.txt.
 #
 ## SUMMARY
-  captured 195/200 label tile(s)  (5 missing, 6 extra)
+  captured 195/200 label tile(s)  (5 missing, 4 extra)
   exact match: NO — see the per-item breakdown below
   note: the 38-shot row-by-row series is gap-free and data.json names now match the game's own strings; the residual misses are engine-level (busy-icon tiles OCR to no text, e.g. RAM) plus phantom rows from garbled first sightings — informational, not gated
 #
 ## PER ITEM   (read = scan count, label = ground truth)
 # status  read/label  item_id
-  EXTRA      5/4      misc_b_aspire
+  OK         4/4      misc_b_aspire
   OK         4/4      misc_b_asthmamedication
   OK         3/3      misc_b_bandaid
   EXTRA     14/10     misc_b_battery_1
@@ -34,7 +34,7 @@
   OK         5/5      misc_b_match
   OK         2/2      misc_b_medicalscissors
   OK         3/3      misc_b_moldboard
-  EXTRA      2/1      misc_b_nail
+  OK         1/1      misc_b_nail
   OK         2/2      misc_b_newphone
   OK         1/1      misc_b_nut
   OK         2/2      misc_b_oldphone

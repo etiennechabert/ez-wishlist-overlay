@@ -8,12 +8,12 @@
 # the frozen stash.shot18.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 15 item tile(s) across 4 grid row(s)
+  recognized 14 item tile(s) across 3 grid row(s)
   dropped 1 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
-    3 x misc_b_aspire
+    2 x misc_b_aspire
     1 x misc_b_asthmamedication
     2 x misc_b_battery_1
     1 x misc_b_beardoil
@@ -56,8 +56,8 @@
     Combustible                    -> (no match)
     Power                          -> (no match)
     Electric                       -> (no match)
-  [items ]
-    ASPIRIN                        -> misc_b_aspire
+  [chrome]
+    ASPIRIN                        -> (no match)
   [items ]
     Wb-40                          -> (no match)
     Asthma medicine                -> misc_b_asthmamedication
