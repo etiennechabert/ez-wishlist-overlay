@@ -19,7 +19,6 @@ use crate::data::GameData;
 use crate::persist::PersistPaths;
 use crate::state::AppState;
 use crate::updater::CheckStatus;
-use crate::vr::capture_session::CaptureMode;
 use crate::vr::runtime::CaptureResult;
 use crossbeam_channel::{Receiver, Sender};
 use parking_lot::RwLock;
@@ -327,19 +326,6 @@ impl eframe::App for App {
             self.window_geometry_checked = true;
         }
 
-        // Spacebar = "take a VR screenshot" while the desktop window has
-        // focus. Clicking a button is impractical with the headset on, so
-        // this hotkey lets the user trigger a capture from inside VR
-        // (looking down at the desktop monitor — or, more usefully,
-        // pressing space on the keyboard before putting the headset back
-        // on). The `wants_keyboard_input` guard avoids stealing spaces
-        // from any focused text input.
-        if !ctx.wants_keyboard_input()
-            && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Space))
-        {
-            self.vr.request_screenshot();
-        }
-
         // Drain the VR worker's latest capture result once per frame and
         // stash it locally. Both the centred toast and the debug-dialog
         // status line read from `self.last_capture`, so the runtime's slot
@@ -481,6 +467,7 @@ impl eframe::App for App {
                         &self.settings,
                         &mut self.icons,
                         &self.save_tx,
+                        &self.vr,
                     );
                     if outcome.settings_changed {
                         self.persist_settings();
@@ -599,9 +586,6 @@ impl App {
             ui.colored_label(status.color(), status.label());
             ui.separator();
 
-            self.hideout_scan_control(ui);
-            ui.separator();
-
             if ui.button("Reset progress").clicked() {
                 self.confirm_reset = true;
             }
@@ -619,57 +603,6 @@ impl App {
                 self.export_corrections_button(ui);
             });
         });
-    }
-
-    /// Main-window control for **hideout scan mode** (issue #136) — a "Scan from
-    /// screen" button to arm it, mirroring the per-container scan control. While
-    /// armed the wishlist overlay hides and an in-headset guide box appears; aim
-    /// it at an upgrade panel and **pull the controller trigger** to read it
-    /// (trigger-driven, never a timed loop — there is no "auto-capture"). A loud
-    /// "● Scanning…" indicator + a Stop button replace the button while active,
-    /// so it can't be silently left armed into a raid. Gated on OCR being
-    /// enabled; the mode lives on the VR runtime and never persists, so it
-    /// always starts off on launch.
-    fn hideout_scan_control(&mut self, ui: &mut egui::Ui) {
-        let ocr_enabled = self.settings.read().ocr_enabled;
-        let mode = self.vr.capture_mode();
-        if mode == CaptureMode::Hideout {
-            ui.label(
-                egui::RichText::new("● Scanning hideout — pull trigger over a panel")
-                    .strong()
-                    .color(egui::Color32::from_rgb(220, 99, 89)),
-            );
-            if ui
-                .button("Stop")
-                .on_hover_text("Stop hideout scanning and bring the wishlist overlay back.")
-                .clicked()
-            {
-                self.vr.exit_capture_mode();
-                tracing::info!("hideout scan stopped from desktop header");
-            }
-            return;
-        }
-        // A container scan owns the single capture mode while it runs; don't let
-        // the hideout button silently hijack it (mirrors the container UI's
-        // "busy elsewhere" guard).
-        let box_active = matches!(mode, CaptureMode::Box(_));
-        let btn = egui::Button::new("Scan from screen");
-        let resp = ui.add_enabled(ocr_enabled && !box_active, btn);
-        let tooltip = if !ocr_enabled {
-            "Enable \"Auto-extract counts from VR screenshots\" in Settings to \
-             use hideout scanning."
-        } else if box_active {
-            "Finish the active container scan first."
-        } else {
-            "Arm hideout scanning: the wishlist overlay hides and a guide box \
-             appears in the headset. Aim it at an upgrade panel and pull the \
-             controller trigger to read its owned counts. Always starts off on \
-             launch."
-        };
-        if resp.on_hover_text(tooltip).clicked() {
-            self.vr.set_capture_mode(CaptureMode::Hideout);
-            tracing::info!("hideout scan started from desktop header");
-        }
     }
 
     /// "Export corrections" pops up a modal with the user's per-recipe edits

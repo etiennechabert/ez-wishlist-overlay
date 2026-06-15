@@ -505,23 +505,26 @@ fn render_loop(
             );
         }
 
-        // SPACE hotkey also captures (desktop dev + manual fallback). Coalesce
-        // multiple presses within one ~11 ms frame.
-        let mut space_requested = false;
+        // The Debug "Capture VR screenshot" button also captures (a developer /
+        // OCR-sampling fallback that requests a one-shot grab off the desktop).
+        // Coalesce multiple requests within one ~11 ms frame.
+        let mut desktop_capture_requested = false;
         while capture_rx.try_recv().is_ok() {
-            space_requested = true;
+            desktop_capture_requested = true;
         }
-        // The desktop SPACE key / Debug "Capture now" button is the only
-        // non-controller capture source (desktop testing + manual fallback).
-        if space_requested {
-            tracing::info!(cap_active, ?mode, "capture via SPACE / desktop request");
+        // The Debug "Capture VR screenshot" button is the only non-controller
+        // capture source (the desktop SPACE hotkey was removed — the controller
+        // trigger is the user-facing capture method).
+        if desktop_capture_requested {
+            tracing::info!(cap_active, ?mode, "capture via desktop request");
         }
 
-        // Take one capture this tick. In a capture mode the trigger (or SPACE)
-        // drives it, single-flighted so a rapid second pull can't overlap the
-        // worker. SPACE outside any mode keeps the legacy one-shot upgrade-panel
-        // grab so desktop testing works without arming a mode.
-        if cap_active && (capture_requested || space_requested) {
+        // Take one capture this tick. In a capture mode the trigger (or a Debug
+        // capture request) drives it, single-flighted so a rapid second pull
+        // can't overlap the worker. A desktop request outside any mode keeps the
+        // legacy one-shot upgrade-panel grab so desktop testing works without
+        // arming a mode.
+        if cap_active && (capture_requested || desktop_capture_requested) {
             let ocr_enabled = settings.read().ocr_enabled;
             if let Some(kind) = mode.job_kind() {
                 if ocr_enabled && !capture_in_flight {
@@ -576,7 +579,7 @@ fn render_loop(
                     }
                 }
             }
-        } else if space_requested && !cap_active {
+        } else if desktop_capture_requested && !cap_active {
             capture_and_forward(
                 session,
                 settings,
@@ -1232,7 +1235,8 @@ const OVERLAY_SETTLE: Duration = Duration::from_millis(50);
 const ROUND_SPACING: Duration = Duration::from_millis(100);
 
 /// Grab one compositor-mirror frame and hand it to the OCR worker.
-/// Shared by the controller-trigger capture path and the desktop SPACE hotkey.
+/// Shared by the controller-trigger capture path and the Debug "Capture VR
+/// screenshot" button.
 ///
 /// Retires our own overlays from the shot first. The compositor mirror is the
 /// *composited* output, so any SteamVR overlay we're showing bakes into the

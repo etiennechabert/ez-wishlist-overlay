@@ -1495,8 +1495,8 @@ fn notify(state: &Arc<RwLock<AppState>>, save_tx: &Sender<SaveTick>) {
 
 // --- Box-scan session UI ---------------------------------------------------
 
-const SCAN_HINT: &str = "Open the box's screen in-game and scroll slowly — it captures \
-                         automatically as new rows come into view. Press SPACE to grab one by hand.";
+const SCAN_HINT: &str =
+    "Open the box's screen in-game and scroll slowly so new rows come into view.";
 const WARN_COL: egui::Color32 = egui::Color32::from_rgb(200, 140, 0);
 /// Red used for the "this REPLACES current contents" warning and the removed
 /// rows in the review diff. Matches the diff's `removed` swatch (210,90,90).
@@ -1679,8 +1679,7 @@ fn box_scan_fullpane(ui: &mut egui::Ui, state: &Arc<RwLock<AppState>>, scan: &mu
     ui.label(
         egui::RichText::new(
             "Aim the guide box at the container screen and pull the controller \
-             trigger once per scroll position. (SPACE also captures, for desktop \
-             testing.)",
+             trigger once per scroll position.",
         )
         .small()
         .color(ui.visuals().weak_text_color()),
