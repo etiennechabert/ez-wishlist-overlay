@@ -1456,6 +1456,10 @@ fn item_picker_modal(
     if let Some(item_id) = chosen {
         target_adjust_item(state, &active, &item_id, 1);
         notify(state, save_tx);
+        // Reset the filter once an item is picked so the next search starts
+        // clean — no manual Clear needed after every pick (the search box and
+        // on-screen keyboard re-read this empty value next frame).
+        set_picker_filter(ctx, String::new());
     }
     if !open {
         set_active_picker(ctx, None);
@@ -2549,6 +2553,59 @@ mod tests {
             picker_filter(&h.ctx),
             "",
             "Clear should flush the entire filter"
+        );
+    }
+
+    #[test]
+    fn picking_an_item_resets_the_filter() {
+        // Picking an item resets the filter so the next search starts clean —
+        // no manual Clear after every pick.
+        let data = Arc::new(GameData {
+            data_version: "test".into(),
+            scraped_at: "now".into(),
+            source_repo: "test".into(),
+            source_commit: "deadbeef".into(),
+            modules: Vec::new(),
+            // A short name so the tile label isn't truncated out of the
+            // accessibility tree (kittest queries it by label).
+            items: vec![crate::data::Item {
+                id: "misc_nails".into(),
+                name: "Nails".into(),
+                icon_path: String::new(),
+                category: Some("misc".into()),
+                subcategory: None,
+                weight: Some(0.1),
+                price: None,
+                rarity: None,
+                scan_alias: None,
+            }],
+            research: Vec::new(),
+        });
+        let state = Arc::new(RwLock::new(AppState::new(data)));
+        let mut h = harness(&state);
+        set_active_picker(&h.ctx, Some(Target::Stash));
+        h.run();
+
+        // Narrow the filter, then pick the item that survives it. The tile's
+        // click sense lives on the surrounding frame (the label is hover-only),
+        // so a real pointer click is needed rather than the accesskit Click
+        // action `click()` fires.
+        set_picker_filter(&h.ctx, "nai".into());
+        h.run();
+        h.get_by_label("Nails").simulate_click();
+        h.run();
+
+        // The pick landed (so the click hit the tile)…
+        assert_eq!(
+            state.read().collected.get("misc_nails").copied(),
+            Some(1),
+            "clicking the tile should add one to the stash"
+        );
+        // …and the filter is wiped for the next search.
+        assert_eq!(
+            picker_filter(&h.ctx),
+            "",
+            "picking an item should reset the filter"
         );
     }
 }
