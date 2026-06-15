@@ -42,10 +42,10 @@ label itself is wrong, correct it and say so.
 ## hideout/ — Facility Upgrade panels
 
 **Source.** ~3K-per-eye **WebP (quality 99)** captures of the SteamVR compositor
-mirror texture (`crates/app/src/vr/capture.rs`). In-app: press **Space** with the
-desktop window focused (or the "Capture VR screenshot" button in the Debug
-dialog); the frame lands in `<data_dir>/debug/vr_screenshots/` (cleared every
-launch — copy out what you keep).
+mirror texture (`crates/app/src/vr/capture.rs`). In-app: click the "Capture VR
+screenshot" button in the Debug dialog; the frame lands in
+`<data_dir>/debug/vr_screenshots/` (cleared every launch — copy out what you
+keep).
 
 **Compress to WebP q99 before committing — never commit the raw capture.** A raw
 mirror-texture PNG is ~9 MB; 15 of them is ~135 MB, which bloats the repo. Encode

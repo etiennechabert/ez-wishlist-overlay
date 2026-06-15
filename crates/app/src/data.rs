@@ -427,6 +427,61 @@ mod tests {
         );
     }
 
+    /// The medical catalog (the in-hideout Medical Box scan) is sourced like
+    /// gunsmith —
+    /// names from the game `WFItemsStringTable` (`medical.*`), icons cut from the
+    /// paks' `ItemIcons/Medicals` textures, weights/prices curated from upstream
+    /// (two weight families are pak-confirmed). This ratchet guards that whole
+    /// row set: every medical item ships an embedded icon, a weight, and a price,
+    /// and — critically for the box-scan OCR, which resolves a tile by matching
+    /// its label to `Item.name` — every medical `name` is unique across the
+    /// *entire* catalog, so a scanned medical tile can't resolve ambiguously.
+    #[test]
+    fn medical_items_are_complete_and_unambiguous() {
+        let raw = include_str!("assets/data.json");
+        let data: GameData = serde_json::from_str(raw).expect("data.json deserializes");
+        let medical: Vec<&Item> = data
+            .items
+            .iter()
+            .filter(|i| i.category.as_deref() == Some("medical"))
+            .collect();
+
+        let mut errs: Vec<String> = Vec::new();
+        for i in &medical {
+            if crate::assets::read_icon(&i.icon_path).is_none() {
+                errs.push(format!("{}: missing embedded icon {}", i.id, i.icon_path));
+            }
+            if i.weight.is_none() {
+                errs.push(format!("{}: no weight", i.id));
+            }
+            if i.price.is_none() {
+                errs.push(format!("{}: no price", i.id));
+            }
+        }
+
+        // Name uniqueness across the whole catalog (OCR resolves by `name`).
+        let mut name_counts: HashMap<&str, usize> = HashMap::new();
+        for i in &data.items {
+            *name_counts.entry(i.name.as_str()).or_default() += 1;
+        }
+        for i in &medical {
+            if name_counts[i.name.as_str()] > 1 {
+                errs.push(format!(
+                    "{}: name {:?} is not unique in the catalog (box-scan would \
+                     resolve it ambiguously)",
+                    i.id, i.name
+                ));
+            }
+        }
+
+        assert!(
+            errs.is_empty(),
+            "{} medical issue(s):\n  {}",
+            errs.len(),
+            errs.join("\n  ")
+        );
+    }
+
     /// Validates the research **database** against the panel-verified ground
     /// truth in `screenshots/research/research.label.txt` (the in-game pane is
     /// the source of truth, per `screenshots/CLAUDE.md`): same node set, same

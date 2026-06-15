@@ -57,15 +57,16 @@ pub enum ContainerFilter {
 }
 
 /// Which item family the list is scoped to via the "Category" picker. The
-/// catalog holds two — barter goods (`misc`) and gun parts (`gunsmith`) — and
-/// the gun-part family is ~4× larger, so a one-click narrow keeps the table
-/// legible. `All` shows both.
+/// catalog holds three — barter goods (`misc`), gun parts (`gunsmith`), and
+/// medical consumables (`medical`) — and the gun-part family is ~4× larger, so
+/// a one-click narrow keeps the table legible. `All` shows every family.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum CategoryFilter {
     #[default]
     All,
     Barter,
     GunParts,
+    Medical,
 }
 
 impl CategoryFilter {
@@ -75,6 +76,7 @@ impl CategoryFilter {
             CategoryFilter::All => None,
             CategoryFilter::Barter => Some("misc"),
             CategoryFilter::GunParts => Some("gunsmith"),
+            CategoryFilter::Medical => Some("medical"),
         }
     }
 }
@@ -88,6 +90,11 @@ pub struct ItemsDbState {
     /// `AppState::active_items()`). Useful when the user wants to see
     /// only what's relevant to their current goals.
     pub tracked_only: bool,
+    /// When true, keep only items the user actually holds — combined owned
+    /// total (stash + every container) > 0. Unlike the `container_filter`
+    /// picker, which scopes to one location, this just hides everything you
+    /// own none of, across the whole inventory.
+    pub in_container_only: bool,
     /// Which upgrade scope the surplus calc treats as "needed" — drives the
     /// Surplus column and the `redundant_only` filter. See
     /// [`crate::state::NeedHorizon`].
@@ -110,6 +117,7 @@ impl Default for ItemsDbState {
             sort_by: SortColumn::Name,
             sort_dir: SortDir::Asc,
             tracked_only: false,
+            in_container_only: false,
             // Default to the middle horizon: protects the next buildable level
             // of every module without hoarding for deep future levels.
             // Aggressive (Tracked) and cautious (All future) are a click away.
@@ -191,7 +199,7 @@ pub fn ui(
     ui.horizontal(|ui| {
         ui.label("Category:");
         ui.selectable_value(&mut db.category_filter, CategoryFilter::All, "All")
-            .on_hover_text("Both barter goods and gun parts.");
+            .on_hover_text("Barter goods, gun parts, and medical items.");
         ui.selectable_value(&mut db.category_filter, CategoryFilter::Barter, "Barter")
             .on_hover_text("Hideout barter items — the misc catalog.");
         ui.selectable_value(
@@ -203,6 +211,8 @@ pub fn ui(
             "Gunsmith gun parts — research samples and gun-parts-storage \
                  contents. Most carry a weight but no vendor price.",
         );
+        ui.selectable_value(&mut db.category_filter, CategoryFilter::Medical, "Medical")
+            .on_hover_text("Medical consumables — bandages, painkillers, syringes, stims.");
     });
     ui.horizontal(|ui| {
         ui.label("Filter:");
@@ -243,6 +253,12 @@ pub fn ui(
                 "Show only items held in the chosen container. \"Stash\" is the \
                  primary container; the rest are your secondary containers from \
                  the Containers tab.",
+            );
+        ui.add_space(12.0);
+        ui.checkbox(&mut db.in_container_only, "In container only")
+            .on_hover_text(
+                "Show only items you actually hold (qty > 0) across the \
+                 stash and every container.",
             );
         ui.add_space(12.0);
         ui.checkbox(&mut db.tracked_only, "Tracked only")
@@ -471,12 +487,14 @@ pub fn ui(
         });
 }
 
-/// Apply every active filter (category, container, tracked-only, redundant-only,
-/// text) to the catalog and return the surviving rows, unsorted. Extracted from
+/// Apply every active filter (category, container, tracked-only,
+/// in-container-only, redundant-only, text) to the catalog and return the
+/// surviving rows, unsorted. Extracted from
 /// [`ui`] so the filter logic — in particular the category/container scoping that
-/// now spans both barter goods and gun parts — is unit-testable without driving
-/// the whole table. Only the two real catalog families (`misc`, `gunsmith`) are
-/// ever eligible; anything else stays out until it has a column story.
+/// now spans barter goods, gun parts, and medical items — is unit-testable
+/// without driving the whole table. Only the real catalog families (`misc`,
+/// `gunsmith`, `medical`) are ever eligible; anything else stays out until it
+/// has a column story.
 fn visible_rows<'a>(
     items: &'a [Item],
     db: &ItemsDbState,
@@ -489,12 +507,18 @@ fn visible_rows<'a>(
     let filter_lc = db.filter.to_lowercase();
     items
         .iter()
-        .filter(|item| matches!(item.category.as_deref(), Some("misc") | Some("gunsmith")))
+        .filter(|item| {
+            matches!(
+                item.category.as_deref(),
+                Some("misc") | Some("gunsmith") | Some("medical")
+            )
+        })
         .filter(|item| match db.category_filter.category_key() {
             None => true,
             Some(cat) => item.category.as_deref() == Some(cat),
         })
         .filter(|item| !db.tracked_only || tracked_ids.contains(&item.id))
+        .filter(|item| !db.in_container_only || owned.get(&item.id).copied().unwrap_or(0) > 0)
         .filter(|item| match &db.container_filter {
             ContainerFilter::All => true,
             ContainerFilter::Stash => stash.get(&item.id).copied().unwrap_or(0) > 0,
@@ -894,5 +918,108 @@ mod tests {
         db.category_filter = CategoryFilter::All;
         db.container_filter = ContainerFilter::Container("gunsmith-storage".into());
         assert_eq!(ids(&db), vec!["gunsmith_barrel".to_string()]);
+    }
+
+    #[test]
+    fn in_container_only_keeps_held_items_across_whole_inventory() {
+        let items = vec![
+            mk_item("misc_held_stash", "Held in stash", "misc"),
+            mk_item("misc_held_container", "Held in container", "misc"),
+            mk_item("misc_unheld", "Owned none", "misc"),
+        ];
+        // One item lives in the stash, one only in a secondary container, one
+        // is held nowhere. `owned` is the combined total the filter reads.
+        let stash: HashMap<String, u32> = [("misc_held_stash".to_string(), 2)].into();
+        let mut containers_by_item: HashMap<String, Vec<(ContainerId, String, u32)>> =
+            HashMap::new();
+        containers_by_item.insert("misc_held_container".into(), parts(&[("ctr-1", "Box", 1)]));
+        let owned: HashMap<String, u32> = [
+            ("misc_held_stash".to_string(), 2),
+            ("misc_held_container".to_string(), 1),
+        ]
+        .into();
+        let needs = HashMap::new();
+        let tracked = HashSet::new();
+
+        let ids = |db: &ItemsDbState| -> Vec<String> {
+            visible_rows(
+                &items,
+                db,
+                &owned,
+                &stash,
+                &containers_by_item,
+                &needs,
+                &tracked,
+            )
+            .iter()
+            .map(|i| i.id.clone())
+            .collect()
+        };
+
+        // Off (default): every catalog row shows, including the unheld one.
+        let mut db = ItemsDbState::default();
+        assert!(ids(&db).contains(&"misc_unheld".to_string()));
+
+        // On: only items with a combined owned total > 0 survive — and it
+        // counts holdings anywhere, not just one location like the picker.
+        // misc_held_stash exercises the stash-only path, misc_held_container
+        // the container-only path; both survive, the unheld one is dropped.
+        db.in_container_only = true;
+        let held = ids(&db);
+        assert!(held.contains(&"misc_held_stash".to_string()));
+        assert!(held.contains(&"misc_held_container".to_string()));
+        assert!(!held.contains(&"misc_unheld".to_string()));
+    }
+
+    #[test]
+    fn in_container_only_intersects_with_container_picker() {
+        // "In container only" is a global held-anywhere pre-filter; the
+        // "Container:" picker scopes to one location. Together they AND — the
+        // result is items held that also live in the picked container.
+        let items = vec![
+            mk_item("misc_in_box", "In the box", "misc"),
+            mk_item("misc_in_stash_only", "Stash only", "misc"),
+            mk_item("misc_unheld", "Owned none", "misc"),
+        ];
+        let stash: HashMap<String, u32> = [("misc_in_stash_only".to_string(), 3)].into();
+        let mut containers_by_item: HashMap<String, Vec<(ContainerId, String, u32)>> =
+            HashMap::new();
+        containers_by_item.insert("misc_in_box".into(), parts(&[("ctr-1", "Box", 2)]));
+        let owned: HashMap<String, u32> = [
+            ("misc_in_box".to_string(), 2),
+            ("misc_in_stash_only".to_string(), 3),
+        ]
+        .into();
+        let needs = HashMap::new();
+        let tracked = HashSet::new();
+
+        let ids = |db: &ItemsDbState| -> Vec<String> {
+            visible_rows(
+                &items,
+                db,
+                &owned,
+                &stash,
+                &containers_by_item,
+                &needs,
+                &tracked,
+            )
+            .iter()
+            .map(|i| i.id.clone())
+            .collect()
+        };
+
+        // Held-only, no location scope: both held items, never the unheld one.
+        let mut db = ItemsDbState {
+            in_container_only: true,
+            ..Default::default()
+        };
+        let mut held = ids(&db);
+        held.sort();
+        assert_eq!(held, vec!["misc_in_box", "misc_in_stash_only"]);
+
+        // Add the container scope: the intersection is just the box's item —
+        // the stash-only item is held but not in this container.
+        db.container_filter = ContainerFilter::Container("ctr-1".into());
+        assert_eq!(ids(&db), vec!["misc_in_box".to_string()]);
     }
 }

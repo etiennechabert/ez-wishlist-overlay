@@ -48,9 +48,7 @@ The preview pane on the right is the heart of it: every item across all the upgr
 
 ### 📸 Read your progress off the screen — one trigger pull
 
-This is the time-saver, and you never have to take the headset off for it. Hit **Scan from screen** — in the top bar for an upgrade panel, or next to the stash / gun-parts storage / a case in the **Containers** tab — and the wishlist overlay steps aside for a **capture frame** floating in front of you. Line that frame up over the in-game screen and **pull the controller trigger**: the app captures what SteamVR is showing, recognizes the screen, reads the owned-count for every item, and writes those numbers straight into your wishlist — no manual counting. A card pops up in the headset showing exactly what changed, and you can keep scanning screen after screen without leaving VR. (For an upgrade panel it also auto-tracks that upgrade and marks the lower levels done, by default.)
-
-Rather stay at the desk? With the app window focused, press **SPACE** to grab a one-shot upgrade-panel read instead — handy while you're looking at the monitor, or to fire off a quick capture before you put the headset back on.
+This is the time-saver, and you never have to take the headset off for it. Hit **Scan from screen** — at the top of the **Hideout** tab for an upgrade panel, or next to the stash / gun-parts storage / a case in the **Containers** tab — and the wishlist overlay steps aside for a **capture frame** floating in front of you. Line that frame up over the in-game screen and **pull the controller trigger**: the app captures what SteamVR is showing, recognizes the screen, reads the owned-count for every item, and writes those numbers straight into your wishlist — no manual counting. A card pops up in the headset showing exactly what changed, and you can keep scanning screen after screen without leaving VR. (For an upgrade panel it also auto-tracks that upgrade and marks the lower levels done, by default.)
 
 The same screen-reading covers **three** kinds of in-game screen: the **Facility Upgrade** panel (it reads the owned-count per required item); your **container contents** screens — main stash and item cases (the "box" scan); and the gunsmith's **gun-parts storage**. The scrolling screens (stash, containers, gun-parts storage) capture row-by-row and merge the shots into one contents list — see **Track items across your containers** below — while an upgrade panel reads in a single shot.
 
@@ -106,13 +104,13 @@ Containers can also carry a **weight cap**, and the built-in **Gunsmith storage*
 
 ### 📦 Items database & stash value
 
-The **Items DB** tab is a sortable, filterable catalog of every item the hideout upgrades and research nodes ask for — barter goods and gun parts alike, with a **Category** toggle (*All*, *Barter*, or *Gun parts*) to focus one family or show both. Because the *quantity* column is the same count the rest of the app tracks, sorting the **barter goods** by **Total Value** turns it into a quick "what's my stash actually worth" view. A **Container** picker scopes the list to one storage location, **Tracked only** narrows it to items you currently need, and **Redundant only** flips it around: items you own more of than your upcoming upgrades can use — your sell pile.
+The **Items DB** tab is a sortable, filterable catalog of every item the app tracks — barter goods, gun parts, and medical consumables — with a **Category** toggle (*All*, *Barter*, *Gun parts*, or *Medical*) to focus one family or show them together. Because the *quantity* column is the same count the rest of the app tracks, sorting by **Total Value** turns it into a quick "what's my stash actually worth" view. A **Container** picker scopes the list to one storage location, **In container only** drops anything you hold none of, **Tracked only** narrows it to items you currently need, and **Redundant only** flips it around: items you own more of than your upcoming upgrades can use — your sell pile.
 
 <p align="center">
   <img src="docs/images/desktop-items-db.png" alt="Items DB tab — barter goods and gun parts" width="820">
 </p>
 
-Gun parts are the catalog's other half — most carry a weight but **no vendor price** (their Value reads "—"), so the same table doubles as a **weight-budget tool** for capped storage. Scope the list to a weight-limited container — the gunsmith's 30 kg gun-parts storage, or a Collection Box — with the **Container** picker and sort by **Total wt**: the heaviest things float to the top, so when you're closing in on the cap you can see at a glance what to pull first.
+Gun parts are a bit different — most carry a weight but **no vendor price** (their Value reads "—"), so for them the table doubles as a **weight-budget tool** for capped storage. Scope the list to a weight-limited container — the gunsmith's 30 kg gun-parts storage, or a Collection Box — with the **Container** picker and sort by **Total wt**: the heaviest things float to the top, so when you're closing in on the cap you can see at a glance what to pull first.
 
 <p align="center">
   <img src="docs/images/desktop-items-db-weight.png" alt="Items DB scoped to the gunsmith's gun-parts storage and sorted by total weight, heaviest parts first" width="820">
@@ -140,7 +138,7 @@ A **Settings** dialog covers the things worth adjusting: Dark / Light / System t
 2. **Download the latest release** from the [**Releases page**](https://github.com/etiennechabert/ez-wishlist-overlay/releases/latest). Grab the installer (**`…-installer.msi`**), or the portable build (**`…-portable.exe`**) if you'd rather not install anything — just double-click it.
 3. **Click past the SmartScreen warning.** The build isn't code-signed yet, so Windows shows *"Windows protected your PC."* Click **More info → Run anyway**. (This goes away once there's a signing cert — for now the warning is expected, not a virus.)
 4. **Run it.** The app opens. Start SteamVR (or put your headset on) and the header flips from *"VR: not running"* to *"VR: connected"* within a few seconds.
-5. **In the headset:** look up to bring the overlay in, point a controller at an item and click to bump its count, and hit **Scan from screen** then pull the trigger over an upgrade panel or storage screen to auto-read your progress (or, at the desk with the window focused, press **SPACE** for a quick upgrade-panel read).
+5. **In the headset:** look up to bring the overlay in, point a controller at an item and click to bump its count, and hit **Scan from screen** then pull the trigger over an upgrade panel or storage screen to auto-read your progress.
 
 Your tracked upgrades, collected counts, and settings live in `%APPDATA%\etienneb\ez-wishlist-overlay\data\` (the in-app *Open data folder* shortcut jumps straight there). Uninstalling leaves it in place; delete the parent `%APPDATA%\etienneb\ez-wishlist-overlay\` by hand for a clean slate.
 
