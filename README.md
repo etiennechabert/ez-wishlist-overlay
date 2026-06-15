@@ -76,10 +76,16 @@ Containers can also carry a **weight cap**, and the built-in **Gunsmith storage*
 
 ### 📦 Items database & stash value
 
-The **Items DB** tab is a sortable, filterable catalog of every item the hideout upgrades and research nodes ask for — barter goods and gun parts alike. Because the *quantity* column is the same count the rest of the app tracks, sorting by **Total Value** turns it into a quick "what's my stash actually worth" view. A **Container** picker scopes the list to one storage location, **Tracked only** narrows it to items you currently need, and **Redundant only** flips it around: items you own more of than your upcoming upgrades can use — your sell pile.
+The **Items DB** tab is a sortable, filterable catalog of every item the hideout upgrades and research nodes ask for — barter goods and gun parts alike, with a **Category** toggle to show one family or both. Because the *quantity* column is the same count the rest of the app tracks, sorting by **Total Value** turns it into a quick "what's my stash actually worth" view. A **Container** picker scopes the list to one storage location, **Tracked only** narrows it to items you currently need, and **Redundant only** flips it around: items you own more of than your upcoming upgrades can use — your sell pile.
 
 <p align="center">
   <img src="docs/images/desktop-items-db.png" alt="Items DB tab" width="820">
+</p>
+
+It doubles as a **weight-budget tool** for capped storage. Scope the list to a weight-limited container — the gunsmith's 30 kg gun-parts storage, or a Collection Box — with the **Container** picker and sort by **Total wt**: the heaviest things in it float to the top, so when you're closing in on the cap you can see at a glance what to pull first.
+
+<p align="center">
+  <img src="docs/images/desktop-items-db-weight.png" alt="Items DB scoped to the gunsmith's gun-parts storage and sorted by total weight, heaviest parts first" width="820">
 </p>
 
 ### 🥽 Glance at your list in VR
