@@ -103,6 +103,20 @@ fn main() -> Result<()> {
         }
     }
 
+    // Heal profiles that accumulated duplicate containers under one id — older
+    // builds could re-seed the fixed-id Gunsmith storage primary, leaving two
+    // or three rows that shared `gunsmith-storage` (empty header totals, a
+    // tripled Items DB picker). Merge them before any seeding runs, and persist
+    // synchronously since the save loop doesn't exist yet and `bump()` alone
+    // emits no `SaveTick`.
+    let merged = app_state.dedup_containers();
+    if merged > 0 {
+        if let Err(e) = persist::save(&paths, &app_state) {
+            tracing::warn!(error = %e, "failed to persist de-duplicated containers");
+        }
+        tracing::info!(removed = merged, "merged duplicate containers on load");
+    }
+
     // Seed the built-in default Shelf exactly once per profile — fresh installs
     // and pre-existing ones that predate the feature. The persisted flag stops
     // it coming back if the user later deletes it.

@@ -1,13 +1,19 @@
-//! Left tab: MISC item database, with name filter and click-to-sort columns.
-//! Read-only reference view — no wishlist mutation here. Scoped to MISC for
-//! now; a category selector can be re-added once we expand beyond that.
+//! Left tab: item database, with a name filter, a category filter, and
+//! click-to-sort columns. Read-only reference view — no wishlist mutation here.
+//! Covers both item families the rest of the app tracks: barter goods
+//! (`category == "misc"`) and gunsmith **gun parts** (`category == "gunsmith"`);
+//! the "Category" picker narrows to one. Most gun parts carry a weight but no
+//! vendor price, so their Value / Total val cells read "—".
 //!
 //! Quantity / surplus / total weight / total value columns reflect the
 //! *combined* owned total across the stash (`AppState.collected`, the map OCR
 //! captures and the wishlist UI mutates) and every secondary container
 //! (`AppState.containers`) — see [`crate::state::AppState::owned_total`]. The
 //! Containers column attributes that total to where it lives. Sorting by Total
-//! Value makes this tab a "what's my whole inventory worth" view.
+//! Value makes this tab a "what's my whole inventory worth" view; sorting by
+//! Total wt while scoped (via the Container picker) to a weight-capped container
+//! — the gunsmith's 30 kg gun-parts storage, a Collection Box — surfaces the
+//! heaviest things in it, i.e. what to pull first to get back under the cap.
 
 use crate::data::Item;
 use crate::gui::IconCache;
@@ -50,6 +56,29 @@ pub enum ContainerFilter {
     Container(ContainerId),
 }
 
+/// Which item family the list is scoped to via the "Category" picker. The
+/// catalog holds two — barter goods (`misc`) and gun parts (`gunsmith`) — and
+/// the gun-part family is ~4× larger, so a one-click narrow keeps the table
+/// legible. `All` shows both.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum CategoryFilter {
+    #[default]
+    All,
+    Barter,
+    GunParts,
+}
+
+impl CategoryFilter {
+    /// The `Item::category` string this filter keeps, or `None` for `All`.
+    fn category_key(self) -> Option<&'static str> {
+        match self {
+            CategoryFilter::All => None,
+            CategoryFilter::Barter => Some("misc"),
+            CategoryFilter::GunParts => Some("gunsmith"),
+        }
+    }
+}
+
 pub struct ItemsDbState {
     pub filter: String,
     pub sort_by: SortColumn,
@@ -69,6 +98,9 @@ pub struct ItemsDbState {
     /// Quick location filter from the "Container" picker — restricts the list
     /// to a single container (or the stash). See [`ContainerFilter`].
     pub container_filter: ContainerFilter,
+    /// Quick type filter from the "Category" picker — barter goods vs gun
+    /// parts. See [`CategoryFilter`].
+    pub category_filter: CategoryFilter,
 }
 
 impl Default for ItemsDbState {
@@ -84,6 +116,7 @@ impl Default for ItemsDbState {
             horizon: NeedHorizon::AllNatural,
             redundant_only: false,
             container_filter: ContainerFilter::All,
+            category_filter: CategoryFilter::All,
         }
     }
 }
@@ -155,6 +188,22 @@ pub fn ui(
         db.container_filter = ContainerFilter::All;
     }
 
+    ui.horizontal(|ui| {
+        ui.label("Category:");
+        ui.selectable_value(&mut db.category_filter, CategoryFilter::All, "All")
+            .on_hover_text("Both barter goods and gun parts.");
+        ui.selectable_value(&mut db.category_filter, CategoryFilter::Barter, "Barter")
+            .on_hover_text("Hideout barter items — the misc catalog.");
+        ui.selectable_value(
+            &mut db.category_filter,
+            CategoryFilter::GunParts,
+            "Gun parts",
+        )
+        .on_hover_text(
+            "Gunsmith gun parts — research samples and gun-parts-storage \
+                 contents. Most carry a weight but no vendor price.",
+        );
+    });
     ui.horizontal(|ui| {
         ui.label("Filter:");
         ui.text_edit_singleline(&mut db.filter);
@@ -232,33 +281,15 @@ pub fn ui(
     // so a horizon change this frame takes effect immediately.
     let needs: HashMap<String, u32> = state.read().needed_by_id(db.horizon);
 
-    let filter_lc = db.filter.to_lowercase();
-    let mut rows: Vec<&Item> = data
-        .items
-        .iter()
-        .filter(|item| item.category.as_deref() == Some("misc"))
-        .filter(|item| !db.tracked_only || tracked_ids.contains(&item.id))
-        .filter(|item| match &db.container_filter {
-            ContainerFilter::All => true,
-            ContainerFilter::Stash => stash.get(&item.id).copied().unwrap_or(0) > 0,
-            ContainerFilter::Container(id) => containers_by_item
-                .get(&item.id)
-                .is_some_and(|parts| parts.iter().any(|(cid, _, _)| cid == id)),
-        })
-        .filter(|item| !db.redundant_only || surplus_amount(item, &owned, &needs) > 0)
-        .filter(|item| {
-            if filter_lc.is_empty() {
-                return true;
-            }
-            item.name.to_lowercase().contains(&filter_lc)
-                || item.id.to_lowercase().contains(&filter_lc)
-                || item
-                    .subcategory
-                    .as_deref()
-                    .map(|s| s.to_lowercase().contains(&filter_lc))
-                    .unwrap_or(false)
-        })
-        .collect();
+    let mut rows = visible_rows(
+        &data.items,
+        db,
+        &owned,
+        &stash,
+        &containers_by_item,
+        &needs,
+        &tracked_ids,
+    );
 
     sort_rows(
         &mut rows,
@@ -438,6 +469,53 @@ pub fn ui(
                 });
             });
         });
+}
+
+/// Apply every active filter (category, container, tracked-only, redundant-only,
+/// text) to the catalog and return the surviving rows, unsorted. Extracted from
+/// [`ui`] so the filter logic — in particular the category/container scoping that
+/// now spans both barter goods and gun parts — is unit-testable without driving
+/// the whole table. Only the two real catalog families (`misc`, `gunsmith`) are
+/// ever eligible; anything else stays out until it has a column story.
+fn visible_rows<'a>(
+    items: &'a [Item],
+    db: &ItemsDbState,
+    owned: &HashMap<String, u32>,
+    stash: &HashMap<String, u32>,
+    containers_by_item: &HashMap<String, Vec<(ContainerId, String, u32)>>,
+    needs: &HashMap<String, u32>,
+    tracked_ids: &HashSet<String>,
+) -> Vec<&'a Item> {
+    let filter_lc = db.filter.to_lowercase();
+    items
+        .iter()
+        .filter(|item| matches!(item.category.as_deref(), Some("misc") | Some("gunsmith")))
+        .filter(|item| match db.category_filter.category_key() {
+            None => true,
+            Some(cat) => item.category.as_deref() == Some(cat),
+        })
+        .filter(|item| !db.tracked_only || tracked_ids.contains(&item.id))
+        .filter(|item| match &db.container_filter {
+            ContainerFilter::All => true,
+            ContainerFilter::Stash => stash.get(&item.id).copied().unwrap_or(0) > 0,
+            ContainerFilter::Container(id) => containers_by_item
+                .get(&item.id)
+                .is_some_and(|parts| parts.iter().any(|(cid, _, _)| cid == id)),
+        })
+        .filter(|item| !db.redundant_only || surplus_amount(item, owned, needs) > 0)
+        .filter(|item| {
+            if filter_lc.is_empty() {
+                return true;
+            }
+            item.name.to_lowercase().contains(&filter_lc)
+                || item.id.to_lowercase().contains(&filter_lc)
+                || item
+                    .subcategory
+                    .as_deref()
+                    .map(|s| s.to_lowercase().contains(&filter_lc))
+                    .unwrap_or(false)
+        })
+        .collect()
 }
 
 fn sort_header(ui: &mut egui::Ui, db: &mut ItemsDbState, col: SortColumn, label: &str) {
@@ -748,5 +826,73 @@ mod tests {
         let p = parts(&[("ctr-1", "Big", 4), ("ctr-2", "small2", 3)]);
         assert_eq!(location_count(0, Some(&p)), 2);
         assert_eq!(location_count(5, Some(&p)), 3);
+    }
+
+    fn mk_item(id: &str, name: &str, category: &str) -> Item {
+        Item {
+            id: id.into(),
+            name: name.into(),
+            icon_path: String::new(),
+            category: Some(category.into()),
+            subcategory: None,
+            weight: Some(1.0),
+            price: None,
+            rarity: None,
+            scan_alias: None,
+        }
+    }
+
+    #[test]
+    fn db_lists_gun_parts_and_filters_scope_them() {
+        let items = vec![
+            mk_item("misc_bolts", "Bolts", "misc"),
+            mk_item("gunsmith_barrel", "Heavy Barrel", "gunsmith"),
+            // A category the DB doesn't model — must never appear, even on "All".
+            mk_item("weapon_ak", "Some Gun", "weapons"),
+        ];
+        let owned = HashMap::new();
+        let stash = HashMap::new();
+        let mut containers_by_item: HashMap<String, Vec<(ContainerId, String, u32)>> =
+            HashMap::new();
+        containers_by_item.insert(
+            "gunsmith_barrel".into(),
+            parts(&[("gunsmith-storage", "Gunsmith storage", 2)]),
+        );
+        let needs = HashMap::new();
+        let tracked = HashSet::new();
+
+        let ids = |db: &ItemsDbState| -> Vec<String> {
+            visible_rows(
+                &items,
+                db,
+                &owned,
+                &stash,
+                &containers_by_item,
+                &needs,
+                &tracked,
+            )
+            .iter()
+            .map(|i| i.id.clone())
+            .collect()
+        };
+
+        // "All" shows both real families and excludes anything else.
+        let mut db = ItemsDbState::default();
+        let all = ids(&db);
+        assert!(all.contains(&"misc_bolts".to_string()));
+        assert!(all.contains(&"gunsmith_barrel".to_string()));
+        assert!(!all.contains(&"weapon_ak".to_string()));
+
+        // The Category picker narrows to one family.
+        db.category_filter = CategoryFilter::GunParts;
+        assert_eq!(ids(&db), vec!["gunsmith_barrel".to_string()]);
+        db.category_filter = CategoryFilter::Barter;
+        assert_eq!(ids(&db), vec!["misc_bolts".to_string()]);
+
+        // Scoping to the gunsmith storage now keeps its gun part — impossible
+        // while the DB was misc-only.
+        db.category_filter = CategoryFilter::All;
+        db.container_filter = ContainerFilter::Container("gunsmith-storage".into());
+        assert_eq!(ids(&db), vec!["gunsmith_barrel".to_string()]);
     }
 }
