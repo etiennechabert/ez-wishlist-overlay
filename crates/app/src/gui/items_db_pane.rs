@@ -57,15 +57,16 @@ pub enum ContainerFilter {
 }
 
 /// Which item family the list is scoped to via the "Category" picker. The
-/// catalog holds two — barter goods (`misc`) and gun parts (`gunsmith`) — and
-/// the gun-part family is ~4× larger, so a one-click narrow keeps the table
-/// legible. `All` shows both.
+/// catalog holds three — barter goods (`misc`), gun parts (`gunsmith`), and
+/// medical consumables (`medical`) — and the gun-part family is ~4× larger, so
+/// a one-click narrow keeps the table legible. `All` shows every family.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum CategoryFilter {
     #[default]
     All,
     Barter,
     GunParts,
+    Medical,
 }
 
 impl CategoryFilter {
@@ -75,6 +76,7 @@ impl CategoryFilter {
             CategoryFilter::All => None,
             CategoryFilter::Barter => Some("misc"),
             CategoryFilter::GunParts => Some("gunsmith"),
+            CategoryFilter::Medical => Some("medical"),
         }
     }
 }
@@ -197,7 +199,7 @@ pub fn ui(
     ui.horizontal(|ui| {
         ui.label("Category:");
         ui.selectable_value(&mut db.category_filter, CategoryFilter::All, "All")
-            .on_hover_text("Both barter goods and gun parts.");
+            .on_hover_text("Barter goods, gun parts, and medical items.");
         ui.selectable_value(&mut db.category_filter, CategoryFilter::Barter, "Barter")
             .on_hover_text("Hideout barter items — the misc catalog.");
         ui.selectable_value(
@@ -209,6 +211,8 @@ pub fn ui(
             "Gunsmith gun parts — research samples and gun-parts-storage \
                  contents. Most carry a weight but no vendor price.",
         );
+        ui.selectable_value(&mut db.category_filter, CategoryFilter::Medical, "Medical")
+            .on_hover_text("Medical consumables — bandages, painkillers, syringes, stims.");
     });
     ui.horizontal(|ui| {
         ui.label("Filter:");
@@ -487,9 +491,10 @@ pub fn ui(
 /// in-container-only, redundant-only, text) to the catalog and return the
 /// surviving rows, unsorted. Extracted from
 /// [`ui`] so the filter logic — in particular the category/container scoping that
-/// now spans both barter goods and gun parts — is unit-testable without driving
-/// the whole table. Only the two real catalog families (`misc`, `gunsmith`) are
-/// ever eligible; anything else stays out until it has a column story.
+/// now spans barter goods, gun parts, and medical items — is unit-testable
+/// without driving the whole table. Only the real catalog families (`misc`,
+/// `gunsmith`, `medical`) are ever eligible; anything else stays out until it
+/// has a column story.
 fn visible_rows<'a>(
     items: &'a [Item],
     db: &ItemsDbState,
@@ -502,7 +507,12 @@ fn visible_rows<'a>(
     let filter_lc = db.filter.to_lowercase();
     items
         .iter()
-        .filter(|item| matches!(item.category.as_deref(), Some("misc") | Some("gunsmith")))
+        .filter(|item| {
+            matches!(
+                item.category.as_deref(),
+                Some("misc") | Some("gunsmith") | Some("medical")
+            )
+        })
         .filter(|item| match db.category_filter.category_key() {
             None => true,
             Some(cat) => item.category.as_deref() == Some(cat),

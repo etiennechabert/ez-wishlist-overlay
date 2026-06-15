@@ -8725,6 +8725,186 @@
       "weight": 0.3,
       "price": 743,
       "rarity": "Uncommon"
+    },
+    {
+      "id": "med_bandage_lv1",
+      "name": "Gauze",
+      "icon_path": "icons/med_bandage_lv1.png",
+      "category": "medical",
+      "subcategory": "Bandages",
+      "weight": 0.05,
+      "price": 724,
+      "rarity": "Common"
+    },
+    {
+      "id": "med_bandage_lv2",
+      "name": "Bandage",
+      "icon_path": "icons/med_bandage_lv2.png",
+      "category": "medical",
+      "subcategory": "Bandages",
+      "weight": 0.05,
+      "price": 1584,
+      "rarity": "Uncommon"
+    },
+    {
+      "id": "med_bandage_lv3",
+      "name": "Military Bandage",
+      "icon_path": "icons/med_bandage_lv3.png",
+      "category": "medical",
+      "subcategory": "Bandages",
+      "weight": 0.05,
+      "price": 4378,
+      "rarity": "Rare"
+    },
+    {
+      "id": "med_limb_restorer_lv1",
+      "name": "Suturing Instrument R1",
+      "icon_path": "icons/med_limb_restorer_lv1.png",
+      "category": "medical",
+      "subcategory": "Suturing Tools",
+      "weight": 0.38,
+      "price": 3692,
+      "rarity": "Common"
+    },
+    {
+      "id": "med_limb_restorer_lv2",
+      "name": "Suturing Instrument R2",
+      "icon_path": "icons/med_limb_restorer_lv2.png",
+      "category": "medical",
+      "subcategory": "Suturing Tools",
+      "weight": 0.38,
+      "price": 11883,
+      "rarity": "Uncommon"
+    },
+    {
+      "id": "med_limb_restorer_lv3",
+      "name": "Apex Suturing Instrument",
+      "icon_path": "icons/med_limb_restorer_lv3.png",
+      "category": "medical",
+      "subcategory": "Suturing Tools",
+      "weight": 0.38,
+      "price": 48771,
+      "rarity": "Rare"
+    },
+    {
+      "id": "med_painkiller_lv1",
+      "name": "Painkiller L1",
+      "icon_path": "icons/med_painkiller_lv1.png",
+      "category": "medical",
+      "subcategory": "Painkillers",
+      "weight": 0.08,
+      "price": 4121,
+      "rarity": "Common"
+    },
+    {
+      "id": "med_painkiller_lv2",
+      "name": "Painkiller L2",
+      "icon_path": "icons/med_painkiller_lv2.png",
+      "category": "medical",
+      "subcategory": "Painkillers",
+      "weight": 0.08,
+      "price": 9110,
+      "rarity": "Uncommon"
+    },
+    {
+      "id": "med_painkiller_lv3",
+      "name": "Military Painkiller",
+      "icon_path": "icons/med_painkiller_lv3.png",
+      "category": "medical",
+      "subcategory": "Painkillers",
+      "weight": 0.08,
+      "price": 19262,
+      "rarity": "Rare"
+    },
+    {
+      "id": "med_syringe_lv1",
+      "name": "Civilian Syringe",
+      "icon_path": "icons/med_syringe_lv1.png",
+      "category": "medical",
+      "subcategory": "Syringes",
+      "weight": 0.03,
+      "price": 4826,
+      "rarity": "Common"
+    },
+    {
+      "id": "med_syringe_lv2",
+      "name": "Medical Syringe",
+      "icon_path": "icons/med_syringe_lv2.png",
+      "category": "medical",
+      "subcategory": "Syringes",
+      "weight": 0.03,
+      "price": 10252,
+      "rarity": "Uncommon"
+    },
+    {
+      "id": "med_syringe_lv3",
+      "name": "Military Syringe",
+      "icon_path": "icons/med_syringe_lv3.png",
+      "category": "medical",
+      "subcategory": "Syringes",
+      "weight": 0.03,
+      "price": 22333,
+      "rarity": "Rare"
+    },
+    {
+      "id": "med_syringe_lv4",
+      "name": "Advanced Syringe",
+      "icon_path": "icons/med_syringe_lv4.png",
+      "category": "medical",
+      "subcategory": "Syringes",
+      "weight": 0.03,
+      "price": 51371,
+      "rarity": "Rare"
+    },
+    {
+      "id": "med_stimul_adrenaline",
+      "name": "Adrenaline injector",
+      "icon_path": "icons/med_stimul_adrenaline.png",
+      "category": "medical",
+      "subcategory": "Stims",
+      "weight": 0.03,
+      "price": 57809,
+      "rarity": "Epic"
+    },
+    {
+      "id": "med_stimul_hc",
+      "name": "H.C. stimulant injector",
+      "icon_path": "icons/med_stimul_hc.png",
+      "category": "medical",
+      "subcategory": "Stims",
+      "weight": 0.03,
+      "price": 46935,
+      "rarity": "Epic"
+    },
+    {
+      "id": "med_stimul_kb22",
+      "name": "KB-22 stimulant injector",
+      "icon_path": "icons/med_stimul_kb22.png",
+      "category": "medical",
+      "subcategory": "Stims",
+      "weight": 0.03,
+      "price": 157851,
+      "rarity": "Epic"
+    },
+    {
+      "id": "med_stimul_p4",
+      "name": "P4 stimulant injector",
+      "icon_path": "icons/med_stimul_p4.png",
+      "category": "medical",
+      "subcategory": "Stims",
+      "weight": 0.03,
+      "price": 159430,
+      "rarity": "Epic"
+    },
+    {
+      "id": "med_stimul_morphine",
+      "name": "Morphine injector",
+      "icon_path": "icons/med_stimul_morphine.png",
+      "category": "medical",
+      "subcategory": "Stims",
+      "weight": 0.03,
+      "price": 45363,
+      "rarity": "Epic"
     }
   ],
   "research": [
