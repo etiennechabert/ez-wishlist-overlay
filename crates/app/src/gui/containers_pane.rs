@@ -1179,8 +1179,14 @@ fn target_adjust_item(state: &Arc<RwLock<AppState>>, target: &Target, item: &Ite
     }
 }
 
-/// Read a snapshot of a target's contents as (item id, name, icon, qty).
-fn target_contents(s: &AppState, target: &Target) -> Vec<(ItemId, String, String, u32)> {
+/// One content line of a target: (item id, display name, icon path, quantity,
+/// unit weight in kg). Unit weight is `None` when the catalog has no weight for
+/// the item.
+type ContentLine = (ItemId, String, String, u32, Option<f32>);
+
+/// Read a snapshot of a target's contents as [`ContentLine`]s (item id, name,
+/// icon, qty, unit weight).
+fn target_contents(s: &AppState, target: &Target) -> Vec<ContentLine> {
     let map: Option<&HashMap<ItemId, u32>> = match target {
         Target::Stash => Some(&s.collected),
         Target::Container(id) => s
@@ -1194,21 +1200,48 @@ fn target_contents(s: &AppState, target: &Target) -> Vec<(ItemId, String, String
     };
     map.iter()
         .map(|(iid, &qty)| {
-            let (name, icon) = s
+            let (name, icon, weight) = s
                 .index
                 .items_by_id
                 .get(iid)
-                .map(|it| (it.name.clone(), it.icon_path.clone()))
-                .unwrap_or_else(|| (iid.clone(), String::new()));
-            (iid.clone(), name, icon, qty)
+                .map(|it| (it.name.clone(), it.icon_path.clone(), it.weight))
+                .unwrap_or_else(|| (iid.clone(), String::new(), None));
+            (iid.clone(), name, icon, qty, weight)
         })
         .collect()
 }
 
-/// The target's items, one row each: icon + name on the left, then a
-/// `[−] qty [+]  ×` control cluster sitting in the same actions column as the
-/// container's Edit/Delete buttons (not hugging the window's right edge). Each
-/// row gets a hover highlight so it's obvious which item a control acts on.
+/// Per-line total weight (unit weight × qty) formatted for the Weight column;
+/// a dimmed `—` when the item's weight is unknown, so a real `0.00 kg` can't be
+/// confused with an item the catalog has no weight for.
+fn line_weight_text(unit_weight: Option<f32>, qty: u32) -> String {
+    match unit_weight {
+        Some(w) => format!("{:.2} kg", w * qty as f32),
+        None => "—".to_string(),
+    }
+}
+
+/// Order content lines heaviest-first by total weight (unit weight × qty).
+/// Unknown-weight lines sink to the bottom; ties (and unknown-vs-unknown) break
+/// by name, A→Z, so the order is stable frame to frame.
+fn sort_contents_by_weight(items: &mut [ContentLine]) {
+    let line_weight = |it: &ContentLine| it.4.map(|w| w * it.3 as f32);
+    items.sort_by(|a, b| {
+        match (line_weight(a), line_weight(b)) {
+            (Some(x), Some(y)) => y.partial_cmp(&x).unwrap_or(std::cmp::Ordering::Equal),
+            (Some(_), None) => std::cmp::Ordering::Less,
+            (None, Some(_)) => std::cmp::Ordering::Greater,
+            (None, None) => std::cmp::Ordering::Equal,
+        }
+        .then_with(|| a.1.to_lowercase().cmp(&b.1.to_lowercase()))
+    });
+}
+
+/// The target's items, one row each (heaviest-first): icon + name on the left,
+/// this line's total weight under the Weight column, then a `[−] qty [+]  ×`
+/// control cluster sitting in the same actions column as the container's
+/// Edit/Delete buttons (not hugging the window's right edge). Each row gets a
+/// hover highlight so it's obvious which item a control acts on.
 fn contents_editor(
     ui: &mut egui::Ui,
     state: &Arc<RwLock<AppState>>,
@@ -1217,7 +1250,7 @@ fn contents_editor(
     target: &Target,
 ) {
     let mut items = target_contents(&state.read(), target);
-    items.sort_by_key(|a| a.1.to_lowercase());
+    sort_contents_by_weight(&mut items);
 
     if items.is_empty() {
         ui.horizontal(|ui| {
@@ -1243,7 +1276,7 @@ fn contents_editor(
     const QTY_W: f32 = 46.0;
     const ITEM_ROW_H: f32 = 32.0;
 
-    for (item_id, name, icon, qty) in &items {
+    for (item_id, name, icon, qty, unit_weight) in &items {
         let full_w = ui.available_width();
         let (row_rect, row_resp) =
             ui.allocate_exact_size(egui::vec2(full_w, ITEM_ROW_H), egui::Sense::hover());
@@ -1259,7 +1292,8 @@ fn contents_editor(
                 .rect_filled(row_rect, 3.0, theme::row_hover(ui.visuals().dark_mode));
         }
 
-        // Icon (in the icon column) + name (spanning name..value, truncated).
+        // Icon (in the icon column) + name (spanning name..items, truncated —
+        // the Weight column to its right shows this line's total weight).
         if !icon.is_empty() {
             if let Some(tex) = icons.get(ui.ctx(), icon) {
                 let icon_rect =
@@ -1267,8 +1301,16 @@ fn contents_editor(
                 egui::Image::new(tex).paint_at(ui, icon_rect);
             }
         }
-        let name_rect = egui::Rect::from_min_max(c.name.left_top(), c.value.right_bottom());
+        let name_rect = egui::Rect::from_min_max(c.name.left_top(), c.items.right_bottom());
         put_left(ui, name_rect, egui::RichText::new(name));
+
+        // This line's total weight (unit weight × qty), right-aligned under the
+        // container's Weight column; a dimmed `—` when the item has no weight.
+        let weight_text = line_weight_text(*unit_weight, *qty);
+        let weight_color = unit_weight
+            .is_none()
+            .then(|| ui.visuals().weak_text_color());
+        put_right_colored(ui, c.weight, &weight_text, weight_color);
 
         // Controls in the actions column, aligned under Edit/Delete and read
         // left→right as "[−] qty [+]   ×".
@@ -2068,6 +2110,115 @@ mod tests {
         // Over the cap: red (counts drifted — the game refuses over-cap deposits).
         let (_, c) = weight_cell(&v, 30.5, Some(30.0));
         assert_eq!(c, Some(v.error_fg_color));
+    }
+
+    #[test]
+    fn line_weight_text_multiplies_by_qty_and_marks_unknowns() {
+        // Known weight × quantity, two decimals + the kg suffix.
+        assert_eq!(line_weight_text(Some(2.5), 4), "10.00 kg");
+        assert_eq!(line_weight_text(Some(0.5), 1), "0.50 kg");
+        // No catalog weight → a dash, never a misleading "0.00 kg".
+        assert_eq!(line_weight_text(None, 7), "—");
+    }
+
+    #[test]
+    fn contents_sort_orders_heaviest_first_unknowns_last() {
+        let line = |id: &str, qty: u32, w: Option<f32>| -> ContentLine {
+            (id.to_string(), format!("name-{id}"), String::new(), qty, w)
+        };
+        // Insertion order is deliberately scrambled relative to the target order.
+        let mut items = vec![
+            line("light", 1, Some(1.0)),  // 1.0 kg
+            line("unknown", 9, None),     // unknown → bottom regardless of qty
+            line("heavy", 2, Some(10.0)), // 20.0 kg
+            line("mid", 3, Some(3.0)),    // 9.0 kg
+        ];
+        sort_contents_by_weight(&mut items);
+        let order: Vec<&str> = items.iter().map(|i| i.0.as_str()).collect();
+        assert_eq!(order, ["heavy", "mid", "light", "unknown"]);
+    }
+
+    #[test]
+    fn contents_sort_breaks_weight_ties_by_name() {
+        let line = |id: &str, name: &str, w: f32| -> ContentLine {
+            (id.into(), name.into(), String::new(), 1, Some(w))
+        };
+        // Equal total weight; name (case-insensitive, A→Z) decides the order, and
+        // two unknown-weight lines fall to the bottom in name order too.
+        let mut items = vec![
+            ("u2".into(), "Zinc".into(), String::new(), 1, None),
+            line("b", "banana", 5.0),
+            ("u1".into(), "apple".into(), String::new(), 1, None),
+            line("a", "Apple", 5.0),
+        ];
+        sort_contents_by_weight(&mut items);
+        let order: Vec<&str> = items.iter().map(|i| i.0.as_str()).collect();
+        assert_eq!(order, ["a", "b", "u1", "u2"]);
+    }
+
+    /// Catalog with two weighted items and one weightless one, so an expanded
+    /// container body can assert per-line `kg` totals and the unknown-weight dash
+    /// without colliding with the row's summed KPI weight.
+    fn game_data_three_items() -> Arc<GameData> {
+        let item = |id: &str, name: &str, weight: Option<f32>| crate::data::Item {
+            id: id.into(),
+            name: name.into(),
+            icon_path: String::new(),
+            category: None,
+            subcategory: None,
+            weight,
+            price: None,
+            rarity: None,
+            scan_alias: None,
+        };
+        Arc::new(GameData {
+            data_version: "test".into(),
+            scraped_at: "now".into(),
+            source_repo: "test".into(),
+            source_commit: "deadbeef".into(),
+            modules: Vec::new(),
+            items: vec![
+                item("heavy", "Heavy Thing", Some(2.0)),
+                item("medium", "Medium Thing", Some(1.0)),
+                item("mystery", "Mystery Thing", None),
+            ],
+            research: Vec::new(),
+        })
+    }
+
+    #[test]
+    fn expanded_stash_renders_per_line_weight_and_dash_for_unknown() {
+        // Guards the `contents_editor` rendering wiring the helper unit tests
+        // can't reach: an expanded container body must show each line's total
+        // weight under the Weight column, with a `—` for weightless items.
+        let state = Arc::new(RwLock::new(AppState::new(game_data_three_items())));
+        {
+            let mut w = state.write();
+            w.set_collected(&"heavy".to_string(), 3); // 3 × 2.0 = 6.00 kg
+            w.set_collected(&"medium".to_string(), 1); // 1 × 1.0 = 1.00 kg
+            w.set_collected(&"mystery".to_string(), 1); // no weight → "—"
+        }
+        let mut h = harness(&state);
+        h.run();
+
+        // Collapsed: only the KPI row weight (the 7.00 kg sum) is on screen; the
+        // per-line cells live in the body, which isn't rendered yet.
+        assert!(
+            h.query_by_label("6.00 kg").is_none(),
+            "the per-line weight must not render while the row is collapsed"
+        );
+
+        // Expand the Stash by clicking its name — the collapse toggle is a bare
+        // `interact` rect under the name label, so a *positional* simulated click
+        // (not the accesskit `click()`, which only targets the label node) hits it.
+        h.get_by_label("Stash").simulate_click();
+        h.run();
+
+        // Each line shows its own total (unit × qty), distinct from the 7.00 kg
+        // KPI sum so these labels are unambiguous; the weightless line shows "—".
+        h.get_by_label("6.00 kg");
+        h.get_by_label("1.00 kg");
+        h.get_by_label("—");
     }
 
     #[test]

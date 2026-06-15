@@ -293,8 +293,10 @@ Two tabs at the top: **Hideout** and **Items DB**. Tab state is purely UI (not p
 
 #### Items DB tab (`gui/items_db_pane.rs`)
 - Sortable / filterable catalog of every item in `data.json`
+- A "Container" picker scopes the table to a single storage location (stash or one secondary container)
+- An "In container only" toggle drops items held nowhere (combined stash + container total of 0)
 - A "Tracked only" toggle narrows the table to items required by an upgrade you're currently tracking
-- A surplus column with a selectable need-horizon flags items held in excess of what your goals require
+- A surplus column with a selectable need-horizon flags items held in excess of what your goals require; a "Redundant only" toggle keeps just those
 
 ### Preview pane (`gui/preview_pane.rs`)
 - Shows exactly what `active_items()` returns — aggregated across every tracked upgrade
