@@ -1407,6 +1407,13 @@ fn item_picker_modal(
                     set_picker_filter(ui.ctx(), filter.clone());
                 }
             });
+
+            // On-screen keyboard so the filter can be typed from inside VR; it
+            // updates `filter` before the grid below re-filters this same frame.
+            if picker_keyboard(ui, &mut filter) {
+                set_picker_filter(ui.ctx(), filter.clone());
+            }
+
             ui.label(
                 egui::RichText::new("Click an item to add one; click again to add more.")
                     .small()
@@ -1449,11 +1456,85 @@ fn item_picker_modal(
     if let Some(item_id) = chosen {
         target_adjust_item(state, &active, &item_id, 1);
         notify(state, save_tx);
+        // Reset the filter once an item is picked so the next search starts
+        // clean — no manual Clear needed after every pick (the search box and
+        // on-screen keyboard re-read this empty value next frame).
+        set_picker_filter(ctx, String::new());
     }
     if !open {
         set_active_picker(ctx, None);
         set_picker_filter(ctx, String::new());
     }
+}
+
+/// QWERTY rows for the picker's on-screen keyboard. Lower-case because the
+/// catalog filter is matched case-insensitively (see `collect_filtered_items`);
+/// the keys are rendered upper-case.
+const KEYBOARD_ROWS: [&str; 3] = ["qwertyuiop", "asdfghjkl", "zxcvbnm"];
+
+/// On-screen QWERTY keyboard drawn under the picker's search box. With the
+/// headset on there's no reachable physical keyboard, so this lets the filter
+/// be typed by clicking keys with a VR controller. Each letter key appends to
+/// `filter`; the action row adds a wide Space, a Backspace (`←`), and a Clear
+/// that flushes the whole filter so the user can start a fresh search in one
+/// tap. Mutates `filter` in place and returns `true` when a key changed it, so
+/// the caller can persist the new value.
+fn picker_keyboard(ui: &mut egui::Ui, filter: &mut String) -> bool {
+    // Scoped so the tightened key spacing doesn't leak to the grid below.
+    ui.scope(|ui| {
+        const GAP: f32 = 4.0;
+        const KEY_H: f32 = 34.0;
+        let mut changed = false;
+        ui.spacing_mut().item_spacing = egui::vec2(GAP, GAP);
+
+        // Size keys to the window so the row of ten always fits (and grows with
+        // a larger VR window, making the targets easier to point at).
+        let key_w = ((ui.available_width() - GAP * 9.0) / 10.0).clamp(22.0, 64.0);
+        let key = egui::vec2(key_w, KEY_H);
+
+        for (row, keys) in KEYBOARD_ROWS.iter().enumerate() {
+            ui.horizontal(|ui| {
+                // Half-key indent per row for the familiar staggered look.
+                ui.add_space((key_w + GAP) * 0.5 * row as f32);
+                for ch in keys.chars() {
+                    let label = ch.to_ascii_uppercase().to_string();
+                    if ui.add_sized(key, egui::Button::new(label)).clicked() {
+                        filter.push(ch);
+                        changed = true;
+                    }
+                }
+            });
+        }
+
+        ui.horizontal(|ui| {
+            let space = egui::vec2(key_w * 4.0 + GAP * 3.0, KEY_H);
+            let wide = egui::vec2(key_w * 2.0 + GAP, KEY_H);
+            if ui.add_sized(space, egui::Button::new("Space")).clicked() {
+                filter.push(' ');
+                changed = true;
+            }
+            if ui
+                .add_sized(wide, egui::Button::new("←"))
+                .on_hover_text("Backspace")
+                .clicked()
+                && filter.pop().is_some()
+            {
+                changed = true;
+            }
+            if ui
+                .add_sized(wide, egui::Button::new("Clear"))
+                .on_hover_text("Clear the search")
+                .clicked()
+                && !filter.is_empty()
+            {
+                filter.clear();
+                changed = true;
+            }
+        });
+
+        changed
+    })
+    .inner
 }
 
 // --- egui-memory helpers for transient UI state ----------------------------
@@ -2430,6 +2511,101 @@ mod tests {
         assert!(
             h.query_by_label("Primary storage").is_none(),
             "the container table must be hidden while a scan is capturing"
+        );
+    }
+
+    #[test]
+    fn picker_keyboard_types_backspaces_and_clears_the_filter() {
+        // The Add-items picker shows an on-screen QWERTY keyboard so the name
+        // filter can be typed from inside VR (no reachable physical keyboard
+        // with the headset on). Letter keys append; "←" backspaces; "Clear"
+        // flushes the whole filter so the user can start a fresh search.
+        let state = Arc::new(RwLock::new(AppState::new(game_data())));
+        let mut h = harness(&state);
+        // Open the "Add items to Stash" modal.
+        set_active_picker(&h.ctx, Some(Target::Stash));
+        h.run();
+
+        // Type "ar" by clicking the A then R keys.
+        h.get_by_label("A").click();
+        h.run();
+        h.get_by_label("R").click();
+        h.run();
+        assert_eq!(
+            picker_filter(&h.ctx),
+            "ar",
+            "letter keys should append (lower-case) to the filter"
+        );
+
+        // Backspace drops just the last character.
+        h.get_by_label("←").click();
+        h.run();
+        assert_eq!(
+            picker_filter(&h.ctx),
+            "a",
+            "Backspace should remove the last character"
+        );
+
+        // Clear flushes the whole filter in one tap.
+        h.get_by_label("Clear").click();
+        h.run();
+        assert_eq!(
+            picker_filter(&h.ctx),
+            "",
+            "Clear should flush the entire filter"
+        );
+    }
+
+    #[test]
+    fn picking_an_item_resets_the_filter() {
+        // Picking an item resets the filter so the next search starts clean —
+        // no manual Clear after every pick.
+        let data = Arc::new(GameData {
+            data_version: "test".into(),
+            scraped_at: "now".into(),
+            source_repo: "test".into(),
+            source_commit: "deadbeef".into(),
+            modules: Vec::new(),
+            // A short name so the tile label isn't truncated out of the
+            // accessibility tree (kittest queries it by label).
+            items: vec![crate::data::Item {
+                id: "misc_nails".into(),
+                name: "Nails".into(),
+                icon_path: String::new(),
+                category: Some("misc".into()),
+                subcategory: None,
+                weight: Some(0.1),
+                price: None,
+                rarity: None,
+                scan_alias: None,
+            }],
+            research: Vec::new(),
+        });
+        let state = Arc::new(RwLock::new(AppState::new(data)));
+        let mut h = harness(&state);
+        set_active_picker(&h.ctx, Some(Target::Stash));
+        h.run();
+
+        // Narrow the filter, then pick the item that survives it. The tile's
+        // click sense lives on the surrounding frame (the label is hover-only),
+        // so a real pointer click is needed rather than the accesskit Click
+        // action `click()` fires.
+        set_picker_filter(&h.ctx, "nai".into());
+        h.run();
+        h.get_by_label("Nails").simulate_click();
+        h.run();
+
+        // The pick landed (so the click hit the tile)…
+        assert_eq!(
+            state.read().collected.get("misc_nails").copied(),
+            Some(1),
+            "clicking the tile should add one to the stash"
+        );
+        // …and the filter is wiped for the next search.
+        assert_eq!(
+            picker_filter(&h.ctx),
+            "",
+            "picking an item should reset the filter"
         );
     }
 }
