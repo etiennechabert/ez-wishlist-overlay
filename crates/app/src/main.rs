@@ -120,11 +120,7 @@ fn main() -> Result<()> {
     // Seed the built-in default Shelf exactly once per profile — fresh installs
     // and pre-existing ones that predate the feature. The persisted flag stops
     // it coming back if the user later deletes it.
-    if !app_state.default_shelf_seeded {
-        let id = app_state.create_container("Shelf".to_string());
-        app_state.set_container_kind(&id, state::ContainerKind::Shelf);
-        app_state.set_container_icon(&id, Some("shelf_basic".to_string()));
-        app_state.default_shelf_seeded = true;
+    if app_state.seed_default_shelf() {
         // Persist synchronously now: the seeding happens before the save loop
         // exists, and `bump()` alone emits no `SaveTick`, so without this the
         // shelf would live only in memory and re-seed on the next launch.
