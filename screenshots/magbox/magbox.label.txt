@@ -1,0 +1,34 @@
+# magbox — the in-game "MAGAZINE & ATTACHMENTS ONLY" world container, ground truth.
+# Captured 2026-06-18 (weight strip 8.45 / 12). A 6-shot gaze-crop burst, all at
+# the SAME gaze (identical crop center) over the box's MAGAZINE rows — a partial,
+# dedup-sensitive view, NOT a row-by-row gap-free capture and NOT the box's full
+# contents: its ATTACHMENT half (sights / grips / suppressors / lasers) is not in
+# these frames. Like gunsmith/, this is a presence snapshot — <count> is 1 = "this
+# magazine is visible in the series", not a true copy-count (the SKS Puf alone
+# fills many tiles).
+#
+# NOT OCR-gated yet. The box-scan can't segment this box's rarity-tab grid: the
+# column splitter merges a whole row's tiles into one blob ("AK74 … AKM AKS5 …
+# AR-10 …"), so almost nothing matches (0–2 tiles/shot even up close). A
+# .boxes.json regen + a gate, plus a fuller recapture that includes the
+# attachment rows, are the follow-up (see screenshots/CLAUDE.md → magbox/).
+#
+# Catalog gap surfaced here: the "XM5 6.8x51mm 30rnd magazine" tile has no
+# data.json entry (only XM5 barrel/rifle/upper/stock exist) — to add later.
+#
+# All of these are gunsmith *_clip_* catalog items; the box-scan resolves them
+# via the gunsmith short-name matcher (magazines already match by name).
+#
+# <item_id>  <count>
+gunsmith_ar15_clip_arstanag30  1
+gunsmith_evo3_clip_30rounds  1
+gunsmith_evo3_clip_drum  1
+gunsmith_g18c_clip_30rnd  1
+gunsmith_g3_clip_30  1
+gunsmith_mp5_clip_30rnd  1
+gunsmith_mp9_clip_15  1
+gunsmith_pkp_clip_drum  1
+gunsmith_sks_clip_puf20  1
+gunsmith_ak_clip_545pmag30  1
+gunsmith_ak_clip_762ak55  1
+gunsmith_ar10_clip_10  1

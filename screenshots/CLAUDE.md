@@ -12,6 +12,7 @@ screenshots/
   stash/     stash.shotNN.webp/.boxes.json + stash.label.txt     # Johnny's-Service junk-box terminal (38 shots)
   research/  tree.shotN.webp + <node>.webp + research.label.txt  # Neumann's RESEARCH tree (19 nodes; not OCR-gated yet)
   gunsmith/  gunsmith.shotN.webp/.boxes.json + gunsmith.label.txt # Neumann's Gunsmith → Storage gun-parts container (4 shots; #175/#183)
+  magbox/    magbox.shotN.webp + magbox.label.txt                # "Magazine & Attachments" world box (6 gaze-crop shots; not OCR-gated yet)
 ```
 
 Four asset types, each scored **independently** by the pipeline:
@@ -227,6 +228,32 @@ classes. It's a floor, not an exact tally:
 - **To gate an exact/graded tally**, recapture full frames row-by-row (the stash
   #163 convention) so the merge is gap-free, then score it in `eval_report_json`
   the way box/stash are. Until then the floor gate is the guard.
+
+## magbox/ — the "Magazine & Attachments" world box (captures only, not gated yet)
+
+A second world container (distinct from `box`): the in-game box titled
+**"MAGAZINE & ATTACHMENTS ONLY"**, a rarity-tabbed (All / Unusual / Rare /
+Legendary / Common) 5-column grid of magazines *and* weapon attachments. Its
+items are gunsmith catalog entries (`gunsmith *_clip_*` magazines, plus the
+muzzle/sight/grip/etc. attachment parts), so it would scan with the gun-part
+matcher (`gunsmith = true`) like `gunsmith/`.
+
+`magbox.shot0..5.webp` is a 6-shot gaze-crop burst captured 2026-06-18 (weight
+strip `8.45 / 12`). **Landed as captures + ground truth only — no `.boxes.json`,
+no gate yet**, for two reasons documented in `magbox.label.txt`:
+
+- **The box-scan can't segment this layout.** The rarity-tab grid defeats the
+  column splitter — a whole row's tiles merge into one blob (`"AK74 … AKM AKS5 …
+  AR-10 …"`), so even a close, crisp shot resolves 0–2 tiles. Fixing that
+  (an `ocr-tune` target) is a prerequisite to a meaningful gate.
+- **These shots are the magazine half only**, all at the same gaze (a partial,
+  dedup-sensitive view) — the attachment rows aren't captured. A fuller
+  row-by-row recapture (the stash #163 convention) that scrolls through the
+  attachments would let it gate exactly and exercise the attachment-label work.
+
+`magbox.label.txt` is therefore a **presence snapshot** of the 12 magazines
+visible (count `1` = present, not a copy-count), and it flags one catalog gap it
+surfaced: the **XM5 6.8x51mm 30rnd magazine** has no `data.json` entry yet.
 
 ## units/ — per-item isolated-OCR fixtures
 
