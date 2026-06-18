@@ -1014,6 +1014,24 @@ impl AppState {
         }
     }
 
+    /// Seed the built-in **default Shelf** exactly once per profile (fresh *or*
+    /// pre-existing). Unlike the Gunsmith storage this gets a *minted* id (it's
+    /// an ordinary secondary container), so there's no fixed-id duplicate to
+    /// adopt — the persisted `default_shelf_seeded` flag is the only guard, and
+    /// a later deletion doesn't bring it back. Returns whether it seeded (so the
+    /// caller can persist synchronously, before the save loop exists).
+    pub fn seed_default_shelf(&mut self) -> bool {
+        if self.default_shelf_seeded {
+            return false;
+        }
+        let id = self.create_container("Main Shelf".to_string());
+        self.set_container_kind(&id, ContainerKind::Shelf);
+        self.set_container_icon(&id, Some("shelf_basic".to_string()));
+        self.default_shelf_seeded = true;
+        self.bump();
+        true
+    }
+
     /// Seed the built-in **Gunsmith storage** primary container exactly once
     /// per profile (fresh *or* pre-existing — same contract as the default
     /// Shelf). The game gives every player exactly one Gunsmith → Storage with
@@ -1165,6 +1183,17 @@ impl AppState {
         // inventory. `next_container_seq` stays monotonic (not reset) so a
         // recreated container can never reuse a just-cleared id.
         self.containers.clear();
+        // The two built-in primaries (Gunsmith storage + default Shelf) are
+        // structural scaffolding, not inventory — a reset should leave them
+        // present-but-empty, exactly like a fresh profile. `containers.clear()`
+        // above just removed them, and their *persisted* one-shot seeded flags
+        // would otherwise make the startup re-seed a permanent no-op, so the
+        // built-ins would vanish for good. Flip the flags back off and re-seed
+        // in place so they reappear immediately, no restart required.
+        self.default_shelf_seeded = false;
+        self.gunsmith_storage_seeded = false;
+        self.seed_default_shelf();
+        self.seed_gunsmith_storage();
         self.disabled_modules.clear();
         self.research_states.clear();
         self.tracked_research.clear();
@@ -1986,6 +2015,53 @@ mod tests {
         back.merge_into(&mut s2);
         assert!(!s2.seed_gunsmith_storage(), "flag survives the round-trip");
         assert!(s2.containers.iter().all(|c| c.id != GUNSMITH_STORAGE_ID));
+    }
+
+    #[test]
+    fn reset_all_reseeds_builtin_containers() {
+        // Regression: "Reset progress" clears every container, but the built-in
+        // Gunsmith storage + default Shelf are structural, not inventory. Before
+        // this fix the persisted seeded flags stayed set, so the startup re-seed
+        // no-op'd and the built-ins vanished for good. They must come back —
+        // empty, exactly once each, without a restart.
+        let mut s = AppState::new(fixture());
+        s.seed_default_shelf();
+        s.seed_gunsmith_storage();
+        // Dirty them so we can confirm the reset really emptied them.
+        if let Some(c) = s
+            .containers
+            .iter_mut()
+            .find(|c| c.id == GUNSMITH_STORAGE_ID)
+        {
+            c.contents.insert("bolts".to_string(), 7);
+        }
+        assert!(s.default_shelf_seeded && s.gunsmith_storage_seeded);
+
+        s.reset_all();
+
+        let gunsmith: Vec<_> = s
+            .containers
+            .iter()
+            .filter(|c| c.id == GUNSMITH_STORAGE_ID)
+            .collect();
+        assert_eq!(
+            gunsmith.len(),
+            1,
+            "exactly one Gunsmith storage after reset"
+        );
+        assert_eq!(gunsmith[0].capacity_kg, Some(30.0), "cap restored");
+        assert!(gunsmith[0].contents.is_empty(), "contents wiped");
+
+        let shelves: Vec<_> = s
+            .containers
+            .iter()
+            .filter(|c| c.kind == ContainerKind::Shelf)
+            .collect();
+        assert_eq!(shelves.len(), 1, "exactly one default Shelf after reset");
+
+        // Flags are set again, so the startup re-seed stays a no-op (no dupes).
+        assert!(!s.seed_default_shelf(), "shelf flag re-set");
+        assert!(!s.seed_gunsmith_storage(), "gunsmith flag re-set");
     }
 
     #[test]
