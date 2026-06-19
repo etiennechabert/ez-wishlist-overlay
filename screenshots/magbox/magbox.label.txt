@@ -7,11 +7,15 @@
 # magazine is visible in the series", not a true copy-count (the SKS Puf alone
 # fills many tiles).
 #
-# NOT OCR-gated yet. The box-scan can't segment this box's rarity-tab grid: the
-# column splitter merges a whole row's tiles into one blob ("AK74 … AKM AKS5 …
-# AR-10 …"), so almost nothing matches (0–2 tiles/shot even up close). A
-# .boxes.json regen + a gate, plus a fuller recapture that includes the
-# attachment rows, are the follow-up (see screenshots/CLAUDE.md → magbox/).
+# Gated at a FLOOR (magbox_scan_resolves_magazines, ≥6 distinct). The #197
+# adaptive column split (Otsu gap valley in split_tiles) fixed the rarity-tab
+# grid — previously its long, cell-filling names fused a whole row into one
+# unmatchable blob ("AK74 … AKM AKS5 … AR-10 …"; 0–2 tiles/shot even up close).
+# The scan now resolves 7/12 distinct magazines. The 5 misses are NOT
+# segmentation: they're recognition garble on the distant tiles (MPS→MP5, mashed
+# AR-10 / AR-15 / PKP) plus one false positive (a garbled tile → the misc
+# "Magazine") — an ocr-tune follow-up. A fuller row-by-row recapture that scrolls
+# through the attachment rows would gate it exactly (see screenshots/CLAUDE.md).
 #
 # Catalog gap surfaced here: the "XM5 6.8x51mm 30rnd magazine" tile has no
 # data.json entry (only XM5 barrel/rifle/upper/stock exist) — to add later.

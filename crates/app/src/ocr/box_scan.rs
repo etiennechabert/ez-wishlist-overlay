@@ -511,19 +511,36 @@ fn split_subrows<'a>(block: &[&'a LabelBox], slope: f32, med_h: f32) -> Vec<Vec<
 }
 
 /// Split one row's boxes into tiles by horizontal gaps: words within a tile's
-/// label sit close together, while the gap between tiles is much wider. Returns
-/// tiles left→right, each a list of its label words (left→right).
+/// label sit close together, while the gap between tiles is wider. Returns tiles
+/// left→right, each a list of its label words (left→right).
+///
+/// The break threshold is **adaptive** ([`split_threshold`]) rather than a flat
+/// `1.5·med_h`. A flat threshold fuses dense grids whose long, cell-filling names
+/// leave only a narrow inter-column gap: the "Magazine & Attachments" box (#197)
+/// packs names like `AK74 P-Mag 5.45x39mm 30rnd magazine` so the inter-column gap
+/// is ~0.8–1.4·med_h while intra-name word gaps are ~0.3–0.5·med_h — both *below*
+/// `1.5·med_h`, so the whole row collapsed into one unmatchable blob. The Otsu
+/// valley between the two gap clusters, floored at `0.6·med_h` (above any
+/// intra-name gap) and capped at the old `1.5·med_h` (so we only ever split
+/// *more*), separates the columns; on the well-spaced misc box / stash / gunsmith
+/// fixtures it reproduces the old splits exactly (their intra gaps clear the
+/// floor by a wide margin), so those gates are unaffected.
 #[allow(dead_code)]
 fn split_tiles<'a>(row: &[&'a LabelBox]) -> Vec<Vec<&'a LabelBox>> {
     let mut sorted = row.to_vec();
     sorted.sort_by(|a, b| a.x.total_cmp(&b.x));
-    let gap_thresh = (median(sorted.iter().map(|b| b.h)) * 1.5).max(1.0);
+    let med_h = median(sorted.iter().map(|b| b.h)).max(1.0);
+    let gaps: Vec<f32> = sorted
+        .windows(2)
+        .map(|w| (w[1].x - w[0].right()).max(0.0))
+        .collect();
+    let thresh = split_threshold(&gaps, med_h);
 
     let mut tiles: Vec<Vec<&LabelBox>> = Vec::new();
     let mut cur: Vec<&LabelBox> = Vec::new();
     let mut prev_right = f32::NEG_INFINITY;
     for b in sorted {
-        if !cur.is_empty() && b.x - prev_right > gap_thresh {
+        if !cur.is_empty() && b.x - prev_right >= thresh {
             tiles.push(std::mem::take(&mut cur));
         }
         prev_right = b.right();
@@ -533,6 +550,53 @@ fn split_tiles<'a>(row: &[&'a LabelBox]) -> Vec<Vec<&'a LabelBox>> {
         tiles.push(cur);
     }
     tiles
+}
+
+/// The horizontal gap (px) at or above which a break ends one tile and begins
+/// the next, for one row's consecutive word-box gaps. Splits the gaps into an
+/// intra-name cluster and an inter-column cluster at their Otsu valley, then
+/// clamps that to `[0.6·med_h, 1.5·med_h]`: the floor stays above any intra-name
+/// word gap (so a single multi-word name never fragments), and the cap is the
+/// legacy flat threshold (so a gap the old code split on still splits). With no
+/// clear valley (a one-tile row, or one wide gap) Otsu's pick is clamped to the
+/// cap and nothing below it splits.
+#[allow(dead_code)]
+fn split_threshold(gaps: &[f32], med_h: f32) -> f32 {
+    let cap = med_h * 1.5;
+    let floor = med_h * 0.6;
+    otsu_break(gaps).unwrap_or(cap).clamp(floor, cap)
+}
+
+/// Otsu's method on a small set of 1-D gap values: the gap value that, used as a
+/// `< t` / `>= t` split, maximizes between-class variance — i.e. the valley of a
+/// bimodal gap distribution. `None` when there's nothing to split (< 2 gaps).
+#[allow(dead_code)]
+fn otsu_break(gaps: &[f32]) -> Option<f32> {
+    if gaps.len() < 2 {
+        return None;
+    }
+    let mut cands: Vec<f32> = gaps.to_vec();
+    cands.sort_by(f32::total_cmp);
+    cands.dedup();
+    let n = gaps.len() as f32;
+    let mut best_var = -1.0f32;
+    let mut best_t = None;
+    for &c in cands.iter().skip(1) {
+        let lo: Vec<f32> = gaps.iter().copied().filter(|&g| g < c).collect();
+        let hi: Vec<f32> = gaps.iter().copied().filter(|&g| g >= c).collect();
+        if lo.is_empty() || hi.is_empty() {
+            continue;
+        }
+        let (w0, w1) = (lo.len() as f32 / n, hi.len() as f32 / n);
+        let m0 = lo.iter().sum::<f32>() / lo.len() as f32;
+        let m1 = hi.iter().sum::<f32>() / hi.len() as f32;
+        let var = w0 * w1 * (m0 - m1).powi(2);
+        if var > best_var {
+            best_var = var;
+            best_t = Some(c);
+        }
+    }
+    best_t
 }
 
 /// De-sheared vertical gap (×med_h) under which an upper `Names` row is close
@@ -1369,7 +1433,7 @@ pub(crate) mod tests {
     /// written into the container.
     pub(crate) fn run_box_scan(category: &str, shots: &[String]) -> HashMap<ItemId, u32> {
         let data = crate::assets::load_game_data().expect("embedded data.json");
-        let gunsmith = category == "gunsmith";
+        let gunsmith = category == "gunsmith" || category == "magbox";
         let mut master: Vec<ScanRow> = Vec::new();
         let mut next_id = 0u64;
         for shot in shots {
@@ -1698,6 +1762,12 @@ pub(crate) mod tests {
             "gunsmith" => (0..4)
                 .map(|i| format!("gunsmith.shot{i}.boxes.json"))
                 .collect(),
+            // The "Magazine & Attachments" world box (gun-part items): a 6-shot
+            // gaze-crop burst (#197). Scanned with the gun-part matcher like
+            // `gunsmith` — magazines match by name, attachments by scan_alias.
+            "magbox" => (0..6)
+                .map(|i| format!("magbox.shot{i}.boxes.json"))
+                .collect(),
             other => panic!("unknown scan category {other:?}"),
         }
     }
@@ -1736,7 +1806,7 @@ pub(crate) mod tests {
         .collect();
 
         let mut written = 0usize;
-        for category in ["box", "stash", "gunsmith"] {
+        for category in ["box", "stash", "gunsmith", "magbox"] {
             let shots = scan_shots(category);
             // Per-shot: one sidecar per scroll-shot image.
             for shot in &shots {
@@ -1770,7 +1840,7 @@ pub(crate) mod tests {
     #[cfg(target_os = "windows")]
     fn regen_box_fixtures() {
         use image::GenericImageView;
-        for category in ["box", "stash", "gunsmith"] {
+        for category in ["box", "stash", "gunsmith", "magbox"] {
             for entry in std::fs::read_dir(fixture_dir(category)).expect("fixture dir") {
                 let path = entry.unwrap().path();
                 let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
@@ -2035,6 +2105,84 @@ pub(crate) mod tests {
                 tally.keys().collect::<std::collections::BTreeSet<_>>(),
             );
         }
+    }
+
+    /// Floor of distinct items the "Magazine & Attachments" box scan must
+    /// resolve from the frozen 2026-06-18 captures. The adaptive column split
+    /// ([`split_tiles`] / [`split_threshold`], #197) lifted this from ~2 — the
+    /// dense rarity-tab grid's long names fused whole rows into one unmatchable
+    /// blob — to 7. The floor is 6 to absorb cross-machine regen variance. A
+    /// floor, not an exact tally: it's a same-gaze gappy burst (not the stash's
+    /// row-by-row series), and several distant tiles are recognition-garbled
+    /// (`MPS`→MP5, mashed AR-10 / AR-15 / PKP — an `ocr-tune` target, not a
+    /// segmentation one), so the full 12-magazine `magbox.label.txt` isn't
+    /// reachable yet. The box's items are gun parts, so it scans with the
+    /// gun-part matcher (`run_box_scan` sets `gunsmith = true` for `magbox`).
+    const MAGBOX_GATE_MIN_DISTINCT: usize = 6;
+
+    #[test]
+    fn magbox_scan_resolves_magazines() {
+        let tally = run_box_scan("magbox", &scan_shots("magbox"));
+        assert!(
+            tally.len() >= MAGBOX_GATE_MIN_DISTINCT,
+            "magbox scan regressed: resolved {} distinct item(s) (floor {}); the \
+             dense rarity-tab grid must not re-fuse into row-wide blobs. Tally: {:?}",
+            tally.len(),
+            MAGBOX_GATE_MIN_DISTINCT,
+            tally.keys().collect::<std::collections::BTreeSet<_>>(),
+        );
+        // Spot-checks: cleanly-read magazines across calibers that the column
+        // split must keep separating — these four sat in fused rows that
+        // resolved to nothing before the split (e.g. shot4 row 1 was the single
+        // blob "EVO3…30rnd magazine EVO3…Drum magazine G18C…magazine G3…magazine").
+        for id in [
+            "gunsmith_g18c_clip_30rnd",
+            "gunsmith_g3_clip_30",
+            "gunsmith_evo3_clip_drum",
+            "gunsmith_ak_clip_762ak55",
+        ] {
+            assert!(
+                tally.contains_key(id),
+                "magbox scan no longer resolves {id}; tally: {:?}",
+                tally.keys().collect::<std::collections::BTreeSet<_>>(),
+            );
+        }
+    }
+
+    /// [`split_threshold`] separates a dense grid's intra-name gaps from its
+    /// inter-column gaps without fragmenting a single multi-word name — the core
+    /// of the #197 column fix, checked directly (no engine, every platform).
+    #[test]
+    fn split_threshold_finds_the_column_valley() {
+        let h = 23.0;
+        // A dense magbox-style row: intra-name word gaps ~7–12, inter-column
+        // gaps ~19–33 — both below the legacy 1.5·h = 34.5 flat threshold.
+        let dense = [8.0, 8.0, 8.0, 19.0, 7.0, 7.0, 10.0, 12.0, 26.0, 33.0];
+        let t = split_threshold(&dense, h);
+        assert!(
+            (12.0..=19.0).contains(&t),
+            "threshold {t} should land in the 12–19 valley"
+        );
+        assert!(
+            dense.iter().filter(|&&g| g >= t).count() == 3,
+            "exactly the three inter-column gaps (19/26/33) should split"
+        );
+        // A single multi-word name: all gaps small + similar → no split (the
+        // threshold floors at 0.6·h, above every intra-name gap).
+        let one_name = [7.0, 8.0, 9.0, 8.0];
+        let tn = split_threshold(&one_name, h);
+        assert!(
+            one_name.iter().all(|&g| g < tn),
+            "a single name must not fragment (threshold {tn})"
+        );
+        // A wide-gutter row (misc/stash style): huge inter-column gaps, tiny
+        // intra gaps → splits exactly at the gutters, never inside a name.
+        let wide = [6.0, 90.0, 6.0, 6.0, 95.0, 6.0];
+        let tw = split_threshold(&wide, h);
+        assert!(
+            wide.iter().filter(|&&g| g >= tw).count() == 2,
+            "wide-gutter row should split only at its two gutters (threshold {tw})"
+        );
     }
 
     /// Run a scan with the issue-#165 round union harvesting the scroll

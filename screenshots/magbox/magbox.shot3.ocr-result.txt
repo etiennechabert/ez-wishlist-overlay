@@ -1,0 +1,36 @@
+# magbox.shot3 — what the OCR read in this one screenshot
+# (auto-generated; do not edit by hand — see screenshots/CLAUDE.md)
+#
+# This is ONE scroll shot of the magbox grid. The grid is taller than the
+# screen, so the full contents come from merging every shot — that merged
+# result, scored against the label, lives in magbox.ocr-result.txt. This file
+# just shows what the OCR pulled out of this single frame, regenerated from
+# the frozen magbox.shot3.boxes.json (so it never runs the game).
+#
+## SUMMARY
+  recognized 4 item tile(s) across 1 grid row(s)
+  dropped 0 text(s) that matched no catalog item (window title, weight
+    readout, category tabs/subtitles — i.e. screen chrome, not items)
+#
+  items found in this frame:
+    1 x gunsmith_evo3_clip_30rounds
+    1 x gunsmith_evo3_clip_drum
+    1 x gunsmith_g18c_clip_30rnd
+    1 x gunsmith_g3_clip_30
+#
+## DETAIL — every text the OCR produced, row by row
+#   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
+#   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
+  [chrome]
+    ALL                            -> (no match)
+    UNUSUAL                        -> (no match)
+    RARE                           -> (no match)
+    LEGENDARY                      -> (no match)
+    COMMON                         -> (no match)
+  [items ]
+    EV039x19mm 30rnd magazine      -> gunsmith_evo3_clip_30rounds
+    EV03 8x19mm 50rnd Qrum magazine -> gunsmith_evo3_clip_drum
+    G18C 9x19mm 30rnd magazine     -> gunsmith_g18c_clip_30rnd
+    G3 7.62x51mm 30rnd magazine    -> gunsmith_g3_clip_30
+  [chrome]
+    8.45 /12                       -> (no match)

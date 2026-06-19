@@ -1,0 +1,34 @@
+# magbox.shot2 — what the OCR read in this one screenshot
+# (auto-generated; do not edit by hand — see screenshots/CLAUDE.md)
+#
+# This is ONE scroll shot of the magbox grid. The grid is taller than the
+# screen, so the full contents come from merging every shot — that merged
+# result, scored against the label, lives in magbox.ocr-result.txt. This file
+# just shows what the OCR pulled out of this single frame, regenerated from
+# the frozen magbox.shot2.boxes.json (so it never runs the game).
+#
+## SUMMARY
+  recognized 0 item tile(s) across 0 grid row(s)
+  dropped 0 text(s) that matched no catalog item (window title, weight
+    readout, category tabs/subtitles — i.e. screen chrome, not items)
+#
+  items found in this frame:
+    (none — no item tiles recognized in this shot)
+#
+## DETAIL — every text the OCR produced, row by row
+#   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
+#   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
+  [chrome]
+    AZINE &                        -> (no match)
+    ATTACHMENTS                    -> (no match)
+  [chrome]
+    ALL                            -> (no match)
+    UNUSUAL                        -> (no match)
+    RARE                           -> (no match)
+    LEGENDARY                      -> (no match)
+    COMMON                         -> (no match)
+  [chrome]
+    AKM AK55 7.62x39mm 30md magazine AR-10 7.62x51mm 10rnd magazine -> (no match)
+    AR-10 7.62x51mm 10rnd magazine AR-10 7.62x51mm10rnd -> (no match)
+  [chrome]
+    8.45 /12                       -> (no match)

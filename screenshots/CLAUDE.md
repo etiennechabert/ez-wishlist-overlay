@@ -12,10 +12,10 @@ screenshots/
   stash/     stash.shotNN.webp/.boxes.json + stash.label.txt     # Johnny's-Service junk-box terminal (38 shots)
   research/  tree.shotN.webp + <node>.webp + research.label.txt  # Neumann's RESEARCH tree (19 nodes; not OCR-gated yet)
   gunsmith/  gunsmith.shotN.webp/.boxes.json + gunsmith.label.txt # Neumann's Gunsmith → Storage gun-parts container (4 shots; #175/#183)
-  magbox/    magbox.shotN.webp + magbox.label.txt                # "Magazine & Attachments" world box (6 gaze-crop shots; not OCR-gated yet)
+  magbox/    magbox.shotN.webp/.boxes.json + magbox.label.txt    # "Magazine & Attachments" world box (6 gaze-crop shots; floor-gated, #197)
 ```
 
-Four asset types, each scored **independently** by the pipeline:
+Five asset types, each scored **independently** by the pipeline:
 
 | Asset | In-game screen | OCR exercised | Label = ground truth for |
 |---|---|---|---|
@@ -23,6 +23,7 @@ Four asset types, each scored **independently** by the pipeline:
 | **box** | a world container tablet (category tab strip: All / Medical / … / Tool) | `read_tiles` + `merge_capture` (row-uniqueness dedup) over the scroll shots | the merged item tally (passes exactly) |
 | **stash** | the "JOHNNY'S SERVICE" junk-box submit terminal ("only miscellaneous items can be stored here") | same as box | the item tally (gap-free 38-shot series; name divergences keep it scored, not gated) |
 | **gunsmith** | Neumann's Gunsmith → Storage (gun parts, 30 KG cap) | same as box, but `read_tiles` runs with the gun-part **short-name** matcher (`gunsmith = true`, issue #183) | a golden snapshot of resolved parts (gappy gaze-crop series — floor + spot-checks, not exact) |
+| **magbox** | the "Magazine & Attachments" world box (rarity-tab grid) | same as gunsmith (`gunsmith = true`); exercises the dense-grid column split (`split_tiles` Otsu valley, #197) | distinct magazines resolved (gappy same-gaze burst — floor + spot-checks; recognition-garbled tiles miss) |
 
 > Both box and stash are titled "JUNK BOX" in-game — they're different screens.
 > `box` is the physical world container; `stash` is the player's submit terminal.
@@ -229,31 +230,38 @@ classes. It's a floor, not an exact tally:
   #163 convention) so the merge is gap-free, then score it in `eval_report_json`
   the way box/stash are. Until then the floor gate is the guard.
 
-## magbox/ — the "Magazine & Attachments" world box (captures only, not gated yet)
+## magbox/ — the "Magazine & Attachments" world box (floor-gated)
 
 A second world container (distinct from `box`): the in-game box titled
 **"MAGAZINE & ATTACHMENTS ONLY"**, a rarity-tabbed (All / Unusual / Rare /
 Legendary / Common) 5-column grid of magazines *and* weapon attachments. Its
 items are gunsmith catalog entries (`gunsmith *_clip_*` magazines, plus the
-muzzle/sight/grip/etc. attachment parts), so it would scan with the gun-part
-matcher (`gunsmith = true`) like `gunsmith/`.
+muzzle/sight/grip/etc. attachment parts), so it scans with the gun-part matcher
+(`run_box_scan` sets `gunsmith = true` for `magbox`) like `gunsmith/`.
 
 `magbox.shot0..5.webp` is a 6-shot gaze-crop burst captured 2026-06-18 (weight
-strip `8.45 / 12`). **Landed as captures + ground truth only — no `.boxes.json`,
-no gate yet**, for two reasons documented in `magbox.label.txt`:
+strip `8.45 / 12`). It exposed — and drove the fix for — a **dense-grid
+segmentation bug** (#197): this box's long, cell-filling names
+(`AK74 P-Mag 5.45x39mm 30rnd magazine`) leave an inter-column gap of only
+~0.8–1.4·med_h while intra-name word gaps are ~0.3–0.5·med_h — *both* below the
+old flat `1.5·med_h` split threshold — so an entire row collapsed into one
+unmatchable blob (`"AK74 … AKM AKS5 … AR-10 …"`; 0–2 tiles/shot even up close).
+[`split_tiles`] now picks the threshold at the **Otsu valley** between the two
+gap clusters (floored at `0.6·med_h`, capped at the old `1.5·med_h`), which
+splits the columns here while reproducing the old splits exactly on the
+well-spaced box/stash/gunsmith fixtures (their gates are unchanged).
 
-- **The box-scan can't segment this layout.** The rarity-tab grid defeats the
-  column splitter — a whole row's tiles merge into one blob (`"AK74 … AKM AKS5 …
-  AR-10 …"`), so even a close, crisp shot resolves 0–2 tiles. Fixing that
-  (an `ocr-tune` target) is a prerequisite to a meaningful gate.
-- **These shots are the magazine half only**, all at the same gaze (a partial,
-  dedup-sensitive view) — the attachment rows aren't captured. A fuller
-  row-by-row recapture (the stash #163 convention) that scrolls through the
-  attachments would let it gate exactly and exercise the attachment-label work.
-
-`magbox.label.txt` is therefore a **presence snapshot** of the 12 magazines
-visible (count `1` = present, not a copy-count), and it flags one catalog gap it
-surfaced: the **XM5 6.8x51mm 30rnd magazine** has no `data.json` entry yet.
+The scan now resolves **7/12** distinct magazines (`magbox_scan_resolves_magazines`
+gates a floor of 6). It's a floor, not exact, for two reasons in
+`magbox.label.txt`: (1) the 5 misses are **recognition** garble on distant tiles
+(`MPS`→MP5, mashed AR-10 / AR-15 / PKP) plus one false positive (a garbled tile →
+the misc `Magazine`) — an `ocr-tune` follow-up, not a segmentation one; (2) these
+are the **magazine half only**, all at one gaze (a partial, dedup-sensitive view)
+— a fuller row-by-row recapture that scrolls through the **attachment** rows would
+gate it exactly and exercise the attachment-label work. `magbox.label.txt` is a
+presence snapshot of the 12 magazines (count `1` = present, not a copy-count), and
+flags one catalog gap it surfaced: the **XM5 6.8x51mm 30rnd magazine** has no
+`data.json` entry yet.
 
 ## units/ — per-item isolated-OCR fixtures
 

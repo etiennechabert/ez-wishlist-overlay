@@ -1,0 +1,40 @@
+# magbox.shot5 — what the OCR read in this one screenshot
+# (auto-generated; do not edit by hand — see screenshots/CLAUDE.md)
+#
+# This is ONE scroll shot of the magbox grid. The grid is taller than the
+# screen, so the full contents come from merging every shot — that merged
+# result, scored against the label, lives in magbox.ocr-result.txt. This file
+# just shows what the OCR pulled out of this single frame, regenerated from
+# the frozen magbox.shot5.boxes.json (so it never runs the game).
+#
+## SUMMARY
+  recognized 6 item tile(s) across 2 grid row(s)
+  dropped 1 text(s) that matched no catalog item (window title, weight
+    readout, category tabs/subtitles — i.e. screen chrome, not items)
+#
+  items found in this frame:
+    6 x gunsmith_sks_clip_puf20
+#
+## DETAIL — every text the OCR produced, row by row
+#   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
+#   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
+  [chrome]
+    ALL                            -> (no match)
+    UNUSUAL                        -> (no match)
+    RARE                           -> (no match)
+    LEGENDARY                      -> (no match)
+    COMMON                         -> (no match)
+  [items ]
+    XM5 6.8x51mm 30rnd magazine MPS 9x19mm 30rnd magazine -> (no match)
+    SKS 7.62x39mm 20rnd Puf magazine -> gunsmith_sks_clip_puf20
+  [items ]
+    SKS 7.62x39mm 20md Puf magazine -> gunsmith_sks_clip_puf20
+    SKS 7.82x39mm 20md Puf magazine -> gunsmith_sks_clip_puf20
+    SKS 7.62x39mm 20rnd Puf magazine -> gunsmith_sks_clip_puf20
+    SKS 7.62x39mm 20rnd Puf magazine -> gunsmith_sks_clip_puf20
+    SKS 7.62x39mm 20md Puf magazine -> gunsmith_sks_clip_puf20
+  [chrome]
+    SKS7.82x3mm2ndPuf mgai         -> (no match)
+    SKS7.62x39mm2mdPufmaane        -> (no match)
+  [chrome]
+    8.45/12                        -> (no match)
