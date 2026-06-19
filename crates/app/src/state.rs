@@ -73,6 +73,15 @@ pub struct Container {
     /// Defaults so profiles saved before this field existed load unchanged.
     #[serde(default)]
     pub capacity_kg: Option<f32>,
+    /// The catalog item category this case is locked to in-game — `"misc"` (the
+    /// Collection boxes), `"medical"` (the Medical box), or `"gunsmith"` (the
+    /// Gunsmith storage and the Magazine & Attachments box) — derived from the
+    /// chosen case icon. It scopes the box-scan matcher and the add-item picker
+    /// to that one category, mirroring the game (each box stores a single type).
+    /// `None` for bags/shelves and for cases saved before this field existed (the
+    /// scan then matches the whole catalog, as it did pre-category).
+    #[serde(default)]
+    pub category: Option<String>,
 }
 
 /// User-recorded progress of one research node. `Locked` / `Available` are
@@ -987,6 +996,7 @@ impl AppState {
             icon: None,
             kind: ContainerKind::default(),
             capacity_kg: None,
+            category: None,
         });
         self.bump();
         id
@@ -998,6 +1008,18 @@ impl AppState {
         if let Some(c) = self.containers.iter_mut().find(|c| &c.id == id) {
             if c.icon != icon {
                 c.icon = icon;
+                self.bump();
+            }
+        }
+    }
+
+    /// Set (or clear, with `None`) a case's item category — the catalog category
+    /// the box is locked to, which scopes its scan + add-item picker. No-op if
+    /// the id is unknown or unchanged.
+    pub fn set_container_category(&mut self, id: &ContainerId, category: Option<String>) {
+        if let Some(c) = self.containers.iter_mut().find(|c| &c.id == id) {
+            if c.category != category {
+                c.category = category;
                 self.bump();
             }
         }
@@ -1057,10 +1079,15 @@ impl AppState {
             if existing.capacity_kg.is_none() {
                 existing.capacity_kg = Some(30.0);
             }
+            // Backfill the gun-parts category onto a storage row seeded before
+            // categories existed, so its scan picks up the alias matcher.
+            if existing.category.is_none() {
+                existing.category = Some("gunsmith".to_string());
+            }
             self.gunsmith_storage_seeded = true;
             self.bump();
-            // The flag flip + cap backfill are a real change worth persisting,
-            // so report it like a fresh seed even though we didn't push.
+            // The flag flip + cap/category backfill are a real change worth
+            // persisting, so report it like a fresh seed even though we didn't push.
             return true;
         }
         self.containers.push(Container {
@@ -1070,6 +1097,7 @@ impl AppState {
             icon: Some("box_gunsmith".to_string()),
             kind: ContainerKind::Case,
             capacity_kg: Some(30.0),
+            category: Some("gunsmith".to_string()),
         });
         self.gunsmith_storage_seeded = true;
         self.bump();
@@ -2076,6 +2104,7 @@ mod tests {
             icon: Some("box_gunsmith".to_string()),
             kind: ContainerKind::Case,
             capacity_kg: None,
+            category: None,
         });
         assert!(!s.gunsmith_storage_seeded);
 
@@ -2108,6 +2137,7 @@ mod tests {
                 icon: Some("box_gunsmith".to_string()),
                 kind: ContainerKind::Case,
                 capacity_kg: None,
+                category: None,
             },
             Container {
                 id: GUNSMITH_STORAGE_ID.to_string(),
@@ -2116,6 +2146,7 @@ mod tests {
                 icon: Some("box_gunsmith".to_string()),
                 kind: ContainerKind::Case,
                 capacity_kg: None,
+                category: None,
             },
             Container {
                 id: GUNSMITH_STORAGE_ID.to_string(),
@@ -2124,6 +2155,7 @@ mod tests {
                 icon: Some("box_gunsmith".to_string()),
                 kind: ContainerKind::Case,
                 capacity_kg: Some(30.0),
+                category: None,
             },
         ];
 

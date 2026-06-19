@@ -22,8 +22,8 @@ Five asset types, each scored **independently** by the pipeline:
 | **hideout** | Facility Upgrade panel | full pipeline (identify upgrade + read each item's `owned/needed` counter) | per-cell owned-count + identification |
 | **box** | a world container tablet (category tab strip: All / Medical / … / Tool) | `read_tiles` + `merge_capture` (row-uniqueness dedup) over the scroll shots | the merged item tally (passes exactly) |
 | **stash** | the "JOHNNY'S SERVICE" junk-box submit terminal ("only miscellaneous items can be stored here") | same as box | the item tally (gap-free 38-shot series; name divergences keep it scored, not gated) |
-| **gunsmith** | Neumann's Gunsmith → Storage (gun parts, 30 KG cap) | same as box, but `read_tiles` runs with the gun-part **short-name** matcher (`gunsmith = true`, issue #183) | a golden snapshot of resolved parts (gappy gaze-crop series — floor + spot-checks, not exact) |
-| **magbox** | the "Magazine & Attachments" world box (rarity-tab grid) | same as gunsmith (`gunsmith = true`); exercises the dense-grid column split (`split_tiles` Otsu valley, #197) | distinct magazines resolved (gappy same-gaze burst — floor + spot-checks; recognition-garbled tiles miss) |
+| **gunsmith** | Neumann's Gunsmith → Storage (gun parts, 30 KG cap) | same as box, but `read_tiles` runs scoped to the `gunsmith` category, enabling the gun-part **short-name** matcher (issue #183) | a golden snapshot of resolved parts (gappy gaze-crop series — floor + spot-checks, not exact) |
+| **magbox** | the "Magazine & Attachments" world box (rarity-tab grid) | same as gunsmith (category scope `gunsmith`); exercises the dense-grid column split (`split_tiles` Otsu valley, #197) | distinct magazines resolved (gappy same-gaze burst — floor + spot-checks; recognition-garbled tiles miss) |
 
 > Both box and stash are titled "JUNK BOX" in-game — they're different screens.
 > `box` is the physical world container; `stash` is the player's submit terminal.
@@ -202,7 +202,7 @@ carries the full `WFItemsStringTable` names (`Cobra 20mm reflex sight`, …). Th
 short names ARE in the paks — the game's **`GunSmithItemAdv`** table holds one
 per `gunsmith.*` tag — so they're extracted offline into each part's
 `Item.scan_alias` (see the data-provenance section in the repo-root `CLAUDE.md`).
-`read_tiles` runs with `gunsmith = true` (scoped to this one container — set from
+`read_tiles` runs scoped to the `gunsmith` category (the container's category — set from
 the `ScanTarget` in `main.rs`), and after the strict pass misses, matches the
 tile against each part's `scan_alias` by the same confusion-aware distance. See
 the `crate::ocr::match_item` module docs. Misc box/stash matching is untouched
@@ -237,7 +237,7 @@ A second world container (distinct from `box`): the in-game box titled
 Legendary / Common) 5-column grid of magazines *and* weapon attachments. Its
 items are gunsmith catalog entries (`gunsmith *_clip_*` magazines, plus the
 muzzle/sight/grip/etc. attachment parts), so it scans with the gun-part matcher
-(`run_box_scan` sets `gunsmith = true` for `magbox`) like `gunsmith/`.
+(its `gunsmith` category scope) like `gunsmith/`.
 
 `magbox.shot0..5.webp` is a 6-shot gaze-crop burst captured 2026-06-18 (weight
 strip `8.45 / 12`). It exposed — and drove the fix for — a **dense-grid

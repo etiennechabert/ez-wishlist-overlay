@@ -27,15 +27,24 @@
 //! `CLAUDE.md`), so we match the storage label against the real short name, not
 //! a fuzzy reconstruction.
 //!
-//! So when the caller flags a gunsmith-storage scan, after the strict
-//! whole-name pass misses, [`match_gunsmith`] scores the label against every
-//! gun-part's `scan_alias` by the same confusion-aware distance and takes the
-//! best — **rejecting a tie**: 27 short names are shared by several parts in the
-//! game itself (`"M9"` across an M9's lower/grip/barrel/upper, `"AR-15 DD"` for
-//! the DD stock *and* handguard), so when two parts match equally we resolve to
-//! nothing rather than guess. Same "reject, don't guess" contract as the strict
-//! matcher, and scoped to gunsmith-storage scans (the caller's `gunsmith` flag)
-//! so misc box/stash matching is byte-for-byte unchanged.
+//! So on a gunsmith-category scan, after the strict whole-name pass misses,
+//! [`match_gunsmith`] scores the label against every gun-part's `scan_alias` by
+//! the same confusion-aware distance and takes the best — **rejecting a tie**:
+//! 27 short names are shared by several parts in the game itself (`"M9"` across
+//! an M9's lower/grip/barrel/upper, `"AR-15 DD"` for the DD stock *and*
+//! handguard), so when two parts match equally we resolve to nothing rather than
+//! guess. Same "reject, don't guess" contract as the strict matcher.
+//!
+//! ## Category scope
+//!
+//! Each in-game box is **category-locked** (Collection → `misc`, Medical →
+//! `medical`, Gunsmith storage / Magazine & Attachments → `gunsmith`), so
+//! [`match_item`] takes a `scope` — the box's category. The strict pass only
+//! considers items in it (a tile can't resolve across categories), and the
+//! alias pass above runs only for `scope == Some("gunsmith")`. `scope == None`
+//! matches the whole catalog (a generic case, or one saved before categories).
+//! The runtime derives the scope from the `ScanTarget`'s container category;
+//! the gate fixtures from [`tests::scan_scope`].
 
 // Reached for real only by the Windows-gated box-scan reader (`read_tiles`),
 // plus the unit tests below (every target). The non-test, non-Windows build
@@ -135,27 +144,41 @@ const GUNSMITH_CATEGORY: &str = "gunsmith";
 /// — the alias is the real string, so this only absorbs OCR glyph noise.
 const ALIAS_MIN_SCORE: f64 = 0.80;
 
-/// Resolve one tile's OCR'd label `tokens` to an `Item.id`.
+/// Resolve one tile's OCR'd label `tokens` to an `Item.id`, scoped to the
+/// container's item category.
 ///
-/// `gunsmith` enables the gun-part short-name (alias) pass — set only when
-/// scanning the Gunsmith → Storage container, so misc box/stash matching is
-/// unaffected (issue #183). The strict whole-name pass runs first regardless and
-/// is identical to the pre-#183 behaviour.
+/// Every in-game storage box is **category-locked** — the Collection boxes hold
+/// `misc`, the Medical box `medical`, the Gunsmith → Storage and the Magazine &
+/// Attachments box gun parts (`gunsmith`). `scope` is that category: the strict
+/// whole-name pass only considers items in it, so a tile can never resolve
+/// across categories (a garbled gun-part tile won't land on the misc "Magazine").
+/// `None` matches across the whole catalog — a generic case, or one saved before
+/// it carried a category.
+///
+/// `scope == Some("gunsmith")` additionally enables the gun-part short-name
+/// (alias) pass (issue #183): that grid shows hand-authored short names, not the
+/// full catalog names, so after the strict pass misses it scores the label
+/// against each part's [`Item::scan_alias`].
 ///
 /// Returns `None` when the label is empty or nothing resolves. On a strict
 /// score tie, prefers the longer item name (more specific), then the
 /// lexicographically smaller id, so the result is deterministic regardless of
 /// `data.items` order.
-pub fn match_item(data: &GameData, tokens: &[&str], gunsmith: bool) -> Option<ItemId> {
+pub fn match_item(data: &GameData, tokens: &[&str], scope: Option<&str>) -> Option<ItemId> {
     let label = normalize(&tokens.join(" "));
     if label.is_empty() {
         return None;
     }
 
-    // --- Strict whole-name pass (all items; misc box/stash path, unchanged) ---
+    // --- Strict whole-name pass, scoped to the box's category ---
     // Best is `(id, score, normalized_name_len)`.
     let mut best: Option<(&str, f64, usize)> = None;
     for item in &data.items {
+        if let Some(cat) = scope {
+            if item.category.as_deref() != Some(cat) {
+                continue;
+            }
+        }
         let cand = normalize(&item.name);
         if cand.is_empty() {
             continue;
@@ -183,8 +206,8 @@ pub fn match_item(data: &GameData, tokens: &[&str], gunsmith: bool) -> Option<It
         return Some(id.to_string());
     }
 
-    // --- Gun-part short-name passes (Gunsmith → Storage only) ---
-    if gunsmith {
+    // --- Gun-part short-name pass (gunsmith-category boxes only) ---
+    if scope == Some(GUNSMITH_CATEGORY) {
         if let Some(id) = match_gunsmith(data, &label) {
             return Some(id);
         }
@@ -192,7 +215,7 @@ pub fn match_item(data: &GameData, tokens: &[&str], gunsmith: bool) -> Option<It
 
     tracing::debug!(
         label = %label,
-        gunsmith,
+        ?scope,
         "match_item: no item matched (min_score = {MIN_SCORE})",
     );
     None
@@ -291,7 +314,7 @@ mod tests {
             id: id.into(),
             name: name.into(),
             icon_path: String::new(),
-            category: None,
+            category: Some("misc".into()),
             subcategory: None,
             weight: None,
             price: None,
@@ -405,15 +428,15 @@ mod tests {
     fn exact_match_resolves() {
         let data = fixture();
         assert_eq!(
-            match_item(&data, &["Piezometer"], false).as_deref(),
+            match_item(&data, &["Piezometer"], Some("misc")).as_deref(),
             Some("piezometer")
         );
         assert_eq!(
-            match_item(&data, &["Olive", "oil"], false).as_deref(),
+            match_item(&data, &["Olive", "oil"], Some("misc")).as_deref(),
             Some("oliveoil")
         );
         assert_eq!(
-            match_item(&data, &["UV", "lamp"], false).as_deref(),
+            match_item(&data, &["UV", "lamp"], Some("misc")).as_deref(),
             Some("uvlight")
         );
     }
@@ -423,11 +446,11 @@ mod tests {
         let data = fixture();
         // 'l' read as '1', 'o' as '0' — single substitutions on long-ish names.
         assert_eq!(
-            match_item(&data, &["Piez0meter"], false).as_deref(),
+            match_item(&data, &["Piez0meter"], Some("misc")).as_deref(),
             Some("piezometer")
         );
         assert_eq!(
-            match_item(&data, &["Copper", "wlre"], false).as_deref(),
+            match_item(&data, &["Copper", "wlre"], Some("misc")).as_deref(),
             Some("copperwire")
         );
     }
@@ -437,11 +460,11 @@ mod tests {
         let data = fixture();
         // "Gun oil" and "Gunpowder" share a prefix but resolve distinctly.
         assert_eq!(
-            match_item(&data, &["Gun", "oil"], false).as_deref(),
+            match_item(&data, &["Gun", "oil"], Some("misc")).as_deref(),
             Some("gunoil")
         );
         assert_eq!(
-            match_item(&data, &["Gunpowder"], false).as_deref(),
+            match_item(&data, &["Gunpowder"], Some("misc")).as_deref(),
             Some("gunpowder")
         );
     }
@@ -449,20 +472,20 @@ mod tests {
     #[test]
     fn rejects_unrelated_and_empty() {
         let data = fixture();
-        assert_eq!(match_item(&data, &["Kalashnikov"], false), None);
-        assert_eq!(match_item(&data, &[], false), None);
-        assert_eq!(match_item(&data, &["", "  "], false), None);
+        assert_eq!(match_item(&data, &["Kalashnikov"], Some("misc")), None);
+        assert_eq!(match_item(&data, &[], Some("misc")), None);
+        assert_eq!(match_item(&data, &["", "  "], Some("misc")), None);
     }
 
     #[test]
     fn case_and_punctuation_insensitive() {
         let data = fixture();
         assert_eq!(
-            match_item(&data, &["olive", "OIL"], false).as_deref(),
+            match_item(&data, &["olive", "OIL"], Some("misc")).as_deref(),
             Some("oliveoil")
         );
         assert_eq!(
-            match_item(&data, &["Oil", "can."], false).as_deref(),
+            match_item(&data, &["Oil", "can."], Some("misc")).as_deref(),
             Some("oilcan")
         );
     }
@@ -473,8 +496,14 @@ mod tests {
         // the string, yet the confusion-aware cost still clears MIN_SCORE.
         let mut data = fixture();
         data.items.push(item("cd", "CD"));
-        assert_eq!(match_item(&data, &["CO"], false).as_deref(), Some("cd"));
-        assert_eq!(match_item(&data, &["CD"], false).as_deref(), Some("cd"));
+        assert_eq!(
+            match_item(&data, &["CO"], Some("misc")).as_deref(),
+            Some("cd")
+        );
+        assert_eq!(
+            match_item(&data, &["CD"], Some("misc")).as_deref(),
+            Some("cd")
+        );
     }
 
     #[test]
@@ -482,7 +511,7 @@ mod tests {
         let mut data = fixture();
         data.items.push(item("cd", "CD"));
         // Shares nothing confusable with "CD" — must not be forced to match.
-        assert_eq!(match_item(&data, &["xy"], false), None);
+        assert_eq!(match_item(&data, &["xy"], Some("misc")), None);
     }
 
     #[test]
@@ -493,11 +522,11 @@ mod tests {
         let mut data = fixture();
         data.items.push(item("misc_b_wd40", "WD-40"));
         assert_eq!(
-            match_item(&data, &["wa-40"], false).as_deref(),
+            match_item(&data, &["wa-40"], Some("misc")).as_deref(),
             Some("misc_b_wd40")
         );
         assert_eq!(
-            match_item(&data, &["WD-40"], false).as_deref(),
+            match_item(&data, &["WD-40"], Some("misc")).as_deref(),
             Some("misc_b_wd40")
         );
     }
@@ -522,11 +551,11 @@ mod tests {
 
         // A clean read of either full name resolves to its own id.
         assert_eq!(
-            match_item(&data, &["Size", "D", "battery1"], false).as_deref(),
+            match_item(&data, &["Size", "D", "battery1"], Some("misc")).as_deref(),
             Some("misc_b_battery_1")
         );
         assert_eq!(
-            match_item(&data, &["Size", "D", "battery2"], false).as_deref(),
+            match_item(&data, &["Size", "D", "battery2"], Some("misc")).as_deref(),
             Some("misc_b_battery_2")
         );
         // Real stash capture: the trailing "1" OCRs as "l". l↔1 is confusable
@@ -534,7 +563,7 @@ mod tests {
         // the symmetric names don't re-tie it. See the match_item module docs
         // + the battery-twins note in screenshots/CLAUDE.md.
         assert_eq!(
-            match_item(&data, &["Size", "D", "batteryl"], false).as_deref(),
+            match_item(&data, &["Size", "D", "batteryl"], Some("misc")).as_deref(),
             Some("misc_b_battery_1")
         );
     }
@@ -546,29 +575,29 @@ mod tests {
         let data = gun_fixture();
         // The exact short name resolves.
         assert_eq!(
-            match_item(&data, &["Cobra"], true).as_deref(),
+            match_item(&data, &["Cobra"], Some("gunsmith")).as_deref(),
             Some("gunsmith_20rail_sight_cobra")
         );
         // "M16A1" is the pistolgrip; the bare "M16" rifle is a different alias.
         assert_eq!(
-            match_item(&data, &["M16A1"], true).as_deref(),
+            match_item(&data, &["M16A1"], Some("gunsmith")).as_deref(),
             Some("gunsmith_ar15_pistolgrip_m16a1")
         );
         assert_eq!(
-            match_item(&data, &["M16"], true).as_deref(),
+            match_item(&data, &["M16"], Some("gunsmith")).as_deref(),
             Some("gunsmith_ar15_lowerreceiver_m16")
         );
         // Multi-word short name; OCR spacing doesn't matter (compared glued).
         assert_eq!(
-            match_item(&data, &["G3", "Green", "Stock"], true).as_deref(),
+            match_item(&data, &["G3", "Green", "Stock"], Some("gunsmith")).as_deref(),
             Some("gunsmith_g3_stock_polygreen")
         );
         assert_eq!(
-            match_item(&data, &["AKS74UB18"], true).as_deref(),
+            match_item(&data, &["AKS74UB18"], Some("gunsmith")).as_deref(),
             Some("gunsmith_ak74u_mount_b18")
         );
         assert_eq!(
-            match_item(&data, &["RSR"], true).as_deref(),
+            match_item(&data, &["RSR"], Some("gunsmith")).as_deref(),
             Some("gunsmith_ak_mount_rsr")
         );
     }
@@ -580,15 +609,15 @@ mod tests {
         // forms that aren't a substring of the full catalog name.
         let data = gun_fixture();
         assert_eq!(
-            match_item(&data, &["AR308"], true).as_deref(),
+            match_item(&data, &["AR308"], Some("gunsmith")).as_deref(),
             Some("gunsmith_ar10_muzzle_ar308")
         );
         assert_eq!(
-            match_item(&data, &["AR308", "Upper"], true).as_deref(),
+            match_item(&data, &["AR308", "Upper"], Some("gunsmith")).as_deref(),
             Some("gunsmith_ar10_upperreceiver_ar308")
         );
         assert_eq!(
-            match_item(&data, &["AR-308DMR"], true).as_deref(),
+            match_item(&data, &["AR-308DMR"], Some("gunsmith")).as_deref(),
             Some("gunsmith_ar10_lowerreceiver_ar308")
         );
     }
@@ -604,12 +633,12 @@ mod tests {
             Some("MP5A4 Upper"),
         ));
         assert_eq!(
-            match_item(&data, &["MPSA4", "upper"], true).as_deref(),
+            match_item(&data, &["MPSA4", "upper"], Some("gunsmith")).as_deref(),
             Some("gunsmith_mp5_upperreceiver_mp5a4")
         );
         // The acronym OCR'd "AR-308 OUR" (D→O, M→U) still clears the alias floor.
         assert_eq!(
-            match_item(&data, &["AR-308", "OUR"], true).as_deref(),
+            match_item(&data, &["AR-308", "OUR"], Some("gunsmith")).as_deref(),
             Some("gunsmith_ar10_lowerreceiver_ar308")
         );
     }
@@ -619,24 +648,35 @@ mod tests {
         let data = gun_fixture();
         // The game shows "AR-15 DD" for both the DD stock and the DD handguard —
         // an inherent collision, so resolve to nothing rather than guess.
-        assert_eq!(match_item(&data, &["AR-15", "DD"], true), None);
+        assert_eq!(match_item(&data, &["AR-15", "DD"], Some("gunsmith")), None);
         // Nothing close enough to any alias.
-        assert_eq!(match_item(&data, &["Kalashnikov"], true), None);
-        assert_eq!(match_item(&data, &["NK"], true), None);
+        assert_eq!(match_item(&data, &["Kalashnikov"], Some("gunsmith")), None);
+        assert_eq!(match_item(&data, &["NK"], Some("gunsmith")), None);
     }
 
     #[test]
-    fn gunsmith_pass_is_scoped_to_gunsmith_scans() {
+    fn match_scope_locks_each_box_to_its_category() {
         let data = gun_fixture();
-        // With the flag off (a misc box/stash scan), gun-part short labels never
-        // resolve — so misc matching is unaffected by the catalog's gun parts.
-        assert_eq!(match_item(&data, &["Cobra"], false), None);
-        assert_eq!(match_item(&data, &["M16A1"], false), None);
-        assert_eq!(match_item(&data, &["AR308"], false), None);
-        // Misc items still resolve via the strict pass even on a gunsmith scan.
+        // A misc box/stash scan never resolves a gun part — not by the strict
+        // pass (scoped out of the gunsmith catalog) nor the alias pass (which is
+        // gunsmith-only). So the catalog's gun parts can't leak into misc scans.
+        assert_eq!(match_item(&data, &["Cobra"], Some("misc")), None);
+        assert_eq!(match_item(&data, &["M16A1"], Some("misc")), None);
+        assert_eq!(match_item(&data, &["AR308"], Some("misc")), None);
+        // And the reverse: a gunsmith scan never resolves a misc item — the box
+        // is gun-parts-only, so the strict pass is scoped out of the misc catalog.
+        assert_eq!(match_item(&data, &["Piezometer"], Some("gunsmith")), None);
+        // The same misc item DOES resolve on its own (misc) scan — proof this is
+        // scoping, not a broken matcher.
         assert_eq!(
-            match_item(&data, &["Piezometer"], true).as_deref(),
+            match_item(&data, &["Piezometer"], Some("misc")).as_deref(),
             Some("piezometer")
+        );
+        // A scopeless (legacy / generic case) scan still matches across the
+        // whole catalog — back-compat for containers saved before categories.
+        assert_eq!(
+            match_item(&data, &["Cobra", "20mm", "reflex", "sight"], None).as_deref(),
+            Some("gunsmith_20rail_sight_cobra")
         );
     }
 }

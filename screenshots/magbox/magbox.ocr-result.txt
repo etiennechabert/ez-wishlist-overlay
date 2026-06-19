@@ -6,7 +6,7 @@
 # magbox.label.txt. Per-shot reads are in the sibling magbox.shotN.ocr-result.txt.
 #
 ## SUMMARY
-  captured 7/12 label tile(s)  (5 missing, 7 extra)
+  captured 7/12 label tile(s)  (5 missing, 6 extra)
   exact match: NO — see the per-item breakdown below
 #
 ## PER ITEM   (read = scan count, label = ground truth)
@@ -23,4 +23,3 @@
   MISSING    0/1      gunsmith_mp9_clip_15
   MISSING    0/1      gunsmith_pkp_clip_drum
   EXTRA      6/1      gunsmith_sks_clip_puf20
-  EXTRA      1/0      misc_b_magazine

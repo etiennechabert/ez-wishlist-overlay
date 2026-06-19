@@ -96,6 +96,25 @@ fn icon_set_for(kind: ContainerKind) -> &'static [&'static str] {
     }
 }
 
+/// The catalog item category a Case is locked to, derived from its chosen box
+/// icon — each Case icon is an in-game box that stores exactly one item type
+/// (Collection → `misc`, Medical → `medical`, Mag & Attach / Gunsmith storage →
+/// `gunsmith`). Bags, shelves, and an unrecognized icon carry no category
+/// (`None` → the scan matches the whole catalog, the pre-category behaviour).
+/// Single source the create/edit modal uses to scope a case's scan + picker.
+fn case_category(kind: ContainerKind, icon: &str) -> Option<String> {
+    if kind != ContainerKind::Case {
+        return None;
+    }
+    let cat = match icon {
+        "box_collection" | "box_collection_small" => "misc",
+        "box_medical" => "medical",
+        "box_magattach" | "box_gunsmith" => "gunsmith",
+        _ => return None,
+    };
+    Some(cat.to_string())
+}
+
 /// Short display name for an icon key, shown under each tile in the picker so
 /// the user can tell them apart. Case names match the in-game boxes.
 fn icon_label(key: &str) -> &'static str {
@@ -648,6 +667,9 @@ fn new_container_modal(
     if do_create && !name.trim().is_empty() {
         let trimmed = name.trim().to_string();
         let capacity = (cap_kg > 0.0).then_some(cap_kg);
+        // The chosen case icon *is* the box type, so it fixes the item category
+        // the case is locked to (scopes its scan + add-item picker).
+        let category = case_category(kind, &chosen_icon);
         match &edit_id {
             Some(id) => {
                 // Edit mode: write back to the existing container.
@@ -656,6 +678,7 @@ fn new_container_modal(
                 w.set_container_icon(id, Some(chosen_icon));
                 w.set_container_kind(id, kind);
                 w.set_container_capacity(id, capacity);
+                w.set_container_category(id, category);
             }
             None => {
                 let id = state.write().create_container(trimmed);
@@ -663,6 +686,7 @@ fn new_container_modal(
                 w.set_container_icon(&id, Some(chosen_icon));
                 w.set_container_kind(&id, kind);
                 w.set_container_capacity(&id, capacity);
+                w.set_container_category(&id, category);
             }
         }
         notify(state, save_tx);
@@ -1394,6 +1418,17 @@ fn item_picker_modal(
             }
         },
     };
+    // A category-locked case offers only items of its category; the stash and a
+    // generic/legacy case (category `None`) offer the whole catalog.
+    let picker_category: Option<String> = match &active {
+        Target::Stash => None,
+        Target::Container(id) => state
+            .read()
+            .containers
+            .iter()
+            .find(|c| &c.id == id)
+            .and_then(|c| c.category.clone()),
+    };
 
     let mut open = true;
     let mut filter = picker_filter(ctx);
@@ -1437,7 +1472,7 @@ fn item_picker_modal(
                 .floor()
                 .max(1.0) as usize;
 
-            let items = collect_filtered_items(state, &filter);
+            let items = collect_filtered_items(state, &filter, picker_category.as_deref());
             if items.is_empty() {
                 ui.add_space(20.0);
                 ui.vertical_centered(|ui| {

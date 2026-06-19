@@ -309,14 +309,22 @@ fn handle_box_capture(
         return;
     };
     let data = state.read().data.clone();
-    // The Gunsmith → Storage container shows short gun-part names, not the full
-    // catalog names the misc box/stash tiles show, so it needs the gun-part
-    // matcher (issue #183). Scope it to that one built-in container so misc
-    // scans are unaffected.
-    let gunsmith = matches!(
-        &session.target,
-        ocr::ScanTarget::Container(id) if id.as_str() == state::GUNSMITH_STORAGE_ID
-    );
+    // Each in-game box is category-locked, so scope the matcher to the box's
+    // category: a tile then can't resolve across categories, and a gun-part box
+    // (the built-in Gunsmith → Storage *and* any user "Magazine & Attachments"
+    // case) gets the short-name alias pass (issue #183) — no longer special-cased
+    // to one container id. The misc junk-box stash is `misc`; a secondary
+    // container carries its own category (`None` = a generic/legacy case → match
+    // the whole catalog, the pre-category behaviour).
+    let scope: Option<String> = match &session.target {
+        ocr::ScanTarget::Stash => Some("misc".to_string()),
+        ocr::ScanTarget::Container(id) => state
+            .read()
+            .containers
+            .iter()
+            .find(|c| &c.id == id)
+            .and_then(|c| c.category.clone()),
+    };
     // OCR every frame of the shot's burst independently (issue #165). One
     // frame is the norm; extras exist only when the user raised the
     // OCR-rounds setting. A failed round is dropped (the shot survives on
@@ -326,7 +334,7 @@ fn handle_box_capture(
         .chain(job.extra_rounds.iter())
         .enumerate()
     {
-        match ocr::box_scan::process_box_image(img, &data, gunsmith) {
+        match ocr::box_scan::process_box_image(img, &data, scope.as_deref()) {
             Ok(r) => reads.push(r),
             Err(e) => {
                 tracing::warn!(error = %e, round = round + 1, "box-scan OCR failed");
