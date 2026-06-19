@@ -552,14 +552,68 @@ fn split_tiles<'a>(row: &[&'a LabelBox]) -> Vec<Vec<&'a LabelBox>> {
     tiles
 }
 
+/// True when a word-box's text ends in the boilerplate word "magazine" (after
+/// trimming trailing punctuation) — the per-tile anchor every magazine name
+/// shares, even when the engine glued it to the preceding token
+/// (`"10rndmagazine"`).
+#[allow(dead_code)]
+fn ends_magazine(text: &str) -> bool {
+    text.to_lowercase()
+        .trim_end_matches(|c: char| !c.is_alphanumeric())
+        .ends_with("magazine")
+}
+
+/// Re-split a gun-part row's tiles at their "magazine"-word anchors. A cell
+/// carrying **≥2** boxes that end in "magazine" is a fused multi-magazine blob
+/// (each single magazine name has exactly one "magazine" word), so it is cut
+/// after each anchor — recovering the columns that [`split_tiles`] left fused
+/// because the dense grid's inter-column gap was below the per-row split
+/// threshold. The trailing run after the last anchor is kept (it holds the last
+/// magazine, whose suffix may be OCR-truncated to "magazin"). Cells with <2
+/// anchors pass through untouched, so a single part name (one anchor or none) is
+/// never fragmented. Called only on `Some("gunsmith")` reads, so the misc
+/// box/stash path and the box-exact gate are unaffected; gun-part **storage**
+/// tiles show short aliases (no "magazine" word), so they never trigger it.
+#[allow(dead_code)]
+fn resplit_magazine_runs(cells: Vec<Vec<&LabelBox>>) -> Vec<Vec<&LabelBox>> {
+    let mut out: Vec<Vec<&LabelBox>> = Vec::with_capacity(cells.len());
+    for cell in cells {
+        if cell.iter().filter(|b| ends_magazine(&b.text)).count() < 2 {
+            out.push(cell);
+            continue;
+        }
+        let mut cur: Vec<&LabelBox> = Vec::new();
+        for b in cell {
+            let anchor = ends_magazine(&b.text);
+            cur.push(b);
+            if anchor {
+                out.push(std::mem::take(&mut cur));
+            }
+        }
+        if !cur.is_empty() {
+            out.push(cur);
+        }
+    }
+    out
+}
+
 /// The horizontal gap (px) at or above which a break ends one tile and begins
 /// the next, for one row's consecutive word-box gaps. Splits the gaps into an
 /// intra-name cluster and an inter-column cluster at their Otsu valley, then
-/// clamps that to `[0.6·med_h, 1.5·med_h]`: the floor stays above any intra-name
-/// word gap (so a single multi-word name never fragments), and the cap is the
-/// legacy flat threshold (so a gap the old code split on still splits). With no
-/// clear valley (a one-tile row, or one wide gap) Otsu's pick is clamped to the
-/// cap and nothing below it splits.
+/// clamps that to `[0.6·med_h, 1.5·med_h]`: the floor sits above the *typical*
+/// intra-name word gap, and the cap is the legacy flat threshold.
+///
+/// Two boundary caveats (verified by the #197 review, both absorbed by the
+/// floor-gated magbox — the exact box/stash/gunsmith fixtures don't hit them):
+/// - **Over-split:** the floor protects a name only when *all* its internal gaps
+///   are below `0.6·med_h`. A name with one internal gap in `[0.6, 1.5]·med_h`
+///   (the lone "high" value) is the Otsu valley and fragments — see the
+///   `split_threshold_finds_the_column_valley` boundary case.
+/// - **Under-split:** a single dominant gap (an empty grid cell ≫ the real
+///   inter-column gap) maximizes Otsu's variance on its own, pulling the valley
+///   up so the genuine narrower inter-column gaps in that row stay fused. The
+///   gunsmith-scoped [`resplit_magazine_runs`] recovers those magazine rows
+///   downstream.
 #[allow(dead_code)]
 fn split_threshold(gaps: &[f32], med_h: f32) -> f32 {
     let cap = med_h * 1.5;
@@ -751,6 +805,19 @@ pub fn read_tiles(
         for sub in split_subrows(block, slope, med_h) {
             let ry = median(sub.iter().map(|b| deshear(b, slope)));
             let cells = split_tiles(&sub);
+            // Gun-part boxes (the Magazine & Attachments box) can pack a whole
+            // row of long magazine names into one OCR run when the inter-column
+            // gap is too narrow to split geometrically (the misc box's larger
+            // intra-name gaps would over-split if `split_tiles` chased it — so
+            // that fix lives here, scoped). Re-split such a fused blob at its
+            // "magazine"-word anchors so each magazine resolves on its own.
+            // Gunsmith-scoped + guarded on >=2 anchors, so the misc box/stash and
+            // single-name gun parts are untouched. See [`resplit_magazine_runs`].
+            let cells = if scope == Some("gunsmith") {
+                resplit_magazine_runs(cells)
+            } else {
+                cells
+            };
             // x-center of each tile, aligned 1:1 with the cells below — carried
             // on every RowReport so the feedback overlays can place per-cell
             // marks at the right column (#137 / #138).
@@ -2126,18 +2193,30 @@ pub(crate) mod tests {
     /// resolve from the frozen 2026-06-18 captures. The adaptive column split
     /// ([`split_tiles`] / [`split_threshold`], #197) lifted this from ~2 — the
     /// dense rarity-tab grid's long names fused whole rows into one unmatchable
-    /// blob — to 7. The floor is 6 to absorb cross-machine regen variance. A
-    /// floor, not an exact tally: it's a same-gaze gappy burst (not the stash's
-    /// row-by-row series), and several distant tiles are recognition-garbled
-    /// (`MPS`→MP5, mashed AR-10 / AR-15 / PKP — an `ocr-tune` target, not a
-    /// segmentation one), so the full 12-magazine `magbox.label.txt` isn't
-    /// reachable yet. The box's items are gun parts, so it scans with the
-    /// gun-part matcher (`scan_scope` maps `magbox` to the `gunsmith` category).
-    const MAGBOX_GATE_MIN_DISTINCT: usize = 6;
+    /// blob — to 7, then the gunsmith-scoped magazine-blob re-split
+    /// ([`resplit_magazine_runs`]) + the dropped-`"magazine"`-suffix restore in
+    /// [`crate::ocr::match_item`] recovered AR-10 / MP5 / MP9 / PKP for **11/12**.
+    /// The floor is 10 (margin below 11) to absorb cross-machine regen variance.
+    /// Still a floor, not exact: it's a same-gaze gappy burst (not the stash's
+    /// row-by-row series), and the AR-15 STANAG tile OCRs to nothing recoverable
+    /// (needs a closer recapture). The box's items are gun parts, so it scans
+    /// with the gun-part matcher (`scan_scope` maps `magbox` to `gunsmith`).
+    const MAGBOX_GATE_MIN_DISTINCT: usize = 10;
+
+    /// Companion precision cap on over-counted / wrong-part tiles
+    /// (`Σ max(0, read − label)`), so the recall floor above can't hide an
+    /// alias/suffix precision regression (workflow finding). The current 8:
+    /// the gappy burst re-sees the SKS Puf across shots, the AKM appears twice,
+    /// and one genuine false tag — the **XM5 6.8x51mm magazine isn't in the
+    /// catalog yet**, so its (now-isolated) tile mis-resolves to the nearest
+    /// same-caliber magazine (`sa58`). Adding the XM5 magazine to `data.json`
+    /// would drop this to 7. The margin to 9 absorbs regen variance.
+    const MAGBOX_GATE_EXTRA_MAX: u32 = 9;
 
     #[test]
     fn magbox_scan_resolves_magazines() {
-        let tally = run_box_scan("magbox", &scan_shots("magbox"));
+        let shots = scan_shots("magbox");
+        let tally = run_box_scan("magbox", &shots);
         assert!(
             tally.len() >= MAGBOX_GATE_MIN_DISTINCT,
             "magbox scan regressed: resolved {} distinct item(s) (floor {}); the \
@@ -2146,15 +2225,20 @@ pub(crate) mod tests {
             MAGBOX_GATE_MIN_DISTINCT,
             tally.keys().collect::<std::collections::BTreeSet<_>>(),
         );
-        // Spot-checks: cleanly-read magazines across calibers that the column
-        // split must keep separating — these four sat in fused rows that
-        // resolved to nothing before the split (e.g. shot4 row 1 was the single
-        // blob "EVO3…30rnd magazine EVO3…Drum magazine G18C…magazine G3…magazine").
+        // Spot-checks across the recovery paths: the four below sat in fused
+        // rows that the geometric split alone left blank (e.g. shot4 row 1 was
+        // one blob "EVO3…magazine EVO3…Drum magazine G18C…magazine G3…magazine"),
+        // and the next four were recovered by the gunsmith-scoped blob re-split
+        // (AR-10/MP5/MP9) + the dropped-"magazine"-suffix restore (PKP).
         for id in [
             "gunsmith_g18c_clip_30rnd",
             "gunsmith_g3_clip_30",
             "gunsmith_evo3_clip_drum",
             "gunsmith_ak_clip_762ak55",
+            "gunsmith_ar10_clip_10",
+            "gunsmith_mp5_clip_30rnd",
+            "gunsmith_mp9_clip_15",
+            "gunsmith_pkp_clip_drum",
         ] {
             assert!(
                 tally.contains_key(id),
@@ -2162,6 +2246,21 @@ pub(crate) mod tests {
                 tally.keys().collect::<std::collections::BTreeSet<_>>(),
             );
         }
+        // Precision cap: bound the extras so a looser matcher can't trade recall
+        // for wrong-part tags undetected behind the floor.
+        let score = score_scan("magbox", &shots, "magbox.label.txt");
+        assert!(
+            score.extra <= MAGBOX_GATE_EXTRA_MAX,
+            "magbox over-counts: {} extra tile(s) beyond the label (cap {}); a \
+             looser alias/suffix match is mis-tagging. Diffs: {:?}",
+            score.extra,
+            MAGBOX_GATE_EXTRA_MAX,
+            score
+                .diffs
+                .iter()
+                .map(|d| format!("{} {}/{}", d.item_id, d.read, d.label))
+                .collect::<Vec<_>>(),
+        );
     }
 
     /// [`split_threshold`] separates a dense grid's intra-name gaps from its
@@ -2198,6 +2297,48 @@ pub(crate) mod tests {
             wide.iter().filter(|&&g| g >= tw).count() == 2,
             "wide-gutter row should split only at its two gutters (threshold {tw})"
         );
+        // Documented boundary (#197 review): the 0.6*med_h floor protects a name
+        // only when ALL its internal gaps are below it. A single name with one
+        // internal gap in [0.6*h, 1.5*h] (the lone "high" value) DOES currently
+        // fragment — Otsu returns it and the floor doesn't clamp it down. This
+        // asserts the *current* behavior so a future change here is conscious.
+        let one_wide = [6.0, 6.0, 15.0, 6.0]; // 15 = 0.65*h
+        let twb = split_threshold(&one_wide, h);
+        assert!(
+            one_wide.iter().filter(|&&g| g >= twb).count() == 1,
+            "a lone 0.65*h internal gap currently splits the name (threshold {twb})"
+        );
+    }
+
+    #[test]
+    fn ends_magazine_detects_the_anchor_word() {
+        assert!(ends_magazine("magazine"));
+        assert!(ends_magazine("Magazine,")); // trailing punctuation trimmed
+        assert!(ends_magazine("10rndmagazine")); // engine glued it to the count
+        assert!(!ends_magazine("magazin")); // OCR-truncated suffix
+        assert!(!ends_magazine("AK74"));
+    }
+
+    #[test]
+    fn resplit_magazine_runs_splits_only_fused_blobs() {
+        // A fused 3-magazine run (>=2 anchors) → 3 tiles, the last a truncated
+        // "magazin" trailing run after the final anchor.
+        let boxes = [
+            lb("XM5", 0.0, 0.0),
+            lb("magazine", 30.0, 0.0),
+            lb("MPS", 60.0, 0.0),
+            lb("magazine", 90.0, 0.0),
+            lb("MP9", 120.0, 0.0),
+            lb("magazin", 150.0, 0.0),
+        ];
+        let fused: Vec<&LabelBox> = boxes.iter().collect();
+        assert_eq!(resplit_magazine_runs(vec![fused]).len(), 3);
+        // A single magazine name (one anchor) is left whole.
+        let single: Vec<&LabelBox> = boxes[0..2].iter().collect();
+        assert_eq!(resplit_magazine_runs(vec![single]).len(), 1);
+        // No anchor at all → untouched.
+        let none: Vec<&LabelBox> = boxes[4..6].iter().collect();
+        assert_eq!(resplit_magazine_runs(vec![none]).len(), 1);
     }
 
     /// Run a scan with the issue-#165 round union harvesting the scroll

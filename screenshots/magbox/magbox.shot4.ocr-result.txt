@@ -8,8 +8,8 @@
 # the frozen magbox.shot4.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 10 item tile(s) across 3 grid row(s)
-  dropped 1 text(s) that matched no catalog item (window title, weight
+  recognized 13 item tile(s) across 3 grid row(s)
+  dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
@@ -17,6 +17,9 @@
     1 x gunsmith_evo3_clip_drum
     1 x gunsmith_g18c_clip_30rnd
     1 x gunsmith_g3_clip_30
+    1 x gunsmith_mp5_clip_30rnd
+    1 x gunsmith_mp9_clip_15
+    1 x gunsmith_sa58_clip_30rnd
     6 x gunsmith_sks_clip_puf20
 #
 ## DETAIL — every text the OCR produced, row by row
@@ -34,7 +37,9 @@
     G18C 9x19mm 30rnd magazine     -> gunsmith_g18c_clip_30rnd
     G3 7.62x51mm 30rnd magazine    -> gunsmith_g3_clip_30
   [items ]
-    XM5 6.8x51mm 30rnd magazine MPS 9x19mm 30rnd magazine MP9 9x19mm 15rnd magazin -> (no match)
+    XM5 6.8x51mm 30rnd magazine    -> gunsmith_sa58_clip_30rnd
+    MPS 9x19mm 30rnd magazine      -> gunsmith_mp5_clip_30rnd
+    MP9 9x19mm 15rnd magazin       -> gunsmith_mp9_clip_15
     SKS 7.62x39mm 20rnd Puf magazine -> gunsmith_sks_clip_puf20
   [items ]
     SKS 7.62x39mm 20rnd Puf magazine -> gunsmith_sks_clip_puf20

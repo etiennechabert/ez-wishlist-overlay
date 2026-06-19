@@ -251,17 +251,21 @@ gap clusters (floored at `0.6·med_h`, capped at the old `1.5·med_h`), which
 splits the columns here while reproducing the old splits exactly on the
 well-spaced box/stash/gunsmith fixtures (their gates are unchanged).
 
-The scan now resolves **7/12** distinct magazines (`magbox_scan_resolves_magazines`
-gates a floor of 6). It's a floor, not exact, for two reasons in
-`magbox.label.txt`: (1) the 5 misses are **recognition** garble on distant tiles
-(`MPS`→MP5, mashed AR-10 / AR-15 / PKP) plus one false positive (a garbled tile →
-the misc `Magazine`) — an `ocr-tune` follow-up, not a segmentation one; (2) these
-are the **magazine half only**, all at one gaze (a partial, dedup-sensitive view)
-— a fuller row-by-row recapture that scrolls through the **attachment** rows would
-gate it exactly and exercise the attachment-label work. `magbox.label.txt` is a
-presence snapshot of the 12 magazines (count `1` = present, not a copy-count), and
-flags one catalog gap it surfaced: the **XM5 6.8x51mm 30rnd magazine** has no
-`data.json` entry yet.
+A second, gunsmith-scoped pass then recovered the rows the geometric split alone
+left fused: [`resplit_magazine_runs`] cuts a fused multi-magazine blob at its
+`"magazine"`-word anchors (a misc box never runs it, so the box-exact gate is
+untouched), and `match_item` restores a dropped trailing `"magazine"` word before
+scoring. Together they lifted the scan to **11/12** (`magbox_scan_resolves_magazines`
+gates `≥10` distinct + `≤9` extra + per-id spot-checks). The lone remaining miss is
+the **AR-15 STANAG** tile, which OCRs to nothing recoverable from these same-gaze
+frames (needs a closer recapture). It stays a floor (not exact) because it's a
+gappy same-gaze burst — the **magazine half only**; a fuller row-by-row recapture
+through the **attachment** rows would gate it exactly and exercise the
+attachment-label work. `magbox.label.txt` is a presence snapshot of the 12
+magazines. One catalog gap it surfaced is now also a 1-tile false positive: the
+**XM5 6.8x51mm 30rnd magazine** has no `data.json` entry, so its (now-isolated)
+tile mis-resolves to the nearest same-caliber magazine (`sa58`) — the `≤9` extra
+cap bounds it; adding the XM5 magazine would clear it.
 
 ## units/ — per-item isolated-OCR fixtures
 

@@ -174,8 +174,12 @@ pub fn match_item(data: &GameData, tokens: &[&str], scope: Option<&str>) -> Opti
     // Best is `(id, score, normalized_name_len)`.
     let mut best: Option<(&str, f64, usize)> = None;
     for item in &data.items {
+        // Scope to the box's category — but an *uncategorized* item (no category
+        // in data.json) matches under any scope, so a future catalog entry that
+        // ships without a category degrades to the old whole-catalog behaviour
+        // rather than being silently invisible to every scoped scan.
         if let Some(cat) = scope {
-            if item.category.as_deref() != Some(cat) {
+            if item.category.is_some() && item.category.as_deref() != Some(cat) {
                 continue;
             }
         }
@@ -183,7 +187,17 @@ pub fn match_item(data: &GameData, tokens: &[&str], scope: Option<&str>) -> Opti
         if cand.is_empty() {
             continue;
         }
-        let score = confusion_aware_score(&label, &cand);
+        let mut score = confusion_aware_score(&label, &cand);
+        // A distant gun-part tile often drops the trailing "magazine" boilerplate
+        // word entirely; for a gunsmith box, also score the magazine candidate
+        // against the label with that suffix restored, so a clean read minus the
+        // last word isn't lost to ~9 char-deletions below MIN_SCORE.
+        if scope == Some(GUNSMITH_CATEGORY)
+            && cand.ends_with("magazine")
+            && !label.ends_with("magazine")
+        {
+            score = score.max(confusion_aware_score(&format!("{label} magazine"), &cand));
+        }
         if score < MIN_SCORE {
             continue;
         }
@@ -677,6 +691,35 @@ mod tests {
         assert_eq!(
             match_item(&data, &["Cobra", "20mm", "reflex", "sight"], None).as_deref(),
             Some("gunsmith_20rail_sight_cobra")
+        );
+    }
+
+    #[test]
+    fn gunsmith_scope_restores_a_dropped_magazine_suffix() {
+        let mut data = gun_fixture();
+        data.items.push(gitem(
+            "gunsmith_pkp_clip_drum",
+            "PKP 7.62x54mmR 80rnd Drum magazine",
+            Some("PKP 80rd Drum"),
+        ));
+        // A distant gun-part tile that dropped the trailing "magazine" word
+        // (here the whole word, not a glyph error) is ~9 deletions short of the
+        // full name — below MIN_SCORE on its own — but resolves on a gunsmith
+        // scan because the suffix is restored before scoring.
+        assert_eq!(
+            match_item(
+                &data,
+                &["PKP", "7.62x54mmR", "80rnd", "Drum"],
+                Some("gunsmith")
+            )
+            .as_deref(),
+            Some("gunsmith_pkp_clip_drum")
+        );
+        // Scope-locked like the alias pass: a misc box never runs the restore
+        // (and a gun part is out of misc scope anyway), so no cross-leak.
+        assert_eq!(
+            match_item(&data, &["PKP", "7.62x54mmR", "80rnd", "Drum"], Some("misc")),
+            None
         );
     }
 }

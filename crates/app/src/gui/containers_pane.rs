@@ -61,9 +61,14 @@ const STASH_ICON: &str = "stash";
 /// their categories became modeled. Still excluded: the **Paint** box
 /// (unmodeled — nothing to track), and the Gunsmith → Storage, which is the
 /// *built-in* primary container (seeded with its own `box_gunsmith` icon, not
-/// user-created). The Collection pair is flat-3D crate art; the rest are an item
-/// silhouette + light halo (see `fontx/gamedata/gen_case_icon*.py`). Order here
-/// is the picker-grid order.
+/// user-created). Icon provenance: the Collection pair are the **real in-game
+/// junk-box icons** extracted from the paks (`Icon_Mini_Junk_Box{,2}` under
+/// `Warfare/UI/ItemIcons/box/`). `box_medical` / `box_magattach` are stand-in
+/// item silhouettes (`fontx/gamedata/gen_case_icon*.py`) — the real `Medical_Box`
+/// / `Magazine_Box` textures exist in the paks (same dir) and could replace them;
+/// `box_gunsmith` has no 2D icon at all (the storage is a placed 3D world mesh,
+/// `GunSmithContainerStorageComp`), so its silhouette stays. Order here is the
+/// picker-grid order.
 const CASE_ICONS: &[&str] = &[
     "box_collection",
     "box_collection_small",
@@ -2150,6 +2155,40 @@ mod tests {
     use crate::gui::theme::contrast::contrast_ratio;
     use egui_kittest::kittest::Queryable;
     use egui_kittest::Harness;
+
+    #[test]
+    fn case_category_maps_each_box_icon_to_its_scope() {
+        // The chosen case icon IS the box type, so it fixes the item category the
+        // scan + picker scope to. These literals must line up with the OCR gate's
+        // `box_scan::tests::scan_scope` and the runtime `ScanTarget` derivation in
+        // `main.rs` (three hand-maps that must not drift): a typo here (e.g.
+        // box_medical -> "gunsmith") would silently mis-scope every medical scan,
+        // and the medical box has no fixture/gate to catch it.
+        assert_eq!(
+            case_category(ContainerKind::Case, "box_collection").as_deref(),
+            Some("misc")
+        );
+        assert_eq!(
+            case_category(ContainerKind::Case, "box_collection_small").as_deref(),
+            Some("misc")
+        );
+        assert_eq!(
+            case_category(ContainerKind::Case, "box_medical").as_deref(),
+            Some("medical")
+        );
+        assert_eq!(
+            case_category(ContainerKind::Case, "box_magattach").as_deref(),
+            Some("gunsmith")
+        );
+        assert_eq!(
+            case_category(ContainerKind::Case, "box_gunsmith").as_deref(),
+            Some("gunsmith")
+        );
+        // Bags/shelves and an unrecognized icon carry no category (match-all).
+        assert_eq!(case_category(ContainerKind::Bag, "box_collection"), None);
+        assert_eq!(case_category(ContainerKind::Shelf, "box_medical"), None);
+        assert_eq!(case_category(ContainerKind::Case, "backpack_3drt"), None);
+    }
 
     /// Minimal game data: the pane only consults the item catalog to sum KPI
     /// weight/value, so an empty catalog (and no hideout modules) is enough to

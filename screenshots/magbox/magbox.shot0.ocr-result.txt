@@ -8,13 +8,14 @@
 # the frozen magbox.shot0.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 2 item tile(s) across 1 grid row(s)
-  dropped 1 text(s) that matched no catalog item (window title, weight
+  recognized 3 item tile(s) across 1 grid row(s)
+  dropped 0 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
     1 x gunsmith_ak_clip_545pmag30
     1 x gunsmith_ak_clip_762ak55
+    1 x gunsmith_pkp_clip_drum
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
@@ -26,7 +27,7 @@
   [items ]
     AK74 81205.45x39mm 30rnd magazine -> gunsmith_ak_clip_545pmag30
     AKM AKS57.82x39mm30dmagazine   -> gunsmith_ak_clip_762ak55
-    PKP 7.62x54mmR 80rnd Drum      -> (no match)
+    PKP 7.62x54mmR 80rnd Drum      -> gunsmith_pkp_clip_drum
   [chrome]
     1.4 /                          -> (no match)
     12                             -> (no match)

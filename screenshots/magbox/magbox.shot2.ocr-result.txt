@@ -8,12 +8,13 @@
 # the frozen magbox.shot2.boxes.json (so it never runs the game).
 #
 ## SUMMARY
-  recognized 0 item tile(s) across 0 grid row(s)
-  dropped 0 text(s) that matched no catalog item (window title, weight
+  recognized 2 item tile(s) across 1 grid row(s)
+  dropped 1 text(s) that matched no catalog item (window title, weight
     readout, category tabs/subtitles — i.e. screen chrome, not items)
 #
   items found in this frame:
-    (none — no item tiles recognized in this shot)
+    1 x gunsmith_ak_clip_762ak55
+    1 x gunsmith_ar10_clip_10
 #
 ## DETAIL — every text the OCR produced, row by row
 #   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
@@ -27,8 +28,9 @@
     RARE                           -> (no match)
     LEGENDARY                      -> (no match)
     COMMON                         -> (no match)
-  [chrome]
-    AKM AK55 7.62x39mm 30md magazine AR-10 7.62x51mm 10rnd magazine -> (no match)
+  [items ]
+    AKM AK55 7.62x39mm 30md magazine -> gunsmith_ak_clip_762ak55
+    AR-10 7.62x51mm 10rnd magazine -> gunsmith_ar10_clip_10
     AR-10 7.62x51mm 10rnd magazine AR-10 7.62x51mm10rnd -> (no match)
   [chrome]
     8.45 /12                       -> (no match)
