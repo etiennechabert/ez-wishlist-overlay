@@ -54,14 +54,22 @@ const DEFAULT_CONTAINER_ICON: &str = "backpack_3drt";
 /// Fixed icon for the pinned primary Stash row.
 const STASH_ICON: &str = "stash";
 
-/// Case icons offered when the container's type is `Case`. Only the two
-/// Collection Boxes are listed: they're the boxes that store MISC items —
-/// whereas the other in-game boxes (mag/attachment, medical, paint) hold
-/// categories the tracker doesn't model, and the Gunsmith → Storage is the
+/// Case icons offered when the container's type is `Case` — one per in-game box
+/// whose contents the tracker actually models. The two Collection Boxes store
+/// MISC items; the **Medical** box (medical catalog, #193) and the **Magazine &
+/// Attachments** box (gun parts — magazines scan by name, #197) were added once
+/// their categories became modeled. Still excluded: the **Paint** box
+/// (unmodeled — nothing to track), and the Gunsmith → Storage, which is the
 /// *built-in* primary container (seeded with its own `box_gunsmith` icon, not
-/// user-created). Generated flat-3D crate art (upstream has no images for
-/// these). Order here is the picker-grid order.
-const CASE_ICONS: &[&str] = &["box_collection", "box_collection_small"];
+/// user-created). The Collection pair is flat-3D crate art; the rest are an item
+/// silhouette + light halo (see `fontx/gamedata/gen_case_icon*.py`). Order here
+/// is the picker-grid order.
+const CASE_ICONS: &[&str] = &[
+    "box_collection",
+    "box_collection_small",
+    "box_medical",
+    "box_magattach",
+];
 /// Default icon for a newly-created Case container.
 const DEFAULT_CASE_ICON: &str = "box_collection";
 
@@ -92,9 +100,12 @@ fn icon_set_for(kind: ContainerKind) -> &'static [&'static str] {
 /// the user can tell them apart. Case names match the in-game boxes.
 fn icon_label(key: &str) -> &'static str {
     match key {
-        // Cases (the two MISC-storing Collection Boxes + the gun-parts storage).
+        // Cases (the MISC Collection Boxes, Medical + Mag/Attachments boxes,
+        // and the built-in gun-parts storage).
         "box_collection" => "Collection",
         "box_collection_small" => "Collection small",
+        "box_medical" => "Medical",
+        "box_magattach" => "Mag & Attach",
         "box_gunsmith" => "Gunsmith storage",
         // Shelf.
         "shelf_basic" => "Shelf",
