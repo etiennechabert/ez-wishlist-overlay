@@ -61,13 +61,12 @@ const STASH_ICON: &str = "stash";
 /// their categories became modeled. Still excluded: the **Paint** box
 /// (unmodeled — nothing to track), and the Gunsmith → Storage, which is the
 /// *built-in* primary container (seeded with its own `box_gunsmith` icon, not
-/// user-created). Icon provenance: the Collection pair are the **real in-game
-/// junk-box icons** extracted from the paks (`Icon_Mini_Junk_Box{,2}` under
-/// `Warfare/UI/ItemIcons/box/`). `box_medical` / `box_magattach` are stand-in
-/// item silhouettes (`fontx/gamedata/gen_case_icon*.py`) — the real `Medical_Box`
-/// / `Magazine_Box` textures exist in the paks (same dir) and could replace them;
-/// `box_gunsmith` has no 2D icon at all (the storage is a placed 3D world mesh,
-/// `GunSmithContainerStorageComp`), so its silhouette stays. Order here is the
+/// user-created). Icon provenance: all four are the **real in-game box icons**
+/// extracted from the paks (`Icon_Mini_Junk_Box{,2}`, `Medical_Box`,
+/// `Magazine_Box` — the merchant-shop textures under `Warfare/UI/ItemIcons/box/`,
+/// rasterized with `fontx tex2png`). Only `box_gunsmith` is a generated
+/// silhouette: the gun-parts storage is a placed 3D world mesh
+/// (`GunSmithContainerStorageComp`) with no 2D icon. Order here is the
 /// picker-grid order.
 const CASE_ICONS: &[&str] = &[
     "box_collection",
