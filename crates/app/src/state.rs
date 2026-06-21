@@ -73,6 +73,15 @@ pub struct Container {
     /// Defaults so profiles saved before this field existed load unchanged.
     #[serde(default)]
     pub capacity_kg: Option<f32>,
+    /// The catalog item category this case is locked to in-game — `"misc"` (the
+    /// Collection boxes), `"medical"` (the Medical box), or `"gunsmith"` (the
+    /// Gunsmith storage and the Magazine & Attachments box) — derived from the
+    /// chosen case icon. It scopes the box-scan matcher and the add-item picker
+    /// to that one category, mirroring the game (each box stores a single type).
+    /// `None` for bags/shelves and for cases saved before this field existed (the
+    /// scan then matches the whole catalog, as it did pre-category).
+    #[serde(default)]
+    pub category: Option<String>,
 }
 
 /// User-recorded progress of one research node. `Locked` / `Available` are
@@ -987,6 +996,7 @@ impl AppState {
             icon: None,
             kind: ContainerKind::default(),
             capacity_kg: None,
+            category: None,
         });
         self.bump();
         id
@@ -998,6 +1008,18 @@ impl AppState {
         if let Some(c) = self.containers.iter_mut().find(|c| &c.id == id) {
             if c.icon != icon {
                 c.icon = icon;
+                self.bump();
+            }
+        }
+    }
+
+    /// Set (or clear, with `None`) a case's item category — the catalog category
+    /// the box is locked to, which scopes its scan + add-item picker. No-op if
+    /// the id is unknown or unchanged.
+    pub fn set_container_category(&mut self, id: &ContainerId, category: Option<String>) {
+        if let Some(c) = self.containers.iter_mut().find(|c| &c.id == id) {
+            if c.category != category {
+                c.category = category;
                 self.bump();
             }
         }
@@ -1039,16 +1061,15 @@ impl AppState {
     /// gunsmith icon, and the cap baked in. Returns whether it seeded (so the
     /// caller can persist synchronously, before the save loop exists).
     pub fn seed_gunsmith_storage(&mut self) -> bool {
-        if self.gunsmith_storage_seeded {
-            return false;
-        }
-        // Defensive: a build that re-seeded before the `gunsmith_storage_seeded`
-        // flag was reliably persisted could leave a container with the fixed id
-        // already present (the bug that produced triple `gunsmith-storage` rows
-        // — empty header totals, mismatched 30 kg cap). Adopt it instead of
-        // pushing a duplicate: just mark seeded and backfill the cap. Paired
-        // with [`Self::dedup_containers`], which heals profiles that already
-        // accumulated the duplicates.
+        // Migration runs FIRST, regardless of the seeded flag: an existing
+        // Gunsmith → Storage row gets its 30 kg cap and `gunsmith` category
+        // backfilled even when `gunsmith_storage_seeded` is already true. A
+        // pre-#197 build seeded this row before categories existed, leaving
+        // `category = None` (the flag persists, so the early return below would
+        // otherwise skip the fix forever). Without the category the scan derives
+        // a `None` scope and the gun-part short-name alias matcher (issue #183 —
+        // the entire reason this container is special) silently stops resolving.
+        let mut backfilled = false;
         if let Some(existing) = self
             .containers
             .iter_mut()
@@ -1056,11 +1077,28 @@ impl AppState {
         {
             if existing.capacity_kg.is_none() {
                 existing.capacity_kg = Some(30.0);
+                backfilled = true;
             }
+            if existing.category.is_none() {
+                existing.category = Some("gunsmith".to_string());
+                backfilled = true;
+            }
+        }
+        if self.gunsmith_storage_seeded {
+            // Already seeded: the only work left is the migration above; report
+            // (and persist) only when it actually changed something.
+            if backfilled {
+                self.bump();
+            }
+            return backfilled;
+        }
+        // First seed of this profile. Adopt an already-present row (the historical
+        // re-seed window that produced duplicate `gunsmith-storage` rows; paired
+        // with [`Self::dedup_containers`]) — it's already cap/category-backfilled
+        // above — instead of pushing a duplicate; else push a fresh one.
+        if self.containers.iter().any(|c| c.id == GUNSMITH_STORAGE_ID) {
             self.gunsmith_storage_seeded = true;
             self.bump();
-            // The flag flip + cap backfill are a real change worth persisting,
-            // so report it like a fresh seed even though we didn't push.
             return true;
         }
         self.containers.push(Container {
@@ -1070,6 +1108,7 @@ impl AppState {
             icon: Some("box_gunsmith".to_string()),
             kind: ContainerKind::Case,
             capacity_kg: Some(30.0),
+            category: Some("gunsmith".to_string()),
         });
         self.gunsmith_storage_seeded = true;
         self.bump();
@@ -1100,6 +1139,12 @@ impl AppState {
                     }
                     if keeper.capacity_kg.is_none() {
                         keeper.capacity_kg = c.capacity_kg;
+                    }
+                    // Same first-non-None merge as the cap, so a duplicate's
+                    // category isn't lost (matters once any id other than the
+                    // self-healing gunsmith-storage can duplicate).
+                    if keeper.category.is_none() {
+                        keeper.category = c.category;
                     }
                     removed += 1;
                 }
@@ -2076,6 +2121,7 @@ mod tests {
             icon: Some("box_gunsmith".to_string()),
             kind: ContainerKind::Case,
             capacity_kg: None,
+            category: None,
         });
         assert!(!s.gunsmith_storage_seeded);
 
@@ -2091,7 +2137,49 @@ mod tests {
         assert_eq!(gs.len(), 1, "no duplicate created");
         assert_eq!(gs[0].capacity_kg, Some(30.0), "cap backfilled");
         assert_eq!(gs[0].contents.get("bolts"), Some(&3), "contents preserved");
+        assert_eq!(
+            gs[0].category.as_deref(),
+            Some("gunsmith"),
+            "category backfilled on adopt"
+        );
         assert!(s.gunsmith_storage_seeded, "flag set");
+        assert!(!s.seed_gunsmith_storage(), "now a no-op");
+    }
+
+    #[test]
+    fn seed_backfills_category_on_already_seeded_legacy_storage() {
+        // A pre-#197 profile: the seed flag persisted `true`, but the Gunsmith
+        // storage row predates categories (`category = None`). The early return
+        // for an already-seeded profile must NOT skip the category backfill, or
+        // the gun-part alias matcher (issue #183) silently stops resolving for
+        // every upgrading user (scope derives to `None`).
+        let mut s = AppState::new(fixture());
+        s.gunsmith_storage_seeded = true;
+        s.containers.push(Container {
+            id: GUNSMITH_STORAGE_ID.to_string(),
+            name: "Gunsmith storage".to_string(),
+            contents: HashMap::new(),
+            icon: Some("box_gunsmith".to_string()),
+            kind: ContainerKind::Case,
+            capacity_kg: Some(30.0),
+            category: None,
+        });
+        // The backfill is a real change worth persisting the first time…
+        assert!(
+            s.seed_gunsmith_storage(),
+            "already-seeded legacy storage still backfills the category"
+        );
+        let gs = s
+            .containers
+            .iter()
+            .find(|c| c.id == GUNSMITH_STORAGE_ID)
+            .expect("storage row");
+        assert_eq!(
+            gs.category.as_deref(),
+            Some("gunsmith"),
+            "gunsmith category backfilled despite the seeded flag"
+        );
+        // …and a no-op afterwards.
         assert!(!s.seed_gunsmith_storage(), "now a no-op");
     }
 
@@ -2108,6 +2196,7 @@ mod tests {
                 icon: Some("box_gunsmith".to_string()),
                 kind: ContainerKind::Case,
                 capacity_kg: None,
+                category: None,
             },
             Container {
                 id: GUNSMITH_STORAGE_ID.to_string(),
@@ -2116,6 +2205,7 @@ mod tests {
                 icon: Some("box_gunsmith".to_string()),
                 kind: ContainerKind::Case,
                 capacity_kg: None,
+                category: None,
             },
             Container {
                 id: GUNSMITH_STORAGE_ID.to_string(),
@@ -2124,6 +2214,7 @@ mod tests {
                 icon: Some("box_gunsmith".to_string()),
                 kind: ContainerKind::Case,
                 capacity_kg: Some(30.0),
+                category: None,
             },
         ];
 

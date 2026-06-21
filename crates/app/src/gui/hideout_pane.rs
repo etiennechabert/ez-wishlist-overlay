@@ -1793,7 +1793,7 @@ fn item_picker_modal(
                 .floor()
                 .max(1.0) as usize;
 
-            let items = collect_filtered_items(state, &filter);
+            let items = collect_filtered_items(state, &filter, None);
             if items.is_empty() {
                 ui.add_space(20.0);
                 ui.vertical_centered(|ui| {
@@ -1884,6 +1884,7 @@ pub(crate) struct ItemListEntry {
 pub(crate) fn collect_filtered_items(
     state: &Arc<RwLock<AppState>>,
     filter: &str,
+    category: Option<&str>,
 ) -> Vec<ItemListEntry> {
     let needle = filter.trim().to_lowercase();
     let mut out: Vec<ItemListEntry> = state
@@ -1891,6 +1892,7 @@ pub(crate) fn collect_filtered_items(
         .data
         .items
         .iter()
+        .filter(|i| category.is_none_or(|c| i.category.as_deref() == Some(c)))
         .filter(|i| needle.is_empty() || i.name.to_lowercase().contains(&needle))
         .map(|i: &Item| ItemListEntry {
             id: i.id.clone(),

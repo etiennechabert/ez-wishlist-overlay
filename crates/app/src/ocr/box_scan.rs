@@ -511,19 +511,36 @@ fn split_subrows<'a>(block: &[&'a LabelBox], slope: f32, med_h: f32) -> Vec<Vec<
 }
 
 /// Split one row's boxes into tiles by horizontal gaps: words within a tile's
-/// label sit close together, while the gap between tiles is much wider. Returns
-/// tiles left→right, each a list of its label words (left→right).
+/// label sit close together, while the gap between tiles is wider. Returns tiles
+/// left→right, each a list of its label words (left→right).
+///
+/// The break threshold is **adaptive** ([`split_threshold`]) rather than a flat
+/// `1.5·med_h`. A flat threshold fuses dense grids whose long, cell-filling names
+/// leave only a narrow inter-column gap: the "Magazine & Attachments" box (#197)
+/// packs names like `AK74 P-Mag 5.45x39mm 30rnd magazine` so the inter-column gap
+/// is ~0.8–1.4·med_h while intra-name word gaps are ~0.3–0.5·med_h — both *below*
+/// `1.5·med_h`, so the whole row collapsed into one unmatchable blob. The Otsu
+/// valley between the two gap clusters, floored at `0.6·med_h` (above any
+/// intra-name gap) and capped at the old `1.5·med_h` (so we only ever split
+/// *more*), separates the columns; on the well-spaced misc box / stash / gunsmith
+/// fixtures it reproduces the old splits exactly (their intra gaps clear the
+/// floor by a wide margin), so those gates are unaffected.
 #[allow(dead_code)]
 fn split_tiles<'a>(row: &[&'a LabelBox]) -> Vec<Vec<&'a LabelBox>> {
     let mut sorted = row.to_vec();
     sorted.sort_by(|a, b| a.x.total_cmp(&b.x));
-    let gap_thresh = (median(sorted.iter().map(|b| b.h)) * 1.5).max(1.0);
+    let med_h = median(sorted.iter().map(|b| b.h)).max(1.0);
+    let gaps: Vec<f32> = sorted
+        .windows(2)
+        .map(|w| (w[1].x - w[0].right()).max(0.0))
+        .collect();
+    let thresh = split_threshold(&gaps, med_h);
 
     let mut tiles: Vec<Vec<&LabelBox>> = Vec::new();
     let mut cur: Vec<&LabelBox> = Vec::new();
     let mut prev_right = f32::NEG_INFINITY;
     for b in sorted {
-        if !cur.is_empty() && b.x - prev_right > gap_thresh {
+        if !cur.is_empty() && b.x - prev_right >= thresh {
             tiles.push(std::mem::take(&mut cur));
         }
         prev_right = b.right();
@@ -533,6 +550,107 @@ fn split_tiles<'a>(row: &[&'a LabelBox]) -> Vec<Vec<&'a LabelBox>> {
         tiles.push(cur);
     }
     tiles
+}
+
+/// True when a word-box's text ends in the boilerplate word "magazine" (after
+/// trimming trailing punctuation) — the per-tile anchor every magazine name
+/// shares, even when the engine glued it to the preceding token
+/// (`"10rndmagazine"`).
+#[allow(dead_code)]
+fn ends_magazine(text: &str) -> bool {
+    text.to_lowercase()
+        .trim_end_matches(|c: char| !c.is_alphanumeric())
+        .ends_with("magazine")
+}
+
+/// Re-split a gun-part row's tiles at their "magazine"-word anchors. A cell
+/// carrying **≥2** boxes that end in "magazine" is a fused multi-magazine blob
+/// (each single magazine name has exactly one "magazine" word), so it is cut
+/// after each anchor — recovering the columns that [`split_tiles`] left fused
+/// because the dense grid's inter-column gap was below the per-row split
+/// threshold. The trailing run after the last anchor is kept (it holds the last
+/// magazine, whose suffix may be OCR-truncated to "magazin"). Cells with <2
+/// anchors pass through untouched, so a single part name (one anchor or none) is
+/// never fragmented. Called only on `Some("gunsmith")` reads, so the misc
+/// box/stash path and the box-exact gate are unaffected; gun-part **storage**
+/// tiles show short aliases (no "magazine" word), so they never trigger it.
+#[allow(dead_code)]
+fn resplit_magazine_runs(cells: Vec<Vec<&LabelBox>>) -> Vec<Vec<&LabelBox>> {
+    let mut out: Vec<Vec<&LabelBox>> = Vec::with_capacity(cells.len());
+    for cell in cells {
+        if cell.iter().filter(|b| ends_magazine(&b.text)).count() < 2 {
+            out.push(cell);
+            continue;
+        }
+        let mut cur: Vec<&LabelBox> = Vec::new();
+        for b in cell {
+            let anchor = ends_magazine(&b.text);
+            cur.push(b);
+            if anchor {
+                out.push(std::mem::take(&mut cur));
+            }
+        }
+        if !cur.is_empty() {
+            out.push(cur);
+        }
+    }
+    out
+}
+
+/// The horizontal gap (px) at or above which a break ends one tile and begins
+/// the next, for one row's consecutive word-box gaps. Splits the gaps into an
+/// intra-name cluster and an inter-column cluster at their Otsu valley, then
+/// clamps that to `[0.6·med_h, 1.5·med_h]`: the floor sits above the *typical*
+/// intra-name word gap, and the cap is the legacy flat threshold.
+///
+/// Two boundary caveats (verified by the #197 review, both absorbed by the
+/// floor-gated magbox — the exact box/stash/gunsmith fixtures don't hit them):
+/// - **Over-split:** the floor protects a name only when *all* its internal gaps
+///   are below `0.6·med_h`. A name with one internal gap in `[0.6, 1.5]·med_h`
+///   (the lone "high" value) is the Otsu valley and fragments — see the
+///   `split_threshold_finds_the_column_valley` boundary case.
+/// - **Under-split:** a single dominant gap (an empty grid cell ≫ the real
+///   inter-column gap) maximizes Otsu's variance on its own, pulling the valley
+///   up so the genuine narrower inter-column gaps in that row stay fused. The
+///   gunsmith-scoped [`resplit_magazine_runs`] recovers those magazine rows
+///   downstream.
+#[allow(dead_code)]
+fn split_threshold(gaps: &[f32], med_h: f32) -> f32 {
+    let cap = med_h * 1.5;
+    let floor = med_h * 0.6;
+    otsu_break(gaps).unwrap_or(cap).clamp(floor, cap)
+}
+
+/// Otsu's method on a small set of 1-D gap values: the gap value that, used as a
+/// `< t` / `>= t` split, maximizes between-class variance — i.e. the valley of a
+/// bimodal gap distribution. `None` when there's nothing to split (< 2 gaps).
+#[allow(dead_code)]
+fn otsu_break(gaps: &[f32]) -> Option<f32> {
+    if gaps.len() < 2 {
+        return None;
+    }
+    let mut cands: Vec<f32> = gaps.to_vec();
+    cands.sort_by(f32::total_cmp);
+    cands.dedup();
+    let n = gaps.len() as f32;
+    let mut best_var = -1.0f32;
+    let mut best_t = None;
+    for &c in cands.iter().skip(1) {
+        let lo: Vec<f32> = gaps.iter().copied().filter(|&g| g < c).collect();
+        let hi: Vec<f32> = gaps.iter().copied().filter(|&g| g >= c).collect();
+        if lo.is_empty() || hi.is_empty() {
+            continue;
+        }
+        let (w0, w1) = (lo.len() as f32 / n, hi.len() as f32 / n);
+        let m0 = lo.iter().sum::<f32>() / lo.len() as f32;
+        let m1 = hi.iter().sum::<f32>() / hi.len() as f32;
+        let var = w0 * w1 * (m0 - m1).powi(2);
+        if var > best_var {
+            best_var = var;
+            best_t = Some(c);
+        }
+    }
+    best_t
 }
 
 /// De-sheared vertical gap (×med_h) under which an upper `Names` row is close
@@ -660,15 +778,16 @@ fn dedup_icon_labels(rows: &mut [RowReport], med_h: f32) {
 /// which is what lets [`stitch`] align overlapping captures.
 ///
 /// [issue #109]: https://github.com/etiennechabert/ez-wishlist-overlay/issues/109
-/// `gunsmith` enables the gun-part short-name matcher for tile resolution — set
-/// only for a Gunsmith → Storage scan, so misc box/stash tiles never resolve to
-/// a gun part (issue #183). Forwarded straight to [`match_item`].
+/// `scope` is the catalog category the box is locked to in-game (`misc` /
+/// `medical` / `gunsmith`, or `None` for a generic/legacy case): tiles only
+/// resolve within it, and `Some("gunsmith")` additionally enables the gun-part
+/// short-name matcher (issue #183). Forwarded straight to [`match_item`].
 #[allow(dead_code)]
 pub fn read_tiles(
     boxes: &[LabelBox],
     img_h: f32,
     data: &GameData,
-    gunsmith: bool,
+    scope: Option<&str>,
 ) -> BoxReadResult {
     let observed_weight = extract_weight(boxes, img_h).map(|(v, _)| v);
 
@@ -686,6 +805,19 @@ pub fn read_tiles(
         for sub in split_subrows(block, slope, med_h) {
             let ry = median(sub.iter().map(|b| deshear(b, slope)));
             let cells = split_tiles(&sub);
+            // Gun-part boxes (the Magazine & Attachments box) can pack a whole
+            // row of long magazine names into one OCR run when the inter-column
+            // gap is too narrow to split geometrically (the misc box's larger
+            // intra-name gaps would over-split if `split_tiles` chased it — so
+            // that fix lives here, scoped). Re-split such a fused blob at its
+            // "magazine"-word anchors so each magazine resolves on its own.
+            // Gunsmith-scoped + guarded on >=2 anchors, so the misc box/stash and
+            // single-name gun parts are untouched. See [`resplit_magazine_runs`].
+            let cells = if scope == Some("gunsmith") {
+                resplit_magazine_runs(cells)
+            } else {
+                cells
+            };
             // x-center of each tile, aligned 1:1 with the cells below — carried
             // on every RowReport so the feedback overlays can place per-cell
             // marks at the right column (#137 / #138).
@@ -714,7 +846,7 @@ pub fn read_tiles(
                 .iter()
                 .map(|t| {
                     let tokens: Vec<&str> = t.iter().map(|b| b.text.as_str()).collect();
-                    (join_text(t), match_item(data, &tokens, gunsmith))
+                    (join_text(t), match_item(data, &tokens, scope))
                 })
                 .collect();
             let kind = if resolved.iter().all(|(_, m)| m.is_none()) {
@@ -1185,7 +1317,7 @@ pub fn format_capture_dump(
 pub fn process_box_image(
     img: &image::DynamicImage,
     data: &GameData,
-    gunsmith: bool,
+    scope: Option<&str>,
 ) -> anyhow::Result<BoxReadResult> {
     use crate::ocr::engine;
     use anyhow::Context;
@@ -1203,7 +1335,7 @@ pub fn process_box_image(
             h: w.rect.height,
         })
         .collect();
-    Ok(read_tiles(&boxes, img_h as f32, data, gunsmith))
+    Ok(read_tiles(&boxes, img_h as f32, data, scope))
 }
 
 /// Non-Windows stub: the OCR engine is Windows-only, so there's nothing to
@@ -1212,7 +1344,7 @@ pub fn process_box_image(
 pub fn process_box_image(
     _img: &image::DynamicImage,
     _data: &GameData,
-    _gunsmith: bool,
+    _scope: Option<&str>,
 ) -> anyhow::Result<BoxReadResult> {
     Ok(BoxReadResult::default())
 }
@@ -1369,12 +1501,12 @@ pub(crate) mod tests {
     /// written into the container.
     pub(crate) fn run_box_scan(category: &str, shots: &[String]) -> HashMap<ItemId, u32> {
         let data = crate::assets::load_game_data().expect("embedded data.json");
-        let gunsmith = category == "gunsmith";
+        let scope = scan_scope(category);
         let mut master: Vec<ScanRow> = Vec::new();
         let mut next_id = 0u64;
         for shot in shots {
             let fx = BoxFixture::load(category, shot);
-            let res = read_tiles(&fx.label_boxes(), fx.img_h, &data, gunsmith);
+            let res = read_tiles(&fx.label_boxes(), fx.img_h, &data, scope);
             merge_capture(&mut master, &mut next_id, &res.tile_rows);
         }
         tally_rows(&master).0
@@ -1681,6 +1813,20 @@ pub(crate) mod tests {
         s
     }
 
+    /// The catalog category a box-scan fixture is locked to — the match scope
+    /// passed to `read_tiles` / `match_item`, mirroring the per-container
+    /// category the runtime derives from the `ScanTarget`. The misc world box
+    /// and the junk-box stash hold `misc`; the Gunsmith → Storage and the
+    /// Magazine & Attachments box hold gun parts (`gunsmith`).
+    #[allow(dead_code)]
+    pub(crate) fn scan_scope(category: &str) -> Option<&'static str> {
+        match category {
+            "box" | "stash" => Some("misc"),
+            "gunsmith" | "magbox" => Some("gunsmith"),
+            _ => None,
+        }
+    }
+
     /// Shot fixtures per scan, in scroll order: `(category, [boxes.json names])`.
     /// Single source of truth shared by the gate tests, the eval scorer and the
     /// sidecar writer.
@@ -1697,6 +1843,12 @@ pub(crate) mod tests {
             // tally; a full-frame row-by-row recapture would gate it exactly.
             "gunsmith" => (0..4)
                 .map(|i| format!("gunsmith.shot{i}.boxes.json"))
+                .collect(),
+            // The "Magazine & Attachments" world box (gun-part items): a 6-shot
+            // gaze-crop burst (#197). Scanned with the gun-part matcher like
+            // `gunsmith` — magazines match by name, attachments by scan_alias.
+            "magbox" => (0..6)
+                .map(|i| format!("magbox.shot{i}.boxes.json"))
                 .collect(),
             other => panic!("unknown scan category {other:?}"),
         }
@@ -1736,12 +1888,12 @@ pub(crate) mod tests {
         .collect();
 
         let mut written = 0usize;
-        for category in ["box", "stash", "gunsmith"] {
+        for category in ["box", "stash", "gunsmith", "magbox"] {
             let shots = scan_shots(category);
             // Per-shot: one sidecar per scroll-shot image.
             for shot in &shots {
                 let fx = BoxFixture::load(category, shot);
-                let read = read_tiles(&fx.label_boxes(), fx.img_h, &data, category == "gunsmith");
+                let read = read_tiles(&fx.label_boxes(), fx.img_h, &data, scan_scope(category));
                 let stem = shot.trim_end_matches(".boxes.json");
                 let text = shot_result_text(stem, category, &read);
                 let out = fixture_dir(category).join(format!("{stem}.ocr-result.txt"));
@@ -1770,7 +1922,7 @@ pub(crate) mod tests {
     #[cfg(target_os = "windows")]
     fn regen_box_fixtures() {
         use image::GenericImageView;
-        for category in ["box", "stash", "gunsmith"] {
+        for category in ["box", "stash", "gunsmith", "magbox"] {
             for entry in std::fs::read_dir(fixture_dir(category)).expect("fixture dir") {
                 let path = entry.unwrap().path();
                 let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
@@ -1827,7 +1979,7 @@ pub(crate) mod tests {
                         }
                         for t in &cells {
                             let tokens: Vec<&str> = t.iter().map(|b| b.text.as_str()).collect();
-                            if let Some(id) = match_item(&data, &tokens, category == "gunsmith") {
+                            if let Some(id) = match_item(&data, &tokens, scan_scope(category)) {
                                 let x0 = t.iter().map(|b| b.x).fold(f32::INFINITY, f32::min);
                                 let y0 = t.iter().map(|b| b.y).fold(f32::INFINITY, f32::min);
                                 let x1 = t
@@ -1978,7 +2130,7 @@ pub(crate) mod tests {
     ///
     /// The grid shows hand-authored *short* gun-part names, not the full catalog
     /// names the misc box/stash tiles show, so it needs the gun-part matcher
-    /// ([`crate::ocr::match_item`] with `gunsmith = true`), which matches each
+    /// ([`crate::ocr::match_item`] scoped to the `gunsmith` category), which matches each
     /// tile against the part's `scan_alias` (the storage short name from the
     /// game's `GunSmithItemAdv` table). This gate runs everywhere off the frozen
     /// `.boxes.json` (PP-OCRv4) and asserts the scan resolves a floor of distinct
@@ -2037,6 +2189,158 @@ pub(crate) mod tests {
         }
     }
 
+    /// Floor of distinct items the "Magazine & Attachments" box scan must
+    /// resolve from the frozen 2026-06-18 captures. The adaptive column split
+    /// ([`split_tiles`] / [`split_threshold`], #197) lifted this from ~2 — the
+    /// dense rarity-tab grid's long names fused whole rows into one unmatchable
+    /// blob — to 7, then the gunsmith-scoped magazine-blob re-split
+    /// ([`resplit_magazine_runs`]) + the dropped-`"magazine"`-suffix restore in
+    /// [`crate::ocr::match_item`] recovered AR-10 / MP5 / MP9 / PKP for **11/12**.
+    /// The floor is 10 (margin below 11) to absorb cross-machine regen variance.
+    /// Still a floor, not exact: it's a same-gaze gappy burst (not the stash's
+    /// row-by-row series), and the AR-15 STANAG tile OCRs to nothing recoverable
+    /// (needs a closer recapture). The box's items are gun parts, so it scans
+    /// with the gun-part matcher (`scan_scope` maps `magbox` to `gunsmith`).
+    const MAGBOX_GATE_MIN_DISTINCT: usize = 10;
+
+    /// Companion precision cap on over-counted / wrong-part tiles
+    /// (`Σ max(0, read − label)`), so the recall floor above can't hide an
+    /// alias/suffix precision regression (workflow finding). The current 8:
+    /// the gappy burst re-sees the SKS Puf across shots, the AKM appears twice,
+    /// and one genuine false tag — the **XM5 6.8x51mm magazine isn't in the
+    /// catalog yet**, so its (now-isolated) tile mis-resolves to the nearest
+    /// same-caliber magazine (`sa58`). Adding the XM5 magazine to `data.json`
+    /// would drop this to 7. The margin to 9 absorbs regen variance.
+    const MAGBOX_GATE_EXTRA_MAX: u32 = 9;
+
+    #[test]
+    fn magbox_scan_resolves_magazines() {
+        let shots = scan_shots("magbox");
+        let tally = run_box_scan("magbox", &shots);
+        assert!(
+            tally.len() >= MAGBOX_GATE_MIN_DISTINCT,
+            "magbox scan regressed: resolved {} distinct item(s) (floor {}); the \
+             dense rarity-tab grid must not re-fuse into row-wide blobs. Tally: {:?}",
+            tally.len(),
+            MAGBOX_GATE_MIN_DISTINCT,
+            tally.keys().collect::<std::collections::BTreeSet<_>>(),
+        );
+        // Spot-checks across the recovery paths: the four below sat in fused
+        // rows that the geometric split alone left blank (e.g. shot4 row 1 was
+        // one blob "EVO3…magazine EVO3…Drum magazine G18C…magazine G3…magazine"),
+        // and the next four were recovered by the gunsmith-scoped blob re-split
+        // (AR-10/MP5/MP9) + the dropped-"magazine"-suffix restore (PKP).
+        for id in [
+            "gunsmith_g18c_clip_30rnd",
+            "gunsmith_g3_clip_30",
+            "gunsmith_evo3_clip_drum",
+            "gunsmith_ak_clip_762ak55",
+            "gunsmith_ar10_clip_10",
+            "gunsmith_mp5_clip_30rnd",
+            "gunsmith_mp9_clip_15",
+            "gunsmith_pkp_clip_drum",
+        ] {
+            assert!(
+                tally.contains_key(id),
+                "magbox scan no longer resolves {id}; tally: {:?}",
+                tally.keys().collect::<std::collections::BTreeSet<_>>(),
+            );
+        }
+        // Precision cap: bound the extras so a looser matcher can't trade recall
+        // for wrong-part tags undetected behind the floor.
+        let score = score_scan("magbox", &shots, "magbox.label.txt");
+        assert!(
+            score.extra <= MAGBOX_GATE_EXTRA_MAX,
+            "magbox over-counts: {} extra tile(s) beyond the label (cap {}); a \
+             looser alias/suffix match is mis-tagging. Diffs: {:?}",
+            score.extra,
+            MAGBOX_GATE_EXTRA_MAX,
+            score
+                .diffs
+                .iter()
+                .map(|d| format!("{} {}/{}", d.item_id, d.read, d.label))
+                .collect::<Vec<_>>(),
+        );
+    }
+
+    /// [`split_threshold`] separates a dense grid's intra-name gaps from its
+    /// inter-column gaps without fragmenting a single multi-word name — the core
+    /// of the #197 column fix, checked directly (no engine, every platform).
+    #[test]
+    fn split_threshold_finds_the_column_valley() {
+        let h = 23.0;
+        // A dense magbox-style row: intra-name word gaps ~7–12, inter-column
+        // gaps ~19–33 — both below the legacy 1.5·h = 34.5 flat threshold.
+        let dense = [8.0, 8.0, 8.0, 19.0, 7.0, 7.0, 10.0, 12.0, 26.0, 33.0];
+        let t = split_threshold(&dense, h);
+        assert!(
+            (12.0..=19.0).contains(&t),
+            "threshold {t} should land in the 12–19 valley"
+        );
+        assert!(
+            dense.iter().filter(|&&g| g >= t).count() == 3,
+            "exactly the three inter-column gaps (19/26/33) should split"
+        );
+        // A single multi-word name: all gaps small + similar → no split (the
+        // threshold floors at 0.6·h, above every intra-name gap).
+        let one_name = [7.0, 8.0, 9.0, 8.0];
+        let tn = split_threshold(&one_name, h);
+        assert!(
+            one_name.iter().all(|&g| g < tn),
+            "a single name must not fragment (threshold {tn})"
+        );
+        // A wide-gutter row (misc/stash style): huge inter-column gaps, tiny
+        // intra gaps → splits exactly at the gutters, never inside a name.
+        let wide = [6.0, 90.0, 6.0, 6.0, 95.0, 6.0];
+        let tw = split_threshold(&wide, h);
+        assert!(
+            wide.iter().filter(|&&g| g >= tw).count() == 2,
+            "wide-gutter row should split only at its two gutters (threshold {tw})"
+        );
+        // Documented boundary (#197 review): the 0.6*med_h floor protects a name
+        // only when ALL its internal gaps are below it. A single name with one
+        // internal gap in [0.6*h, 1.5*h] (the lone "high" value) DOES currently
+        // fragment — Otsu returns it and the floor doesn't clamp it down. This
+        // asserts the *current* behavior so a future change here is conscious.
+        let one_wide = [6.0, 6.0, 15.0, 6.0]; // 15 = 0.65*h
+        let twb = split_threshold(&one_wide, h);
+        assert!(
+            one_wide.iter().filter(|&&g| g >= twb).count() == 1,
+            "a lone 0.65*h internal gap currently splits the name (threshold {twb})"
+        );
+    }
+
+    #[test]
+    fn ends_magazine_detects_the_anchor_word() {
+        assert!(ends_magazine("magazine"));
+        assert!(ends_magazine("Magazine,")); // trailing punctuation trimmed
+        assert!(ends_magazine("10rndmagazine")); // engine glued it to the count
+        assert!(!ends_magazine("magazin")); // OCR-truncated suffix
+        assert!(!ends_magazine("AK74"));
+    }
+
+    #[test]
+    fn resplit_magazine_runs_splits_only_fused_blobs() {
+        // A fused 3-magazine run (>=2 anchors) → 3 tiles, the last a truncated
+        // "magazin" trailing run after the final anchor.
+        let boxes = [
+            lb("XM5", 0.0, 0.0),
+            lb("magazine", 30.0, 0.0),
+            lb("MPS", 60.0, 0.0),
+            lb("magazine", 90.0, 0.0),
+            lb("MP9", 120.0, 0.0),
+            lb("magazin", 150.0, 0.0),
+        ];
+        let fused: Vec<&LabelBox> = boxes.iter().collect();
+        assert_eq!(resplit_magazine_runs(vec![fused]).len(), 3);
+        // A single magazine name (one anchor) is left whole.
+        let single: Vec<&LabelBox> = boxes[0..2].iter().collect();
+        assert_eq!(resplit_magazine_runs(vec![single]).len(), 1);
+        // No anchor at all → untouched.
+        let none: Vec<&LabelBox> = boxes[4..6].iter().collect();
+        assert_eq!(resplit_magazine_runs(vec![none]).len(), 1);
+    }
+
     /// Run a scan with the issue-#165 round union harvesting the scroll
     /// overlap between consecutive shots: each shot is fused with its
     /// successor as a synthetic 2-round burst before merging. The committed
@@ -2049,7 +2353,7 @@ pub(crate) mod tests {
             .iter()
             .map(|shot| {
                 let fx = BoxFixture::load(category, shot);
-                read_tiles(&fx.label_boxes(), fx.img_h, &data, category == "gunsmith")
+                read_tiles(&fx.label_boxes(), fx.img_h, &data, scan_scope(category))
             })
             .collect();
         let mut master: Vec<ScanRow> = Vec::new();
@@ -2503,7 +2807,7 @@ pub(crate) mod tests {
             // Weight readout (fixed chrome).
             lb("21.94", 600.0, 430.0),
         ];
-        let res = read_tiles(&boxes, 500.0, &data, false);
+        let res = read_tiles(&boxes, 500.0, &data, None);
         assert_eq!(
             res.tile_rows.concat(),
             vec![
@@ -2629,7 +2933,7 @@ pub(crate) mod tests {
             lb("Kalashnikov", 200.0, 120.0), // not in the vocab
             lb("Gunpowder", 360.0, 120.0),
         ];
-        let res = read_tiles(&boxes, 500.0, &data, false);
+        let res = read_tiles(&boxes, 500.0, &data, None);
         assert_eq!(
             res.tile_rows.concat(),
             vec![
@@ -2695,7 +2999,7 @@ pub(crate) mod tests {
             lb("Piezometer", 360.0, 120.0),
             lb("21.94", 600.0, 430.0),
         ];
-        let res = read_tiles(&boxes, 500.0, &data, false);
+        let res = read_tiles(&boxes, 500.0, &data, None);
         let kinds: Vec<RowKind> = res.rows.iter().map(|r| r.kind).collect();
         assert!(kinds.contains(&RowKind::Category), "tab strip → Category");
         assert!(kinds.contains(&RowKind::Names), "item row → Names");
@@ -2719,7 +3023,7 @@ pub(crate) mod tests {
             lb("Piezometer", 360.0, 120.0),
             lb("21.94", 600.0, 430.0),
         ];
-        let res = read_tiles(&boxes, 500.0, &data, false);
+        let res = read_tiles(&boxes, 500.0, &data, None);
         let mut master = Vec::new();
         let mut next_id = 0u64;
         let merge = merge_capture(&mut master, &mut next_id, &res.tile_rows);
@@ -2757,7 +3061,7 @@ pub(crate) mod tests {
             &[lb("Piezometer", 50.0, 120.0), lb("Gunpowder", 360.0, 120.0)],
             500.0,
             &data,
-            false,
+            None,
         );
         let r2 = read_tiles(
             &[
@@ -2768,7 +3072,7 @@ pub(crate) mod tests {
             ],
             500.0,
             &data,
-            false,
+            None,
         );
         let reads = vec![r1, r2];
         let per_round: Vec<Vec<RoundRow>> = reads.iter().map(round_rows).collect();

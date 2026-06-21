@@ -1,0 +1,26 @@
+# magbox — merged scan result vs the ground-truth label
+# (auto-generated; do not edit by hand — see screenshots/CLAUDE.md)
+#
+# The magbox grid spans several scroll shots; this is the merged tally of all
+# of them (regenerated from the frozen .boxes.json — no game), compared to
+# magbox.label.txt. Per-shot reads are in the sibling magbox.shotN.ocr-result.txt.
+#
+## SUMMARY
+  captured 11/12 label tile(s)  (1 missing, 8 extra)
+  exact match: NO — see the per-item breakdown below
+#
+## PER ITEM   (read = scan count, label = ground truth)
+# status  read/label  item_id
+  EXTRA      2/1      gunsmith_ak_clip_545pmag30
+  EXTRA      2/1      gunsmith_ak_clip_762ak55
+  OK         1/1      gunsmith_ar10_clip_10
+  MISSING    0/1      gunsmith_ar15_clip_arstanag30
+  OK         1/1      gunsmith_evo3_clip_30rounds
+  OK         1/1      gunsmith_evo3_clip_drum
+  OK         1/1      gunsmith_g18c_clip_30rnd
+  OK         1/1      gunsmith_g3_clip_30
+  OK         1/1      gunsmith_mp5_clip_30rnd
+  OK         1/1      gunsmith_mp9_clip_15
+  OK         1/1      gunsmith_pkp_clip_drum
+  EXTRA      1/0      gunsmith_sa58_clip_30rnd
+  EXTRA      6/1      gunsmith_sks_clip_puf20

@@ -1,0 +1,40 @@
+# magbox — the in-game "MAGAZINE & ATTACHMENTS ONLY" world container, ground truth.
+# Captured 2026-06-18 (weight strip 8.45 / 12). A 6-shot gaze-crop burst, all at
+# the SAME gaze (identical crop center) over the box's MAGAZINE rows — a partial,
+# dedup-sensitive view, NOT a row-by-row gap-free capture and NOT the box's full
+# contents: its ATTACHMENT half (sights / grips / suppressors / lasers) is not in
+# these frames. Like gunsmith/, this is a presence snapshot — <count> is 1 = "this
+# magazine is visible in the series", not a true copy-count (the SKS Puf alone
+# fills many tiles).
+#
+# Gated at a FLOOR + precision cap (magbox_scan_resolves_magazines, ≥10 distinct,
+# ≤9 extra). Two #197 passes fixed the dense rarity-tab grid, which used to fuse a
+# whole row into one unmatchable blob ("AK74 … AKM AKS5 … AR-10 …"): the Otsu gap
+# split (split_tiles) plus a gunsmith-scoped re-split of the residual fused rows at
+# their "magazine"-word anchors (resplit_magazine_runs) + a dropped-"magazine"-
+# suffix restore in match_item. The scan now resolves 11/12. The ONLY remaining
+# miss is the AR-15 STANAG tile, which OCRs to nothing recoverable from these
+# same-gaze frames — it needs a closer recapture.
+#
+# Catalog gap (now also a 1-tile false positive): the "XM5 6.8x51mm 30rnd
+# magazine" tile has no data.json entry (only XM5 barrel/rifle/upper/stock exist),
+# so once the re-split isolates it, it mis-resolves to the nearest same-caliber
+# magazine (sa58). Adding the XM5 magazine to data.json fixes it; the ≤9 extra cap
+# bounds it meanwhile.
+#
+# All of these are gunsmith *_clip_* catalog items; the box-scan resolves them
+# via the gunsmith short-name matcher (magazines already match by name).
+#
+# <item_id>  <count>
+gunsmith_ar15_clip_arstanag30  1
+gunsmith_evo3_clip_30rounds  1
+gunsmith_evo3_clip_drum  1
+gunsmith_g18c_clip_30rnd  1
+gunsmith_g3_clip_30  1
+gunsmith_mp5_clip_30rnd  1
+gunsmith_mp9_clip_15  1
+gunsmith_pkp_clip_drum  1
+gunsmith_sks_clip_puf20  1
+gunsmith_ak_clip_545pmag30  1
+gunsmith_ak_clip_762ak55  1
+gunsmith_ar10_clip_10  1

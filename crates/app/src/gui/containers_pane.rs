@@ -54,14 +54,26 @@ const DEFAULT_CONTAINER_ICON: &str = "backpack_3drt";
 /// Fixed icon for the pinned primary Stash row.
 const STASH_ICON: &str = "stash";
 
-/// Case icons offered when the container's type is `Case`. Only the two
-/// Collection Boxes are listed: they're the boxes that store MISC items —
-/// whereas the other in-game boxes (mag/attachment, medical, paint) hold
-/// categories the tracker doesn't model, and the Gunsmith → Storage is the
+/// Case icons offered when the container's type is `Case` — one per in-game box
+/// whose contents the tracker actually models. The two Collection Boxes store
+/// MISC items; the **Medical** box (medical catalog, #193) and the **Magazine &
+/// Attachments** box (gun parts — magazines scan by name, #197) were added once
+/// their categories became modeled. Still excluded: the **Paint** box
+/// (unmodeled — nothing to track), and the Gunsmith → Storage, which is the
 /// *built-in* primary container (seeded with its own `box_gunsmith` icon, not
-/// user-created). Generated flat-3D crate art (upstream has no images for
-/// these). Order here is the picker-grid order.
-const CASE_ICONS: &[&str] = &["box_collection", "box_collection_small"];
+/// user-created). Icon provenance: all four are the **real in-game box icons**
+/// extracted from the paks (`Icon_Mini_Junk_Box{,2}`, `Medical_Box`,
+/// `Magazine_Box` — the merchant-shop textures under `Warfare/UI/ItemIcons/box/`,
+/// rasterized with `fontx tex2png`). Only `box_gunsmith` is a generated
+/// silhouette: the gun-parts storage is a placed 3D world mesh
+/// (`GunSmithContainerStorageComp`) with no 2D icon. Order here is the
+/// picker-grid order.
+const CASE_ICONS: &[&str] = &[
+    "box_collection",
+    "box_collection_small",
+    "box_medical",
+    "box_magattach",
+];
 /// Default icon for a newly-created Case container.
 const DEFAULT_CASE_ICON: &str = "box_collection";
 
@@ -88,13 +100,35 @@ fn icon_set_for(kind: ContainerKind) -> &'static [&'static str] {
     }
 }
 
+/// The catalog item category a Case is locked to, derived from its chosen box
+/// icon — each Case icon is an in-game box that stores exactly one item type
+/// (Collection → `misc`, Medical → `medical`, Mag & Attach / Gunsmith storage →
+/// `gunsmith`). Bags, shelves, and an unrecognized icon carry no category
+/// (`None` → the scan matches the whole catalog, the pre-category behaviour).
+/// Single source the create/edit modal uses to scope a case's scan + picker.
+fn case_category(kind: ContainerKind, icon: &str) -> Option<String> {
+    if kind != ContainerKind::Case {
+        return None;
+    }
+    let cat = match icon {
+        "box_collection" | "box_collection_small" => "misc",
+        "box_medical" => "medical",
+        "box_magattach" | "box_gunsmith" => "gunsmith",
+        _ => return None,
+    };
+    Some(cat.to_string())
+}
+
 /// Short display name for an icon key, shown under each tile in the picker so
 /// the user can tell them apart. Case names match the in-game boxes.
 fn icon_label(key: &str) -> &'static str {
     match key {
-        // Cases (the two MISC-storing Collection Boxes + the gun-parts storage).
+        // Cases (the MISC Collection Boxes, Medical + Mag/Attachments boxes,
+        // and the built-in gun-parts storage).
         "box_collection" => "Collection",
         "box_collection_small" => "Collection small",
+        "box_medical" => "Medical",
+        "box_magattach" => "Mag & Attach",
         "box_gunsmith" => "Gunsmith storage",
         // Shelf.
         "shelf_basic" => "Shelf",
@@ -637,6 +671,9 @@ fn new_container_modal(
     if do_create && !name.trim().is_empty() {
         let trimmed = name.trim().to_string();
         let capacity = (cap_kg > 0.0).then_some(cap_kg);
+        // The chosen case icon *is* the box type, so it fixes the item category
+        // the case is locked to (scopes its scan + add-item picker).
+        let category = case_category(kind, &chosen_icon);
         match &edit_id {
             Some(id) => {
                 // Edit mode: write back to the existing container.
@@ -645,6 +682,7 @@ fn new_container_modal(
                 w.set_container_icon(id, Some(chosen_icon));
                 w.set_container_kind(id, kind);
                 w.set_container_capacity(id, capacity);
+                w.set_container_category(id, category);
             }
             None => {
                 let id = state.write().create_container(trimmed);
@@ -652,6 +690,7 @@ fn new_container_modal(
                 w.set_container_icon(&id, Some(chosen_icon));
                 w.set_container_kind(&id, kind);
                 w.set_container_capacity(&id, capacity);
+                w.set_container_category(&id, category);
             }
         }
         notify(state, save_tx);
@@ -1383,6 +1422,17 @@ fn item_picker_modal(
             }
         },
     };
+    // A category-locked case offers only items of its category; the stash and a
+    // generic/legacy case (category `None`) offer the whole catalog.
+    let picker_category: Option<String> = match &active {
+        Target::Stash => None,
+        Target::Container(id) => state
+            .read()
+            .containers
+            .iter()
+            .find(|c| &c.id == id)
+            .and_then(|c| c.category.clone()),
+    };
 
     let mut open = true;
     let mut filter = picker_filter(ctx);
@@ -1426,7 +1476,7 @@ fn item_picker_modal(
                 .floor()
                 .max(1.0) as usize;
 
-            let items = collect_filtered_items(state, &filter);
+            let items = collect_filtered_items(state, &filter, picker_category.as_deref());
             if items.is_empty() {
                 ui.add_space(20.0);
                 ui.vertical_centered(|ui| {
@@ -2104,6 +2154,40 @@ mod tests {
     use crate::gui::theme::contrast::contrast_ratio;
     use egui_kittest::kittest::Queryable;
     use egui_kittest::Harness;
+
+    #[test]
+    fn case_category_maps_each_box_icon_to_its_scope() {
+        // The chosen case icon IS the box type, so it fixes the item category the
+        // scan + picker scope to. These literals must line up with the OCR gate's
+        // `box_scan::tests::scan_scope` and the runtime `ScanTarget` derivation in
+        // `main.rs` (three hand-maps that must not drift): a typo here (e.g.
+        // box_medical -> "gunsmith") would silently mis-scope every medical scan,
+        // and the medical box has no fixture/gate to catch it.
+        assert_eq!(
+            case_category(ContainerKind::Case, "box_collection").as_deref(),
+            Some("misc")
+        );
+        assert_eq!(
+            case_category(ContainerKind::Case, "box_collection_small").as_deref(),
+            Some("misc")
+        );
+        assert_eq!(
+            case_category(ContainerKind::Case, "box_medical").as_deref(),
+            Some("medical")
+        );
+        assert_eq!(
+            case_category(ContainerKind::Case, "box_magattach").as_deref(),
+            Some("gunsmith")
+        );
+        assert_eq!(
+            case_category(ContainerKind::Case, "box_gunsmith").as_deref(),
+            Some("gunsmith")
+        );
+        // Bags/shelves and an unrecognized icon carry no category (match-all).
+        assert_eq!(case_category(ContainerKind::Bag, "box_collection"), None);
+        assert_eq!(case_category(ContainerKind::Shelf, "box_medical"), None);
+        assert_eq!(case_category(ContainerKind::Case, "backpack_3drt"), None);
+    }
 
     /// Minimal game data: the pane only consults the item catalog to sum KPI
     /// weight/value, so an empty catalog (and no hideout modules) is enough to

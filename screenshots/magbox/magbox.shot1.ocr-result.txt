@@ -1,0 +1,43 @@
+# magbox.shot1 — what the OCR read in this one screenshot
+# (auto-generated; do not edit by hand — see screenshots/CLAUDE.md)
+#
+# This is ONE scroll shot of the magbox grid. The grid is taller than the
+# screen, so the full contents come from merging every shot — that merged
+# result, scored against the label, lives in magbox.ocr-result.txt. This file
+# just shows what the OCR pulled out of this single frame, regenerated from
+# the frozen magbox.shot1.boxes.json (so it never runs the game).
+#
+## SUMMARY
+  recognized 3 item tile(s) across 2 grid row(s)
+  dropped 5 text(s) that matched no catalog item (window title, weight
+    readout, category tabs/subtitles — i.e. screen chrome, not items)
+#
+  items found in this frame:
+    1 x gunsmith_ak_clip_545pmag30
+    1 x gunsmith_ak_clip_762ak55
+    1 x gunsmith_ar10_clip_10
+#
+## DETAIL — every text the OCR produced, row by row
+#   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
+#   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
+  [chrome]
+    MAGAZINE & ATTACHMENTS         -> (no match)
+    ONLY                           -> (no match)
+  [chrome]
+    ALL                            -> (no match)
+    UNUSUAL                        -> (no match)
+    RARE                           -> (no match)
+    LEGENDARY                      -> (no match)
+    COMMON                         -> (no match)
+  [items ]
+    AK74 P-Mag 5.45x39mm 30rnd ma  -> gunsmith_ak_clip_545pmag30
+    AKMAK557.62x38mm               -> (no match)
+    KMAK557.62x39                  -> (no match)
+    magazin                        -> (no match)
+    KMAKE                          -> (no match)
+  [items ]
+    AKMAK557.BRx39mm30rnd magazine -> gunsmith_ak_clip_762ak55
+    AR-107.62x51mm10rndmagazine    -> gunsmith_ar10_clip_10
+    AR-107.62x51m                  -> (no match)
+  [chrome]
+    8.45/12                        -> (no match)

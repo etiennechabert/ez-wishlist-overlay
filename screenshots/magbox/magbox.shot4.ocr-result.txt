@@ -1,0 +1,51 @@
+# magbox.shot4 — what the OCR read in this one screenshot
+# (auto-generated; do not edit by hand — see screenshots/CLAUDE.md)
+#
+# This is ONE scroll shot of the magbox grid. The grid is taller than the
+# screen, so the full contents come from merging every shot — that merged
+# result, scored against the label, lives in magbox.ocr-result.txt. This file
+# just shows what the OCR pulled out of this single frame, regenerated from
+# the frozen magbox.shot4.boxes.json (so it never runs the game).
+#
+## SUMMARY
+  recognized 13 item tile(s) across 3 grid row(s)
+  dropped 0 text(s) that matched no catalog item (window title, weight
+    readout, category tabs/subtitles — i.e. screen chrome, not items)
+#
+  items found in this frame:
+    1 x gunsmith_evo3_clip_30rounds
+    1 x gunsmith_evo3_clip_drum
+    1 x gunsmith_g18c_clip_30rnd
+    1 x gunsmith_g3_clip_30
+    1 x gunsmith_mp5_clip_30rnd
+    1 x gunsmith_mp9_clip_15
+    1 x gunsmith_sa58_clip_30rnd
+    6 x gunsmith_sks_clip_puf20
+#
+## DETAIL — every text the OCR produced, row by row
+#   "-> id" resolved to that catalog item;  "-> (no match)" was dropped.
+#   Rows tagged [items] are kept; [tabs]/[chrome] rows are dropped as UI.
+  [chrome]
+    ALL                            -> (no match)
+    UNUSUAL                        -> (no match)
+    RARE                           -> (no match)
+    LEGENDARY                      -> (no match)
+    COMMON                         -> (no match)
+  [items ]
+    EV039x19mm 30rnd magazine      -> gunsmith_evo3_clip_30rounds
+    EV03 9x1.9mm 50rnd Orum magazine -> gunsmith_evo3_clip_drum
+    G18C 9x19mm 30rnd magazine     -> gunsmith_g18c_clip_30rnd
+    G3 7.62x51mm 30rnd magazine    -> gunsmith_g3_clip_30
+  [items ]
+    XM5 6.8x51mm 30rnd magazine    -> gunsmith_sa58_clip_30rnd
+    MPS 9x19mm 30rnd magazine      -> gunsmith_mp5_clip_30rnd
+    MP9 9x19mm 15rnd magazin       -> gunsmith_mp9_clip_15
+    SKS 7.62x39mm 20rnd Puf magazine -> gunsmith_sks_clip_puf20
+  [items ]
+    SKS 7.62x39mm 20rnd Puf magazine -> gunsmith_sks_clip_puf20
+    SKS 7.62x39mm 20nd Puf magazine -> gunsmith_sks_clip_puf20
+    SKS 7.82x39mm 20rnd Puf magazine -> gunsmith_sks_clip_puf20
+    SKS7.62x39mm 20rnd Puf magazine -> gunsmith_sks_clip_puf20
+    SKS 7.62x39mm 20rnd Puf magazine -> gunsmith_sks_clip_puf20
+  [chrome]
+    8.45/12                        -> (no match)
